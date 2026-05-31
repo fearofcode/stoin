@@ -1,5 +1,5 @@
-#ifndef STOIN_STENO_H
-#define STOIN_STENO_H
+#ifndef STENO_H
+#define STENO_H
 
 #include "platform.h"
 
@@ -7,25 +7,34 @@
 #include <stddef.h>
 #include <stdint.h>
 
-typedef struct Stoin_Steno Stoin_Steno;
+typedef struct Steno Steno;
 
-typedef bool (*Stoin_Steno_Send_Text_Fn)(const char *utf8, void *userdata);
+typedef bool (*Send_Text_Fn)(const char *utf8, void *userdata);
 
-typedef struct Stoin_Steno_Config {
+typedef enum Spacing_Mode {
+    SPACING_MODE_AFTER_WORD,
+} Spacing_Mode;
+
+typedef struct Spacing_State {
+    Spacing_Mode mode;
+    char spacing_char;
+} Spacing_State;
+
+typedef struct Steno_Config {
     const char *keymap_path;
     const char *dictionary_path;
-    Stoin_Steno_Send_Text_Fn send_text;
+    Send_Text_Fn send_text;
     void *send_userdata;
-} Stoin_Steno_Config;
+} Steno_Config;
 
-Stoin_Steno *stoin_steno_create(const Stoin_Steno_Config *config);
-void stoin_steno_destroy(Stoin_Steno *steno);
+Steno *steno_create(const Steno_Config *config);
+void steno_destroy(Steno *steno);
 
-bool stoin_steno_handle_event(Stoin_Steno *steno, const Stoin_Input_Event *event);
-size_t stoin_steno_key_binding_count(const Stoin_Steno *steno);
-size_t stoin_steno_dictionary_count(const Stoin_Steno *steno);
-bool stoin_steno_lookup_stroke(const Stoin_Steno *steno, const char *stroke, const char **out_translation);
-bool stoin_steno_dump_dictionary_json(const Stoin_Steno *steno, const char *path);
-bool stoin_steno_run_self_test(const Stoin_Steno_Config *config);
+bool steno_handle_event(Steno *steno, const Input_Event *event);
+size_t steno_key_binding_count(const Steno *steno);
+size_t steno_dictionary_count(const Steno *steno);
+bool steno_lookup_stroke(const Steno *steno, const char *stroke, const char **out_translation);
+bool steno_dump_dictionary_json(const Steno *steno, const char *path);
+bool steno_run_self_test(const Steno_Config *config);
 
 #endif

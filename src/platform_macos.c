@@ -9,16 +9,16 @@
 
 #define STOIN_GENERATED_EVENT_USER_DATA 0x73746f696eULL
 
-typedef struct Stoin_Mac_State {
+typedef struct Mac_State {
     CFMachPortRef tap;
     CFRunLoopSourceRef run_loop_source;
     CFRunLoopRef run_loop;
     CGEventSourceRef output_source;
-    Stoin_Handle_Input_Fn handler;
+    Handle_Input_Fn handler;
     void *userdata;
-} Stoin_Mac_State;
+} Mac_State;
 
-static Stoin_Mac_State g_macos;
+static Mac_State g_macos;
 
 static char keycode_to_us_qwerty_printable(CGKeyCode keycode)
 {
@@ -75,7 +75,7 @@ static char keycode_to_us_qwerty_printable(CGKeyCode keycode)
     }
 }
 
-bool stoin_platform_keycode_from_name(const char *name, uint16_t *out_keycode)
+bool platform_keycode_from_name(const char *name, uint16_t *out_keycode)
 {
     if (name == NULL || out_keycode == NULL) {
         return false;
@@ -249,7 +249,7 @@ static CGEventRef keyboard_tap_callback(CGEventTapProxy proxy, CGEventType type,
         }
     }
 
-    Stoin_Input_Event input = {
+    Input_Event input = {
         .keycode = keycode,
         .is_down = is_down,
         .is_repeat = repeat != 0,
@@ -267,7 +267,7 @@ static CGEventRef keyboard_tap_callback(CGEventTapProxy proxy, CGEventType type,
     return event;
 }
 
-bool stoin_platform_init(Stoin_Handle_Input_Fn handler, void *userdata)
+bool platform_init(Handle_Input_Fn handler, void *userdata)
 {
     g_macos.handler = handler;
     g_macos.userdata = userdata;
@@ -297,14 +297,14 @@ bool stoin_platform_init(Stoin_Handle_Input_Fn handler, void *userdata)
     if (g_macos.tap == NULL) {
         fputs("stoin: failed to create keyboard event tap\n", stderr);
         fputs("stoin: confirm Accessibility permission, then restart the executable\n", stderr);
-        stoin_platform_shutdown();
+        platform_shutdown();
         return false;
     }
 
     g_macos.run_loop_source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, g_macos.tap, 0);
     if (g_macos.run_loop_source == NULL) {
         fputs("stoin: failed to create run loop source for event tap\n", stderr);
-        stoin_platform_shutdown();
+        platform_shutdown();
         return false;
     }
 
@@ -315,12 +315,12 @@ bool stoin_platform_init(Stoin_Handle_Input_Fn handler, void *userdata)
     return true;
 }
 
-void stoin_platform_run(void)
+void platform_run(void)
 {
     CFRunLoopRun();
 }
 
-void stoin_platform_shutdown(void)
+void platform_shutdown(void)
 {
     if (g_macos.tap != NULL) {
         CGEventTapEnable(g_macos.tap, false);
@@ -356,7 +356,7 @@ void stoin_platform_shutdown(void)
     g_macos.userdata = NULL;
 }
 
-bool stoin_platform_send_text_utf8(const char *utf8)
+bool platform_send_text_utf8(const char *utf8)
 {
     if (utf8 == NULL) {
         return false;

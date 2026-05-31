@@ -10,6 +10,12 @@ x K
 c W
 v R
 
+// Star bank.
+g *
+b *
+h *
+n *
+
 // Thumb bank.
 space A
 backspace O

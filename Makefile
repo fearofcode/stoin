@@ -3,7 +3,14 @@ CFLAGS := -std=c11 -Wall -Wextra -Wpedantic -g
 LDFLAGS := -framework ApplicationServices -framework CoreFoundation
 
 TARGET := build/stoin
-SOURCES := src/main.c src/platform_macos.c src/steno.c src/stb_ds_impl.c
+SOURCES := \
+	src/main.c \
+	src/dictionary.c \
+	src/platform_macos.c \
+	src/steno.c \
+	src/steno_stroke.c \
+	src/stb_ds_impl.c \
+	src/util.c
 OBJECTS := $(SOURCES:src/%.c=build/%.o)
 
 .PHONY: all clean run
@@ -16,7 +23,7 @@ $(TARGET): $(OBJECTS) | build
 build:
 	mkdir -p $@
 
-build/%.o: src/%.c src/platform.h src/steno.h | build
+build/%.o: src/%.c src/*.h | build
 	$(CC) $(CFLAGS) -c $< -o $@
 
 run: $(TARGET)
