@@ -1,0 +1,29 @@
+// Physical key to steno key. Right-hand steno keys use a leading dash.
+//
+// Left hand: ASDF / ZXCV -> #TPH / SKWR
+a #
+s T
+d P
+f H
+z S
+x K
+c W
+v R
+
+// Thumb bank.
+space A
+backspace O
+tab E
+enter U
+
+// Right hand: JKL;' / M,./ Right Shift -> FPLTD / RBGSZ
+j -F
+k -P
+l -L
+semicolon -T
+apostrophe -D
+m -R
+comma -B
+period -G
+slash -S
+right_shift -Z
