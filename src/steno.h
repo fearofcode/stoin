@@ -35,6 +35,5 @@ size_t steno_key_binding_count(const Steno *steno);
 size_t steno_dictionary_count(const Steno *steno);
 bool steno_lookup_stroke(const Steno *steno, const char *stroke, const char **out_translation);
 bool steno_dump_dictionary_json(const Steno *steno, const char *path);
-bool steno_run_self_test(const Steno_Config *config);
 
 #endif

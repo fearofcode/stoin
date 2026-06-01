@@ -3,22 +3,26 @@ CFLAGS := -std=c11 -Wall -Wextra -Wpedantic -g
 LDFLAGS := -framework ApplicationServices -framework CoreFoundation
 
 TARGET := build/stoin
-SOURCES := \
-	src/main.c \
-	src/dictionary.c \
-	src/platform_macos.c \
-	src/steno.c \
-	src/steno_stroke.c \
-	src/stb_ds_impl.c \
-	src/util.c
-OBJECTS := $(SOURCES:src/%.c=build/%.o)
+TEST_TARGET := build/test_steno
+CORE_OBJECTS := \
+	build/dictionary.o \
+	build/platform_macos.o \
+	build/steno.o \
+	build/steno_stroke.o \
+	build/stb_ds_impl.o \
+	build/util.o
+APP_OBJECTS := build/main.o $(CORE_OBJECTS)
+TEST_OBJECTS := build/test_steno.o $(CORE_OBJECTS)
 
-.PHONY: all clean run
+.PHONY: all clean run test
 
 all: $(TARGET)
 
-$(TARGET): $(OBJECTS) | build
-	$(CC) $(CFLAGS) $(OBJECTS) $(LDFLAGS) -o $@
+$(TARGET): $(APP_OBJECTS) | build
+	$(CC) $(CFLAGS) $(APP_OBJECTS) $(LDFLAGS) -o $@
+
+$(TEST_TARGET): $(TEST_OBJECTS) | build
+	$(CC) $(CFLAGS) $(TEST_OBJECTS) $(LDFLAGS) -o $@
 
 build:
 	mkdir -p $@
@@ -26,8 +30,14 @@ build:
 build/%.o: src/%.c src/*.h | build
 	$(CC) $(CFLAGS) -c $< -o $@
 
+build/%.o: tests/%.c src/*.h | build
+	$(CC) $(CFLAGS) -I src -c $< -o $@
+
 run: $(TARGET)
 	./$(TARGET)
+
+test: $(TEST_TARGET)
+	./$(TEST_TARGET)
 
 clean:
 	rm -rf build

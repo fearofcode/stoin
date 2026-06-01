@@ -29,15 +29,6 @@ int main(int argc, char **argv)
         .send_userdata = NULL,
     };
 
-    if (argc == 2 && strcmp(argv[1], "--test") == 0) {
-        if (!steno_run_self_test(&steno_config)) {
-            fprintf(stderr, "stoin: self-test failed\n");
-            return 1;
-        }
-        puts("stoin: self-test passed");
-        return 0;
-    }
-
     App app = {
         .steno = steno_create(&steno_config),
     };
@@ -66,6 +57,12 @@ int main(int argc, char **argv)
         printf("stoin: wrote %zu entries to %s\n", steno_dictionary_count(app.steno), path);
         steno_destroy(app.steno);
         return 0;
+    }
+
+    if (argc != 1) {
+        fputs("usage: stoin [--lookup STROKE] [--dump-dictionary [PATH]]\n", stderr);
+        steno_destroy(app.steno);
+        return 1;
     }
 
     if (!platform_init(handle_input, &app)) {
