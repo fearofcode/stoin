@@ -1,18 +1,25 @@
-// Physical key to steno key. Right-hand steno keys use a leading dash.
+// Physical key to steno key or steno chord fragment.
+// Right-hand steno keys use a leading dash when needed to avoid ambiguity.
 //
-// Left hand: ASDF / ZXCV -> #TPH / SKWR
-a #
-s T
-d P
-f H
-z S
-x K
-c W
-v R
+// Left hand: QWER / ASDF / ZXCV -> #TPH / SKWR / #S TK PW HR
+q #
+w T
+e P
+r H
+a S
+s K
+d W
+f R
+z #S
+x TK
+c PW
+v HR
 
 // Star bank.
+t *
 g *
 b *
+y *
 h *
 n *
 
@@ -22,14 +29,19 @@ backspace O
 tab E
 enter U
 
-// Right hand: JKL;' / M,./ Right Shift -> FPLTD / RBGSZ
-j -F
-k -P
-l -L
-semicolon -T
-apostrophe -D
-m -R
-comma -B
-period -G
-slash -S
-right_shift -Z
+// Right hand: UIOP\ / JKL;' / M,./ Right Shift -> FPLTD / RBGSZ / FR PB LG TS DZ
+u -F
+i -P
+o -L
+p -T
+backslash -D
+j -R
+k -B
+l -G
+semicolon -S
+apostrophe -Z
+m -FR
+comma -PB
+period -LG
+slash -TS
+right_shift -DZ

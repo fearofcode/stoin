@@ -153,40 +153,43 @@ int main(void)
     ok = ok && expect_string("dictionary lookup -R", undo, "=undo");
 
     clear_test_output(&output);
+    ok = ok && send_key_event(steno, "u", true);
+    ok = ok && send_key_event(steno, "u", false);
+    ok = ok && expect_string("first undoable translation", output.text, "fee ");
+    ok = ok && send_key_event(steno, "i", true);
+    ok = ok && send_key_event(steno, "i", false);
+    ok = ok && expect_string("second undoable translation", output.text, "fee pay ");
     ok = ok && send_key_event(steno, "j", true);
     ok = ok && send_key_event(steno, "j", false);
-    ok = ok && expect_string("first undoable translation", output.text, "fee ");
-    ok = ok && send_key_event(steno, "k", true);
-    ok = ok && send_key_event(steno, "k", false);
-    ok = ok && expect_string("second undoable translation", output.text, "fee pay ");
-    ok = ok && send_key_event(steno, "m", true);
-    ok = ok && send_key_event(steno, "m", false);
     ok = ok && expect_string("one level undo", output.text, "fee ");
-    ok = ok && send_key_event(steno, "m", true);
-    ok = ok && send_key_event(steno, "m", false);
+    ok = ok && send_key_event(steno, "j", true);
+    ok = ok && send_key_event(steno, "j", false);
     ok = ok && expect_string("two level undo", output.text, "");
-    ok = ok && send_key_event(steno, "m", true);
-    ok = ok && send_key_event(steno, "m", false);
+    ok = ok && send_key_event(steno, "j", true);
+    ok = ok && send_key_event(steno, "j", false);
     ok = ok && expect_string("empty undo stack", output.text, "");
 
     clear_test_output(&output);
-    ok = ok && send_key_event(steno, "f", true);
-    ok = ok && send_key_event(steno, "j", true);
-    ok = ok && send_key_event(steno, "f", false);
-    ok = ok && send_key_event(steno, "j", false);
+    ok = ok && send_key_event(steno, "r", true);
+    ok = ok && send_key_event(steno, "u", true);
+    ok = ok && send_key_event(steno, "r", false);
+    ok = ok && send_key_event(steno, "u", false);
     ok = ok && expect_string("unicode undoable translation", output.text, "caffè ");
-    ok = ok && send_key_event(steno, "m", true);
-    ok = ok && send_key_event(steno, "m", false);
+    ok = ok && send_key_event(steno, "j", true);
+    ok = ok && send_key_event(steno, "j", false);
     ok = ok && expect_string("unicode undo", output.text, "");
 
-    ok = ok && send_key_event(steno, "a", true);
-    ok = ok && send_key_event(steno, "a", false);
+    ok = ok && send_key_event(steno, "q", true);
+    ok = ok && send_key_event(steno, "q", false);
     ok = ok && expect_string("raw # chord", output.text, "# ");
 
-    clear_test_output(&output);
-    ok = ok && send_key_event(steno, "g", true);
-    ok = ok && send_key_event(steno, "g", false);
-    ok = ok && expect_string("star key mapping", output.text, "* ");
+    const char *star_keys[] = { "t", "g", "b", "y", "h", "n" };
+    for (size_t i = 0; i < sizeof(star_keys) / sizeof(star_keys[0]); ++i) {
+        clear_test_output(&output);
+        ok = ok && send_key_event(steno, star_keys[i], true);
+        ok = ok && send_key_event(steno, star_keys[i], false);
+        ok = ok && expect_string("star key mapping", output.text, "* ");
+    }
 
     Steno_Config empty_config = config;
     empty_config.dictionary_path = "tests/empty-dictionary.json";
@@ -194,17 +197,32 @@ int main(void)
     ok = ok && empty_steno != NULL;
     if (empty_steno != NULL) {
         clear_test_output(&output);
-        ok = ok && send_key_event(empty_steno, "j", true);
-        ok = ok && send_key_event(empty_steno, "j", false);
+        ok = ok && send_key_event(empty_steno, "u", true);
+        ok = ok && send_key_event(empty_steno, "u", false);
         ok = ok && expect_string("empty dictionary raw chord", output.text, "F ");
 
         clear_test_output(&output);
         ok = ok && send_key_event(empty_steno, "z", true);
-        ok = ok && send_key_event(empty_steno, "space", true);
-        ok = ok && send_key_event(empty_steno, "k", true);
         ok = ok && send_key_event(empty_steno, "z", false);
+        ok = ok && expect_string("left multi-bit key", output.text, "#S ");
+
+        clear_test_output(&output);
+        ok = ok && send_key_event(empty_steno, "m", true);
+        ok = ok && send_key_event(empty_steno, "m", false);
+        ok = ok && expect_string("right multi-bit key implicit hyphen", output.text, "FR ");
+
+        clear_test_output(&output);
+        ok = ok && send_key_event(empty_steno, "comma", true);
+        ok = ok && send_key_event(empty_steno, "comma", false);
+        ok = ok && expect_string("right multi-bit key explicit hyphen", output.text, "-PB ");
+
+        clear_test_output(&output);
+        ok = ok && send_key_event(empty_steno, "a", true);
+        ok = ok && send_key_event(empty_steno, "space", true);
+        ok = ok && send_key_event(empty_steno, "i", true);
+        ok = ok && send_key_event(empty_steno, "a", false);
         ok = ok && send_key_event(empty_steno, "space", false);
-        ok = ok && send_key_event(empty_steno, "k", false);
+        ok = ok && send_key_event(empty_steno, "i", false);
         ok = ok && expect_string("empty dictionary raw drill chord", output.text, "SAP ");
         steno_destroy(empty_steno);
     }

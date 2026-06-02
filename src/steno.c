@@ -14,7 +14,7 @@
 
 typedef struct Key_Binding {
     uint16_t keycode;
-    uint64_t bit;
+    uint64_t bits;
 } Key_Binding;
 
 typedef struct Emitted_Text {
@@ -65,29 +65,29 @@ static bool load_keymap(Steno *steno, const char *path)
         }
 
         char key_name[64] = {0};
-        char steno_name[16] = {0};
-        if (sscanf(line, "%63s %15s", key_name, steno_name) != 2) {
+        char steno_name[32] = {0};
+        if (sscanf(line, "%63s %31s", key_name, steno_name) != 2) {
             fprintf(stderr, "stoin: invalid keymap line %d: %s\n", line_number, line);
             free(file);
             return false;
         }
 
         uint16_t keycode = 0;
-        uint64_t bit = 0;
+        uint64_t bits = 0;
         if (!platform_keycode_from_name(key_name, &keycode)) {
             fprintf(stderr, "stoin: unknown key name on keymap line %d: %s\n", line_number, key_name);
             free(file);
             return false;
         }
-        if (!steno_token_to_bit(steno_name, &bit)) {
-            fprintf(stderr, "stoin: unknown steno key on keymap line %d: %s\n", line_number, steno_name);
+        if (!stroke_string_to_bits(steno_name, &bits)) {
+            fprintf(stderr, "stoin: invalid steno stroke on keymap line %d: %s\n", line_number, steno_name);
             free(file);
             return false;
         }
 
         Key_Binding binding = {
             .keycode = keycode,
-            .bit = bit,
+            .bits = bits,
         };
         arrput(steno->bindings, binding);
         ++line_number;
@@ -268,7 +268,7 @@ bool steno_handle_event(Steno *steno, const Input_Event *event)
     if (event->is_down) {
         if ((steno->down_keycodes & physical_bit) == 0 && !event->is_repeat) {
             steno->down_keycodes |= physical_bit;
-            steno->chord_bits |= binding->bit;
+            steno->chord_bits |= binding->bits;
         }
         return true;
     }

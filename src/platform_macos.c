@@ -153,6 +153,8 @@ bool platform_keycode_from_name(const char *name, uint16_t *out_keycode)
         *out_keycode = 47;
     } else if (strcmp(name, "slash") == 0) {
         *out_keycode = 44;
+    } else if (strcmp(name, "backslash") == 0) {
+        *out_keycode = 42;
     } else if (strcmp(name, "right_shift") == 0) {
         *out_keycode = 60;
     } else if (strcmp(name, "left_shift") == 0) {
