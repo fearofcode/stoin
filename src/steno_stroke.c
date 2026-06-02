@@ -238,11 +238,35 @@ bool chord_bits_to_string(uint64_t bits, char *out, size_t out_size)
     }
 
     if ((bits & right_bits) != 0) {
+        char right_labels[16] = {0};
+        size_t right_index = 0;
+        for (size_t i = 0; i < sizeof(right) / sizeof(right[0]); ++i) {
+            if ((bits & right[i].bit) != 0 && !append_char(right_labels, sizeof(right_labels), &right_index, right[i].label)) {
+                return false;
+            }
+        }
+
+        char implicit_hyphen[64] = {0};
+        if (index + right_index < sizeof(implicit_hyphen)) {
+            memcpy(implicit_hyphen, out, index);
+            memcpy(implicit_hyphen + index, right_labels, right_index + 1);
+
+            uint64_t implicit_bits = 0;
+            if (stroke_string_to_bits(implicit_hyphen, &implicit_bits) && implicit_bits == bits) {
+                for (size_t i = 0; i < right_index; ++i) {
+                    if (!append_char(out, out_size, &index, right_labels[i])) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        }
+
         if (!append_char(out, out_size, &index, '-')) {
             return false;
         }
-        for (size_t i = 0; i < sizeof(right) / sizeof(right[0]); ++i) {
-            if ((bits & right[i].bit) != 0 && !append_char(out, out_size, &index, right[i].label)) {
+        for (size_t i = 0; i < right_index; ++i) {
+            if (!append_char(out, out_size, &index, right_labels[i])) {
                 return false;
             }
         }

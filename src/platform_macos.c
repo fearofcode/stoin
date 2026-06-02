@@ -8,6 +8,7 @@
 #include "../stb_ds.h"
 
 #define STOIN_GENERATED_EVENT_USER_DATA 0x73746f696eULL
+#define MAC_BACKSPACE_KEYCODE 51
 
 typedef struct Mac_State {
     CFMachPortRef tap;
@@ -356,6 +357,51 @@ void platform_shutdown(void)
     g_macos.userdata = NULL;
 }
 
+static bool post_keyboard_event_pair(CGKeyCode keycode)
+{
+    CGEventRef key_down = CGEventCreateKeyboardEvent(g_macos.output_source, keycode, true);
+    CGEventRef key_up = CGEventCreateKeyboardEvent(g_macos.output_source, keycode, false);
+    bool ok = false;
+
+    if (key_down != NULL && key_up != NULL) {
+        mark_generated_event(key_down);
+        mark_generated_event(key_up);
+        CGEventPost(kCGSessionEventTap, key_down);
+        CGEventPost(kCGSessionEventTap, key_up);
+        ok = true;
+    }
+
+    if (key_down != NULL) {
+        CFRelease(key_down);
+    }
+    if (key_up != NULL) {
+        CFRelease(key_up);
+    }
+
+    return ok;
+}
+
+static bool count_composed_characters(CFStringRef string, size_t *out_count)
+{
+    if (string == NULL || out_count == NULL) {
+        return false;
+    }
+
+    size_t count = 0;
+    const CFIndex length = CFStringGetLength(string);
+    for (CFIndex index = 0; index < length;) {
+        const CFRange range = CFStringGetRangeOfComposedCharactersAtIndex(string, index);
+        if (range.length <= 0) {
+            return false;
+        }
+        ++count;
+        index = range.location + range.length;
+    }
+
+    *out_count = count;
+    return true;
+}
+
 bool platform_send_text_utf8(const char *utf8)
 {
     if (utf8 == NULL) {
@@ -398,4 +444,31 @@ bool platform_send_text_utf8(const char *utf8)
     arrfree(utf16);
     CFRelease(string);
     return ok;
+}
+
+bool platform_delete_text_utf8(const char *utf8)
+{
+    if (utf8 == NULL) {
+        return false;
+    }
+
+    CFStringRef string = CFStringCreateWithCString(kCFAllocatorDefault, utf8, kCFStringEncodingUTF8);
+    if (string == NULL) {
+        return false;
+    }
+
+    size_t character_count = 0;
+    const bool counted = count_composed_characters(string, &character_count);
+    CFRelease(string);
+    if (!counted) {
+        return false;
+    }
+
+    for (size_t i = 0; i < character_count; ++i) {
+        if (!post_keyboard_event_pair(MAC_BACKSPACE_KEYCODE)) {
+            return false;
+        }
+    }
+
+    return true;
 }

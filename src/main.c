@@ -14,6 +14,12 @@ static bool send_text(const char *utf8, void *userdata)
     return platform_send_text_utf8(utf8);
 }
 
+static bool delete_text(const char *utf8, void *userdata)
+{
+    (void)userdata;
+    return platform_delete_text_utf8(utf8);
+}
+
 static bool handle_input(const Input_Event *event, void *userdata)
 {
     App *app = userdata;
@@ -26,6 +32,7 @@ int main(int argc, char **argv)
         .keymap_path = "stoin.keymap",
         .dictionary_path = "stoin-dictionary.json",
         .send_text = send_text,
+        .delete_text = delete_text,
         .send_userdata = NULL,
     };
 

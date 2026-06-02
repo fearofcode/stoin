@@ -10,6 +10,7 @@
 typedef struct Steno Steno;
 
 typedef bool (*Send_Text_Fn)(const char *utf8, void *userdata);
+typedef bool (*Delete_Text_Fn)(const char *utf8, void *userdata);
 
 typedef enum Spacing_Mode {
     SPACING_MODE_AFTER_WORD,
@@ -24,6 +25,7 @@ typedef struct Steno_Config {
     const char *keymap_path;
     const char *dictionary_path;
     Send_Text_Fn send_text;
+    Delete_Text_Fn delete_text;
     void *send_userdata;
 } Steno_Config;
 

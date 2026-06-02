@@ -86,9 +86,11 @@ bool dictionary_load(Dictionary *dictionary, const char *path)
     }
     ++p;
 
+    bool parsed_ok = false;
     while (true) {
         p = skip_json_ws(p);
         if (*p == '}') {
+            parsed_ok = true;
             break;
         }
 
@@ -130,13 +132,23 @@ bool dictionary_load(Dictionary *dictionary, const char *path)
             continue;
         }
         if (*p == '}') {
+            parsed_ok = true;
             break;
         }
         break;
     }
 
     free(file);
-    return hmlenu(dictionary->entries) > 0;
+    if (!parsed_ok) {
+        fprintf(stderr, "stoin: dictionary '%s' could not be parsed\n", path);
+        return false;
+    }
+
+    if (hmlenu(dictionary->entries) == 0) {
+        fprintf(stderr, "stoin: warning: dictionary '%s' is empty; untranslated chords will emit raw steno\n", path);
+    }
+
+    return true;
 }
 
 void dictionary_destroy(Dictionary *dictionary)
