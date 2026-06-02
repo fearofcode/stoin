@@ -275,13 +275,7 @@ bool platform_init(Handle_Input_Fn handler, void *userdata)
     g_macos.handler = handler;
     g_macos.userdata = userdata;
 
-    if (!check_accessibility_trust()) {
-        return false;
-    }
-
-    g_macos.output_source = CGEventSourceCreate(kCGEventSourceStateHIDSystemState);
-    if (g_macos.output_source == NULL) {
-        fputs("stoin: failed to create CoreGraphics event source\n", stderr);
+    if (!platform_output_init()) {
         return false;
     }
 
@@ -314,6 +308,25 @@ bool platform_init(Handle_Input_Fn handler, void *userdata)
     g_macos.run_loop = CFRunLoopGetCurrent();
     CFRunLoopAddSource(g_macos.run_loop, g_macos.run_loop_source, kCFRunLoopCommonModes);
     CGEventTapEnable(g_macos.tap, true);
+
+    return true;
+}
+
+bool platform_output_init(void)
+{
+    if (g_macos.output_source != NULL) {
+        return true;
+    }
+
+    if (!check_accessibility_trust()) {
+        return false;
+    }
+
+    g_macos.output_source = CGEventSourceCreate(kCGEventSourceStateHIDSystemState);
+    if (g_macos.output_source == NULL) {
+        fputs("stoin: failed to create CoreGraphics event source\n", stderr);
+        return false;
+    }
 
     return true;
 }
@@ -409,6 +422,9 @@ bool platform_send_text_utf8(const char *utf8)
     if (utf8 == NULL) {
         return false;
     }
+    if (!platform_output_init()) {
+        return false;
+    }
 
     CFStringRef string = CFStringCreateWithCString(kCFAllocatorDefault, utf8, kCFStringEncodingUTF8);
     if (string == NULL) {
@@ -451,6 +467,9 @@ bool platform_send_text_utf8(const char *utf8)
 bool platform_delete_text_utf8(const char *utf8)
 {
     if (utf8 == NULL) {
+        return false;
+    }
+    if (!platform_output_init()) {
         return false;
     }
 

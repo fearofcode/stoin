@@ -165,13 +165,13 @@ static bool execute_command(Steno *steno, const char *command)
     return true;
 }
 
-static bool emit_chord(Steno *steno)
+static bool emit_chord_bits(Steno *steno, uint64_t bits)
 {
-    if (steno->chord_bits == 0) {
+    if (bits == 0) {
         return true;
     }
 
-    const char *translation = dictionary_lookup_bits(&steno->dictionary, steno->chord_bits);
+    const char *translation = dictionary_lookup_bits(&steno->dictionary, bits);
     if (translation != NULL) {
         if (translation[0] == '=') {
             return execute_command(steno, translation);
@@ -180,7 +180,7 @@ static bool emit_chord(Steno *steno)
     }
 
     char raw_chord[64] = {0};
-    if (!chord_bits_to_string(steno->chord_bits, raw_chord, sizeof(raw_chord))) {
+    if (!chord_bits_to_string(bits, raw_chord, sizeof(raw_chord))) {
         return false;
     }
     return emit_text(steno, raw_chord);
@@ -206,7 +206,7 @@ Steno *steno_create(const Steno_Config *config)
     steno->delete_text = config->delete_text;
     steno->send_userdata = config->send_userdata;
 
-    if (!load_keymap(steno, config->keymap_path)) {
+    if (config->keymap_path != NULL && !load_keymap(steno, config->keymap_path)) {
         steno_destroy(steno);
         return NULL;
     }
@@ -275,10 +275,18 @@ bool steno_handle_event(Steno *steno, const Input_Event *event)
 
     steno->down_keycodes &= ~physical_bit;
     if (steno->down_keycodes == 0) {
-        (void)emit_chord(steno);
+        (void)emit_chord_bits(steno, steno->chord_bits);
         reset_chord(steno);
     }
     return true;
+}
+
+bool steno_handle_stroke_bits(Steno *steno, uint64_t bits)
+{
+    if (steno == NULL) {
+        return false;
+    }
+    return emit_chord_bits(steno, bits);
 }
 
 size_t steno_key_binding_count(const Steno *steno)

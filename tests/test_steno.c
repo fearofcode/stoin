@@ -1,3 +1,4 @@
+#include "gemini_pr.h"
 #include "platform.h"
 #include "steno.h"
 #include "steno_stroke.h"
@@ -144,6 +145,24 @@ int main(void)
         ok = ok && expect_stroke_format(drill_chords[i], drill_chords[i]);
     }
 
+    uint64_t gemini_bits = 0;
+    const uint8_t gemini_sat[GEMINI_PR_PACKET_SIZE] = { 0x80, 0x40, 0x20, 0x00, 0x04, 0x00 };
+    ok = ok && gemini_pr_decode_packet(gemini_sat, &gemini_bits);
+    char gemini_sat_string[64] = {0};
+    ok = ok && chord_bits_to_string(gemini_bits, gemini_sat_string, sizeof(gemini_sat_string));
+    ok = ok && expect_string("Gemini PR SAT packet", gemini_sat_string, "SAT");
+
+    const uint8_t gemini_number_star_z[GEMINI_PR_PACKET_SIZE] = { 0xA0, 0x00, 0x08, 0x00, 0x00, 0x01 };
+    ok = ok && gemini_pr_decode_packet(gemini_number_star_z, &gemini_bits);
+    char gemini_number_star_z_string[64] = {0};
+    ok = ok && chord_bits_to_string(gemini_bits, gemini_number_star_z_string, sizeof(gemini_number_star_z_string));
+    ok = ok && expect_string("Gemini PR number star Z packet", gemini_number_star_z_string, "#*Z");
+
+    const uint8_t bad_gemini_start[GEMINI_PR_PACKET_SIZE] = { 0x00, 0x40, 0x20, 0x00, 0x04, 0x00 };
+    ok = ok && !gemini_pr_decode_packet(bad_gemini_start, &gemini_bits);
+    const uint8_t bad_gemini_continuation[GEMINI_PR_PACKET_SIZE] = { 0x80, 0xC0, 0x20, 0x00, 0x04, 0x00 };
+    ok = ok && !gemini_pr_decode_packet(bad_gemini_continuation, &gemini_bits);
+
     const char *the = NULL;
     ok = ok && steno_lookup_stroke(steno, "-T", &the);
     ok = ok && expect_string("dictionary lookup -T", the, "the");
@@ -202,6 +221,10 @@ int main(void)
         ok = ok && expect_string("empty dictionary raw chord", output.text, "F ");
 
         clear_test_output(&output);
+        ok = ok && steno_handle_stroke_bits(empty_steno, gemini_bits);
+        ok = ok && expect_string("Gemini PR raw stroke", output.text, "#*Z ");
+
+        clear_test_output(&output);
         ok = ok && send_key_event(empty_steno, "z", true);
         ok = ok && send_key_event(empty_steno, "z", false);
         ok = ok && expect_string("left multi-bit key", output.text, "#S ");
@@ -225,6 +248,17 @@ int main(void)
         ok = ok && send_key_event(empty_steno, "i", false);
         ok = ok && expect_string("empty dictionary raw drill chord", output.text, "SAP ");
         steno_destroy(empty_steno);
+    }
+
+    Steno_Config gemini_empty_config = empty_config;
+    gemini_empty_config.keymap_path = NULL;
+    Steno *gemini_empty_steno = steno_create(&gemini_empty_config);
+    ok = ok && gemini_empty_steno != NULL;
+    if (gemini_empty_steno != NULL) {
+        clear_test_output(&output);
+        ok = ok && steno_handle_stroke_bits(gemini_empty_steno, gemini_bits);
+        ok = ok && expect_string("Gemini PR no-keymap raw stroke", output.text, "#*Z ");
+        steno_destroy(gemini_empty_steno);
     }
 
     arrfree(output.text);

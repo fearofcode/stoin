@@ -33,6 +33,7 @@ Steno *steno_create(const Steno_Config *config);
 void steno_destroy(Steno *steno);
 
 bool steno_handle_event(Steno *steno, const Input_Event *event);
+bool steno_handle_stroke_bits(Steno *steno, uint64_t bits);
 size_t steno_key_binding_count(const Steno *steno);
 size_t steno_dictionary_count(const Steno *steno);
 bool steno_lookup_stroke(const Steno *steno, const char *stroke, const char **out_translation);

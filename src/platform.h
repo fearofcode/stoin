@@ -18,6 +18,7 @@ typedef struct Input_Event {
 // Return true to consume/drop the input event, false to pass it through.
 typedef bool (*Handle_Input_Fn)(const Input_Event *event, void *userdata);
 
+bool platform_output_init(void);
 bool platform_init(Handle_Input_Fn handler, void *userdata);
 void platform_run(void);
 void platform_shutdown(void);
