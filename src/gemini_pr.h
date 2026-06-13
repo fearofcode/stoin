@@ -1,6 +1,8 @@
 #ifndef GEMINI_PR_H
 #define GEMINI_PR_H
 
+#include "platform.h"
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -9,11 +11,9 @@
 #define GEMINI_PR_PACKET_SIZE 6
 
 typedef struct Gemini_Pr {
-    int fd;
-    char port_path[256];
+    Platform_Serial_Port *serial;
     int packet_index;
     uint8_t packet[GEMINI_PR_PACKET_SIZE];
-    bool had_error;
 } Gemini_Pr;
 
 typedef struct Gemini_Pr_Config {

@@ -8,7 +8,6 @@ CORE_OBJECTS := \
 	build/dictionary.o \
 	build/gemini_pr.o \
 	build/platform_macos.o \
-	build/raw_serial.o \
 	build/steno.o \
 	build/steno_stroke.o \
 	build/stb_ds_impl.o \

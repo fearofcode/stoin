@@ -1,6 +1,8 @@
 #ifndef TX_BOLT_H
 #define TX_BOLT_H
 
+#include "platform.h"
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -8,8 +10,7 @@
 #define TX_BOLT_DEFAULT_BAUD_RATE 9600
 
 typedef struct Tx_Bolt {
-    int fd;
-    char port_path[256];
+    Platform_Serial_Port *serial;
     uint64_t stroke_bits;
     uint64_t queued_strokes[4];
     size_t queued_stroke_count;

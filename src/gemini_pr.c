@@ -2,13 +2,7 @@
 
 #include "steno_stroke.h"
 
-#include <errno.h>
-#include <fcntl.h>
-#include <stdio.h>
 #include <string.h>
-#include <sys/select.h>
-#include <termios.h>
-#include <unistd.h>
 
 #define GEMINI_STENO_BIT(key) (UINT64_C(1) << (uint64_t)(key))
 
@@ -35,56 +29,6 @@ static const uint64_t GEMINI_PR_BITS[GEMINI_PR_PACKET_SIZE * 7] = {
     GEMINI_STENO_BIT(STENO_RIGHT_Z),
 };
 
-static speed_t baud_rate_to_speed(int baud_rate)
-{
-    switch (baud_rate) {
-    case 300: return B300;
-    case 600: return B600;
-    case 1200: return B1200;
-    case 2400: return B2400;
-    case 4800: return B4800;
-    case 9600: return B9600;
-    case 19200: return B19200;
-    case 38400: return B38400;
-    case 57600: return B57600;
-    case 115200: return B115200;
-    default: return 0;
-    }
-}
-
-static bool configure_serial_port(int fd, int baud_rate)
-{
-    struct termios options;
-    if (tcgetattr(fd, &options) != 0) {
-        return false;
-    }
-
-    const speed_t speed = baud_rate_to_speed(baud_rate);
-    if (speed == 0) {
-        errno = EINVAL;
-        return false;
-    }
-
-    cfmakeraw(&options);
-    options.c_cflag &= ~(PARENB | CSTOPB | CSIZE);
-    options.c_cflag |= CS8 | CLOCAL | CREAD;
-#ifdef CRTSCTS
-    options.c_cflag &= ~CRTSCTS;
-#endif
-    options.c_cc[VMIN] = 0;
-    options.c_cc[VTIME] = 1;
-
-    if (cfsetispeed(&options, speed) != 0 || cfsetospeed(&options, speed) != 0) {
-        return false;
-    }
-    if (tcsetattr(fd, TCSANOW, &options) != 0) {
-        return false;
-    }
-
-    tcflush(fd, TCIOFLUSH);
-    return true;
-}
-
 bool gemini_pr_open(Gemini_Pr *gemini, const Gemini_Pr_Config *config)
 {
     if (gemini == NULL || config == NULL) {
@@ -92,34 +36,9 @@ bool gemini_pr_open(Gemini_Pr *gemini, const Gemini_Pr_Config *config)
     }
 
     memset(gemini, 0, sizeof(*gemini));
-    gemini->fd = -1;
-
-    if (config->port_path == NULL) {
-        errno = ENODEV;
-        return false;
-    }
-
-    char port_path[sizeof(gemini->port_path)] = {0};
-    const int written = snprintf(port_path, sizeof(port_path), "%s", config->port_path);
-    if (written <= 0 || (size_t)written >= sizeof(port_path)) {
-        errno = ENAMETOOLONG;
-        return false;
-    }
 
     const int baud_rate = config->baud_rate == 0 ? GEMINI_PR_DEFAULT_BAUD_RATE : config->baud_rate;
-    const int fd = open(port_path, O_RDWR | O_NOCTTY | O_NONBLOCK);
-    if (fd < 0) {
-        return false;
-    }
-
-    if (!configure_serial_port(fd, baud_rate)) {
-        close(fd);
-        return false;
-    }
-
-    gemini->fd = fd;
-    snprintf(gemini->port_path, sizeof(gemini->port_path), "%s", port_path);
-    return true;
+    return platform_serial_open(&gemini->serial, config->port_path, baud_rate);
 }
 
 void gemini_pr_close(Gemini_Pr *gemini)
@@ -127,21 +46,19 @@ void gemini_pr_close(Gemini_Pr *gemini)
     if (gemini == NULL) {
         return;
     }
-    if (gemini->fd >= 0) {
-        close(gemini->fd);
-        gemini->fd = -1;
-    }
+    platform_serial_close(gemini->serial);
+    gemini->serial = NULL;
     gemini->packet_index = 0;
 }
 
 const char *gemini_pr_port_path(const Gemini_Pr *gemini)
 {
-    return gemini == NULL ? "" : gemini->port_path;
+    return gemini == NULL ? "" : platform_serial_port_path(gemini->serial);
 }
 
 bool gemini_pr_had_error(const Gemini_Pr *gemini)
 {
-    return gemini != NULL && gemini->had_error;
+    return gemini != NULL && platform_serial_had_error(gemini->serial);
 }
 
 bool gemini_pr_decode_packet(const uint8_t packet[GEMINI_PR_PACKET_SIZE], uint64_t *out_bits)
@@ -175,49 +92,17 @@ bool gemini_pr_decode_packet(const uint8_t packet[GEMINI_PR_PACKET_SIZE], uint64
     return true;
 }
 
-static ssize_t read_byte(Gemini_Pr *gemini, uint8_t *out_byte)
-{
-    fd_set read_fds;
-    FD_ZERO(&read_fds);
-    FD_SET(gemini->fd, &read_fds);
-
-    struct timeval timeout = {
-        .tv_sec = 0,
-        .tv_usec = 100000,
-    };
-
-    const int ready = select(gemini->fd + 1, &read_fds, NULL, NULL, &timeout);
-    if (ready < 0) {
-        if (errno == EINTR) {
-            return 0;
-        }
-        gemini->had_error = true;
-        return -1;
-    }
-    if (ready == 0) {
-        return 0;
-    }
-
-    const ssize_t bytes_read = read(gemini->fd, out_byte, 1);
-    if (bytes_read < 0) {
-        if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
-            return 0;
-        }
-        gemini->had_error = true;
-    }
-    return bytes_read;
-}
-
 bool gemini_pr_read_stroke(Gemini_Pr *gemini, uint64_t *out_bits)
 {
-    if (gemini == NULL || out_bits == NULL || gemini->fd < 0) {
+    if (gemini == NULL || out_bits == NULL || gemini->serial == NULL) {
         return false;
     }
 
-    while (!gemini->had_error) {
+    while (!platform_serial_had_error(gemini->serial)) {
         uint8_t byte = 0;
-        const ssize_t bytes_read = read_byte(gemini, &byte);
-        if (bytes_read <= 0) {
+        const Platform_Serial_Read_Result read_result =
+            platform_serial_read_byte(gemini->serial, &byte, 100);
+        if (read_result != PLATFORM_SERIAL_READ_BYTE) {
             return false;
         }
 

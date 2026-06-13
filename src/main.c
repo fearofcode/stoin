@@ -1,6 +1,5 @@
 #include "gemini_pr.h"
 #include "platform.h"
-#include "raw_serial.h"
 #include "steno.h"
 #include "tx_bolt.h"
 
@@ -83,9 +82,17 @@ static void request_stop(int signum)
 static void print_usage(void)
 {
     fputs("usage: stoin [--dictionary PATH] [--input tx-bolt|gemini-pr|qwerty] [--serial-port PATH] [--serial-baud BAUD]\n", stderr);
+    fputs("             [--trace-strokes|--no-trace-strokes]\n", stderr);
     fputs("       stoin --raw-serial [--serial-port PATH] [--serial-baud BAUD]\n", stderr);
     fputs("       stoin [--dictionary PATH] --lookup STROKE\n", stderr);
     fputs("       stoin [--dictionary PATH] --dump-dictionary [OUTPUT_PATH]\n", stderr);
+}
+
+static void quiet_terminal_input(void)
+{
+    if (!platform_terminal_quiet_start()) {
+        fputs("stoin: warning: failed to disable terminal input echo; generated text may appear here if this terminal is focused\n", stderr);
+    }
 }
 
 static bool parse_baud_rate(const char *value, int *out_baud_rate)
@@ -116,6 +123,7 @@ static int run_qwerty(App *app)
     if (!platform_init(handle_input, app)) {
         return 1;
     }
+    quiet_terminal_input();
     (void)update_session_active(app);
 
     puts("stoin: macOS qwerty event tap running");
@@ -139,10 +147,9 @@ static int run_tx_bolt(App *app, const char *port_path, int baud_rate)
     printf("stoin: TX Bolt serial capture starting at %d baud 8N1\n", resolved_baud_rate);
     printf("stoin: loaded %zu dictionary entries\n", steno_dictionary_count(app->steno));
     puts("stoin: press Ctrl+C in this terminal to quit");
+    quiet_terminal_input();
 
-    Tx_Bolt tx_bolt = {
-        .fd = -1,
-    };
+    Tx_Bolt tx_bolt = {0};
     bool connected = false;
     bool output_ready = false;
     bool announced_disconnected = false;
@@ -185,6 +192,7 @@ static int run_tx_bolt(App *app, const char *port_path, int baud_rate)
 
             if (!output_ready && !platform_output_init()) {
                 tx_bolt_close(&tx_bolt);
+                platform_shutdown();
                 return 1;
             }
             output_ready = true;
@@ -222,10 +230,9 @@ static int run_gemini_pr(App *app, const char *port_path, int baud_rate)
     printf("stoin: Gemini PR serial capture starting at %d baud 8N1\n", resolved_baud_rate);
     printf("stoin: loaded %zu dictionary entries\n", steno_dictionary_count(app->steno));
     puts("stoin: press Ctrl+C in this terminal to quit");
+    quiet_terminal_input();
 
-    Gemini_Pr gemini = {
-        .fd = -1,
-    };
+    Gemini_Pr gemini = {0};
     bool connected = false;
     bool output_ready = false;
     bool announced_disconnected = false;
@@ -268,6 +275,7 @@ static int run_gemini_pr(App *app, const char *port_path, int baud_rate)
 
             if (!output_ready && !platform_output_init()) {
                 gemini_pr_close(&gemini);
+                platform_shutdown();
                 return 1;
             }
             output_ready = true;
@@ -330,16 +338,13 @@ static int run_raw_serial(const char *port_path, int baud_rate)
     puts("stoin: dictionary, text output, and keyboard capture are disabled in this mode");
     puts("stoin: press Ctrl+C in this terminal to quit");
 
-    Raw_Serial serial = {
-        .fd = -1,
-    };
-    bool connected = false;
+    Platform_Serial_Port *serial = NULL;
     bool announced_disconnected = false;
     uint8_t burst[RAW_SERIAL_BURST_CAPACITY];
     size_t burst_count = 0;
 
     while (!g_stop_requested) {
-        if (!connected) {
+        if (serial == NULL) {
             char resolved_port_path[256] = {0};
             if (!resolve_serial_port(port_path, resolved_port_path, sizeof(resolved_port_path))) {
                 if (!announced_disconnected) {
@@ -354,12 +359,8 @@ static int run_raw_serial(const char *port_path, int baud_rate)
                 continue;
             }
 
-            const Raw_Serial_Config serial_config = {
-                .port_path = resolved_port_path,
-                .baud_rate = resolved_baud_rate,
-            };
             errno = 0;
-            if (!raw_serial_open(&serial, &serial_config)) {
+            if (!platform_serial_open(&serial, resolved_port_path, resolved_baud_rate)) {
                 if (!announced_disconnected) {
                     fprintf(stderr, "stoin: raw serial disconnected; waiting for %s", resolved_port_path);
                     if (errno != 0) {
@@ -372,20 +373,19 @@ static int run_raw_serial(const char *port_path, int baud_rate)
                 continue;
             }
 
-            connected = true;
             announced_disconnected = false;
-            printf("stoin: raw serial connected on %s\n", raw_serial_port_path(&serial));
+            printf("stoin: raw serial connected on %s\n", platform_serial_port_path(serial));
         }
 
         uint8_t byte = 0;
-        const Raw_Serial_Read_Result read_result = raw_serial_read_byte(&serial, &byte);
-        if (read_result == RAW_SERIAL_READ_BYTE) {
+        const Platform_Serial_Read_Result read_result = platform_serial_read_byte(serial, &byte, 100);
+        if (read_result == PLATFORM_SERIAL_READ_BYTE) {
             if (burst_count == sizeof(burst)) {
                 print_raw_serial_burst(burst, burst_count);
                 burst_count = 0;
             }
             burst[burst_count++] = byte;
-        } else if (read_result == RAW_SERIAL_READ_NONE) {
+        } else if (read_result == PLATFORM_SERIAL_READ_NONE) {
             if (burst_count > 0) {
                 print_raw_serial_burst(burst, burst_count);
                 burst_count = 0;
@@ -395,11 +395,11 @@ static int run_raw_serial(const char *port_path, int baud_rate)
                 print_raw_serial_burst(burst, burst_count);
                 burst_count = 0;
             }
-            if (raw_serial_had_error(&serial)) {
-                printf("stoin: raw serial disconnected from %s; waiting for reconnect\n", raw_serial_port_path(&serial));
+            if (platform_serial_had_error(serial)) {
+                printf("stoin: raw serial disconnected from %s; waiting for reconnect\n", platform_serial_port_path(serial));
             }
-            raw_serial_close(&serial);
-            connected = false;
+            platform_serial_close(serial);
+            serial = NULL;
             platform_sleep_ms(1000);
         }
     }
@@ -407,13 +407,13 @@ static int run_raw_serial(const char *port_path, int baud_rate)
     if (burst_count > 0) {
         print_raw_serial_burst(burst, burst_count);
     }
-    if (connected) {
-        raw_serial_close(&serial);
+    if (serial != NULL) {
+        platform_serial_close(serial);
     }
     return 0;
 }
 
-static Steno *create_steno(const char *dictionary_path, const char *keymap_path)
+static Steno *create_steno(const char *dictionary_path, const char *keymap_path, FILE *trace_file)
 {
     const Steno_Config steno_config = {
         .keymap_path = keymap_path,
@@ -421,7 +421,7 @@ static Steno *create_steno(const char *dictionary_path, const char *keymap_path)
         .send_text = send_text,
         .delete_text = delete_text,
         .send_userdata = NULL,
-        .trace_file = stderr,
+        .trace_file = trace_file,
     };
     return steno_create(&steno_config);
 }
@@ -436,6 +436,7 @@ int main(int argc, char **argv)
     Input_Mode input_mode = INPUT_MODE_TX_BOLT;
     const char *serial_port = NULL;
     int serial_baud_rate = TX_BOLT_DEFAULT_BAUD_RATE;
+    bool trace_strokes = true;
 
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "--dictionary") == 0 && i + 1 < argc) {
@@ -461,6 +462,10 @@ int main(int argc, char **argv)
                 return 1;
             }
             raw_serial_dump = true;
+        } else if (strcmp(argv[i], "--trace-strokes") == 0) {
+            trace_strokes = true;
+        } else if (strcmp(argv[i], "--no-trace-strokes") == 0) {
+            trace_strokes = false;
         } else if (strcmp(argv[i], "--input") == 0 && i + 1 < argc) {
             ++i;
             if (strcmp(argv[i], "qwerty") == 0) {
@@ -496,7 +501,7 @@ int main(int argc, char **argv)
     }
 
     if (lookup_stroke != NULL) {
-        Steno *steno = create_steno(dictionary_path, NULL);
+        Steno *steno = create_steno(dictionary_path, NULL, NULL);
         if (steno == NULL) {
             return 1;
         }
@@ -511,7 +516,7 @@ int main(int argc, char **argv)
     }
 
     if (dump_dictionary) {
-        Steno *steno = create_steno(dictionary_path, NULL);
+        Steno *steno = create_steno(dictionary_path, NULL, NULL);
         if (steno == NULL) {
             return 1;
         }
@@ -531,7 +536,11 @@ int main(int argc, char **argv)
     }
 
     App app = {
-        .steno = create_steno(dictionary_path, input_mode == INPUT_MODE_QWERTY ? "stoin.keymap" : NULL),
+        .steno = create_steno(
+            dictionary_path,
+            input_mode == INPUT_MODE_QWERTY ? "stoin.keymap" : NULL,
+            trace_strokes ? stderr : NULL
+        ),
     };
     if (app.steno == NULL) {
         return 1;
