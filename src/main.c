@@ -1,6 +1,5 @@
 #include "gemini_pr.h"
 #include "platform.h"
-#include "procat.h"
 #include "raw_serial.h"
 #include "steno.h"
 #include "tx_bolt.h"
@@ -17,7 +16,6 @@
 typedef enum Input_Mode {
     INPUT_MODE_QWERTY,
     INPUT_MODE_TX_BOLT,
-    INPUT_MODE_PROCAT,
     INPUT_MODE_GEMINI_PR,
 } Input_Mode;
 
@@ -84,7 +82,7 @@ static void request_stop(int signum)
 
 static void print_usage(void)
 {
-    fputs("usage: stoin [--dictionary PATH] [--input tx-bolt|procat|gemini-pr|qwerty] [--serial-port PATH] [--serial-baud BAUD]\n", stderr);
+    fputs("usage: stoin [--dictionary PATH] [--input tx-bolt|gemini-pr|qwerty] [--serial-port PATH] [--serial-baud BAUD]\n", stderr);
     fputs("       stoin --raw-serial [--serial-port PATH] [--serial-baud BAUD]\n", stderr);
     fputs("       stoin [--dictionary PATH] --lookup STROKE\n", stderr);
     fputs("       stoin [--dictionary PATH] --dump-dictionary [OUTPUT_PATH]\n", stderr);
@@ -298,89 +296,6 @@ static int run_gemini_pr(App *app, const char *port_path, int baud_rate)
     return 0;
 }
 
-static int run_procat(App *app, const char *port_path, int baud_rate)
-{
-    g_stop_requested = 0;
-    signal(SIGINT, request_stop);
-
-    const int resolved_baud_rate = baud_rate == 0 ? PROCAT_DEFAULT_BAUD_RATE : baud_rate;
-    printf("stoin: ProCAT serial capture starting at %d baud 8N1\n", resolved_baud_rate);
-    printf("stoin: loaded %zu dictionary entries\n", steno_dictionary_count(app->steno));
-    puts("stoin: press Ctrl+C in this terminal to quit");
-
-    Procat procat = {
-        .fd = -1,
-    };
-    bool connected = false;
-    bool output_ready = false;
-    bool announced_disconnected = false;
-
-    while (!g_stop_requested) {
-        const bool session_active = update_session_active(app);
-
-        if (!connected) {
-            char resolved_port_path[256] = {0};
-            if (!resolve_serial_port(port_path, resolved_port_path, sizeof(resolved_port_path))) {
-                if (!announced_disconnected) {
-                    if (port_path != NULL) {
-                        fprintf(stderr, "stoin: ProCAT disconnected; waiting for %s\n", port_path);
-                    } else {
-                        fputs("stoin: ProCAT disconnected; waiting for a platform default serial device\n", stderr);
-                    }
-                    announced_disconnected = true;
-                }
-                platform_sleep_ms(1000);
-                continue;
-            }
-
-            const Procat_Config procat_config = {
-                .port_path = resolved_port_path,
-                .baud_rate = resolved_baud_rate,
-            };
-            errno = 0;
-            if (!procat_open(&procat, &procat_config)) {
-                if (!announced_disconnected) {
-                    fprintf(stderr, "stoin: ProCAT disconnected; waiting for %s", resolved_port_path);
-                    if (errno != 0) {
-                        fprintf(stderr, " (%s)", strerror(errno));
-                    }
-                    fputc('\n', stderr);
-                    announced_disconnected = true;
-                }
-                platform_sleep_ms(1000);
-                continue;
-            }
-
-            if (!output_ready && !platform_output_init()) {
-                procat_close(&procat);
-                return 1;
-            }
-            output_ready = true;
-            connected = true;
-            announced_disconnected = false;
-            printf("stoin: ProCAT connected on %s\n", procat_port_path(&procat));
-        }
-
-        uint64_t stroke_bits = 0;
-        if (procat_read_stroke(&procat, &stroke_bits)) {
-            if (session_active) {
-                (void)steno_handle_stroke_bits(app->steno, stroke_bits);
-            }
-        } else if (procat_had_error(&procat)) {
-            printf("stoin: ProCAT disconnected from %s; waiting for reconnect\n", procat_port_path(&procat));
-            procat_close(&procat);
-            connected = false;
-            platform_sleep_ms(1000);
-        }
-    }
-
-    if (connected) {
-        procat_close(&procat);
-    }
-    platform_shutdown();
-    return 0;
-}
-
 static void print_raw_serial_burst(const uint8_t *bytes, size_t count)
 {
     if (bytes == NULL || count == 0) {
@@ -554,10 +469,6 @@ int main(int argc, char **argv)
                 || strcmp(argv[i], "txbolt") == 0
                 || strcmp(argv[i], "bolt") == 0) {
                 input_mode = INPUT_MODE_TX_BOLT;
-            } else if (strcmp(argv[i], "procat") == 0
-                || strcmp(argv[i], "pro-cat") == 0
-                || strcmp(argv[i], "old-procat") == 0) {
-                input_mode = INPUT_MODE_PROCAT;
             } else if (strcmp(argv[i], "gemini-pr") == 0 || strcmp(argv[i], "gemini") == 0) {
                 input_mode = INPUT_MODE_GEMINI_PR;
             } else {
@@ -631,8 +542,6 @@ int main(int argc, char **argv)
         status = run_qwerty(&app);
     } else if (input_mode == INPUT_MODE_TX_BOLT) {
         status = run_tx_bolt(&app, serial_port, serial_baud_rate);
-    } else if (input_mode == INPUT_MODE_PROCAT) {
-        status = run_procat(&app, serial_port, serial_baud_rate);
     } else {
         status = run_gemini_pr(&app, serial_port, serial_baud_rate);
     }

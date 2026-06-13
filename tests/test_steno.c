@@ -1,6 +1,5 @@
 #include "gemini_pr.h"
 #include "platform.h"
-#include "procat.h"
 #include "steno.h"
 #include "steno_stroke.h"
 #include "tx_bolt.h"
@@ -203,24 +202,6 @@ int main(void)
     ok = ok && tx_bolt_flush_stroke(&tx_bolt, &tx_bolt_bits);
     ok = ok && chord_bits_to_string(tx_bolt_bits, tx_bolt_string, sizeof(tx_bolt_string));
     ok = ok && expect_string("TX Bolt queued next stroke", tx_bolt_string, "T");
-
-    uint64_t procat_bits = 0;
-    char procat_string[64] = {0};
-    const uint8_t procat_sat[PROCAT_PACKET_SIZE] = { 0x20, 0x40, 0x08, 0xFF };
-    ok = ok && procat_decode_packet(procat_sat, &procat_bits);
-    ok = ok && chord_bits_to_string(procat_bits, procat_string, sizeof(procat_string));
-    ok = ok && expect_string("ProCAT SAT packet", procat_string, "SAT");
-
-    const uint8_t procat_number_star_z[PROCAT_PACKET_SIZE] = { 0x40, 0x10, 0x01, 0xFF };
-    memset(procat_string, 0, sizeof(procat_string));
-    ok = ok && procat_decode_packet(procat_number_star_z, &procat_bits);
-    ok = ok && chord_bits_to_string(procat_bits, procat_string, sizeof(procat_string));
-    ok = ok && expect_string("ProCAT number star Z packet", procat_string, "#*Z");
-
-    const uint8_t bad_procat_start[PROCAT_PACKET_SIZE] = { 0x80, 0x40, 0x08, 0xFF };
-    ok = ok && !procat_decode_packet(bad_procat_start, &procat_bits);
-    const uint8_t bad_procat_end[PROCAT_PACKET_SIZE] = { 0x20, 0x40, 0x08, 0x00 };
-    ok = ok && !procat_decode_packet(bad_procat_end, &procat_bits);
 
     const char *the = NULL;
     ok = ok && steno_lookup_stroke(steno, "-T", &the);
