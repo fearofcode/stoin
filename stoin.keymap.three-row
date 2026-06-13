@@ -1,0 +1,47 @@
+// Physical key to steno key or steno chord fragment.
+// Right-hand steno keys use a leading dash when needed to avoid ambiguity.
+//
+// Left hand: QWER / ASDF / ZXCV -> #TPH / SKWR / #S TK PW HR
+q #
+w T
+e P
+r H
+a S
+s K
+d W
+f R
+z #S
+x TK
+c PW
+v HR
+
+// Star bank.
+t *
+g *
+b *
+y *
+h *
+n *
+
+// Thumb bank.
+space A
+backspace O
+tab E
+enter U
+
+// Right hand: UIOP\ / JKL;' / M,./ Right Shift -> FPLTD / RBGSZ / FR PB LG TS DZ
+u -F
+i -P
+o -L
+p -T
+backslash -D
+j -R
+k -B
+l -G
+semicolon -S
+apostrophe -Z
+m -FR
+comma -PB
+period -LG
+slash -TS
+right_shift -DZ

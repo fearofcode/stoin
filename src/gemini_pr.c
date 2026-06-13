@@ -4,7 +4,6 @@
 
 #include <errno.h>
 #include <fcntl.h>
-#include <glob.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/select.h>
@@ -39,6 +38,8 @@ static const uint64_t GEMINI_PR_BITS[GEMINI_PR_PACKET_SIZE * 7] = {
 static speed_t baud_rate_to_speed(int baud_rate)
 {
     switch (baud_rate) {
+    case 300: return B300;
+    case 600: return B600;
     case 1200: return B1200;
     case 2400: return B2400;
     case 4800: return B4800;
@@ -49,24 +50,6 @@ static speed_t baud_rate_to_speed(int baud_rate)
     case 115200: return B115200;
     default: return 0;
     }
-}
-
-bool gemini_pr_find_default_port(char *out_path, size_t out_size)
-{
-    if (out_path == NULL || out_size == 0) {
-        return false;
-    }
-
-    glob_t matches = {0};
-    const int glob_result = glob("/dev/cu.usbmodem*", 0, NULL, &matches);
-    if (glob_result != 0 || matches.gl_pathc == 0) {
-        globfree(&matches);
-        return false;
-    }
-
-    const int written = snprintf(out_path, out_size, "%s", matches.gl_pathv[0]);
-    globfree(&matches);
-    return written > 0 && (size_t)written < out_size;
 }
 
 static bool configure_serial_port(int fd, int baud_rate)
@@ -111,31 +94,25 @@ bool gemini_pr_open(Gemini_Pr *gemini, const Gemini_Pr_Config *config)
     memset(gemini, 0, sizeof(*gemini));
     gemini->fd = -1;
 
+    if (config->port_path == NULL) {
+        errno = ENODEV;
+        return false;
+    }
+
     char port_path[sizeof(gemini->port_path)] = {0};
-    if (config->port_path != NULL) {
-        const int written = snprintf(port_path, sizeof(port_path), "%s", config->port_path);
-        if (written <= 0 || (size_t)written >= sizeof(port_path)) {
-            fputs("stoin: Gemini PR port path is too long\n", stderr);
-            return false;
-        }
-    } else if (!gemini_pr_find_default_port(port_path, sizeof(port_path))) {
-        fputs("stoin: no Gemini PR serial device found matching /dev/cu.usbmodem*\n", stderr);
-        fputs("stoin: pass --gemini-port /dev/cu.usbmodem... if the board uses another path\n", stderr);
+    const int written = snprintf(port_path, sizeof(port_path), "%s", config->port_path);
+    if (written <= 0 || (size_t)written >= sizeof(port_path)) {
+        errno = ENAMETOOLONG;
         return false;
     }
 
     const int baud_rate = config->baud_rate == 0 ? GEMINI_PR_DEFAULT_BAUD_RATE : config->baud_rate;
     const int fd = open(port_path, O_RDWR | O_NOCTTY | O_NONBLOCK);
     if (fd < 0) {
-        fprintf(stderr, "stoin: failed to open Gemini PR serial port '%s': %s\n", port_path, strerror(errno));
         return false;
     }
 
     if (!configure_serial_port(fd, baud_rate)) {
-        fprintf(stderr, "stoin: failed to configure Gemini PR serial port '%s' for %d 8N1: %s\n",
-            port_path,
-            baud_rate,
-            strerror(errno));
         close(fd);
         return false;
     }
@@ -215,7 +192,6 @@ static ssize_t read_byte(Gemini_Pr *gemini, uint8_t *out_byte)
             return 0;
         }
         gemini->had_error = true;
-        fprintf(stderr, "stoin: Gemini PR serial select failed: %s\n", strerror(errno));
         return -1;
     }
     if (ready == 0) {
@@ -228,7 +204,6 @@ static ssize_t read_byte(Gemini_Pr *gemini, uint8_t *out_byte)
             return 0;
         }
         gemini->had_error = true;
-        fprintf(stderr, "stoin: Gemini PR serial read failed: %s\n", strerror(errno));
     }
     return bytes_read;
 }

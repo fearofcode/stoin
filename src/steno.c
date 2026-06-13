@@ -28,11 +28,13 @@ struct Steno {
     uint64_t down_keycodes;
     uint64_t chord_bits;
     bool enabled;
+    bool session_active;
     bool toggle_esc_down;
     Spacing_State spacing;
     Send_Text_Fn send_text;
     Delete_Text_Fn delete_text;
     void *send_userdata;
+    FILE *trace_file;
 };
 
 static bool load_keymap(Steno *steno, const char *path)
@@ -165,13 +167,33 @@ static bool execute_command(Steno *steno, const char *command)
     return true;
 }
 
+static void trace_stroke(const Steno *steno, const char *raw_chord, const char *translation)
+{
+    if (steno == NULL || steno->trace_file == NULL || raw_chord == NULL) {
+        return;
+    }
+
+    if (translation != NULL) {
+        fprintf(steno->trace_file, "%s -> %s\n", raw_chord, translation);
+    } else {
+        fprintf(steno->trace_file, "%s -> [untranslated]\n", raw_chord);
+    }
+    fflush(steno->trace_file);
+}
+
 static bool emit_chord_bits(Steno *steno, uint64_t bits)
 {
     if (bits == 0) {
         return true;
     }
 
+    char raw_chord[64] = {0};
+    if (!chord_bits_to_string(bits, raw_chord, sizeof(raw_chord))) {
+        return false;
+    }
+
     const char *translation = dictionary_lookup_bits(&steno->dictionary, bits);
+    trace_stroke(steno, raw_chord, translation);
     if (translation != NULL) {
         if (translation[0] == '=') {
             return execute_command(steno, translation);
@@ -179,10 +201,6 @@ static bool emit_chord_bits(Steno *steno, uint64_t bits)
         return emit_text(steno, translation);
     }
 
-    char raw_chord[64] = {0};
-    if (!chord_bits_to_string(bits, raw_chord, sizeof(raw_chord))) {
-        return false;
-    }
     return emit_text(steno, raw_chord);
 }
 
@@ -198,6 +216,7 @@ Steno *steno_create(const Steno_Config *config)
     }
 
     steno->enabled = true;
+    steno->session_active = true;
     steno->spacing = (Spacing_State) {
         .mode = SPACING_MODE_AFTER_WORD,
         .spacing_char = ' ',
@@ -205,6 +224,7 @@ Steno *steno_create(const Steno_Config *config)
     steno->send_text = config->send_text;
     steno->delete_text = config->delete_text;
     steno->send_userdata = config->send_userdata;
+    steno->trace_file = config->trace_file;
 
     if (config->keymap_path != NULL && !load_keymap(steno, config->keymap_path)) {
         steno_destroy(steno);
@@ -237,6 +257,10 @@ void steno_destroy(Steno *steno)
 bool steno_handle_event(Steno *steno, const Input_Event *event)
 {
     if (steno == NULL || event == NULL) {
+        return false;
+    }
+
+    if (!steno->session_active) {
         return false;
     }
 
@@ -286,7 +310,21 @@ bool steno_handle_stroke_bits(Steno *steno, uint64_t bits)
     if (steno == NULL) {
         return false;
     }
+    if (!steno->session_active) {
+        return false;
+    }
     return emit_chord_bits(steno, bits);
+}
+
+void steno_set_session_active(Steno *steno, bool active)
+{
+    if (steno == NULL || steno->session_active == active) {
+        return;
+    }
+
+    steno->session_active = active;
+    reset_chord(steno);
+    steno->toggle_esc_down = false;
 }
 
 size_t steno_key_binding_count(const Steno *steno)

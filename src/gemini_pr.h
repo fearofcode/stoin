@@ -21,7 +21,6 @@ typedef struct Gemini_Pr_Config {
     int baud_rate;
 } Gemini_Pr_Config;
 
-bool gemini_pr_find_default_port(char *out_path, size_t out_size);
 bool gemini_pr_open(Gemini_Pr *gemini, const Gemini_Pr_Config *config);
 void gemini_pr_close(Gemini_Pr *gemini);
 const char *gemini_pr_port_path(const Gemini_Pr *gemini);

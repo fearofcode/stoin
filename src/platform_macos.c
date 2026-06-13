@@ -2,13 +2,18 @@
 
 #include <ApplicationServices/ApplicationServices.h>
 #include <CoreFoundation/CoreFoundation.h>
+#include <glob.h>
+#include <notify.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 #include "../stb_ds.h"
 
 #define STOIN_GENERATED_EVENT_USER_DATA 0x73746f696eULL
 #define MAC_BACKSPACE_KEYCODE 51
+#define MAC_SESSION_SCREEN_IS_LOCKED_KEY CFSTR("CGSSessionScreenIsLocked")
+#define MAC_SESSION_AGENT_SCREEN_IS_LOCKED "com.apple.sessionagent.screenIsLocked"
 
 typedef struct Mac_State {
     CFMachPortRef tap;
@@ -17,6 +22,8 @@ typedef struct Mac_State {
     CGEventSourceRef output_source;
     Handle_Input_Fn handler;
     void *userdata;
+    int screen_lock_notify_token;
+    bool screen_lock_notify_registered;
 } Mac_State;
 
 static Mac_State g_macos;
@@ -164,6 +171,106 @@ bool platform_keycode_from_name(const char *name, uint16_t *out_keycode)
     }
 
     return true;
+}
+
+static bool find_first_glob_match(const char *pattern, char *out_path, size_t out_size)
+{
+    if (out_path == NULL || out_size == 0) {
+        return false;
+    }
+
+    glob_t matches = {0};
+    const int glob_result = glob(pattern, 0, NULL, &matches);
+    if (glob_result != 0 || matches.gl_pathc == 0) {
+        globfree(&matches);
+        return false;
+    }
+
+    const int written = snprintf(out_path, out_size, "%s", matches.gl_pathv[0]);
+    globfree(&matches);
+    return written > 0 && (size_t)written < out_size;
+}
+
+bool platform_find_serial_device(char *out_path, size_t out_size)
+{
+    const char *patterns[] = {
+        "/dev/cu.usbmodem*",
+        "/dev/cu.usbserial*",
+        "/dev/cu.SLAB_USBtoUART*",
+        "/dev/cu.wchusbserial*",
+        "/dev/cu.KeySerial*",
+    };
+
+    for (size_t i = 0; i < sizeof(patterns) / sizeof(patterns[0]); ++i) {
+        if (find_first_glob_match(patterns[i], out_path, out_size)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool platform_find_gemini_pr_device(char *out_path, size_t out_size)
+{
+    return platform_find_serial_device(out_path, out_size);
+}
+
+static bool cf_dictionary_bool_value(CFDictionaryRef dictionary, CFStringRef key, bool default_value)
+{
+    if (dictionary == NULL || key == NULL) {
+        return default_value;
+    }
+
+    CFTypeRef value = CFDictionaryGetValue(dictionary, key);
+    if (value == NULL || CFGetTypeID(value) != CFBooleanGetTypeID()) {
+        return default_value;
+    }
+    return CFBooleanGetValue(value);
+}
+
+static bool screen_is_locked_by_notify_state(void)
+{
+    if (!g_macos.screen_lock_notify_registered) {
+        int token = NOTIFY_TOKEN_INVALID;
+        if (notify_register_check(MAC_SESSION_AGENT_SCREEN_IS_LOCKED, &token) != NOTIFY_STATUS_OK) {
+            return false;
+        }
+        g_macos.screen_lock_notify_token = token;
+        g_macos.screen_lock_notify_registered = true;
+    }
+
+    uint64_t state = 0;
+    if (notify_get_state(g_macos.screen_lock_notify_token, &state) != NOTIFY_STATUS_OK) {
+        return false;
+    }
+    return state != 0;
+}
+
+bool platform_user_session_is_active(void)
+{
+    CFDictionaryRef session = CGSessionCopyCurrentDictionary();
+    if (session == NULL) {
+        return false;
+    }
+
+    const bool on_console = cf_dictionary_bool_value(session, kCGSessionOnConsoleKey, false);
+    const bool login_done = cf_dictionary_bool_value(session, kCGSessionLoginDoneKey, false);
+    const bool screen_locked =
+        cf_dictionary_bool_value(session, MAC_SESSION_SCREEN_IS_LOCKED_KEY, false)
+        || screen_is_locked_by_notify_state();
+    CFRelease(session);
+
+    return on_console && login_done && !screen_locked;
+}
+
+void platform_sleep_ms(unsigned int milliseconds)
+{
+    struct timespec requested = {
+        .tv_sec = milliseconds / 1000,
+        .tv_nsec = (long)(milliseconds % 1000) * 1000000L,
+    };
+
+    while (nanosleep(&requested, &requested) != 0) {
+    }
 }
 
 static bool check_accessibility_trust(void)
@@ -363,6 +470,12 @@ void platform_shutdown(void)
         g_macos.output_source = NULL;
     }
 
+    if (g_macos.screen_lock_notify_registered) {
+        notify_cancel(g_macos.screen_lock_notify_token);
+        g_macos.screen_lock_notify_token = 0;
+        g_macos.screen_lock_notify_registered = false;
+    }
+
     if (g_macos.run_loop != NULL) {
         CFRunLoopStop(g_macos.run_loop);
         g_macos.run_loop = NULL;
@@ -422,6 +535,9 @@ bool platform_send_text_utf8(const char *utf8)
     if (utf8 == NULL) {
         return false;
     }
+    if (!platform_user_session_is_active()) {
+        return false;
+    }
     if (!platform_output_init()) {
         return false;
     }
@@ -467,6 +583,9 @@ bool platform_send_text_utf8(const char *utf8)
 bool platform_delete_text_utf8(const char *utf8)
 {
     if (utf8 == NULL) {
+        return false;
+    }
+    if (!platform_user_session_is_active()) {
         return false;
     }
     if (!platform_output_init()) {

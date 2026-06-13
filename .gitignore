@@ -1,2 +1,18 @@
-build/
 .DS_Store
+
+# Build products
+build/
+*.o
+*.a
+*.dylib
+*.so
+*.dSYM/
+
+# Local tooling/editor state
+.cache/
+.vscode/
+.idea/
+compile_commands.json
+
+# Local runtime logs
+*.log

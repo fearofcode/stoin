@@ -1,7 +1,9 @@
 #include "gemini_pr.h"
 #include "platform.h"
+#include "procat.h"
 #include "steno.h"
 #include "steno_stroke.h"
+#include "tx_bolt.h"
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -54,6 +56,7 @@ static bool test_delete_text(const char *utf8, void *userdata)
 static void clear_test_output(Test_Output *output)
 {
     arrsetlen(output->text, 0);
+    arrput(output->text, '\0');
 }
 
 static bool send_key_event(Steno *steno, const char *key_name, bool is_down)
@@ -100,11 +103,21 @@ static bool expect_stroke_format(const char *input, const char *expected)
     return expect_string(input, output, expected);
 }
 
+static bool read_trace_line(FILE *trace_file, char *line, size_t line_size)
+{
+    fflush(trace_file);
+    rewind(trace_file);
+    if (fgets(line, (int)line_size, trace_file) == NULL) {
+        return false;
+    }
+    return true;
+}
+
 int main(void)
 {
     Test_Output output = {0};
     Steno_Config config = {
-        .keymap_path = "stoin.keymap",
+        .keymap_path = "tests/test.keymap",
         .dictionary_path = "tests/test-dictionary.json",
         .send_text = test_send_text,
         .delete_text = test_delete_text,
@@ -163,6 +176,52 @@ int main(void)
     const uint8_t bad_gemini_continuation[GEMINI_PR_PACKET_SIZE] = { 0x80, 0xC0, 0x20, 0x00, 0x04, 0x00 };
     ok = ok && !gemini_pr_decode_packet(bad_gemini_continuation, &gemini_bits);
 
+    Tx_Bolt tx_bolt = {0};
+    uint64_t tx_bolt_bits = 0;
+    char tx_bolt_string[64] = {0};
+    ok = ok && !tx_bolt_decode_byte(&tx_bolt, 0x01, &tx_bolt_bits);
+    ok = ok && !tx_bolt_decode_byte(&tx_bolt, 0x42, &tx_bolt_bits);
+    ok = ok && !tx_bolt_decode_byte(&tx_bolt, 0x84, &tx_bolt_bits);
+    ok = ok && tx_bolt_flush_stroke(&tx_bolt, &tx_bolt_bits);
+    ok = ok && chord_bits_to_string(tx_bolt_bits, tx_bolt_string, sizeof(tx_bolt_string));
+    ok = ok && expect_string("TX Bolt SAP packet", tx_bolt_string, "SAP");
+
+    memset(&tx_bolt, 0, sizeof(tx_bolt));
+    memset(tx_bolt_string, 0, sizeof(tx_bolt_string));
+    ok = ok && !tx_bolt_decode_byte(&tx_bolt, 0x48, &tx_bolt_bits);
+    ok = ok && tx_bolt_decode_byte(&tx_bolt, 0xD8, &tx_bolt_bits);
+    ok = ok && chord_bits_to_string(tx_bolt_bits, tx_bolt_string, sizeof(tx_bolt_string));
+    ok = ok && expect_string("TX Bolt number star Z packet", tx_bolt_string, "#*Z");
+
+    memset(&tx_bolt, 0, sizeof(tx_bolt));
+    memset(tx_bolt_string, 0, sizeof(tx_bolt_string));
+    ok = ok && !tx_bolt_decode_byte(&tx_bolt, 0x01, &tx_bolt_bits);
+    ok = ok && tx_bolt_decode_byte(&tx_bolt, 0x02, &tx_bolt_bits);
+    ok = ok && chord_bits_to_string(tx_bolt_bits, tx_bolt_string, sizeof(tx_bolt_string));
+    ok = ok && expect_string("TX Bolt lower set starts new stroke", tx_bolt_string, "S");
+    memset(tx_bolt_string, 0, sizeof(tx_bolt_string));
+    ok = ok && tx_bolt_flush_stroke(&tx_bolt, &tx_bolt_bits);
+    ok = ok && chord_bits_to_string(tx_bolt_bits, tx_bolt_string, sizeof(tx_bolt_string));
+    ok = ok && expect_string("TX Bolt queued next stroke", tx_bolt_string, "T");
+
+    uint64_t procat_bits = 0;
+    char procat_string[64] = {0};
+    const uint8_t procat_sat[PROCAT_PACKET_SIZE] = { 0x20, 0x40, 0x08, 0xFF };
+    ok = ok && procat_decode_packet(procat_sat, &procat_bits);
+    ok = ok && chord_bits_to_string(procat_bits, procat_string, sizeof(procat_string));
+    ok = ok && expect_string("ProCAT SAT packet", procat_string, "SAT");
+
+    const uint8_t procat_number_star_z[PROCAT_PACKET_SIZE] = { 0x40, 0x10, 0x01, 0xFF };
+    memset(procat_string, 0, sizeof(procat_string));
+    ok = ok && procat_decode_packet(procat_number_star_z, &procat_bits);
+    ok = ok && chord_bits_to_string(procat_bits, procat_string, sizeof(procat_string));
+    ok = ok && expect_string("ProCAT number star Z packet", procat_string, "#*Z");
+
+    const uint8_t bad_procat_start[PROCAT_PACKET_SIZE] = { 0x80, 0x40, 0x08, 0xFF };
+    ok = ok && !procat_decode_packet(bad_procat_start, &procat_bits);
+    const uint8_t bad_procat_end[PROCAT_PACKET_SIZE] = { 0x20, 0x40, 0x08, 0x00 };
+    ok = ok && !procat_decode_packet(bad_procat_end, &procat_bits);
+
     const char *the = NULL;
     ok = ok && steno_lookup_stroke(steno, "-T", &the);
     ok = ok && expect_string("dictionary lookup -T", the, "the");
@@ -170,6 +229,26 @@ int main(void)
     const char *undo = NULL;
     ok = ok && steno_lookup_stroke(steno, "-R", &undo);
     ok = ok && expect_string("dictionary lookup -R", undo, "=undo");
+
+    FILE *trace_file = tmpfile();
+    ok = ok && trace_file != NULL;
+    if (trace_file != NULL) {
+        Steno_Config trace_config = config;
+        trace_config.trace_file = trace_file;
+        Steno *trace_steno = steno_create(&trace_config);
+        ok = ok && trace_steno != NULL;
+        if (trace_steno != NULL) {
+            char trace_line[128] = {0};
+            uint64_t trace_bits = 0;
+            clear_test_output(&output);
+            ok = ok && stroke_string_to_bits("-T", &trace_bits);
+            ok = ok && steno_handle_stroke_bits(trace_steno, trace_bits);
+            ok = ok && read_trace_line(trace_file, trace_line, sizeof(trace_line));
+            ok = ok && expect_string("trace translated stroke", trace_line, "-T -> the\n");
+            steno_destroy(trace_steno);
+        }
+        fclose(trace_file);
+    }
 
     clear_test_output(&output);
     ok = ok && send_key_event(steno, "u", true);
@@ -201,6 +280,17 @@ int main(void)
     ok = ok && send_key_event(steno, "q", true);
     ok = ok && send_key_event(steno, "q", false);
     ok = ok && expect_string("raw # chord", output.text, "# ");
+
+    clear_test_output(&output);
+    steno_set_session_active(steno, false);
+    ok = ok && !send_key_event(steno, "u", true);
+    ok = ok && !send_key_event(steno, "u", false);
+    ok = ok && !steno_handle_stroke_bits(steno, gemini_bits);
+    ok = ok && expect_string("inactive session suppresses output", output.text, "");
+    steno_set_session_active(steno, true);
+    ok = ok && send_key_event(steno, "u", true);
+    ok = ok && send_key_event(steno, "u", false);
+    ok = ok && expect_string("active session resumes output", output.text, "fee ");
 
     const char *star_keys[] = { "t", "g", "b", "y", "h", "n" };
     for (size_t i = 0; i < sizeof(star_keys) / sizeof(star_keys[0]); ++i) {

@@ -8,9 +8,12 @@ CORE_OBJECTS := \
 	build/dictionary.o \
 	build/gemini_pr.o \
 	build/platform_macos.o \
+	build/procat.o \
+	build/raw_serial.o \
 	build/steno.o \
 	build/steno_stroke.o \
 	build/stb_ds_impl.o \
+	build/tx_bolt.o \
 	build/util.o
 APP_OBJECTS := build/main.o $(CORE_OBJECTS)
 TEST_OBJECTS := build/test_steno.o $(CORE_OBJECTS)

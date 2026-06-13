@@ -1,0 +1,43 @@
+// Physical key to steno key or steno chord fragment.
+// Right-hand steno keys use a leading dash when needed to avoid ambiguity.
+
+q #
+w T
+e P
+r H
+a S
+s K
+d W
+f R
+z #S
+x TK
+c PW
+v HR
+
+t *
+g *
+b *
+y *
+h *
+n *
+
+space A
+backspace O
+tab E
+enter U
+
+u -F
+i -P
+o -L
+p -T
+backslash -D
+j -R
+k -B
+l -G
+semicolon -S
+apostrophe -Z
+m -FR
+comma -PB
+period -LG
+slash -TS
+right_shift -DZ
