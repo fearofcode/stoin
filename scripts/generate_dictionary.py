@@ -142,7 +142,20 @@ def outline_to_canonical(outline: str) -> Optional[str]:
 
 
 def is_supported_meta(meta: str) -> bool:
+    if meta in {"", "#", "*", "*!", "*?", "*-|", "*<", "*>", ">", "<", "-|"}:
+        return True
+    if meta in {".", ",", ":", ";", "?", "!"}:
+        return True
     if meta.startswith("&"):
+        return True
+    lower_meta = meta.lower()
+    if lower_meta.startswith("#"):
+        return True
+    if lower_meta.startswith("plover:"):
+        return True
+    if lower_meta.startswith("mode:"):
+        return True
+    if lower_meta.startswith(":case:") or lower_meta.startswith(":retro_case:"):
         return True
     if meta.startswith(":glue:") or meta.startswith("glue:"):
         return True
@@ -154,13 +167,17 @@ def is_supported_meta(meta: str) -> bool:
         return True
     if meta == ":attach" or meta.startswith(":attach:"):
         return True
+    if "~|" in meta:
+        return True
     if "~" in meta or "|" in meta:
         return False
     return meta.startswith("^") or meta.endswith("^")
 
 
 def is_supported_translation(value: str) -> bool:
-    if value == "=undo":
+    if value == "{^}^{^}":
+        return True
+    if value == "=undo" or value == "=repeat_last_translation":
         return True
     if value == "" or value.startswith("="):
         return False

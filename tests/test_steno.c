@@ -17,8 +17,10 @@ typedef struct Test_Output {
     char *text;
     char last_send[128];
     char last_delete[128];
+    char last_key_combo[128];
     size_t send_count;
     size_t delete_count;
+    size_t key_combo_count;
 } Test_Output;
 
 typedef struct Watch_Test {
@@ -75,6 +77,14 @@ static bool test_delete_text(const char *utf8, void *userdata)
     return true;
 }
 
+static bool test_send_key_combination(const char *combo, void *userdata)
+{
+    Test_Output *output = userdata;
+    ++output->key_combo_count;
+    snprintf(output->last_key_combo, sizeof(output->last_key_combo), "%s", combo);
+    return true;
+}
+
 static void clear_test_output(Test_Output *output)
 {
     arrsetlen(output->text, 0);
@@ -85,8 +95,10 @@ static void reset_output_log(Test_Output *output)
 {
     output->last_send[0] = '\0';
     output->last_delete[0] = '\0';
+    output->last_key_combo[0] = '\0';
     output->send_count = 0;
     output->delete_count = 0;
+    output->key_combo_count = 0;
 }
 
 static bool write_text_file(const char *path, const char *contents)
@@ -172,6 +184,19 @@ static bool expect_size_at_most(const char *name, size_t actual, size_t expected
     return false;
 }
 
+static bool expect_size(const char *name, size_t actual, size_t expected)
+{
+    if (actual == expected) {
+        return true;
+    }
+
+    fprintf(stderr, "test failed: %s: expected %zu, got %zu\n",
+        name,
+        expected,
+        actual);
+    return false;
+}
+
 static bool expect_stroke_format(const char *input, const char *expected)
 {
     uint64_t bits = 0;
@@ -226,6 +251,7 @@ int main(void)
         .word_list_path = "tests/test-words.txt",
         .send_text = test_send_text,
         .delete_text = test_delete_text,
+        .send_key_combination = test_send_key_combination,
         .send_userdata = &output,
     };
 
@@ -544,6 +570,16 @@ int main(void)
     uint64_t glue_p_bits = 0;
     uint64_t basket_bits = 0;
     uint64_t ball_bits = 0;
+    uint64_t repeat_bits = 0;
+    uint64_t period_bits = 0;
+    uint64_t comma_bits = 0;
+    uint64_t cap_next_bits = 0;
+    uint64_t upper_next_bits = 0;
+    uint64_t lower_next_bits = 0;
+    uint64_t lower_previous_bits = 0;
+    uint64_t plover_bits = 0;
+    uint64_t right_arrow_bits = 0;
+    uint64_t modal_toggle_bits = 0;
     ok = ok && stroke_string_to_bits("STOER", &story_bits);
     ok = ok && stroke_string_to_bits("-Z", &plural_bits);
     ok = ok && stroke_string_to_bits("-D", &past_bits);
@@ -574,6 +610,16 @@ int main(void)
     ok = ok && stroke_string_to_bits("P*P", &glue_p_bits);
     ok = ok && stroke_string_to_bits("PWA", &basket_bits);
     ok = ok && stroke_string_to_bits("PWAL", &ball_bits);
+    ok = ok && stroke_string_to_bits("SKWR", &repeat_bits);
+    ok = ok && stroke_string_to_bits("TP-PL", &period_bits);
+    ok = ok && stroke_string_to_bits("KW-BG", &comma_bits);
+    ok = ok && stroke_string_to_bits("KPA", &cap_next_bits);
+    ok = ok && stroke_string_to_bits("KPA*L", &upper_next_bits);
+    ok = ok && stroke_string_to_bits("HRO*ER", &lower_next_bits);
+    ok = ok && stroke_string_to_bits("HRO*ERD", &lower_previous_bits);
+    ok = ok && stroke_string_to_bits("PHROF", &plover_bits);
+    ok = ok && stroke_string_to_bits("STPH-G", &right_arrow_bits);
+    ok = ok && stroke_string_to_bits("STPH", &modal_toggle_bits);
 
     clear_test_output(&output);
     reset_output_log(&output);
@@ -648,7 +694,7 @@ int main(void)
     }
 
     Steno *format_steno = steno_create(&config);
-    ok = ok && format_steno != NULL;
+    ok = ok && expect_size("format steno created", format_steno != NULL ? 1 : 0, 1);
     if (format_steno != NULL) {
         clear_test_output(&output);
         reset_output_log(&output);
@@ -658,7 +704,8 @@ int main(void)
         reset_output_log(&output);
         ok = ok && steno_handle_stroke_bits(format_steno, suffix_s_bits);
         ok = ok && expect_string("attach suffix", output.text, "cats ");
-        ok = ok && output.send_count == 1 && output.delete_count == 1;
+        ok = ok && expect_size("attach suffix send count", output.send_count, 1);
+        ok = ok && expect_size("attach suffix delete count", output.delete_count, 1);
         ok = ok && expect_string("attach suffix delete", output.last_delete, " ");
         ok = ok && expect_string("attach suffix insert", output.last_send, "s ");
 
@@ -725,7 +772,8 @@ int main(void)
         reset_output_log(&output);
         ok = ok && steno_handle_stroke_bits(format_steno, delete_space_bits);
         ok = ok && expect_string("delete-space command", output.text, "basket");
-        ok = ok && output.send_count == 0 && output.delete_count == 1;
+        ok = ok && expect_size("delete-space send count", output.send_count, 0);
+        ok = ok && expect_size("delete-space delete count", output.delete_count, 1);
         ok = ok && expect_string("delete-space delete", output.last_delete, " ");
 
         reset_output_log(&output);
@@ -743,7 +791,66 @@ int main(void)
         ok = ok && steno_handle_stroke_bits(format_steno, port_bits);
         ok = ok && expect_string("force-space next word", output.text, "pre port ");
 
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(format_steno, cat_bits);
+        ok = ok && steno_handle_stroke_bits(format_steno, period_bits);
+        ok = ok && expect_string("period attaches and sets capitalization", output.text, "cat. ");
+        ok = ok && expect_string("period delete", output.last_delete, " ");
+        ok = ok && expect_string("period insert", output.last_send, ". ");
+
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(format_steno, cat_bits);
+        ok = ok && expect_string("capitalization after period", output.text, "cat. Cat ");
+
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(format_steno, cat_bits);
+        ok = ok && steno_handle_stroke_bits(format_steno, comma_bits);
+        ok = ok && expect_string("comma attaches without capitalization", output.text, "cat, ");
+        ok = ok && steno_handle_stroke_bits(format_steno, cat_bits);
+        ok = ok && expect_string("comma leaves next word lower-case", output.text, "cat, cat ");
+
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(format_steno, cap_next_bits);
+        ok = ok && expect_string("case command emits nothing", output.text, "");
+        ok = ok && expect_size("case command send count", output.send_count, 0);
+        ok = ok && expect_size("case command delete count", output.delete_count, 0);
+        ok = ok && steno_handle_stroke_bits(format_steno, cat_bits);
+        ok = ok && expect_string("cap next word", output.text, "Cat ");
+
+        clear_test_output(&output);
+        ok = ok && steno_handle_stroke_bits(format_steno, upper_next_bits);
+        ok = ok && steno_handle_stroke_bits(format_steno, cat_bits);
+        ok = ok && expect_string("upper next word", output.text, "CAT ");
+
+        clear_test_output(&output);
+        ok = ok && steno_handle_stroke_bits(format_steno, lower_next_bits);
+        ok = ok && steno_handle_stroke_bits(format_steno, plover_bits);
+        ok = ok && expect_string("lower next word", output.text, "plover ");
+
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(format_steno, plover_bits);
+        ok = ok && steno_handle_stroke_bits(format_steno, lower_previous_bits);
+        ok = ok && expect_string("retro lower previous word", output.text, "plover ");
+        ok = ok && expect_string("retro lower delete", output.last_delete, "Plover ");
+        ok = ok && expect_string("retro lower insert", output.last_send, "plover ");
+
         steno_destroy(format_steno);
+    }
+
+    Steno *key_combo_steno = steno_create(&config);
+    ok = ok && expect_size("key combo steno created", key_combo_steno != NULL ? 1 : 0, 1);
+    if (key_combo_steno != NULL) {
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(key_combo_steno, right_arrow_bits);
+        ok = ok && expect_string("key combo command emits no text", output.text, "");
+        ok = ok && expect_size("key combo command count", output.key_combo_count, 1);
+        ok = ok && expect_string("key combo command", output.last_key_combo, "Right");
+        steno_destroy(key_combo_steno);
     }
 
     Steno *digit_steno = steno_create(&config);
@@ -778,6 +885,23 @@ int main(void)
         ok = ok && expect_string("explicit glue insert", output.last_send, "P ");
 
         steno_destroy(glue_steno);
+    }
+
+    Steno *repeat_steno = steno_create(&config);
+    ok = ok && repeat_steno != NULL;
+    if (repeat_steno != NULL) {
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(repeat_steno, cat_bits);
+        ok = ok && steno_handle_stroke_bits(repeat_steno, repeat_bits);
+        ok = ok && expect_string("repeat last translation", output.text, "cat cat ");
+
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(repeat_steno, undo_bits);
+        ok = ok && expect_string("undo repeated translation", output.text, "cat ");
+        ok = ok && expect_string("undo repeat delete", output.last_delete, "cat ");
+
+        steno_destroy(repeat_steno);
     }
 
     Steno *stitch_steno = steno_create(&config);
@@ -818,11 +942,18 @@ int main(void)
 
     const char *layered_paths[] = {
         "tests/test-dictionary.json",
+        "tests/test-modal-dictionary.json",
         "tests/test-custom-dictionary.json",
+    };
+    const bool layered_enabled[] = {
+        true,
+        false,
+        true,
     };
     Steno_Config layered_config = config;
     layered_config.dictionary_path = NULL;
     layered_config.dictionary_paths = layered_paths;
+    layered_config.dictionary_enabled = layered_enabled;
     layered_config.dictionary_path_count = sizeof(layered_paths) / sizeof(layered_paths[0]);
     Steno *layered_steno = steno_create(&layered_config);
     ok = ok && layered_steno != NULL;
@@ -834,6 +965,31 @@ int main(void)
         const char *phrase_command = NULL;
         ok = ok && steno_lookup_stroke(layered_steno, "#TPHFPLT", &phrase_command);
         ok = ok && expect_string("custom stitch phrase command", phrase_command, "{:stitch_phrase:3:-}");
+
+        const char *modal_off_undo = NULL;
+        ok = ok && steno_lookup_stroke(layered_steno, "-R", &modal_off_undo);
+        ok = ok && expect_string("disabled modal dictionary does not override", modal_off_undo, "=undo");
+
+        const char *modal_toggle = NULL;
+        ok = ok && steno_lookup_stroke(layered_steno, "STPH", &modal_toggle);
+        ok = ok && expect_string("custom modal toggle command", modal_toggle, "{plover:toggle_dict:!test-modal-dictionary.json}");
+
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(layered_steno, modal_toggle_bits);
+        ok = ok && steno_handle_stroke_bits(layered_steno, undo_bits);
+        ok = ok && expect_string("enabled modal movement emits no text", output.text, "");
+        ok = ok && expect_size("enabled modal movement key combo count", output.key_combo_count, 1);
+        ok = ok && expect_string("enabled modal movement key combo", output.last_key_combo, "Left");
+
+        const char *modal_on_left = NULL;
+        ok = ok && steno_lookup_stroke(layered_steno, "-R", &modal_on_left);
+        ok = ok && expect_string("enabled modal dictionary overrides", modal_on_left, "{#Left}{^}");
+
+        ok = ok && steno_handle_stroke_bits(layered_steno, modal_toggle_bits);
+        const char *modal_off_again = NULL;
+        ok = ok && steno_lookup_stroke(layered_steno, "-R", &modal_off_again);
+        ok = ok && expect_string("modal dictionary toggles off", modal_off_again, "=undo");
 
         clear_test_output(&output);
         reset_output_log(&output);

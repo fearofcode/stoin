@@ -41,6 +41,7 @@ void platform_run(void);
 void platform_shutdown(void);
 bool platform_send_text_utf8(const char *utf8);
 bool platform_delete_text_utf8(const char *utf8);
+bool platform_send_key_combination(const char *combo);
 bool platform_keycode_from_name(const char *name, uint16_t *out_keycode);
 bool platform_find_serial_device(char *out_path, size_t out_size);
 bool platform_find_gemini_pr_device(char *out_path, size_t out_size);

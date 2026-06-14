@@ -27,6 +27,7 @@ typedef enum Input_Mode {
 
 typedef struct Runtime_Config {
     char **dictionary_paths;
+    bool *dictionary_enabled;
     char *word_list_path;
 } Runtime_Config;
 
@@ -48,6 +49,12 @@ static bool delete_text(const char *utf8, void *userdata)
 {
     (void)userdata;
     return platform_delete_text_utf8(utf8);
+}
+
+static bool send_key_combination(const char *combo, void *userdata)
+{
+    (void)userdata;
+    return platform_send_key_combination(combo);
 }
 
 static bool update_session_active(App *app)
@@ -193,16 +200,24 @@ static void runtime_config_clear_dictionaries(Runtime_Config *config)
     }
     arrfree(config->dictionary_paths);
     config->dictionary_paths = NULL;
+    arrfree(config->dictionary_enabled);
+    config->dictionary_enabled = NULL;
 }
 
-static bool runtime_config_add_dictionary(Runtime_Config *config, const char *path)
+static bool runtime_config_add_dictionary_enabled(Runtime_Config *config, const char *path, bool enabled)
 {
     char *copy = copy_cstring(path);
     if (copy == NULL) {
         return false;
     }
     arrput(config->dictionary_paths, copy);
+    arrput(config->dictionary_enabled, enabled);
     return true;
+}
+
+static bool runtime_config_add_dictionary(Runtime_Config *config, const char *path)
+{
+    return runtime_config_add_dictionary_enabled(config, path, true);
 }
 
 static bool runtime_config_set_word_list(Runtime_Config *config, const char *path)
@@ -216,6 +231,22 @@ static bool runtime_config_set_word_list(Runtime_Config *config, const char *pat
     return true;
 }
 
+static bool parse_json_bool(const char **cursor, bool *out_value)
+{
+    const char *p = skip_json_ws(*cursor);
+    if (strncmp(p, "true", 4) == 0) {
+        *cursor = p + 4;
+        *out_value = true;
+        return true;
+    }
+    if (strncmp(p, "false", 5) == 0) {
+        *cursor = p + 5;
+        *out_value = false;
+        return true;
+    }
+    return false;
+}
+
 static void runtime_config_destroy(Runtime_Config *config)
 {
     if (config == NULL) {
@@ -224,6 +255,73 @@ static void runtime_config_destroy(Runtime_Config *config)
     runtime_config_clear_dictionaries(config);
     free(config->word_list_path);
     memset(config, 0, sizeof(*config));
+}
+
+static bool runtime_config_parse_dictionary_object(Runtime_Config *config, const char **cursor)
+{
+    const char *p = skip_json_ws(*cursor);
+    if (*p != '{') {
+        return false;
+    }
+    ++p;
+
+    char *path = NULL;
+    bool enabled = true;
+    bool parsed_ok = false;
+
+    while (true) {
+        p = skip_json_ws(p);
+        if (*p == '}') {
+            parsed_ok = path != NULL;
+            ++p;
+            break;
+        }
+
+        char *key = NULL;
+        if (!parse_json_string(&p, &key)) {
+            break;
+        }
+        p = skip_json_ws(p);
+        if (*p != ':') {
+            arrfree(key);
+            break;
+        }
+        ++p;
+
+        bool value_ok = false;
+        if (strcmp(key, "path") == 0) {
+            arrfree(path);
+            path = NULL;
+            p = skip_json_ws(p);
+            value_ok = parse_json_string(&p, &path);
+        } else if (strcmp(key, "enabled") == 0) {
+            value_ok = parse_json_bool(&p, &enabled);
+        }
+        arrfree(key);
+        if (!value_ok) {
+            break;
+        }
+
+        p = skip_json_ws(p);
+        if (*p == ',') {
+            ++p;
+            continue;
+        }
+        if (*p == '}') {
+            parsed_ok = path != NULL;
+            ++p;
+            break;
+        }
+        break;
+    }
+
+    bool ok = parsed_ok && runtime_config_add_dictionary_enabled(config, path, enabled);
+    arrfree(path);
+    if (!ok) {
+        return false;
+    }
+    *cursor = p;
+    return true;
 }
 
 static bool runtime_config_parse_dictionary_array(Runtime_Config *config, const char **cursor)
@@ -242,14 +340,20 @@ static bool runtime_config_parse_dictionary_array(Runtime_Config *config, const 
             return true;
         }
 
-        char *path = NULL;
-        if (!parse_json_string(&p, &path)) {
-            return false;
-        }
-        const bool ok = runtime_config_add_dictionary(config, path);
-        arrfree(path);
-        if (!ok) {
-            return false;
+        if (*p == '{') {
+            if (!runtime_config_parse_dictionary_object(config, &p)) {
+                return false;
+            }
+        } else {
+            char *path = NULL;
+            if (!parse_json_string(&p, &path)) {
+                return false;
+            }
+            const bool ok = runtime_config_add_dictionary(config, path);
+            arrfree(path);
+            if (!ok) {
+                return false;
+            }
         }
 
         p = skip_json_ws(p);
@@ -661,6 +765,7 @@ static int run_raw_serial(const char *port_path, int baud_rate)
 
 static Steno *create_steno(
     char *const *dictionary_paths,
+    const bool *dictionary_enabled,
     size_t dictionary_path_count,
     const char *word_list_path,
     const char *keymap_path,
@@ -670,10 +775,12 @@ static Steno *create_steno(
     const Steno_Config steno_config = {
         .keymap_path = keymap_path,
         .dictionary_paths = (const char *const *)dictionary_paths,
+        .dictionary_enabled = dictionary_enabled,
         .dictionary_path_count = dictionary_path_count,
         .word_list_path = word_list_path,
         .send_text = send_text,
         .delete_text = delete_text,
+        .send_key_combination = send_key_combination,
         .send_userdata = NULL,
         .trace_file = trace_file,
     };
@@ -809,6 +916,7 @@ int main(int argc, char **argv)
     if (lookup_stroke != NULL) {
         Steno *steno = create_steno(
             runtime_config.dictionary_paths,
+            runtime_config.dictionary_enabled,
             arrlenu(runtime_config.dictionary_paths),
             runtime_config.word_list_path,
             NULL,
@@ -832,6 +940,7 @@ int main(int argc, char **argv)
     if (dump_dictionary) {
         Steno *steno = create_steno(
             runtime_config.dictionary_paths,
+            runtime_config.dictionary_enabled,
             arrlenu(runtime_config.dictionary_paths),
             runtime_config.word_list_path,
             NULL,
@@ -857,6 +966,7 @@ int main(int argc, char **argv)
     App app = {
         .steno = create_steno(
             runtime_config.dictionary_paths,
+            runtime_config.dictionary_enabled,
             arrlenu(runtime_config.dictionary_paths),
             runtime_config.word_list_path,
             input_mode == INPUT_MODE_QWERTY ? "stoin.keymap" : NULL,

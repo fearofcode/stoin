@@ -27,6 +27,13 @@ struct Translation {
     bool next_attach;
 };
 
+typedef enum Case_Mode {
+    CASE_MODE_NORMAL,
+    CASE_MODE_CAP_FIRST_WORD,
+    CASE_MODE_UPPER_FIRST_WORD,
+    CASE_MODE_LOWER_FIRST_CHAR,
+} Case_Mode;
+
 enum {
     MAX_TRANSLATION_STROKES = 100,
     TRANSLATION_COMPACT_INTERVAL_STROKES = 1000,
@@ -38,6 +45,7 @@ struct Steno {
     Key_Binding *bindings;
     Translation *translations;
     char **dictionary_paths;
+    bool *dictionary_enabled;
     Platform_File_Stamp *dictionary_stamps;
     Dictionary dictionary;
     Orthography orthography;
@@ -51,9 +59,11 @@ struct Steno {
     bool option_down;
     bool command_down;
     bool dictionary_reload_error_reported;
+    Case_Mode next_case;
     Spacing_State spacing;
     Send_Text_Fn send_text;
     Delete_Text_Fn delete_text;
+    Send_Key_Combination_Fn send_key_combination;
     void *send_userdata;
     FILE *trace_file;
 };
@@ -147,17 +157,20 @@ static void clear_dictionary_paths(Steno *steno)
     }
     arrfree(steno->dictionary_paths);
     steno->dictionary_paths = NULL;
+    arrfree(steno->dictionary_enabled);
+    steno->dictionary_enabled = NULL;
     arrfree(steno->dictionary_stamps);
     steno->dictionary_stamps = NULL;
 }
 
-static bool add_dictionary_path(Steno *steno, const char *path)
+static bool add_dictionary_path(Steno *steno, const char *path, bool enabled)
 {
     char *copy = copy_cstring(path);
     if (copy == NULL) {
         return false;
     }
     arrput(steno->dictionary_paths, copy);
+    arrput(steno->dictionary_enabled, enabled);
     return true;
 }
 
@@ -173,14 +186,15 @@ static bool set_dictionary_paths_from_config(Steno *steno, const Steno_Config *c
             return false;
         }
         for (size_t i = 0; i < config->dictionary_path_count; ++i) {
+            const bool enabled = config->dictionary_enabled == NULL || config->dictionary_enabled[i];
             if (config->dictionary_paths[i] == NULL
-                || !add_dictionary_path(steno, config->dictionary_paths[i])) {
+                || !add_dictionary_path(steno, config->dictionary_paths[i], enabled)) {
                 clear_dictionary_paths(steno);
                 return false;
             }
         }
     } else {
-        if (config->dictionary_path == NULL || !add_dictionary_path(steno, config->dictionary_path)) {
+        if (config->dictionary_path == NULL || !add_dictionary_path(steno, config->dictionary_path, true)) {
             clear_dictionary_paths(steno);
             return false;
         }
@@ -233,9 +247,32 @@ static bool dictionary_files_changed(Steno *steno, bool *out_changed)
     return true;
 }
 
-static bool load_dictionary_from_paths(Dictionary *dictionary, char *const *paths, size_t path_count)
+static bool load_dictionary_from_paths(
+    Dictionary *dictionary,
+    char *const *paths,
+    const bool *enabled,
+    size_t path_count
+)
 {
-    return dictionary_load_many(dictionary, (const char *const *)paths, path_count);
+    if (dictionary == NULL || paths == NULL || enabled == NULL || path_count == 0) {
+        return false;
+    }
+
+    bool loaded_any = false;
+    for (size_t i = 0; i < path_count; ++i) {
+        if (!enabled[i]) {
+            continue;
+        }
+        if (paths[i] == NULL || !dictionary_load(dictionary, paths[i])) {
+            return false;
+        }
+        loaded_any = true;
+    }
+
+    if (!loaded_any) {
+        sh_new_strdup(dictionary->entries);
+    }
+    return true;
 }
 
 static void reset_chord(Steno *steno)
@@ -278,15 +315,22 @@ typedef struct Formatted_Text {
     char *text;
     char *ortho_suffix;
     char *stitch_delimiter;
+    char **key_combos;
+    char *plover_command;
     size_t stitch_count;
     size_t ortho_suffix_text_offset;
     size_t ortho_suffix_text_length;
+    Case_Mode text_case;
+    Case_Mode next_case;
+    Case_Mode retro_case;
     bool attach_prev;
     bool attach_next;
     bool glue;
     bool stitch;
     bool stitch_last_word;
     bool stitch_phrase;
+    bool carry_case;
+    bool cancel_formatting;
 } Formatted_Text;
 
 static bool array_string_append_char(char **out, char c)
@@ -331,6 +375,116 @@ static bool array_string_prepend_range(char **out, const char *start, size_t len
     return true;
 }
 
+static bool ascii_equals_ignore_case(const char *a, const char *b)
+{
+    if (a == NULL || b == NULL) {
+        return false;
+    }
+    while (*a != '\0' && *b != '\0') {
+        if (tolower((unsigned char)*a) != tolower((unsigned char)*b)) {
+            return false;
+        }
+        ++a;
+        ++b;
+    }
+    return *a == '\0' && *b == '\0';
+}
+
+static bool ascii_range_equals_ignore_case(const char *a, size_t a_length, const char *b)
+{
+    if (a == NULL || b == NULL || strlen(b) != a_length) {
+        return false;
+    }
+    for (size_t i = 0; i < a_length; ++i) {
+        if (tolower((unsigned char)a[i]) != tolower((unsigned char)b[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool ascii_range_starts_with_ignore_case(const char *s, size_t length, const char *prefix)
+{
+    if (s == NULL || prefix == NULL) {
+        return false;
+    }
+    const size_t prefix_length = strlen(prefix);
+    return length >= prefix_length && ascii_range_equals_ignore_case(s, prefix_length, prefix);
+}
+
+static bool is_word_byte(unsigned char c)
+{
+    return c >= 0x80 || isalnum(c) || c == '_';
+}
+
+static void apply_case_mode_to_text(char *text, Case_Mode mode)
+{
+    if (text == NULL || mode == CASE_MODE_NORMAL) {
+        return;
+    }
+
+    if (mode == CASE_MODE_UPPER_FIRST_WORD) {
+        bool in_word = false;
+        for (char *p = text; *p != '\0'; ++p) {
+            const unsigned char c = (unsigned char)*p;
+            if (!in_word) {
+                if (!is_word_byte(c)) {
+                    continue;
+                }
+                in_word = true;
+            } else if (!is_word_byte(c)) {
+                break;
+            }
+            *p = (char)toupper(c);
+        }
+        return;
+    }
+
+    for (char *p = text; *p != '\0'; ++p) {
+        const unsigned char c = (unsigned char)*p;
+        if (!isalpha(c)) {
+            continue;
+        }
+        if (mode == CASE_MODE_CAP_FIRST_WORD) {
+            *p = (char)toupper(c);
+        } else if (mode == CASE_MODE_LOWER_FIRST_CHAR) {
+            *p = (char)tolower(c);
+        }
+        return;
+    }
+}
+
+static void formatted_note_text_append(Formatted_Text *formatted, Case_Mode *pending_case)
+{
+    if (formatted != NULL
+        && pending_case != NULL
+        && *pending_case != CASE_MODE_NORMAL
+        && formatted->text_case == CASE_MODE_NORMAL
+        && (formatted->text == NULL || formatted->text[0] == '\0')) {
+        formatted->text_case = *pending_case;
+        *pending_case = CASE_MODE_NORMAL;
+    }
+}
+
+static bool formatted_append_char(Formatted_Text *formatted, char c, Case_Mode *pending_case)
+{
+    formatted_note_text_append(formatted, pending_case);
+    return array_string_append_char(&formatted->text, c);
+}
+
+static bool formatted_append_range(
+    Formatted_Text *formatted,
+    const char *start,
+    size_t length,
+    Case_Mode *pending_case
+)
+{
+    if (length > 0) {
+        formatted_note_text_append(formatted, pending_case);
+    }
+    return array_string_append_range(&formatted->text, start, length);
+}
+
 static bool is_digit_string(const char *s)
 {
     if (s == NULL || s[0] == '\0') {
@@ -345,11 +499,15 @@ static bool is_digit_string(const char *s)
     return true;
 }
 
-static bool append_escaped_translation_byte(char **out, const char **cursor)
+static bool append_escaped_translation_byte(
+    Formatted_Text *formatted,
+    const char **cursor,
+    Case_Mode *pending_case
+)
 {
     const char *p = *cursor;
     if (*p != '\\') {
-        const bool ok = array_string_append_char(out, *p);
+        const bool ok = formatted_append_char(formatted, *p, pending_case);
         *cursor = p + 1;
         return ok;
     }
@@ -369,10 +527,15 @@ static bool append_escaped_translation_byte(char **out, const char **cursor)
         *cursor = p + 1;
     }
 
-    return array_string_append_char(out, c);
+    return formatted_append_char(formatted, c, pending_case);
 }
 
-static bool parse_attach_meta(Formatted_Text *formatted, const char *text, size_t length)
+static bool parse_attach_meta(
+    Formatted_Text *formatted,
+    const char *text,
+    size_t length,
+    Case_Mode *pending_case
+)
 {
     bool begin = length > 0 && text[0] == '^';
     bool end = length > 0 && text[length - 1] == '^';
@@ -393,10 +556,15 @@ static bool parse_attach_meta(Formatted_Text *formatted, const char *text, size_
     if (end) {
         formatted->attach_next = true;
     }
-    return array_string_append_range(&formatted->text, text + start, end_index - start);
+    return formatted_append_range(formatted, text + start, end_index - start, pending_case);
 }
 
-static bool parse_ortho_attach_meta(Formatted_Text *formatted, const char *text, size_t length)
+static bool parse_ortho_attach_meta(
+    Formatted_Text *formatted,
+    const char *text,
+    size_t length,
+    Case_Mode *pending_case
+)
 {
     if (formatted == NULL || text == NULL || length < 2 || text[0] != '^' || text[length - 1] == '^') {
         return false;
@@ -413,7 +581,7 @@ static bool parse_ortho_attach_meta(Formatted_Text *formatted, const char *text,
         formatted->ortho_suffix_text_offset = formatted->text == NULL ? 0 : strlen(formatted->text);
         formatted->ortho_suffix_text_length = suffix_length;
     }
-    return array_string_append_range(&formatted->text, suffix, suffix_length);
+    return formatted_append_range(formatted, suffix, suffix_length, pending_case);
 }
 
 static bool is_attach_meta(const char *text, size_t length)
@@ -531,31 +699,209 @@ static bool parse_stitch_retro_meta(
     return formatted_set_stitch_delimiter(formatted, delimiter, delimiter_length);
 }
 
+static bool parse_case_mode_name(const char *name, size_t name_length, Case_Mode *out_mode)
+{
+    if (out_mode == NULL) {
+        return false;
+    }
+    if (ascii_range_equals_ignore_case(name, name_length, "cap_first_word")) {
+        *out_mode = CASE_MODE_CAP_FIRST_WORD;
+        return true;
+    }
+    if (ascii_range_equals_ignore_case(name, name_length, "upper_first_word")) {
+        *out_mode = CASE_MODE_UPPER_FIRST_WORD;
+        return true;
+    }
+    if (ascii_range_equals_ignore_case(name, name_length, "lower_first_char")) {
+        *out_mode = CASE_MODE_LOWER_FIRST_CHAR;
+        return true;
+    }
+    return false;
+}
+
+static bool parse_case_meta(
+    Formatted_Text *formatted,
+    const char *meta_start,
+    size_t meta_length,
+    Case_Mode *pending_case
+)
+{
+    if (meta_length == 1 && meta_start[0] == '>') {
+        *pending_case = CASE_MODE_LOWER_FIRST_CHAR;
+        return true;
+    }
+    if (meta_length == 1 && meta_start[0] == '<') {
+        *pending_case = CASE_MODE_UPPER_FIRST_WORD;
+        return true;
+    }
+    if (meta_length == 2 && meta_start[0] == '-' && meta_start[1] == '|') {
+        *pending_case = CASE_MODE_CAP_FIRST_WORD;
+        formatted->attach_next = true;
+        return true;
+    }
+    if (meta_length > 6 && ascii_range_starts_with_ignore_case(meta_start, meta_length, ":case:")) {
+        return parse_case_mode_name(meta_start + 6, meta_length - 6, pending_case);
+    }
+    if (meta_length > 12 && ascii_range_starts_with_ignore_case(meta_start, meta_length, ":retro_case:")) {
+        return parse_case_mode_name(meta_start + 12, meta_length - 12, &formatted->retro_case);
+    }
+    if (meta_length == 3 && meta_start[0] == '*' && meta_start[1] == '-' && meta_start[2] == '|') {
+        formatted->retro_case = CASE_MODE_CAP_FIRST_WORD;
+        return true;
+    }
+    if (meta_length == 2 && meta_start[0] == '*' && meta_start[1] == '<') {
+        formatted->retro_case = CASE_MODE_UPPER_FIRST_WORD;
+        return true;
+    }
+    if (meta_length == 2 && meta_start[0] == '*' && meta_start[1] == '>') {
+        formatted->retro_case = CASE_MODE_LOWER_FIRST_CHAR;
+        return true;
+    }
+    return false;
+}
+
+static bool parse_punctuation_meta(
+    Formatted_Text *formatted,
+    const char *meta_start,
+    size_t meta_length,
+    Case_Mode *pending_case
+)
+{
+    if (meta_length != 1 || strchr(".,:;?!", meta_start[0]) == NULL) {
+        return false;
+    }
+
+    formatted->attach_prev = true;
+    if (!formatted_append_char(formatted, meta_start[0], pending_case)) {
+        return false;
+    }
+    if (meta_start[0] == '.' || meta_start[0] == '?' || meta_start[0] == '!') {
+        formatted->next_case = CASE_MODE_CAP_FIRST_WORD;
+    }
+    return true;
+}
+
+static bool parse_key_combo_meta(Formatted_Text *formatted, const char *meta_start, size_t meta_length)
+{
+    if (meta_length < 2 || meta_start[0] != '#') {
+        return false;
+    }
+
+    char *combo = copy_range(meta_start + 1, meta_length - 1);
+    if (combo == NULL) {
+        return false;
+    }
+    arrput(formatted->key_combos, combo);
+    return true;
+}
+
+static bool parse_plover_command_meta(Formatted_Text *formatted, const char *meta_start, size_t meta_length)
+{
+    if (!ascii_range_starts_with_ignore_case(meta_start, meta_length, "PLOVER:")) {
+        return false;
+    }
+
+    free(formatted->plover_command);
+    formatted->plover_command = copy_range(meta_start + 7, meta_length - 7);
+    return formatted->plover_command != NULL;
+}
+
+static bool parse_carry_capitalization_meta(
+    Formatted_Text *formatted,
+    const char *meta_start,
+    size_t meta_length,
+    Case_Mode *pending_case
+)
+{
+    const char *separator = NULL;
+    for (size_t i = 0; i + 1 < meta_length; ++i) {
+        if (meta_start[i] == '~' && meta_start[i + 1] == '|') {
+            separator = meta_start + i;
+            break;
+        }
+    }
+    if (separator == NULL) {
+        return false;
+    }
+
+    bool begin = meta_length > 0 && meta_start[0] == '^';
+    bool end = meta_length > 0 && meta_start[meta_length - 1] == '^';
+    size_t start = (size_t)(separator - meta_start) + 2;
+    size_t end_index = meta_length - (end ? 1 : 0);
+    if (start > end_index) {
+        start = end_index;
+    }
+
+    if (begin) {
+        formatted->attach_prev = true;
+    }
+    if (end) {
+        formatted->attach_next = true;
+    }
+    formatted->carry_case = true;
+    return formatted_append_range(formatted, meta_start + start, end_index - start, pending_case);
+}
+
 static bool apply_translation_meta(
     Formatted_Text *formatted,
     const char *translation,
     const char *meta_start,
     size_t meta_length,
-    bool *pending_attach_prev
+    bool *pending_attach_prev,
+    Case_Mode *pending_case
 )
 {
+    if (meta_length == 0) {
+        formatted->cancel_formatting = true;
+        *pending_case = CASE_MODE_NORMAL;
+        return true;
+    }
+
     if (parse_stitch_meta(formatted, meta_start, meta_length)
         || parse_stitch_retro_meta(formatted, meta_start, meta_length, ":stitch_last_word", false)
         || parse_stitch_retro_meta(formatted, meta_start, meta_length, ":stitch_phrase", true)) {
         return true;
     }
 
+    if (parse_case_meta(formatted, meta_start, meta_length, pending_case)
+        || parse_punctuation_meta(formatted, meta_start, meta_length, pending_case)
+        || parse_key_combo_meta(formatted, meta_start, meta_length)
+        || parse_plover_command_meta(formatted, meta_start, meta_length)
+        || parse_carry_capitalization_meta(formatted, meta_start, meta_length, pending_case)) {
+        return true;
+    }
+
+    if (meta_length == 1 && meta_start[0] == '#') {
+        return true;
+    }
+    if (meta_length == 1 && meta_start[0] == '*') {
+        formatted->plover_command = copy_cstring("retro_toggle_asterisk");
+        return formatted->plover_command != NULL;
+    }
+    if (meta_length == 2 && meta_start[0] == '*' && meta_start[1] == '!') {
+        formatted->attach_prev = true;
+        formatted->attach_next = true;
+        return true;
+    }
+    if (meta_length == 2 && meta_start[0] == '*' && meta_start[1] == '?') {
+        formatted->plover_command = copy_cstring("retro_insert_space");
+        return formatted->plover_command != NULL;
+    }
+    if (meta_length >= 5 && ascii_range_starts_with_ignore_case(meta_start, meta_length, "MODE:")) {
+        return true;
+    }
+
     if (meta_length >= 5 && memcmp(meta_start, "glue:", 5) == 0) {
         formatted->glue = true;
-        return array_string_append_range(&formatted->text, meta_start + 5, meta_length - 5);
+        return formatted_append_range(formatted, meta_start + 5, meta_length - 5, pending_case);
     }
     if (meta_length >= 6 && memcmp(meta_start, ":glue:", 6) == 0) {
         formatted->glue = true;
-        return array_string_append_range(&formatted->text, meta_start + 6, meta_length - 6);
+        return formatted_append_range(formatted, meta_start + 6, meta_length - 6, pending_case);
     }
     if (meta_length >= 1 && meta_start[0] == '&') {
         formatted->glue = true;
-        return array_string_append_range(&formatted->text, meta_start + 1, meta_length - 1);
+        return formatted_append_range(formatted, meta_start + 1, meta_length - 1, pending_case);
     }
 
     const char *attach = meta_start;
@@ -571,7 +917,7 @@ static bool apply_translation_meta(
             formatted->attach_prev = true;
             *pending_attach_prev = false;
         }
-        return array_string_append_range(&formatted->text, translation, meta_length + 2);
+        return formatted_append_range(formatted, translation, meta_length + 2, pending_case);
     }
 
     if (attach_length == 1 && attach[0] == '^') {
@@ -587,10 +933,10 @@ static bool apply_translation_meta(
         formatted->attach_prev = true;
         *pending_attach_prev = false;
     }
-    if (parse_ortho_attach_meta(formatted, attach, attach_length)) {
+    if (parse_ortho_attach_meta(formatted, attach, attach_length, pending_case)) {
         return true;
     }
-    return parse_attach_meta(formatted, attach, attach_length);
+    return parse_attach_meta(formatted, attach, attach_length, pending_case);
 }
 
 static bool format_translation_text(const char *translation, Formatted_Text *out)
@@ -598,8 +944,15 @@ static bool format_translation_text(const char *translation, Formatted_Text *out
     if (translation == NULL || out == NULL) {
         return false;
     }
+    if (strcmp(translation, "{^}^{^}") == 0) {
+        out->attach_prev = true;
+        out->attach_next = true;
+        arrput(out->text, '\0');
+        return true;
+    }
 
     bool pending_attach_prev = false;
+    Case_Mode pending_case = CASE_MODE_NORMAL;
     if (is_digit_string(translation)) {
         out->glue = true;
     }
@@ -610,7 +963,7 @@ static bool format_translation_text(const char *translation, Formatted_Text *out
                 out->attach_prev = true;
                 pending_attach_prev = false;
             }
-            if (!append_escaped_translation_byte(&out->text, &p)) {
+            if (!append_escaped_translation_byte(out, &p, &pending_case)) {
                 return false;
             }
             continue;
@@ -621,7 +974,7 @@ static bool format_translation_text(const char *translation, Formatted_Text *out
                 out->attach_prev = true;
                 pending_attach_prev = false;
             }
-            if (!array_string_append_char(&out->text, *p++)) {
+            if (!formatted_append_char(out, *p++, &pending_case)) {
                 return false;
             }
             continue;
@@ -640,13 +993,13 @@ static bool format_translation_text(const char *translation, Formatted_Text *out
         }
 
         if (*end != '}') {
-            if (!array_string_append_char(&out->text, *p++)) {
+            if (!formatted_append_char(out, *p++, &pending_case)) {
                 return false;
             }
             continue;
         }
 
-        if (!apply_translation_meta(out, p, meta, (size_t)(end - meta), &pending_attach_prev)) {
+        if (!apply_translation_meta(out, p, meta, (size_t)(end - meta), &pending_attach_prev, &pending_case)) {
             return false;
         }
         p = end + 1;
@@ -655,6 +1008,9 @@ static bool format_translation_text(const char *translation, Formatted_Text *out
     if (pending_attach_prev) {
         out->attach_prev = true;
         out->attach_next = true;
+    }
+    if (pending_case != CASE_MODE_NORMAL) {
+        out->next_case = pending_case;
     }
     if (out->text == NULL) {
         arrput(out->text, '\0');
@@ -670,6 +1026,11 @@ static void formatted_text_destroy(Formatted_Text *formatted)
     arrfree(formatted->text);
     free(formatted->ortho_suffix);
     free(formatted->stitch_delimiter);
+    for (size_t i = 0; i < arrlenu(formatted->key_combos); ++i) {
+        free(formatted->key_combos[i]);
+    }
+    arrfree(formatted->key_combos);
+    free(formatted->plover_command);
     memset(formatted, 0, sizeof(*formatted));
 }
 
@@ -964,7 +1325,9 @@ static char *build_emitted_text(Steno *steno, const char *old_text, const Format
         }
     }
 
-    if (!formatted->attach_next
+    const bool has_visible_text = emitted != NULL && emitted[0] != '\0';
+    if (has_visible_text
+        && !formatted->attach_next
         && steno->spacing.mode == SPACING_MODE_AFTER_WORD
         && steno->spacing.spacing_char != '\0'
         && !array_string_append_char(&emitted, steno->spacing.spacing_char)) {
@@ -1063,6 +1426,21 @@ static bool replace_output_text(Steno *steno, const char *old_text, const char *
     return true;
 }
 
+static bool send_key_combinations(Steno *steno, char *const *key_combos)
+{
+    for (size_t i = 0; i < arrlenu(key_combos); ++i) {
+        if (steno->send_key_combination == NULL) {
+            fprintf(stderr, "stoin: key combo '%s' is not supported on this platform\n", key_combos[i]);
+            return false;
+        }
+        if (!steno->send_key_combination(key_combos[i], steno->send_userdata)) {
+            fprintf(stderr, "stoin: failed to send key combo '%s'\n", key_combos[i]);
+            return false;
+        }
+    }
+    return true;
+}
+
 static bool undo_last_translation(Steno *steno)
 {
     const size_t translation_count = arrlenu(steno->translations);
@@ -1092,13 +1470,187 @@ static bool undo_last_translation(Steno *steno)
     return true;
 }
 
-static bool execute_command(Steno *steno, const char *command)
+static bool repeat_last_translation(Steno *steno, const uint64_t *strokes, size_t stroke_count)
+{
+    const size_t translation_count = arrlenu(steno->translations);
+    if (translation_count == 0) {
+        return true;
+    }
+
+    const Translation *last = &steno->translations[translation_count - 1];
+    Translation next = {
+        .glue = last->glue,
+        .next_attach = last->next_attach,
+    };
+    if (!append_string(&next.utf8, last->utf8)
+        || !translation_set_strokes(&next, strokes, stroke_count)) {
+        translation_destroy(&next);
+        return false;
+    }
+
+    if (!replace_output_text(steno, "", next.utf8)) {
+        translation_destroy(&next);
+        return false;
+    }
+
+    arrput(steno->translations, next);
+    return true;
+}
+
+static bool execute_command(Steno *steno, const char *command, const uint64_t *strokes, size_t stroke_count)
 {
     if (strcmp(command, "=undo") == 0) {
         return undo_last_translation(steno);
     }
+    if (strcmp(command, "=repeat_last_translation") == 0) {
+        return repeat_last_translation(steno, strokes, stroke_count);
+    }
 
     fprintf(stderr, "stoin: unknown dictionary command '%s'\n", command);
+    return true;
+}
+
+static const char *path_basename(const char *path)
+{
+    const char *slash = strrchr(path, '/');
+    return slash == NULL ? path : slash + 1;
+}
+
+static bool path_matches_dictionary_selection(const char *path, const char *selection)
+{
+    if (path == NULL || selection == NULL) {
+        return false;
+    }
+
+    const size_t path_length = strlen(path);
+    const size_t selection_length = strlen(selection);
+    if (selection_length == 0 || selection_length > path_length) {
+        return false;
+    }
+
+    if (strcmp(path + path_length - selection_length, selection) == 0
+        && (selection_length == path_length || path[path_length - selection_length - 1] == '/')) {
+        return true;
+    }
+
+    const char *base = path_basename(path);
+    const char *selection_base = path_basename(selection);
+    if (strcmp(base, selection_base) == 0) {
+        return true;
+    }
+    if (strncmp(base, "lapwing-", 8) == 0 && strcmp(base + 8, selection_base) == 0) {
+        return true;
+    }
+    return false;
+}
+
+static char *copy_trimmed_range(const char *start, size_t length)
+{
+    while (length > 0 && isspace((unsigned char)*start)) {
+        ++start;
+        --length;
+    }
+    while (length > 0 && isspace((unsigned char)start[length - 1])) {
+        --length;
+    }
+    return copy_range(start, length);
+}
+
+static bool toggle_dictionary_selection(Steno *steno, char toggle, const char *selection)
+{
+    size_t match = SIZE_MAX;
+    size_t match_length = SIZE_MAX;
+    for (size_t i = 0; i < arrlenu(steno->dictionary_paths); ++i) {
+        if (!path_matches_dictionary_selection(steno->dictionary_paths[i], selection)) {
+            continue;
+        }
+        const size_t length = strlen(steno->dictionary_paths[i]);
+        if (length < match_length) {
+            match = i;
+            match_length = length;
+        }
+    }
+
+    if (match == SIZE_MAX) {
+        fprintf(stderr, "stoin: dictionary toggle could not find '%s'\n", selection);
+        return true;
+    }
+
+    const bool old_enabled = steno->dictionary_enabled[match];
+    bool new_enabled = old_enabled;
+    if (toggle == '+') {
+        new_enabled = true;
+    } else if (toggle == '-') {
+        new_enabled = false;
+    } else if (toggle == '!') {
+        new_enabled = !old_enabled;
+    } else {
+        fprintf(stderr, "stoin: invalid dictionary toggle '%c%s'\n", toggle, selection);
+        return true;
+    }
+
+    if (new_enabled == old_enabled) {
+        return true;
+    }
+
+    steno->dictionary_enabled[match] = new_enabled;
+    if (!steno_reload_dictionary(steno)) {
+        steno->dictionary_enabled[match] = old_enabled;
+        (void)steno_reload_dictionary(steno);
+        return false;
+    }
+
+    fprintf(stderr,
+        "stoin: dictionary '%s' %s\n",
+        steno->dictionary_paths[match],
+        new_enabled ? "enabled" : "disabled");
+    return true;
+}
+
+static bool execute_toggle_dict_command(Steno *steno, const char *selections)
+{
+    const char *p = selections;
+    while (*p != '\0') {
+        const char *end = strchr(p, ',');
+        const size_t length = end == NULL ? strlen(p) : (size_t)(end - p);
+        char *selection = copy_trimmed_range(p, length);
+        if (selection == NULL) {
+            return false;
+        }
+        if (selection[0] != '\0') {
+            const char toggle = selection[0];
+            const char *path = selection + 1;
+            if (!toggle_dictionary_selection(steno, toggle, path)) {
+                free(selection);
+                return false;
+            }
+        }
+        free(selection);
+        if (end == NULL) {
+            break;
+        }
+        p = end + 1;
+    }
+    return true;
+}
+
+static bool execute_plover_command(Steno *steno, const char *command)
+{
+    if (command == NULL || command[0] == '\0') {
+        return true;
+    }
+
+    if (ascii_range_starts_with_ignore_case(command, strlen(command), "toggle_dict:")) {
+        return execute_toggle_dict_command(steno, command + strlen("toggle_dict:"));
+    }
+    if (ascii_equals_ignore_case(command, "toggle")) {
+        steno->enabled = !steno->enabled;
+        reset_chord(steno);
+        fprintf(stderr, "stoin: steno capture %s\n", steno->enabled ? "enabled" : "disabled");
+        return true;
+    }
+
+    fprintf(stderr, "stoin: unsupported Plover command '%s'\n", command);
     return true;
 }
 
@@ -1232,6 +1784,51 @@ static bool find_translation_match(Steno *steno, uint64_t bits, Translation_Matc
     return true;
 }
 
+static bool apply_retro_case(Steno *steno, const Translation_Match *match, Case_Mode mode)
+{
+    const size_t translation_count = arrlenu(steno->translations);
+    if (translation_count == 0) {
+        return true;
+    }
+
+    char *old_text = translation_range_text(steno->translations, translation_count - 1, 1);
+    char *new_text = NULL;
+    if (old_text == NULL || !append_string(&new_text, old_text)) {
+        arrfree(old_text);
+        arrfree(new_text);
+        return false;
+    }
+    apply_case_mode_to_text(new_text, mode);
+
+    Translation next = {0};
+    if (!append_string(&next.utf8, new_text)
+        || !translation_set_strokes(
+            &next,
+            steno->translations[translation_count - 1].strokes,
+            arrlenu(steno->translations[translation_count - 1].strokes))
+        || !translation_set_strokes(&next, match->strokes, match->stroke_count)) {
+        arrfree(old_text);
+        arrfree(new_text);
+        translation_destroy(&next);
+        return false;
+    }
+
+    if (!replace_output_text(steno, old_text, next.utf8)) {
+        arrfree(old_text);
+        arrfree(new_text);
+        translation_destroy(&next);
+        return false;
+    }
+
+    arrput(next.replaced, steno->translations[translation_count - 1]);
+    arrsetlen(steno->translations, translation_count - 1);
+    arrput(steno->translations, next);
+
+    arrfree(old_text);
+    arrfree(new_text);
+    return true;
+}
+
 static bool apply_stitch_retro_match(
     Steno *steno,
     const Translation_Match *match,
@@ -1329,6 +1926,40 @@ static bool apply_translation_match(Steno *steno, const Translation_Match *match
         return ok;
     }
 
+    if (formatted.retro_case != CASE_MODE_NORMAL) {
+        const bool ok = apply_retro_case(steno, match, formatted.retro_case);
+        formatted_text_destroy(&formatted);
+        return ok;
+    }
+
+    if (formatted.plover_command != NULL
+        && formatted.text[0] == '\0'
+        && arrlenu(formatted.key_combos) == 0
+        && !formatted.attach_prev
+        && !formatted.attach_next) {
+        const bool ok = execute_plover_command(steno, formatted.plover_command);
+        formatted_text_destroy(&formatted);
+        return ok;
+    }
+
+    if (formatted.cancel_formatting) {
+        steno->next_case = CASE_MODE_NORMAL;
+    }
+    if (formatted.carry_case
+        && formatted.next_case == CASE_MODE_NORMAL
+        && steno->next_case != CASE_MODE_NORMAL) {
+        formatted.next_case = steno->next_case;
+    }
+    if (formatted.text[0] != '\0') {
+        const Case_Mode text_case = formatted.text_case != CASE_MODE_NORMAL
+            ? formatted.text_case
+            : steno->next_case;
+        apply_case_mode_to_text(formatted.text, text_case);
+        steno->next_case = formatted.next_case;
+    } else if (formatted.next_case != CASE_MODE_NORMAL) {
+        steno->next_case = formatted.next_case;
+    }
+
     size_t replaced_count = match->replaced_count;
     if (replaced_count == 0 && translation_count > 0) {
         const Translation *previous = &steno->translations[translation_count - 1];
@@ -1358,10 +1989,10 @@ static bool apply_translation_match(Steno *steno, const Translation_Match *match
     next.utf8 = build_emitted_text(steno, old_text, &formatted);
     next.glue = formatted.glue;
     next.next_attach = formatted.attach_next;
-    formatted_text_destroy(&formatted);
 
     if (next.utf8 == NULL) {
         arrfree(old_text);
+        formatted_text_destroy(&formatted);
         translation_destroy(&next);
         return false;
     }
@@ -1373,6 +2004,7 @@ static bool apply_translation_match(Steno *steno, const Translation_Match *match
                     steno->translations[i].strokes,
                     arrlenu(steno->translations[i].strokes))) {
                 arrfree(old_text);
+                formatted_text_destroy(&formatted);
                 translation_destroy(&next);
                 return false;
             }
@@ -1380,13 +2012,17 @@ static bool apply_translation_match(Steno *steno, const Translation_Match *match
     }
     if (!translation_set_strokes(&next, match->strokes, match->stroke_count)) {
         arrfree(old_text);
+        formatted_text_destroy(&formatted);
         translation_destroy(&next);
         return false;
     }
 
-    if (!replace_output_text(steno, old_text, next.utf8)) {
+    if (!replace_output_text(steno, old_text, next.utf8)
+        || !send_key_combinations(steno, formatted.key_combos)
+        || (formatted.plover_command != NULL && !execute_plover_command(steno, formatted.plover_command))) {
         arrfree(old_text);
         translation_destroy(&next);
+        formatted_text_destroy(&formatted);
         return false;
     }
 
@@ -1397,6 +2033,7 @@ static bool apply_translation_match(Steno *steno, const Translation_Match *match
     arrput(steno->translations, next);
 
     arrfree(old_text);
+    formatted_text_destroy(&formatted);
     return true;
 }
 
@@ -1464,7 +2101,11 @@ bool steno_reload_dictionary(Steno *steno)
     }
 
     Dictionary next = {0};
-    if (!load_dictionary_from_paths(&next, steno->dictionary_paths, arrlenu(steno->dictionary_paths))) {
+    if (!load_dictionary_from_paths(
+            &next,
+            steno->dictionary_paths,
+            steno->dictionary_enabled,
+            arrlenu(steno->dictionary_paths))) {
         dictionary_destroy(&next);
         (void)refresh_dictionary_stamps(steno);
         if (!steno->dictionary_reload_error_reported) {
@@ -1532,7 +2173,7 @@ static bool translate_chord_bits(Steno *steno, uint64_t bits)
     const char *single_stroke_translation = dictionary_lookup_bits(&steno->dictionary, bits);
     if (single_stroke_translation != NULL && single_stroke_translation[0] == '=') {
         trace_stroke(steno, raw_chord, single_stroke_translation);
-        const bool ok = execute_command(steno, single_stroke_translation);
+        const bool ok = execute_command(steno, single_stroke_translation, &bits, 1);
         if (ok) {
             count_completed_stroke(steno);
         }
@@ -1571,6 +2212,7 @@ Steno *steno_create(const Steno_Config *config)
     };
     steno->send_text = config->send_text;
     steno->delete_text = config->delete_text;
+    steno->send_key_combination = config->send_key_combination;
     steno->send_userdata = config->send_userdata;
     steno->trace_file = config->trace_file;
 
@@ -1583,6 +2225,7 @@ Steno *steno_create(const Steno_Config *config)
         || !load_dictionary_from_paths(
             &steno->dictionary,
             steno->dictionary_paths,
+            steno->dictionary_enabled,
             arrlenu(steno->dictionary_paths))) {
         steno_destroy(steno);
         return NULL;
