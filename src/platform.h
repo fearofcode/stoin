@@ -25,6 +25,12 @@ typedef enum Platform_Serial_Read_Result {
     PLATFORM_SERIAL_READ_ERROR,
 } Platform_Serial_Read_Result;
 
+typedef struct Platform_File_Stamp {
+    uint64_t modified_time_ns;
+    uint64_t size;
+    bool exists;
+} Platform_File_Stamp;
+
 typedef struct Platform_Serial_Port Platform_Serial_Port;
 
 bool platform_output_init(void);
@@ -46,6 +52,7 @@ Platform_Serial_Read_Result platform_serial_read_byte(
     unsigned int timeout_ms
 );
 bool platform_user_session_is_active(void);
+bool platform_file_stamp(const char *path, Platform_File_Stamp *out_stamp);
 void platform_sleep_ms(unsigned int milliseconds);
 
 #endif

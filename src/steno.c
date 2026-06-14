@@ -37,6 +37,8 @@ enum {
 struct Steno {
     Key_Binding *bindings;
     Translation *translations;
+    char **dictionary_paths;
+    Platform_File_Stamp *dictionary_stamps;
     Dictionary dictionary;
     Orthography orthography;
     uint64_t down_keycodes;
@@ -48,6 +50,7 @@ struct Steno {
     bool control_down;
     bool option_down;
     bool command_down;
+    bool dictionary_reload_error_reported;
     Spacing_State spacing;
     Send_Text_Fn send_text;
     Delete_Text_Fn delete_text;
@@ -125,6 +128,114 @@ static const Key_Binding *find_binding(const Steno *steno, uint16_t keycode)
         }
     }
     return NULL;
+}
+
+static bool file_stamps_equal(Platform_File_Stamp a, Platform_File_Stamp b)
+{
+    return a.exists == b.exists
+        && a.size == b.size
+        && a.modified_time_ns == b.modified_time_ns;
+}
+
+static void clear_dictionary_paths(Steno *steno)
+{
+    if (steno == NULL) {
+        return;
+    }
+    for (size_t i = 0; i < arrlenu(steno->dictionary_paths); ++i) {
+        free(steno->dictionary_paths[i]);
+    }
+    arrfree(steno->dictionary_paths);
+    steno->dictionary_paths = NULL;
+    arrfree(steno->dictionary_stamps);
+    steno->dictionary_stamps = NULL;
+}
+
+static bool add_dictionary_path(Steno *steno, const char *path)
+{
+    char *copy = copy_cstring(path);
+    if (copy == NULL) {
+        return false;
+    }
+    arrput(steno->dictionary_paths, copy);
+    return true;
+}
+
+static bool set_dictionary_paths_from_config(Steno *steno, const Steno_Config *config)
+{
+    if (steno == NULL || config == NULL) {
+        return false;
+    }
+
+    clear_dictionary_paths(steno);
+    if (config->dictionary_path_count > 0) {
+        if (config->dictionary_paths == NULL) {
+            return false;
+        }
+        for (size_t i = 0; i < config->dictionary_path_count; ++i) {
+            if (config->dictionary_paths[i] == NULL
+                || !add_dictionary_path(steno, config->dictionary_paths[i])) {
+                clear_dictionary_paths(steno);
+                return false;
+            }
+        }
+    } else {
+        if (config->dictionary_path == NULL || !add_dictionary_path(steno, config->dictionary_path)) {
+            clear_dictionary_paths(steno);
+            return false;
+        }
+    }
+
+    return arrlenu(steno->dictionary_paths) > 0;
+}
+
+static bool refresh_dictionary_stamps(Steno *steno)
+{
+    if (steno == NULL) {
+        return false;
+    }
+
+    arrsetlen(steno->dictionary_stamps, arrlenu(steno->dictionary_paths));
+    for (size_t i = 0; i < arrlenu(steno->dictionary_paths); ++i) {
+        Platform_File_Stamp stamp = {0};
+        if (!platform_file_stamp(steno->dictionary_paths[i], &stamp)) {
+            arrsetlen(steno->dictionary_stamps, 0);
+            return false;
+        }
+        steno->dictionary_stamps[i] = stamp;
+    }
+    return true;
+}
+
+static bool dictionary_files_changed(Steno *steno, bool *out_changed)
+{
+    if (steno == NULL || out_changed == NULL) {
+        return false;
+    }
+
+    *out_changed = false;
+    if (arrlenu(steno->dictionary_stamps) != arrlenu(steno->dictionary_paths)) {
+        *out_changed = true;
+        return true;
+    }
+
+    for (size_t i = 0; i < arrlenu(steno->dictionary_paths); ++i) {
+        Platform_File_Stamp stamp = {0};
+        if (!platform_file_stamp(steno->dictionary_paths[i], &stamp)) {
+            return false;
+        }
+        if (!file_stamps_equal(stamp, steno->dictionary_stamps[i])) {
+            *out_changed = true;
+            return true;
+        }
+    }
+
+    return true;
+}
+
+static bool load_dictionary_from_paths(Dictionary *dictionary, char *const *paths, size_t path_count)
+{
+    return dictionary_load_many(dictionary, (const char *const *)paths, path_count);
 }
 
 static void reset_chord(Steno *steno)
@@ -1346,11 +1457,63 @@ static void count_completed_stroke(Steno *steno)
     }
 }
 
+bool steno_reload_dictionary(Steno *steno)
+{
+    if (steno == NULL || arrlenu(steno->dictionary_paths) == 0) {
+        return false;
+    }
+
+    Dictionary next = {0};
+    if (!load_dictionary_from_paths(&next, steno->dictionary_paths, arrlenu(steno->dictionary_paths))) {
+        dictionary_destroy(&next);
+        (void)refresh_dictionary_stamps(steno);
+        if (!steno->dictionary_reload_error_reported) {
+            fputs("stoin: dictionary changed but reload failed; keeping previous dictionary\n", stderr);
+            steno->dictionary_reload_error_reported = true;
+        }
+        return false;
+    }
+
+    dictionary_destroy(&steno->dictionary);
+    steno->dictionary = next;
+    if (!refresh_dictionary_stamps(steno)) {
+        fputs("stoin: warning: reloaded dictionary, but failed to refresh dictionary file stamps\n", stderr);
+    }
+
+    steno->dictionary_reload_error_reported = false;
+    fprintf(stderr, "stoin: reloaded %zu dictionary entries\n", dictionary_count(&steno->dictionary));
+    return true;
+}
+
+bool steno_reload_dictionary_if_changed(Steno *steno)
+{
+    if (steno == NULL) {
+        return false;
+    }
+
+    bool changed = false;
+    if (!dictionary_files_changed(steno, &changed)) {
+        if (!steno->dictionary_reload_error_reported) {
+            fputs("stoin: failed to check dictionary files for changes\n", stderr);
+            steno->dictionary_reload_error_reported = true;
+        }
+        return false;
+    }
+
+    if (!changed) {
+        return true;
+    }
+    steno->dictionary_reload_error_reported = false;
+    return steno_reload_dictionary(steno);
+}
+
 static bool translate_chord_bits(Steno *steno, uint64_t bits)
 {
     if (bits == 0) {
         return true;
     }
+
+    (void)steno_reload_dictionary_if_changed(steno);
 
     char raw_chord[64] = {0};
     if (!chord_bits_to_string(bits, raw_chord, sizeof(raw_chord))) {
@@ -1407,13 +1570,16 @@ Steno *steno_create(const Steno_Config *config)
         return NULL;
     }
 
-    const bool loaded_dictionary =
-        config->dictionary_path_count > 0
-            ? dictionary_load_many(&steno->dictionary, config->dictionary_paths, config->dictionary_path_count)
-            : dictionary_load(&steno->dictionary, config->dictionary_path);
-    if (!loaded_dictionary) {
+    if (!set_dictionary_paths_from_config(steno, config)
+        || !load_dictionary_from_paths(
+            &steno->dictionary,
+            steno->dictionary_paths,
+            arrlenu(steno->dictionary_paths))) {
         steno_destroy(steno);
         return NULL;
+    }
+    if (!refresh_dictionary_stamps(steno)) {
+        fputs("stoin: warning: failed to capture dictionary file stamps; hot reload may not work\n", stderr);
     }
 
     if (config->word_list_path != NULL && !orthography_load(&steno->orthography, config->word_list_path)) {
@@ -1431,6 +1597,7 @@ void steno_destroy(Steno *steno)
     }
 
     arrfree(steno->bindings);
+    clear_dictionary_paths(steno);
     for (size_t i = 0; i < arrlenu(steno->translations); ++i) {
         translation_destroy(&steno->translations[i]);
     }

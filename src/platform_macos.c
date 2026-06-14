@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/select.h>
+#include <sys/stat.h>
 #include <termios.h>
 #include <time.h>
 #include <unistd.h>
@@ -433,6 +434,29 @@ bool platform_user_session_is_active(void)
     CFRelease(session);
 
     return on_console && login_done && !screen_locked;
+}
+
+bool platform_file_stamp(const char *path, Platform_File_Stamp *out_stamp)
+{
+    if (path == NULL || out_stamp == NULL) {
+        return false;
+    }
+
+    memset(out_stamp, 0, sizeof(*out_stamp));
+
+    struct stat info;
+    if (stat(path, &info) != 0) {
+        if (errno == ENOENT) {
+            return true;
+        }
+        return false;
+    }
+
+    out_stamp->exists = true;
+    out_stamp->size = (uint64_t)info.st_size;
+    out_stamp->modified_time_ns = (uint64_t)info.st_mtimespec.tv_sec * UINT64_C(1000000000)
+        + (uint64_t)info.st_mtimespec.tv_nsec;
+    return true;
 }
 
 void platform_sleep_ms(unsigned int milliseconds)

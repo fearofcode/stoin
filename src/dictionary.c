@@ -239,8 +239,12 @@ bool dictionary_load(Dictionary *dictionary, const char *path)
 
         char canonical[DICTIONARY_MAX_OUTLINE_BYTES] = {0};
         size_t stroke_count = 0;
-        if (outline_to_canonical_key(stroke, canonical, sizeof(canonical), &stroke_count)) {
-            (void)dictionary_put(dictionary, canonical, stroke_count, translation);
+        if (outline_to_canonical_key(stroke, canonical, sizeof(canonical), &stroke_count)
+            && !dictionary_put(dictionary, canonical, stroke_count, translation)) {
+            arrfree(stroke);
+            arrfree(translation);
+            free(file);
+            return false;
         }
 
         arrfree(stroke);

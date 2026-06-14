@@ -84,6 +84,19 @@ static void reset_output_log(Test_Output *output)
     output->delete_count = 0;
 }
 
+static bool write_text_file(const char *path, const char *contents)
+{
+    FILE *file = fopen(path, "wb");
+    if (file == NULL) {
+        return false;
+    }
+    if (fputs(contents, file) == EOF) {
+        fclose(file);
+        return false;
+    }
+    return fclose(file) == 0;
+}
+
 static bool send_key_event(Steno *steno, const char *key_name, bool is_down)
 {
     uint16_t keycode = 0;
@@ -338,6 +351,34 @@ int main(void)
     const char *histories = NULL;
     ok = ok && steno_lookup_stroke(steno, "HEU/STOE-R/-Z", &histories);
     ok = ok && expect_string("dictionary lookup longest multi-stroke", histories, "histories");
+
+    const char *reload_path = "build/test-hot-reload-dictionary.json";
+    ok = ok && write_text_file(reload_path, "{ \"S\": \"old\" }\n");
+    Steno_Config reload_config = config;
+    reload_config.dictionary_path = reload_path;
+    Steno *reload_steno = steno_create(&reload_config);
+    ok = ok && reload_steno != NULL;
+    if (reload_steno != NULL) {
+        uint64_t reload_bits = 0;
+        ok = ok && stroke_string_to_bits("S", &reload_bits);
+
+        clear_test_output(&output);
+        ok = ok && steno_handle_stroke_bits(reload_steno, reload_bits);
+        ok = ok && expect_string("hot reload initial dictionary", output.text, "old ");
+
+        ok = ok && write_text_file(reload_path, "{");
+        clear_test_output(&output);
+        ok = ok && steno_handle_stroke_bits(reload_steno, reload_bits);
+        ok = ok && expect_string("hot reload keeps old dictionary on parse failure", output.text, "old ");
+
+        ok = ok && write_text_file(reload_path, "{ \"S\": \"newer\" }\n");
+        clear_test_output(&output);
+        ok = ok && steno_handle_stroke_bits(reload_steno, reload_bits);
+        ok = ok && expect_string("hot reload updated dictionary", output.text, "newer ");
+
+        steno_destroy(reload_steno);
+    }
+    remove(reload_path);
 
     const char *dump_path = "build/test-dictionary-dump.json";
     ok = ok && steno_dump_dictionary_json(steno, dump_path);
