@@ -1507,13 +1507,22 @@ bool steno_reload_dictionary_if_changed(Steno *steno)
     return steno_reload_dictionary(steno);
 }
 
+bool steno_get_dictionary_paths(const Steno *steno, const char *const **out_paths, size_t *out_path_count)
+{
+    if (steno == NULL || out_paths == NULL || out_path_count == NULL) {
+        return false;
+    }
+
+    *out_paths = (const char *const *)steno->dictionary_paths;
+    *out_path_count = arrlenu(steno->dictionary_paths);
+    return true;
+}
+
 static bool translate_chord_bits(Steno *steno, uint64_t bits)
 {
     if (bits == 0) {
         return true;
     }
-
-    (void)steno_reload_dictionary_if_changed(steno);
 
     char raw_chord[64] = {0};
     if (!chord_bits_to_string(bits, raw_chord, sizeof(raw_chord))) {

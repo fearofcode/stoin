@@ -74,6 +74,38 @@ static bool update_session_active(App *app)
     return active;
 }
 
+static void run_app_maintenance(App *app)
+{
+    if (app == NULL) {
+        return;
+    }
+
+    platform_file_watcher_poll();
+    (void)update_session_active(app);
+}
+
+static void reload_dictionary_from_watcher(void *userdata)
+{
+    App *app = userdata;
+    if (app != NULL) {
+        (void)steno_reload_dictionary(app->steno);
+    }
+}
+
+static void start_dictionary_watcher(App *app)
+{
+    if (app == NULL) {
+        return;
+    }
+
+    const char *const *paths = NULL;
+    size_t path_count = 0;
+    if (!steno_get_dictionary_paths(app->steno, &paths, &path_count)
+        || !platform_file_watcher_start(paths, path_count, reload_dictionary_from_watcher, app)) {
+        fputs("stoin: warning: failed to start dictionary hot reload watcher\n", stderr);
+    }
+}
+
 static bool handle_input(const Input_Event *event, void *userdata)
 {
     App *app = userdata;
@@ -335,7 +367,8 @@ static int run_qwerty(App *app)
     if (!platform_init(handle_input, app)) {
         return 1;
     }
-    (void)update_session_active(app);
+    run_app_maintenance(app);
+    start_dictionary_watcher(app);
 
     puts("stoin: macOS qwerty event tap running");
     printf("stoin: loaded %zu key bindings and %zu dictionary entries\n",
@@ -363,9 +396,11 @@ static int run_tx_bolt(App *app, const char *port_path, int baud_rate)
     bool connected = false;
     bool output_ready = false;
     bool announced_disconnected = false;
+    start_dictionary_watcher(app);
 
     while (!g_stop_requested) {
-        const bool session_active = update_session_active(app);
+        run_app_maintenance(app);
+        const bool session_active = app->session_state_known && app->session_active;
 
         if (!connected) {
             char resolved_port_path[256] = {0};
@@ -445,9 +480,11 @@ static int run_gemini_pr(App *app, const char *port_path, int baud_rate)
     bool connected = false;
     bool output_ready = false;
     bool announced_disconnected = false;
+    start_dictionary_watcher(app);
 
     while (!g_stop_requested) {
-        const bool session_active = update_session_active(app);
+        run_app_maintenance(app);
+        const bool session_active = app->session_state_known && app->session_active;
 
         if (!connected) {
             char resolved_port_path[256] = {0};

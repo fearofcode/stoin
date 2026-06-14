@@ -21,6 +21,11 @@ typedef struct Test_Output {
     size_t delete_count;
 } Test_Output;
 
+typedef struct Watch_Test {
+    Steno *steno;
+    size_t reload_count;
+} Watch_Test;
+
 enum {
     TEST_KEYCODE_ESCAPE = 53,
     TEST_KEYCODE_LEFT_CONTROL = 59,
@@ -95,6 +100,17 @@ static bool write_text_file(const char *path, const char *contents)
         return false;
     }
     return fclose(file) == 0;
+}
+
+static void test_dictionary_watch_callback(void *userdata)
+{
+    Watch_Test *watch = userdata;
+    if (watch == NULL) {
+        return;
+    }
+    if (steno_reload_dictionary(watch->steno)) {
+        ++watch->reload_count;
+    }
 }
 
 static bool send_key_event(Steno *steno, const char *key_name, bool is_down)
@@ -367,14 +383,57 @@ int main(void)
         ok = ok && expect_string("hot reload initial dictionary", output.text, "old ");
 
         ok = ok && write_text_file(reload_path, "{");
+        ok = ok && !steno_reload_dictionary(reload_steno);
         clear_test_output(&output);
         ok = ok && steno_handle_stroke_bits(reload_steno, reload_bits);
         ok = ok && expect_string("hot reload keeps old dictionary on parse failure", output.text, "old ");
 
         ok = ok && write_text_file(reload_path, "{ \"S\": \"newer\" }\n");
+        ok = ok && steno_reload_dictionary(reload_steno);
         clear_test_output(&output);
         ok = ok && steno_handle_stroke_bits(reload_steno, reload_bits);
         ok = ok && expect_string("hot reload updated dictionary", output.text, "newer ");
+
+        Watch_Test watch = {
+            .steno = reload_steno,
+        };
+        const char *const watch_paths[] = { reload_path };
+        ok = ok && platform_file_watcher_start(
+            watch_paths,
+            sizeof(watch_paths) / sizeof(watch_paths[0]),
+            test_dictionary_watch_callback,
+            &watch
+        );
+        ok = ok && write_text_file(reload_path, "{ \"S\": \"watched\" }\n");
+        for (size_t attempt = 0; ok && watch.reload_count == 0 && attempt < 50; ++attempt) {
+            platform_file_watcher_poll();
+            platform_sleep_ms(10);
+        }
+        platform_file_watcher_stop();
+        ok = ok && watch.reload_count > 0;
+        clear_test_output(&output);
+        ok = ok && steno_handle_stroke_bits(reload_steno, reload_bits);
+        ok = ok && expect_string("platform dictionary watcher reload", output.text, "watched ");
+
+        ok = ok && !send_raw_key_event(reload_steno, TEST_KEYCODE_LEFT_CONTROL, true, true, false, false);
+        ok = ok && send_raw_key_event(reload_steno, TEST_KEYCODE_ESCAPE, true, false, false, false);
+        ok = ok && send_raw_key_event(reload_steno, TEST_KEYCODE_ESCAPE, false, false, false, false);
+        ok = ok && !send_raw_key_event(reload_steno, TEST_KEYCODE_LEFT_CONTROL, false, false, false, false);
+        ok = ok && write_text_file(reload_path, "{ \"S\": \"disabled\" }\n");
+        ok = ok && steno_reload_dictionary(reload_steno);
+        clear_test_output(&output);
+        ok = ok && !send_key_event(reload_steno, "a", true);
+        ok = ok && !send_key_event(reload_steno, "a", false);
+        ok = ok && expect_string("hot reload while capture disabled suppresses output", output.text, "");
+
+        ok = ok && !send_raw_key_event(reload_steno, TEST_KEYCODE_LEFT_CONTROL, true, true, false, false);
+        ok = ok && send_raw_key_event(reload_steno, TEST_KEYCODE_ESCAPE, true, false, false, false);
+        ok = ok && send_raw_key_event(reload_steno, TEST_KEYCODE_ESCAPE, false, false, false, false);
+        ok = ok && !send_raw_key_event(reload_steno, TEST_KEYCODE_LEFT_CONTROL, false, false, false, false);
+        clear_test_output(&output);
+        ok = ok && send_key_event(reload_steno, "a", true);
+        ok = ok && send_key_event(reload_steno, "a", false);
+        ok = ok && expect_string("hot reload while disabled applies after reenable", output.text, "disabled ");
 
         steno_destroy(reload_steno);
     }

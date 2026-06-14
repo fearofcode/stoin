@@ -31,6 +31,8 @@ typedef struct Platform_File_Stamp {
     bool exists;
 } Platform_File_Stamp;
 
+typedef void (*Platform_File_Watch_Fn)(void *userdata);
+
 typedef struct Platform_Serial_Port Platform_Serial_Port;
 
 bool platform_output_init(void);
@@ -53,6 +55,9 @@ Platform_Serial_Read_Result platform_serial_read_byte(
 );
 bool platform_user_session_is_active(void);
 bool platform_file_stamp(const char *path, Platform_File_Stamp *out_stamp);
+bool platform_file_watcher_start(const char *const *paths, size_t path_count, Platform_File_Watch_Fn callback, void *userdata);
+void platform_file_watcher_poll(void);
+void platform_file_watcher_stop(void);
 void platform_sleep_ms(unsigned int milliseconds);
 
 #endif
