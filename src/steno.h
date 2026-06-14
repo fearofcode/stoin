@@ -25,6 +25,9 @@ typedef struct Spacing_State {
 typedef struct Steno_Config {
     const char *keymap_path;
     const char *dictionary_path;
+    const char *const *dictionary_paths;
+    size_t dictionary_path_count;
+    const char *word_list_path;
     Send_Text_Fn send_text;
     Delete_Text_Fn delete_text;
     void *send_userdata;

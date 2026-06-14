@@ -28,8 +28,6 @@ typedef enum Platform_Serial_Read_Result {
 typedef struct Platform_Serial_Port Platform_Serial_Port;
 
 bool platform_output_init(void);
-bool platform_terminal_quiet_start(void);
-void platform_terminal_quiet_stop(void);
 bool platform_init(Handle_Input_Fn handler, void *userdata);
 void platform_run(void);
 void platform_shutdown(void);

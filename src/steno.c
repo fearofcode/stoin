@@ -1,6 +1,7 @@
 #include "steno.h"
 
 #include "dictionary.h"
+#include "orthography.h"
 #include "steno_stroke.h"
 #include "util.h"
 
@@ -37,12 +38,16 @@ struct Steno {
     Key_Binding *bindings;
     Translation *translations;
     Dictionary dictionary;
+    Orthography orthography;
     uint64_t down_keycodes;
     uint64_t chord_bits;
     size_t strokes_since_compaction;
     bool enabled;
     bool session_active;
     bool toggle_esc_down;
+    bool control_down;
+    bool option_down;
+    bool command_down;
     Spacing_State spacing;
     Send_Text_Fn send_text;
     Delete_Text_Fn delete_text;
@@ -128,11 +133,49 @@ static void reset_chord(Steno *steno)
     steno->chord_bits = 0;
 }
 
+enum {
+    KEYCODE_ESCAPE = 53,
+    KEYCODE_LEFT_COMMAND = 55,
+    KEYCODE_RIGHT_COMMAND = 54,
+    KEYCODE_LEFT_OPTION = 58,
+    KEYCODE_RIGHT_OPTION = 61,
+    KEYCODE_LEFT_CONTROL = 59,
+    KEYCODE_RIGHT_CONTROL = 62,
+};
+
+static bool update_shortcut_modifier_state(Steno *steno, const Input_Event *event)
+{
+    switch (event->keycode) {
+    case KEYCODE_LEFT_COMMAND:
+    case KEYCODE_RIGHT_COMMAND:
+        steno->command_down = event->is_down;
+        return true;
+    case KEYCODE_LEFT_OPTION:
+    case KEYCODE_RIGHT_OPTION:
+        steno->option_down = event->is_down;
+        return true;
+    case KEYCODE_LEFT_CONTROL:
+    case KEYCODE_RIGHT_CONTROL:
+        steno->control_down = event->is_down;
+        return true;
+    default:
+        return false;
+    }
+}
+
 typedef struct Formatted_Text {
     char *text;
+    char *ortho_suffix;
+    char *stitch_delimiter;
+    size_t stitch_count;
+    size_t ortho_suffix_text_offset;
+    size_t ortho_suffix_text_length;
     bool attach_prev;
     bool attach_next;
     bool glue;
+    bool stitch;
+    bool stitch_last_word;
+    bool stitch_phrase;
 } Formatted_Text;
 
 static bool array_string_append_char(char **out, char c)
@@ -156,6 +199,24 @@ static bool array_string_append_range(char **out, const char *start, size_t leng
             return false;
         }
     }
+    return true;
+}
+
+static bool array_string_prepend_range(char **out, const char *start, size_t length)
+{
+    if (out == NULL || start == NULL) {
+        return false;
+    }
+
+    char *result = NULL;
+    if (!array_string_append_range(&result, start, length)
+        || (*out != NULL && !array_string_append_range(&result, *out, strlen(*out)))) {
+        arrfree(result);
+        return false;
+    }
+
+    arrfree(*out);
+    *out = result;
     return true;
 }
 
@@ -224,12 +285,139 @@ static bool parse_attach_meta(Formatted_Text *formatted, const char *text, size_
     return array_string_append_range(&formatted->text, text + start, end_index - start);
 }
 
+static bool parse_ortho_attach_meta(Formatted_Text *formatted, const char *text, size_t length)
+{
+    if (formatted == NULL || text == NULL || length < 2 || text[0] != '^' || text[length - 1] == '^') {
+        return false;
+    }
+
+    formatted->attach_prev = true;
+    const char *suffix = text + 1;
+    const size_t suffix_length = length - 1;
+    if (formatted->ortho_suffix == NULL) {
+        formatted->ortho_suffix = copy_range(suffix, suffix_length);
+        if (formatted->ortho_suffix == NULL) {
+            return false;
+        }
+        formatted->ortho_suffix_text_offset = formatted->text == NULL ? 0 : strlen(formatted->text);
+        formatted->ortho_suffix_text_length = suffix_length;
+    }
+    return array_string_append_range(&formatted->text, suffix, suffix_length);
+}
+
 static bool is_attach_meta(const char *text, size_t length)
 {
     return length > 0
         && memchr(text, '~', length) == NULL
         && memchr(text, '|', length) == NULL
         && (text[0] == '^' || text[length - 1] == '^');
+}
+
+static bool meta_starts_with(const char *meta, size_t meta_length, const char *prefix)
+{
+    const size_t prefix_length = strlen(prefix);
+    return meta_length >= prefix_length && memcmp(meta, prefix, prefix_length) == 0;
+}
+
+static bool formatted_set_stitch_delimiter(Formatted_Text *formatted, const char *delimiter, size_t delimiter_length)
+{
+    char *copy = copy_range(delimiter, delimiter_length);
+    if (copy == NULL) {
+        return false;
+    }
+    free(formatted->stitch_delimiter);
+    formatted->stitch_delimiter = copy;
+    return true;
+}
+
+static bool parse_positive_size(const char *start, size_t length, size_t *out)
+{
+    if (out == NULL || length == 0) {
+        return false;
+    }
+
+    size_t value = 0;
+    for (size_t i = 0; i < length; ++i) {
+        if (!isdigit((unsigned char)start[i])) {
+            return false;
+        }
+        value = value * 10 + (size_t)(start[i] - '0');
+    }
+    if (value == 0) {
+        return false;
+    }
+
+    *out = value;
+    return true;
+}
+
+static bool parse_stitch_meta(Formatted_Text *formatted, const char *meta_start, size_t meta_length)
+{
+    const char prefix[] = ":stitch:";
+    if (!meta_starts_with(meta_start, meta_length, prefix)) {
+        return false;
+    }
+
+    const char *args = meta_start + strlen(prefix);
+    const size_t args_length = meta_length - strlen(prefix);
+    const char *delimiter = "-";
+    size_t delimiter_length = 1;
+    const char *separator = memchr(args, ':', args_length);
+    const size_t word_length = separator == NULL ? args_length : (size_t)(separator - args);
+    if (word_length == 0) {
+        return false;
+    }
+    if (separator != NULL) {
+        delimiter = separator + 1;
+        delimiter_length = args_length - word_length - 1;
+    }
+
+    formatted->stitch = true;
+    formatted->glue = true;
+    return formatted_set_stitch_delimiter(formatted, delimiter, delimiter_length)
+        && array_string_append_range(&formatted->text, args, word_length);
+}
+
+static bool parse_stitch_retro_meta(
+    Formatted_Text *formatted,
+    const char *meta_start,
+    size_t meta_length,
+    const char *command,
+    bool phrase
+)
+{
+    const size_t command_length = strlen(command);
+    if (!meta_starts_with(meta_start, meta_length, command)) {
+        return false;
+    }
+    if (meta_length > command_length && meta_start[command_length] != ':') {
+        return false;
+    }
+
+    size_t count = 1;
+    const char *delimiter = "-";
+    size_t delimiter_length = 1;
+    const char *args = meta_start + command_length;
+    size_t args_length = meta_length - command_length;
+    if (args_length > 0) {
+        ++args;
+        --args_length;
+
+        const char *separator = memchr(args, ':', args_length);
+        const size_t count_length = separator == NULL ? args_length : (size_t)(separator - args);
+        if (count_length > 0 && !parse_positive_size(args, count_length, &count)) {
+            return false;
+        }
+        if (separator != NULL) {
+            delimiter = separator + 1;
+            delimiter_length = args_length - count_length - 1;
+        }
+    }
+
+    formatted->stitch_count = count;
+    formatted->stitch_last_word = !phrase;
+    formatted->stitch_phrase = phrase;
+    return formatted_set_stitch_delimiter(formatted, delimiter, delimiter_length);
 }
 
 static bool apply_translation_meta(
@@ -240,6 +428,12 @@ static bool apply_translation_meta(
     bool *pending_attach_prev
 )
 {
+    if (parse_stitch_meta(formatted, meta_start, meta_length)
+        || parse_stitch_retro_meta(formatted, meta_start, meta_length, ":stitch_last_word", false)
+        || parse_stitch_retro_meta(formatted, meta_start, meta_length, ":stitch_phrase", true)) {
+        return true;
+    }
+
     if (meta_length >= 5 && memcmp(meta_start, "glue:", 5) == 0) {
         formatted->glue = true;
         return array_string_append_range(&formatted->text, meta_start + 5, meta_length - 5);
@@ -281,6 +475,9 @@ static bool apply_translation_meta(
     if (*pending_attach_prev) {
         formatted->attach_prev = true;
         *pending_attach_prev = false;
+    }
+    if (parse_ortho_attach_meta(formatted, attach, attach_length)) {
+        return true;
     }
     return parse_attach_meta(formatted, attach, attach_length);
 }
@@ -360,6 +557,8 @@ static void formatted_text_destroy(Formatted_Text *formatted)
         return;
     }
     arrfree(formatted->text);
+    free(formatted->ortho_suffix);
+    free(formatted->stitch_delimiter);
     memset(formatted, 0, sizeof(*formatted));
 }
 
@@ -406,6 +605,177 @@ static bool append_string(char **out, const char *s)
     return true;
 }
 
+typedef struct Text_Token {
+    size_t start;
+    size_t core_end;
+    size_t end;
+} Text_Token;
+
+static bool stitch_is_word_byte(unsigned char c)
+{
+    return c >= 0x80 || isalnum(c) || c == '_' || c == '\'';
+}
+
+static size_t utf8_codepoint_length(const char *s, const char *end)
+{
+    if (s >= end) {
+        return 0;
+    }
+
+    const unsigned char c = (unsigned char)*s;
+    size_t length = 1;
+    if ((c & 0xE0) == 0xC0) {
+        length = 2;
+    } else if ((c & 0xF0) == 0xE0) {
+        length = 3;
+    } else if ((c & 0xF8) == 0xF0) {
+        length = 4;
+    }
+    if ((size_t)(end - s) < length) {
+        return 1;
+    }
+    return length;
+}
+
+static bool collect_text_tokens(const char *text, Text_Token **out_tokens)
+{
+    if (text == NULL || out_tokens == NULL) {
+        return false;
+    }
+
+    const size_t length = strlen(text);
+    size_t index = 0;
+    while (index < length) {
+        while (index < length && isspace((unsigned char)text[index])) {
+            ++index;
+        }
+        if (index >= length) {
+            break;
+        }
+
+        const size_t start = index;
+        if (stitch_is_word_byte((unsigned char)text[index])) {
+            ++index;
+            while (index < length) {
+                const unsigned char c = (unsigned char)text[index];
+                if (stitch_is_word_byte(c) || c == '-') {
+                    ++index;
+                } else {
+                    break;
+                }
+            }
+        } else {
+            ++index;
+            while (index < length
+                && !isspace((unsigned char)text[index])
+                && !stitch_is_word_byte((unsigned char)text[index])) {
+                ++index;
+            }
+        }
+
+        const size_t core_end = index;
+        while (index < length && isspace((unsigned char)text[index])) {
+            ++index;
+        }
+        arrput(*out_tokens, ((Text_Token) {
+            .start = start,
+            .core_end = core_end,
+            .end = index,
+        }));
+    }
+
+    return true;
+}
+
+static bool append_stitched_core(char **out, const char *start, const char *end, const char *delimiter)
+{
+    bool first = true;
+    for (const char *p = start; p < end;) {
+        const size_t length = utf8_codepoint_length(p, end);
+        if (!first && !array_string_append_range(out, delimiter, strlen(delimiter))) {
+            return false;
+        }
+        if (!array_string_append_range(out, p, length)) {
+            return false;
+        }
+        p += length;
+        first = false;
+    }
+    return true;
+}
+
+static bool stitch_text_suffix(
+    const char *text,
+    size_t token_count,
+    const char *delimiter,
+    bool phrase,
+    char **out
+)
+{
+    Text_Token *tokens = NULL;
+    if (!collect_text_tokens(text, &tokens)) {
+        return false;
+    }
+
+    const size_t available = arrlenu(tokens);
+    if (available == 0 || token_count == 0) {
+        arrfree(tokens);
+        return append_string(out, text);
+    }
+
+    if (token_count > available) {
+        token_count = available;
+    }
+
+    const size_t first_token = available - token_count;
+    const size_t prefix_end = tokens[first_token].start;
+    if (!array_string_append_range(out, text, prefix_end)) {
+        arrfree(tokens);
+        return false;
+    }
+
+    if (phrase) {
+        for (size_t i = first_token; i < available; ++i) {
+            if (i != first_token && !array_string_append_range(out, delimiter, strlen(delimiter))) {
+                arrfree(tokens);
+                return false;
+            }
+            if (!array_string_append_range(out, text + tokens[i].start, tokens[i].core_end - tokens[i].start)) {
+                arrfree(tokens);
+                return false;
+            }
+        }
+        const Text_Token last = tokens[available - 1];
+        if (!array_string_append_range(out, text + last.core_end, last.end - last.core_end)) {
+            arrfree(tokens);
+            return false;
+        }
+    } else {
+        for (size_t i = first_token; i < available; ++i) {
+            const Text_Token token = tokens[i];
+            if (!append_stitched_core(out, text + token.start, text + token.core_end, delimiter)
+                || !array_string_append_range(out, text + token.core_end, token.end - token.core_end)) {
+                arrfree(tokens);
+                return false;
+            }
+        }
+    }
+
+    arrfree(tokens);
+    return true;
+}
+
+static size_t stitch_token_count(const char *text)
+{
+    Text_Token *tokens = NULL;
+    if (!collect_text_tokens(text, &tokens)) {
+        return 0;
+    }
+    const size_t count = arrlenu(tokens);
+    arrfree(tokens);
+    return count;
+}
+
 static size_t text_length_without_trailing_space(const Steno *steno, const char *text)
 {
     size_t length = strlen(text);
@@ -418,22 +788,69 @@ static size_t text_length_without_trailing_space(const Steno *steno, const char 
     return length;
 }
 
-static char *build_emitted_text(const Steno *steno, const char *old_text, const Formatted_Text *formatted)
+static bool append_orthographic_join(
+    Steno *steno,
+    char **emitted,
+    const char *old_text,
+    size_t old_text_length,
+    const Formatted_Text *formatted
+)
+{
+    size_t word_start = old_text_length;
+    while (word_start > 0 && !isspace((unsigned char)old_text[word_start - 1])) {
+        --word_start;
+    }
+
+    if (!array_string_append_range(emitted, old_text, word_start)) {
+        return false;
+    }
+
+    const size_t word_length = old_text_length - word_start;
+    if (word_length == 0) {
+        return array_string_append_range(emitted, formatted->text, strlen(formatted->text));
+    }
+
+    char *word = copy_range(old_text + word_start, word_length);
+    char *joined = NULL;
+    if (word == NULL || !orthography_apply(&steno->orthography, word, formatted->ortho_suffix, &joined)) {
+        free(word);
+        free(joined);
+        return false;
+    }
+
+    const bool ok = array_string_append_range(emitted, formatted->text, formatted->ortho_suffix_text_offset)
+        && array_string_append_range(emitted, joined, strlen(joined))
+        && array_string_append_range(
+            emitted,
+            formatted->text + formatted->ortho_suffix_text_offset + formatted->ortho_suffix_text_length,
+            strlen(formatted->text + formatted->ortho_suffix_text_offset + formatted->ortho_suffix_text_length)
+        );
+    free(word);
+    free(joined);
+    return ok;
+}
+
+static char *build_emitted_text(Steno *steno, const char *old_text, const Formatted_Text *formatted)
 {
     char *emitted = NULL;
-    if (formatted->attach_prev && old_text != NULL) {
-        if (!array_string_append_range(
-                &emitted,
-                old_text,
-                text_length_without_trailing_space(steno, old_text))) {
+    const size_t old_text_length = old_text == NULL ? 0 : text_length_without_trailing_space(steno, old_text);
+    if (formatted->ortho_suffix != NULL && old_text != NULL) {
+        if (!append_orthographic_join(steno, &emitted, old_text, old_text_length, formatted)) {
             arrfree(emitted);
             return NULL;
         }
-    }
+    } else {
+        if (formatted->attach_prev && old_text != NULL) {
+            if (!array_string_append_range(&emitted, old_text, old_text_length)) {
+                arrfree(emitted);
+                return NULL;
+            }
+        }
 
-    if (!array_string_append_range(&emitted, formatted->text, strlen(formatted->text))) {
-        arrfree(emitted);
-        return NULL;
+        if (!array_string_append_range(&emitted, formatted->text, strlen(formatted->text))) {
+            arrfree(emitted);
+            return NULL;
+        }
     }
 
     if (!formatted->attach_next
@@ -468,6 +885,40 @@ static char *translation_replaced_text(const Translation *translation)
         return NULL;
     }
     return translation_range_text(translation->replaced, 0, arrlenu(translation->replaced));
+}
+
+static char *translation_source_text(const Translation *translation);
+
+static char *translation_range_source_text(const Translation *translations, size_t start, size_t count)
+{
+    char *text = NULL;
+    arrput(text, '\0');
+    for (size_t i = 0; i < count; ++i) {
+        char *source = translation_source_text(&translations[start + i]);
+        if (source == NULL || !append_string(&text, source)) {
+            arrfree(source);
+            arrfree(text);
+            return NULL;
+        }
+        arrfree(source);
+    }
+    return text;
+}
+
+static char *translation_source_text(const Translation *translation)
+{
+    if (translation == NULL) {
+        return NULL;
+    }
+    if (arrlenu(translation->replaced) > 0) {
+        return translation_range_source_text(translation->replaced, 0, arrlenu(translation->replaced));
+    }
+    char *text = NULL;
+    if (!append_string(&text, translation->utf8)) {
+        arrfree(text);
+        return NULL;
+    }
+    return text;
 }
 
 static size_t common_utf8_prefix_bytes(const char *a, const char *b)
@@ -670,6 +1121,78 @@ static bool find_translation_match(Steno *steno, uint64_t bits, Translation_Matc
     return true;
 }
 
+static bool apply_stitch_retro_match(
+    Steno *steno,
+    const Translation_Match *match,
+    const Formatted_Text *formatted
+)
+{
+    const size_t translation_count = arrlenu(steno->translations);
+    if (match->replaced_count > translation_count) {
+        return false;
+    }
+
+    size_t replace_start = translation_count - match->replaced_count;
+    char *source_text = NULL;
+    while (true) {
+        arrfree(source_text);
+        source_text = translation_range_source_text(
+            steno->translations,
+            replace_start,
+            translation_count - replace_start
+        );
+        if (source_text == NULL) {
+            return false;
+        }
+        if (stitch_token_count(source_text) >= formatted->stitch_count || replace_start == 0) {
+            break;
+        }
+        --replace_start;
+    }
+
+    const size_t replaced_count = translation_count - replace_start;
+    char *old_text = translation_range_text(steno->translations, replace_start, replaced_count);
+    char *new_text = NULL;
+    if (old_text == NULL
+        || !stitch_text_suffix(
+            source_text,
+            formatted->stitch_count,
+            formatted->stitch_delimiter != NULL ? formatted->stitch_delimiter : "-",
+            formatted->stitch_phrase,
+            &new_text)) {
+        arrfree(old_text);
+        arrfree(source_text);
+        arrfree(new_text);
+        return false;
+    }
+
+    Translation next = {0};
+    next.utf8 = new_text;
+    if (!translation_set_strokes(&next, match->strokes, match->stroke_count)) {
+        arrfree(old_text);
+        arrfree(source_text);
+        translation_destroy(&next);
+        return false;
+    }
+
+    if (!replace_output_text(steno, old_text, next.utf8)) {
+        arrfree(old_text);
+        arrfree(source_text);
+        translation_destroy(&next);
+        return false;
+    }
+
+    for (size_t i = replace_start; i < translation_count; ++i) {
+        arrput(next.replaced, steno->translations[i]);
+    }
+    arrsetlen(steno->translations, replace_start);
+    arrput(steno->translations, next);
+
+    arrfree(old_text);
+    arrfree(source_text);
+    return true;
+}
+
 static bool apply_translation_match(Steno *steno, const Translation_Match *match)
 {
     if (steno == NULL || match == NULL) {
@@ -689,9 +1212,24 @@ static bool apply_translation_match(Steno *steno, const Translation_Match *match
         return false;
     }
 
+    if (formatted.stitch_last_word || formatted.stitch_phrase) {
+        const bool ok = apply_stitch_retro_match(steno, match, &formatted);
+        formatted_text_destroy(&formatted);
+        return ok;
+    }
+
     size_t replaced_count = match->replaced_count;
     if (replaced_count == 0 && translation_count > 0) {
         const Translation *previous = &steno->translations[translation_count - 1];
+        if (formatted.stitch && previous->glue) {
+            if (!array_string_prepend_range(
+                    &formatted.text,
+                    formatted.stitch_delimiter != NULL ? formatted.stitch_delimiter : "-",
+                    strlen(formatted.stitch_delimiter != NULL ? formatted.stitch_delimiter : "-"))) {
+                formatted_text_destroy(&formatted);
+                return false;
+            }
+        }
         if (formatted.attach_prev || (formatted.glue && previous->glue)) {
             replaced_count = 1;
             formatted.attach_prev = true;
@@ -869,7 +1407,16 @@ Steno *steno_create(const Steno_Config *config)
         return NULL;
     }
 
-    if (!dictionary_load(&steno->dictionary, config->dictionary_path)) {
+    const bool loaded_dictionary =
+        config->dictionary_path_count > 0
+            ? dictionary_load_many(&steno->dictionary, config->dictionary_paths, config->dictionary_path_count)
+            : dictionary_load(&steno->dictionary, config->dictionary_path);
+    if (!loaded_dictionary) {
+        steno_destroy(steno);
+        return NULL;
+    }
+
+    if (config->word_list_path != NULL && !orthography_load(&steno->orthography, config->word_list_path)) {
         steno_destroy(steno);
         return NULL;
     }
@@ -888,6 +1435,7 @@ void steno_destroy(Steno *steno)
         translation_destroy(&steno->translations[i]);
     }
     arrfree(steno->translations);
+    orthography_destroy(&steno->orthography);
     dictionary_destroy(&steno->dictionary);
     free(steno);
 }
@@ -902,7 +1450,16 @@ bool steno_handle_event(Steno *steno, const Input_Event *event)
         return false;
     }
 
-    const bool toggle_event = event->keycode == 53 && (event->control || steno->toggle_esc_down);
+    const bool modifier_key_event = update_shortcut_modifier_state(steno, event);
+    const bool shortcut_modifier_down = event->command
+        || event->control
+        || event->option
+        || steno->command_down
+        || steno->control_down
+        || steno->option_down;
+
+    const bool toggle_event = event->keycode == KEYCODE_ESCAPE
+        && (event->control || steno->control_down || steno->toggle_esc_down);
     if (toggle_event) {
         if (event->is_down && !steno->toggle_esc_down) {
             steno->enabled = !steno->enabled;
@@ -913,7 +1470,7 @@ bool steno_handle_event(Steno *steno, const Input_Event *event)
         return true;
     }
 
-    if (!steno->enabled || event->command || event->control || event->option) {
+    if (modifier_key_event || !steno->enabled || shortcut_modifier_down) {
         return false;
     }
 
@@ -963,6 +1520,9 @@ void steno_set_session_active(Steno *steno, bool active)
     steno->session_active = active;
     reset_chord(steno);
     steno->toggle_esc_down = false;
+    steno->control_down = false;
+    steno->option_down = false;
+    steno->command_down = false;
 }
 
 size_t steno_key_binding_count(const Steno *steno)

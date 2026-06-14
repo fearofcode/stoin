@@ -170,6 +170,27 @@ static bool outline_to_canonical_key(
     return true;
 }
 
+static bool dictionary_put(Dictionary *dictionary, const char *canonical, size_t stroke_count, const char *translation)
+{
+    char *value = copy_cstring(translation);
+    if (value == NULL) {
+        return false;
+    }
+
+    const ptrdiff_t index = shgeti(dictionary->entries, canonical);
+    if (index >= 0) {
+        free(dictionary->entries[index].value);
+        dictionary->entries[index].value = value;
+    } else {
+        shput(dictionary->entries, canonical, value);
+    }
+
+    if (stroke_count > dictionary->longest_key) {
+        dictionary->longest_key = stroke_count;
+    }
+    return true;
+}
+
 bool dictionary_load(Dictionary *dictionary, const char *path)
 {
     size_t size = 0;
@@ -218,15 +239,8 @@ bool dictionary_load(Dictionary *dictionary, const char *path)
 
         char canonical[DICTIONARY_MAX_OUTLINE_BYTES] = {0};
         size_t stroke_count = 0;
-        if (outline_to_canonical_key(stroke, canonical, sizeof(canonical), &stroke_count)
-            && shgeti(dictionary->entries, canonical) < 0) {
-            char *value = copy_cstring(translation);
-            if (value != NULL) {
-                shput(dictionary->entries, canonical, value);
-                if (stroke_count > dictionary->longest_key) {
-                    dictionary->longest_key = stroke_count;
-                }
-            }
+        if (outline_to_canonical_key(stroke, canonical, sizeof(canonical), &stroke_count)) {
+            (void)dictionary_put(dictionary, canonical, stroke_count, translation);
         }
 
         arrfree(stroke);
@@ -254,6 +268,20 @@ bool dictionary_load(Dictionary *dictionary, const char *path)
         fprintf(stderr, "stoin: warning: dictionary '%s' is empty; untranslated chords will emit raw steno\n", path);
     }
 
+    return true;
+}
+
+bool dictionary_load_many(Dictionary *dictionary, const char *const *paths, size_t path_count)
+{
+    if (dictionary == NULL || paths == NULL || path_count == 0) {
+        return false;
+    }
+
+    for (size_t i = 0; i < path_count; ++i) {
+        if (paths[i] == NULL || !dictionary_load(dictionary, paths[i])) {
+            return false;
+        }
+    }
     return true;
 }
 

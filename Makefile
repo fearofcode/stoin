@@ -7,6 +7,7 @@ TEST_TARGET := build/test_steno
 CORE_OBJECTS := \
 	build/dictionary.o \
 	build/gemini_pr.o \
+	build/orthography.o \
 	build/platform_macos.o \
 	build/steno.o \
 	build/steno_stroke.o \

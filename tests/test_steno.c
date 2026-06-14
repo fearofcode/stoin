@@ -1,4 +1,5 @@
 #include "gemini_pr.h"
+#include "orthography.h"
 #include "platform.h"
 #include "steno.h"
 #include "steno_stroke.h"
@@ -19,6 +20,11 @@ typedef struct Test_Output {
     size_t send_count;
     size_t delete_count;
 } Test_Output;
+
+enum {
+    TEST_KEYCODE_ESCAPE = 53,
+    TEST_KEYCODE_LEFT_CONTROL = 59,
+};
 
 static bool test_send_text(const char *utf8, void *userdata)
 {
@@ -92,6 +98,25 @@ static bool send_key_event(Steno *steno, const char *key_name, bool is_down)
     return steno_handle_event(steno, &event);
 }
 
+static bool send_raw_key_event(
+    Steno *steno,
+    uint16_t keycode,
+    bool is_down,
+    bool control,
+    bool option,
+    bool command
+)
+{
+    const Input_Event event = {
+        .keycode = keycode,
+        .is_down = is_down,
+        .control = control,
+        .option = option,
+        .command = command,
+    };
+    return steno_handle_event(steno, &event);
+}
+
 static bool expect_string(const char *name, const char *actual, const char *expected)
 {
     if (actual != NULL && strcmp(actual, expected) == 0) {
@@ -135,6 +160,24 @@ static bool expect_stroke_format(const char *input, const char *expected)
     return expect_string(input, output, expected);
 }
 
+static bool expect_orthography(
+    const Orthography *orthography,
+    const char *word,
+    const char *suffix,
+    const char *expected
+)
+{
+    char *actual = NULL;
+    if (!orthography_apply(orthography, word, suffix, &actual)) {
+        fprintf(stderr, "test failed: orthography %s + %s failed\n", word, suffix);
+        return false;
+    }
+
+    const bool ok = expect_string("orthography", actual, expected);
+    free(actual);
+    return ok;
+}
+
 static bool read_trace_line(FILE *trace_file, char *line, size_t line_size)
 {
     fflush(trace_file);
@@ -151,6 +194,7 @@ int main(void)
     Steno_Config config = {
         .keymap_path = "tests/test.keymap",
         .dictionary_path = "tests/test-dictionary.json",
+        .word_list_path = "tests/test-words.txt",
         .send_text = test_send_text,
         .delete_text = test_delete_text,
         .send_userdata = &output,
@@ -163,6 +207,41 @@ int main(void)
     }
 
     bool ok = true;
+
+    Orthography test_orthography = {0};
+    ok = ok && orthography_load(&test_orthography, "tests/test-words.txt");
+    ok = ok && orthography_word_count(&test_orthography) > 0;
+    ok = ok && expect_orthography(&test_orthography, "artistic", "ly", "artistically");
+    ok = ok && expect_orthography(&test_orthography, "cosmetic", "ly", "cosmetically");
+    ok = ok && expect_orthography(&test_orthography, "establish", "s", "establishes");
+    ok = ok && expect_orthography(&test_orthography, "speech", "s", "speeches");
+    ok = ok && expect_orthography(&test_orthography, "approach", "s", "approaches");
+    ok = ok && expect_orthography(&test_orthography, "beach", "s", "beaches");
+    ok = ok && expect_orthography(&test_orthography, "arch", "s", "arches");
+    ok = ok && expect_orthography(&test_orthography, "larch", "s", "larches");
+    ok = ok && expect_orthography(&test_orthography, "march", "s", "marches");
+    ok = ok && expect_orthography(&test_orthography, "search", "s", "searches");
+    ok = ok && expect_orthography(&test_orthography, "starch", "s", "starches");
+    ok = ok && expect_orthography(&test_orthography, "stomach", "s", "stomachs");
+    ok = ok && expect_orthography(&test_orthography, "monarch", "s", "monarchs");
+    ok = ok && expect_orthography(&test_orthography, "patriarch", "s", "patriarchs");
+    ok = ok && expect_orthography(&test_orthography, "oligarch", "s", "oligarchs");
+    ok = ok && expect_orthography(&test_orthography, "cherry", "s", "cherries");
+    ok = ok && expect_orthography(&test_orthography, "day", "s", "days");
+    ok = ok && expect_orthography(&test_orthography, "penny", "s", "pennies");
+    ok = ok && expect_orthography(&test_orthography, "pharmacy", "ist", "pharmacist");
+    ok = ok && expect_orthography(&test_orthography, "melody", "ist", "melodist");
+    ok = ok && expect_orthography(&test_orthography, "pacify", "ist", "pacifist");
+    ok = ok && expect_orthography(&test_orthography, "geology", "ist", "geologist");
+    ok = ok && expect_orthography(&test_orthography, "metallurgy", "ist", "metallurgist");
+    ok = ok && expect_orthography(&test_orthography, "anarchy", "ist", "anarchist");
+    ok = ok && expect_orthography(&test_orthography, "monopoly", "ist", "monopolist");
+    ok = ok && expect_orthography(&test_orthography, "alchemy", "ist", "alchemist");
+    ok = ok && expect_orthography(&test_orthography, "similar", "ish", "similarish");
+    ok = ok && expect_orthography(&test_orthography, "red", "ish", "reddish");
+    ok = ok && expect_orthography(&test_orthography, "tinker", "er", "tinkerer");
+    ok = ok && expect_orthography(&test_orthography, "filter", "er", "filterer");
+    orthography_destroy(&test_orthography);
 
     uint64_t rr_bits = 0;
     char rr_string[64] = {0};
@@ -292,6 +371,23 @@ int main(void)
     }
 
     clear_test_output(&output);
+    ok = ok && !send_raw_key_event(steno, TEST_KEYCODE_LEFT_CONTROL, true, true, false, false);
+    ok = ok && send_raw_key_event(steno, TEST_KEYCODE_ESCAPE, true, false, false, false);
+    ok = ok && send_raw_key_event(steno, TEST_KEYCODE_ESCAPE, false, false, false, false);
+    ok = ok && !send_raw_key_event(steno, TEST_KEYCODE_LEFT_CONTROL, false, false, false, false);
+    ok = ok && !send_key_event(steno, "u", true);
+    ok = ok && !send_key_event(steno, "u", false);
+    ok = ok && expect_string("ctrl escape disables capture", output.text, "");
+
+    ok = ok && !send_raw_key_event(steno, TEST_KEYCODE_LEFT_CONTROL, true, true, false, false);
+    ok = ok && send_raw_key_event(steno, TEST_KEYCODE_ESCAPE, true, false, false, false);
+    ok = ok && send_raw_key_event(steno, TEST_KEYCODE_ESCAPE, false, false, false, false);
+    ok = ok && !send_raw_key_event(steno, TEST_KEYCODE_LEFT_CONTROL, false, false, false, false);
+    ok = ok && send_key_event(steno, "u", true);
+    ok = ok && send_key_event(steno, "u", false);
+    ok = ok && expect_string("ctrl escape reenables capture", output.text, "fee ");
+
+    clear_test_output(&output);
     ok = ok && send_key_event(steno, "u", true);
     ok = ok && send_key_event(steno, "u", false);
     ok = ok && expect_string("first undoable translation", output.text, "fee ");
@@ -325,7 +421,20 @@ int main(void)
     uint64_t undo_bits = 0;
     uint64_t filler_bits = 0;
     uint64_t cat_bits = 0;
+    uint64_t stitch_a_bits = 0;
+    uint64_t stitch_b_bits = 0;
+    uint64_t stitch_c_bits = 0;
+    uint64_t test_bits = 0;
+    uint64_t eye_bits = 0;
+    uint64_t to_bits = 0;
+    uint64_t stitch_word_bits = 0;
+    uint64_t stitch_phrase_bits = 0;
     uint64_t suffix_s_bits = 0;
+    uint64_t red_bits = 0;
+    uint64_t cherry_bits = 0;
+    uint64_t defer_bits = 0;
+    uint64_t suffix_ish_bits = 0;
+    uint64_t raw_ish_bits = 0;
     uint64_t prefix_bits = 0;
     uint64_t port_bits = 0;
     uint64_t delete_space_bits = 0;
@@ -342,7 +451,20 @@ int main(void)
     ok = ok && stroke_string_to_bits("-R", &undo_bits);
     ok = ok && stroke_string_to_bits("#", &filler_bits);
     ok = ok && stroke_string_to_bits("KAT", &cat_bits);
+    ok = ok && stroke_string_to_bits("A", &stitch_a_bits);
+    ok = ok && stroke_string_to_bits("PW", &stitch_b_bits);
+    ok = ok && stroke_string_to_bits("KR", &stitch_c_bits);
+    ok = ok && stroke_string_to_bits("TEFT", &test_bits);
+    ok = ok && stroke_string_to_bits("AOEU", &eye_bits);
+    ok = ok && stroke_string_to_bits("TO", &to_bits);
+    ok = ok && stroke_string_to_bits("-RBGS", &stitch_word_bits);
+    ok = ok && stroke_string_to_bits("#TPHFPLT", &stitch_phrase_bits);
     ok = ok && stroke_string_to_bits("-S", &suffix_s_bits);
+    ok = ok && stroke_string_to_bits("RED", &red_bits);
+    ok = ok && stroke_string_to_bits("KHER", &cherry_bits);
+    ok = ok && stroke_string_to_bits("TKEFR", &defer_bits);
+    ok = ok && stroke_string_to_bits("EURB", &suffix_ish_bits);
+    ok = ok && stroke_string_to_bits("R-R", &raw_ish_bits);
     ok = ok && stroke_string_to_bits("PRAOE", &prefix_bits);
     ok = ok && stroke_string_to_bits("PORT", &port_bits);
     ok = ok && stroke_string_to_bits("TK-LS", &delete_space_bits);
@@ -448,9 +570,41 @@ int main(void)
 
         reset_output_log(&output);
         ok = ok && steno_handle_stroke_bits(format_steno, past_bits);
-        ok = ok && expect_string("attach raw ed suffix", output.text, "cated ");
-        ok = ok && expect_string("attach raw ed delete", output.last_delete, " ");
-        ok = ok && expect_string("attach raw ed insert", output.last_send, "ed ");
+        ok = ok && expect_string("orthographic ed suffix", output.text, "catted ");
+        ok = ok && expect_string("orthographic ed delete", output.last_delete, " ");
+        ok = ok && expect_string("orthographic ed insert", output.last_send, "ted ");
+
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(format_steno, red_bits);
+        ok = ok && steno_handle_stroke_bits(format_steno, suffix_ish_bits);
+        ok = ok && expect_string("orthographic ish suffix", output.text, "reddish ");
+        ok = ok && expect_string("orthographic ish delete", output.last_delete, " ");
+        ok = ok && expect_string("orthographic ish insert", output.last_send, "dish ");
+
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(format_steno, red_bits);
+        ok = ok && steno_handle_stroke_bits(format_steno, raw_ish_bits);
+        ok = ok && expect_string("raw ish suffix", output.text, "redish ");
+        ok = ok && expect_string("raw ish delete", output.last_delete, " ");
+        ok = ok && expect_string("raw ish insert", output.last_send, "ish ");
+
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(format_steno, cherry_bits);
+        ok = ok && steno_handle_stroke_bits(format_steno, suffix_s_bits);
+        ok = ok && expect_string("orthographic y plural", output.text, "cherries ");
+        ok = ok && expect_string("orthographic y plural delete", output.last_delete, "y ");
+        ok = ok && expect_string("orthographic y plural insert", output.last_send, "ies ");
+
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(format_steno, defer_bits);
+        ok = ok && steno_handle_stroke_bits(format_steno, past_bits);
+        ok = ok && expect_string("orthographic doubled consonant", output.text, "deferred ");
+        ok = ok && expect_string("orthographic doubled consonant delete", output.last_delete, " ");
+        ok = ok && expect_string("orthographic doubled consonant insert", output.last_send, "red ");
 
         clear_test_output(&output);
         reset_output_log(&output);
@@ -524,6 +678,72 @@ int main(void)
         ok = ok && expect_string("explicit glue insert", output.last_send, "P ");
 
         steno_destroy(glue_steno);
+    }
+
+    Steno *stitch_steno = steno_create(&config);
+    ok = ok && stitch_steno != NULL;
+    if (stitch_steno != NULL) {
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(stitch_steno, stitch_a_bits);
+        ok = ok && expect_string("stitch first letter", output.text, "A ");
+
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(stitch_steno, stitch_b_bits);
+        ok = ok && expect_string("stitch second letter", output.text, "A-B ");
+        ok = ok && expect_string("stitch second delete", output.last_delete, " ");
+        ok = ok && expect_string("stitch second insert", output.last_send, "-B ");
+
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(stitch_steno, stitch_c_bits);
+        ok = ok && expect_string("stitch third letter", output.text, "A-B-C ");
+
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(stitch_steno, test_bits);
+        ok = ok && steno_handle_stroke_bits(stitch_steno, stitch_word_bits);
+        ok = ok && expect_string("stitch last word", output.text, "t-e-s-t ");
+
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(stitch_steno, eye_bits);
+        ok = ok && steno_handle_stroke_bits(stitch_steno, to_bits);
+        ok = ok && steno_handle_stroke_bits(stitch_steno, stitch_word_bits);
+        ok = ok && expect_string("stitch last word first command", output.text, "eye t-o ");
+        ok = ok && steno_handle_stroke_bits(stitch_steno, stitch_word_bits);
+        ok = ok && expect_string("stitch last word superseded command", output.text, "e-y-e t-o ");
+
+        steno_destroy(stitch_steno);
+    }
+
+    const char *layered_paths[] = {
+        "tests/test-dictionary.json",
+        "tests/test-custom-dictionary.json",
+    };
+    Steno_Config layered_config = config;
+    layered_config.dictionary_path = NULL;
+    layered_config.dictionary_paths = layered_paths;
+    layered_config.dictionary_path_count = sizeof(layered_paths) / sizeof(layered_paths[0]);
+    Steno *layered_steno = steno_create(&layered_config);
+    ok = ok && layered_steno != NULL;
+    if (layered_steno != NULL) {
+        const char *kitten = NULL;
+        ok = ok && steno_lookup_stroke(layered_steno, "KAT", &kitten);
+        ok = ok && expect_string("dictionary override", kitten, "kitten");
+
+        const char *phrase_command = NULL;
+        ok = ok && steno_lookup_stroke(layered_steno, "#TPHFPLT", &phrase_command);
+        ok = ok && expect_string("custom stitch phrase command", phrase_command, "{:stitch_phrase:3:-}");
+
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(layered_steno, eye_bits);
+        ok = ok && steno_handle_stroke_bits(layered_steno, to_bits);
+        ok = ok && steno_handle_stroke_bits(layered_steno, eye_bits);
+        ok = ok && steno_handle_stroke_bits(layered_steno, stitch_phrase_bits);
+        ok = ok && expect_string("stitch phrase command", output.text, "eye-to-eye ");
+
+        steno_destroy(layered_steno);
     }
 
     clear_test_output(&output);

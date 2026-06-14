@@ -28,9 +28,7 @@ typedef struct Mac_State {
     CGEventSourceRef output_source;
     Handle_Input_Fn handler;
     void *userdata;
-    struct termios saved_terminal;
     int screen_lock_notify_token;
-    bool terminal_quiet;
     bool screen_lock_notify_registered;
 } Mac_State;
 
@@ -613,39 +611,6 @@ bool platform_output_init(void)
     return true;
 }
 
-bool platform_terminal_quiet_start(void)
-{
-    if (g_macos.terminal_quiet) {
-        return true;
-    }
-    if (!isatty(STDIN_FILENO)) {
-        return true;
-    }
-    if (tcgetattr(STDIN_FILENO, &g_macos.saved_terminal) != 0) {
-        return false;
-    }
-
-    struct termios quiet = g_macos.saved_terminal;
-    quiet.c_lflag &= ~(ECHO | ECHONL);
-    if (tcsetattr(STDIN_FILENO, TCSANOW, &quiet) != 0) {
-        return false;
-    }
-
-    g_macos.terminal_quiet = true;
-    return true;
-}
-
-void platform_terminal_quiet_stop(void)
-{
-    if (!g_macos.terminal_quiet) {
-        return;
-    }
-
-    tcflush(STDIN_FILENO, TCIFLUSH);
-    tcsetattr(STDIN_FILENO, TCSANOW, &g_macos.saved_terminal);
-    g_macos.terminal_quiet = false;
-}
-
 void platform_run(void)
 {
     CFRunLoopRun();
@@ -653,8 +618,6 @@ void platform_run(void)
 
 void platform_shutdown(void)
 {
-    platform_terminal_quiet_stop();
-
     if (g_macos.tap != NULL) {
         CGEventTapEnable(g_macos.tap, false);
     }

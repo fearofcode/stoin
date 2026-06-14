@@ -16,6 +16,7 @@ typedef struct Dictionary {
 } Dictionary;
 
 bool dictionary_load(Dictionary *dictionary, const char *path);
+bool dictionary_load_many(Dictionary *dictionary, const char *const *paths, size_t path_count);
 void dictionary_destroy(Dictionary *dictionary);
 size_t dictionary_count(const Dictionary *dictionary);
 size_t dictionary_longest_key(const Dictionary *dictionary);

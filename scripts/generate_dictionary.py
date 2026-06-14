@@ -146,6 +146,12 @@ def is_supported_meta(meta: str) -> bool:
         return True
     if meta.startswith(":glue:") or meta.startswith("glue:"):
         return True
+    if meta.startswith(":stitch:"):
+        return True
+    if meta == ":stitch_last_word" or meta.startswith(":stitch_last_word:"):
+        return True
+    if meta == ":stitch_phrase" or meta.startswith(":stitch_phrase:"):
+        return True
     if meta == ":attach" or meta.startswith(":attach:"):
         return True
     if "~" in meta or "|" in meta:

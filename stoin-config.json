@@ -1,0 +1,7 @@
+{
+  "word_list": "american_english_words.txt",
+  "dictionaries": [
+    "stoin-dictionary.json",
+    "stoin-custom.json"
+  ]
+}
