@@ -1,5 +1,6 @@
 #include "format.h"
 
+#include "text_util.h"
 #include "util.h"
 
 #include <ctype.h>
@@ -7,52 +8,6 @@
 #include <string.h>
 
 #include "../stb_ds.h"
-
-static bool array_string_append_char(char **out, char c)
-{
-    if (out == NULL) {
-        return false;
-    }
-
-    if (*out != NULL && arrlenu(*out) > 0) {
-        arrpop(*out);
-    }
-    arrput(*out, c);
-    arrput(*out, '\0');
-    return true;
-}
-
-static bool array_string_append_range(char **out, const char *start, size_t length)
-{
-    for (size_t i = 0; i < length; ++i) {
-        if (!array_string_append_char(out, start[i])) {
-            return false;
-        }
-    }
-    return true;
-}
-
-static bool ascii_range_equals_ignore_case(const char *a, size_t a_length, const char *b)
-{
-    if (a == NULL || b == NULL || strlen(b) != a_length) {
-        return false;
-    }
-    for (size_t i = 0; i < a_length; ++i) {
-        if (tolower((unsigned char)a[i]) != tolower((unsigned char)b[i])) {
-            return false;
-        }
-    }
-    return true;
-}
-
-static bool ascii_range_starts_with_ignore_case(const char *s, size_t length, const char *prefix)
-{
-    if (s == NULL || prefix == NULL) {
-        return false;
-    }
-    const size_t prefix_length = strlen(prefix);
-    return length >= prefix_length && ascii_range_equals_ignore_case(s, prefix_length, prefix);
-}
 
 static bool is_word_byte(unsigned char c)
 {
@@ -132,7 +87,7 @@ static void formatted_note_text_append(Formatted_Text *formatted, Case_Mode *pen
 static bool formatted_append_char(Formatted_Text *formatted, char c, Case_Mode *pending_case)
 {
     formatted_note_text_append(formatted, pending_case);
-    return array_string_append_char(&formatted->text, c);
+    return text_append_char(&formatted->text, c);
 }
 
 static bool formatted_append_range(
@@ -145,7 +100,7 @@ static bool formatted_append_range(
     if (length > 0) {
         formatted_note_text_append(formatted, pending_case);
     }
-    return array_string_append_range(&formatted->text, start, length);
+    return text_append_range(&formatted->text, start, length);
 }
 
 static bool is_digit_string(const char *s)
@@ -317,7 +272,7 @@ static bool parse_stitch_meta(Formatted_Text *formatted, const char *meta_start,
     formatted->stitch = true;
     formatted->glue = true;
     return formatted_set_stitch_delimiter(formatted, delimiter, delimiter_length)
-        && array_string_append_range(&formatted->text, args, word_length);
+        && text_append_range(&formatted->text, args, word_length);
 }
 
 static bool parse_stitch_retro_meta(

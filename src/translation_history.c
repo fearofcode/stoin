@@ -1,25 +1,11 @@
 #include "translation_history.h"
 
+#include "text_util.h"
+
 #include <stdlib.h>
 #include <string.h>
 
 #include "../stb_ds.h"
-
-static bool append_string(char **out, const char *s)
-{
-    if (out == NULL || s == NULL) {
-        return false;
-    }
-
-    if (*out != NULL && arrlenu(*out) > 0) {
-        arrpop(*out);
-    }
-    for (const char *p = s; *p != '\0'; ++p) {
-        arrput(*out, *p);
-    }
-    arrput(*out, '\0');
-    return true;
-}
 
 void translation_destroy(Translation *translation)
 {
@@ -53,7 +39,7 @@ char *translation_range_text(const Translation *translations, size_t start, size
     char *text = NULL;
     arrput(text, '\0');
     for (size_t i = 0; i < count; ++i) {
-        if (!append_string(&text, translations[start + i].utf8)) {
+        if (!text_append_cstring(&text, translations[start + i].utf8)) {
             arrfree(text);
             return NULL;
         }
@@ -75,7 +61,7 @@ char *translation_range_source_text(const Translation *translations, size_t star
     arrput(text, '\0');
     for (size_t i = 0; i < count; ++i) {
         char *source = translation_source_text(&translations[start + i]);
-        if (source == NULL || !append_string(&text, source)) {
+        if (source == NULL || !text_append_cstring(&text, source)) {
             arrfree(source);
             arrfree(text);
             return NULL;
@@ -94,7 +80,7 @@ char *translation_source_text(const Translation *translation)
         return translation_range_source_text(translation->replaced, 0, arrlenu(translation->replaced));
     }
     char *text = NULL;
-    if (!append_string(&text, translation->utf8)) {
+    if (!text_append_cstring(&text, translation->utf8)) {
         arrfree(text);
         return NULL;
     }

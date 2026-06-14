@@ -1,9 +1,10 @@
 #include "steno.h"
 
-#include "dictionary.h"
+#include "dictionary_stack.h"
 #include "format.h"
 #include "orthography.h"
 #include "steno_stroke.h"
+#include "text_util.h"
 #include "translation_history.h"
 #include "util.h"
 
@@ -30,10 +31,7 @@ enum {
 struct Steno {
     Key_Binding *bindings;
     Translation *translations;
-    char **dictionary_paths;
-    bool *dictionary_enabled;
-    Platform_File_Stamp *dictionary_stamps;
-    Dictionary dictionary;
+    Dictionary_Stack dictionary_stack;
     Orthography orthography;
     uint64_t down_keycodes;
     uint64_t chord_bits;
@@ -44,7 +42,6 @@ struct Steno {
     bool control_down;
     bool option_down;
     bool command_down;
-    bool dictionary_reload_error_reported;
     Case_Mode case_mode;
     Case_Mode next_case;
     Spacing_State spacing;
@@ -151,141 +148,6 @@ static const Key_Binding *find_binding(const Steno *steno, uint16_t keycode)
     return NULL;
 }
 
-static bool file_stamps_equal(Platform_File_Stamp a, Platform_File_Stamp b)
-{
-    return a.exists == b.exists
-        && a.size == b.size
-        && a.modified_time_ns == b.modified_time_ns;
-}
-
-static void clear_dictionary_paths(Steno *steno)
-{
-    if (steno == NULL) {
-        return;
-    }
-    for (size_t i = 0; i < arrlenu(steno->dictionary_paths); ++i) {
-        free(steno->dictionary_paths[i]);
-    }
-    arrfree(steno->dictionary_paths);
-    steno->dictionary_paths = NULL;
-    arrfree(steno->dictionary_enabled);
-    steno->dictionary_enabled = NULL;
-    arrfree(steno->dictionary_stamps);
-    steno->dictionary_stamps = NULL;
-}
-
-static bool add_dictionary_path(Steno *steno, const char *path, bool enabled)
-{
-    char *copy = copy_cstring(path);
-    if (copy == NULL) {
-        return false;
-    }
-    arrput(steno->dictionary_paths, copy);
-    arrput(steno->dictionary_enabled, enabled);
-    return true;
-}
-
-static bool set_dictionary_paths_from_config(Steno *steno, const Steno_Config *config)
-{
-    if (steno == NULL || config == NULL) {
-        return false;
-    }
-
-    clear_dictionary_paths(steno);
-    if (config->dictionary_path_count > 0) {
-        if (config->dictionary_paths == NULL) {
-            return false;
-        }
-        for (size_t i = 0; i < config->dictionary_path_count; ++i) {
-            const bool enabled = config->dictionary_enabled == NULL || config->dictionary_enabled[i];
-            if (config->dictionary_paths[i] == NULL
-                || !add_dictionary_path(steno, config->dictionary_paths[i], enabled)) {
-                clear_dictionary_paths(steno);
-                return false;
-            }
-        }
-    } else {
-        if (config->dictionary_path == NULL || !add_dictionary_path(steno, config->dictionary_path, true)) {
-            clear_dictionary_paths(steno);
-            return false;
-        }
-    }
-
-    return arrlenu(steno->dictionary_paths) > 0;
-}
-
-static bool refresh_dictionary_stamps(Steno *steno)
-{
-    if (steno == NULL) {
-        return false;
-    }
-
-    arrsetlen(steno->dictionary_stamps, arrlenu(steno->dictionary_paths));
-    for (size_t i = 0; i < arrlenu(steno->dictionary_paths); ++i) {
-        Platform_File_Stamp stamp = {0};
-        if (!platform_file_stamp(steno->dictionary_paths[i], &stamp)) {
-            arrsetlen(steno->dictionary_stamps, 0);
-            return false;
-        }
-        steno->dictionary_stamps[i] = stamp;
-    }
-    return true;
-}
-
-static bool dictionary_files_changed(Steno *steno, bool *out_changed)
-{
-    if (steno == NULL || out_changed == NULL) {
-        return false;
-    }
-
-    *out_changed = false;
-    if (arrlenu(steno->dictionary_stamps) != arrlenu(steno->dictionary_paths)) {
-        *out_changed = true;
-        return true;
-    }
-
-    for (size_t i = 0; i < arrlenu(steno->dictionary_paths); ++i) {
-        Platform_File_Stamp stamp = {0};
-        if (!platform_file_stamp(steno->dictionary_paths[i], &stamp)) {
-            return false;
-        }
-        if (!file_stamps_equal(stamp, steno->dictionary_stamps[i])) {
-            *out_changed = true;
-            return true;
-        }
-    }
-
-    return true;
-}
-
-static bool load_dictionary_from_paths(
-    Dictionary *dictionary,
-    char *const *paths,
-    const bool *enabled,
-    size_t path_count
-)
-{
-    if (dictionary == NULL || paths == NULL || enabled == NULL || path_count == 0) {
-        return false;
-    }
-
-    bool loaded_any = false;
-    for (size_t i = 0; i < path_count; ++i) {
-        if (!enabled[i]) {
-            continue;
-        }
-        if (paths[i] == NULL || !dictionary_load(dictionary, paths[i])) {
-            return false;
-        }
-        loaded_any = true;
-    }
-
-    if (!loaded_any) {
-        sh_new_strdup(dictionary->entries);
-    }
-    return true;
-}
-
 static void reset_chord(Steno *steno)
 {
     steno->down_keycodes = 0;
@@ -322,86 +184,6 @@ static bool update_shortcut_modifier_state(Steno *steno, const Input_Event *even
     }
 }
 
-static bool array_string_append_char(char **out, char c)
-{
-    if (out == NULL) {
-        return false;
-    }
-
-    if (*out != NULL && arrlenu(*out) > 0) {
-        arrpop(*out);
-    }
-    arrput(*out, c);
-    arrput(*out, '\0');
-    return true;
-}
-
-static bool array_string_append_range(char **out, const char *start, size_t length)
-{
-    for (size_t i = 0; i < length; ++i) {
-        if (!array_string_append_char(out, start[i])) {
-            return false;
-        }
-    }
-    return true;
-}
-
-static bool array_string_prepend_range(char **out, const char *start, size_t length)
-{
-    if (out == NULL || start == NULL) {
-        return false;
-    }
-
-    char *result = NULL;
-    if (!array_string_append_range(&result, start, length)
-        || (*out != NULL && !array_string_append_range(&result, *out, strlen(*out)))) {
-        arrfree(result);
-        return false;
-    }
-
-    arrfree(*out);
-    *out = result;
-    return true;
-}
-
-static bool ascii_range_equals_ignore_case(const char *a, size_t a_length, const char *b)
-{
-    if (a == NULL || b == NULL || strlen(b) != a_length) {
-        return false;
-    }
-    for (size_t i = 0; i < a_length; ++i) {
-        if (tolower((unsigned char)a[i]) != tolower((unsigned char)b[i])) {
-            return false;
-        }
-    }
-    return true;
-}
-
-static bool ascii_range_starts_with_ignore_case(const char *s, size_t length, const char *prefix)
-{
-    if (s == NULL || prefix == NULL) {
-        return false;
-    }
-    const size_t prefix_length = strlen(prefix);
-    return length >= prefix_length && ascii_range_equals_ignore_case(s, prefix_length, prefix);
-}
-
-static bool append_string(char **out, const char *s)
-{
-    if (out == NULL || s == NULL) {
-        return false;
-    }
-
-    if (*out != NULL && arrlenu(*out) > 0) {
-        arrpop(*out);
-    }
-    for (const char *p = s; *p != '\0'; ++p) {
-        arrput(*out, *p);
-    }
-    arrput(*out, '\0');
-    return true;
-}
-
 typedef struct Text_Token {
     size_t start;
     size_t core_end;
@@ -411,27 +193,6 @@ typedef struct Text_Token {
 static bool stitch_is_word_byte(unsigned char c)
 {
     return c >= 0x80 || isalnum(c) || c == '_' || c == '\'';
-}
-
-static size_t utf8_codepoint_length(const char *s, const char *end)
-{
-    if (s >= end) {
-        return 0;
-    }
-
-    const unsigned char c = (unsigned char)*s;
-    size_t length = 1;
-    if ((c & 0xE0) == 0xC0) {
-        length = 2;
-    } else if ((c & 0xF0) == 0xE0) {
-        length = 3;
-    } else if ((c & 0xF8) == 0xF0) {
-        length = 4;
-    }
-    if ((size_t)(end - s) < length) {
-        return 1;
-    }
-    return length;
 }
 
 static bool collect_text_tokens(const char *text, Text_Token **out_tokens)
@@ -489,10 +250,10 @@ static bool append_stitched_core(char **out, const char *start, const char *end,
     bool first = true;
     for (const char *p = start; p < end;) {
         const size_t length = utf8_codepoint_length(p, end);
-        if (!first && !array_string_append_range(out, delimiter, strlen(delimiter))) {
+        if (!first && !text_append_range(out, delimiter, strlen(delimiter))) {
             return false;
         }
-        if (!array_string_append_range(out, p, length)) {
+        if (!text_append_range(out, p, length)) {
             return false;
         }
         p += length;
@@ -517,7 +278,7 @@ static bool stitch_text_suffix(
     const size_t available = arrlenu(tokens);
     if (available == 0 || token_count == 0) {
         arrfree(tokens);
-        return append_string(out, text);
+        return text_append_cstring(out, text);
     }
 
     if (token_count > available) {
@@ -526,24 +287,24 @@ static bool stitch_text_suffix(
 
     const size_t first_token = available - token_count;
     const size_t prefix_end = tokens[first_token].start;
-    if (!array_string_append_range(out, text, prefix_end)) {
+    if (!text_append_range(out, text, prefix_end)) {
         arrfree(tokens);
         return false;
     }
 
     if (phrase) {
         for (size_t i = first_token; i < available; ++i) {
-            if (i != first_token && !array_string_append_range(out, delimiter, strlen(delimiter))) {
+            if (i != first_token && !text_append_range(out, delimiter, strlen(delimiter))) {
                 arrfree(tokens);
                 return false;
             }
-            if (!array_string_append_range(out, text + tokens[i].start, tokens[i].core_end - tokens[i].start)) {
+            if (!text_append_range(out, text + tokens[i].start, tokens[i].core_end - tokens[i].start)) {
                 arrfree(tokens);
                 return false;
             }
         }
         const Text_Token last = tokens[available - 1];
-        if (!array_string_append_range(out, text + last.core_end, last.end - last.core_end)) {
+        if (!text_append_range(out, text + last.core_end, last.end - last.core_end)) {
             arrfree(tokens);
             return false;
         }
@@ -551,7 +312,7 @@ static bool stitch_text_suffix(
         for (size_t i = first_token; i < available; ++i) {
             const Text_Token token = tokens[i];
             if (!append_stitched_core(out, text + token.start, text + token.core_end, delimiter)
-                || !array_string_append_range(out, text + token.core_end, token.end - token.core_end)) {
+                || !text_append_range(out, text + token.core_end, token.end - token.core_end)) {
                 arrfree(tokens);
                 return false;
             }
@@ -600,13 +361,13 @@ static bool append_orthographic_join(
         --word_start;
     }
 
-    if (!array_string_append_range(emitted, old_text, word_start)) {
+    if (!text_append_range(emitted, old_text, word_start)) {
         return false;
     }
 
     const size_t word_length = old_text_length - word_start;
     if (word_length == 0) {
-        return array_string_append_range(emitted, formatted->text, strlen(formatted->text));
+        return text_append_range(emitted, formatted->text, strlen(formatted->text));
     }
 
     char *word = copy_range(old_text + word_start, word_length);
@@ -617,9 +378,9 @@ static bool append_orthographic_join(
         return false;
     }
 
-    const bool ok = array_string_append_range(emitted, formatted->text, formatted->ortho_suffix_text_offset)
-        && array_string_append_range(emitted, joined, strlen(joined))
-        && array_string_append_range(
+    const bool ok = text_append_range(emitted, formatted->text, formatted->ortho_suffix_text_offset)
+        && text_append_range(emitted, joined, strlen(joined))
+        && text_append_range(
             emitted,
             formatted->text + formatted->ortho_suffix_text_offset + formatted->ortho_suffix_text_length,
             strlen(formatted->text + formatted->ortho_suffix_text_offset + formatted->ortho_suffix_text_length)
@@ -640,13 +401,13 @@ static char *build_emitted_text(Steno *steno, const char *old_text, const Format
         }
     } else {
         if (formatted->attach_prev && old_text != NULL) {
-            if (!array_string_append_range(&emitted, old_text, old_text_length)) {
+            if (!text_append_range(&emitted, old_text, old_text_length)) {
                 arrfree(emitted);
                 return NULL;
             }
         }
 
-        if (!array_string_append_range(&emitted, formatted->text, strlen(formatted->text))) {
+        if (!text_append_range(&emitted, formatted->text, strlen(formatted->text))) {
             arrfree(emitted);
             return NULL;
         }
@@ -659,7 +420,7 @@ static char *build_emitted_text(Steno *steno, const char *old_text, const Format
         && !formatted->attach_next
         && steno->spacing.mode == SPACING_MODE_AFTER_WORD
         && spacing_length > 0
-        && !array_string_append_range(&emitted, spacing, spacing_length)) {
+        && !text_append_range(&emitted, spacing, spacing_length)) {
         arrfree(emitted);
         return NULL;
     }
@@ -667,21 +428,6 @@ static char *build_emitted_text(Steno *steno, const char *old_text, const Format
         arrput(emitted, '\0');
     }
     return emitted;
-}
-
-static size_t common_utf8_prefix_bytes(const char *a, const char *b)
-{
-    size_t index = 0;
-    size_t last_boundary = 0;
-
-    while (a[index] != '\0' && b[index] != '\0' && a[index] == b[index]) {
-        ++index;
-        if (((unsigned char)a[index] & 0xC0) != 0x80) {
-            last_boundary = index;
-        }
-    }
-
-    return last_boundary;
 }
 
 static bool replace_output_text(Steno *steno, const char *old_text, const char *new_text)
@@ -756,7 +502,7 @@ static bool repeat_last_translation(Steno *steno, const uint64_t *strokes, size_
         .glue = last->glue,
         .next_attach = last->next_attach,
     };
-    if (!append_string(&next.utf8, last->utf8)
+    if (!text_append_cstring(&next.utf8, last->utf8)
         || !translation_set_strokes(&next, strokes, stroke_count)) {
         translation_destroy(&next);
         return false;
@@ -781,130 +527,6 @@ static bool execute_command(Steno *steno, const char *command, const uint64_t *s
     }
 
     fprintf(stderr, "stoin: unknown dictionary command '%s'\n", command);
-    return true;
-}
-
-static const char *path_basename(const char *path)
-{
-    const char *slash = strrchr(path, '/');
-    return slash == NULL ? path : slash + 1;
-}
-
-static bool path_matches_dictionary_selection(const char *path, const char *selection)
-{
-    if (path == NULL || selection == NULL) {
-        return false;
-    }
-
-    const size_t path_length = strlen(path);
-    const size_t selection_length = strlen(selection);
-    if (selection_length == 0 || selection_length > path_length) {
-        return false;
-    }
-
-    if (strcmp(path + path_length - selection_length, selection) == 0
-        && (selection_length == path_length || path[path_length - selection_length - 1] == '/')) {
-        return true;
-    }
-
-    const char *base = path_basename(path);
-    const char *selection_base = path_basename(selection);
-    if (strcmp(base, selection_base) == 0) {
-        return true;
-    }
-    if (strncmp(base, "lapwing-", 8) == 0 && strcmp(base + 8, selection_base) == 0) {
-        return true;
-    }
-    return false;
-}
-
-static char *copy_trimmed_range(const char *start, size_t length)
-{
-    while (length > 0 && isspace((unsigned char)*start)) {
-        ++start;
-        --length;
-    }
-    while (length > 0 && isspace((unsigned char)start[length - 1])) {
-        --length;
-    }
-    return copy_range(start, length);
-}
-
-static bool toggle_dictionary_selection(Steno *steno, char toggle, const char *selection)
-{
-    size_t match = SIZE_MAX;
-    size_t match_length = SIZE_MAX;
-    for (size_t i = 0; i < arrlenu(steno->dictionary_paths); ++i) {
-        if (!path_matches_dictionary_selection(steno->dictionary_paths[i], selection)) {
-            continue;
-        }
-        const size_t length = strlen(steno->dictionary_paths[i]);
-        if (length < match_length) {
-            match = i;
-            match_length = length;
-        }
-    }
-
-    if (match == SIZE_MAX) {
-        fprintf(stderr, "stoin: dictionary toggle could not find '%s'\n", selection);
-        return true;
-    }
-
-    const bool old_enabled = steno->dictionary_enabled[match];
-    bool new_enabled = old_enabled;
-    if (toggle == '+') {
-        new_enabled = true;
-    } else if (toggle == '-') {
-        new_enabled = false;
-    } else if (toggle == '!') {
-        new_enabled = !old_enabled;
-    } else {
-        fprintf(stderr, "stoin: invalid dictionary toggle '%c%s'\n", toggle, selection);
-        return true;
-    }
-
-    if (new_enabled == old_enabled) {
-        return true;
-    }
-
-    steno->dictionary_enabled[match] = new_enabled;
-    if (!steno_reload_dictionary(steno)) {
-        steno->dictionary_enabled[match] = old_enabled;
-        (void)steno_reload_dictionary(steno);
-        return false;
-    }
-
-    fprintf(stderr,
-        "stoin: dictionary '%s' %s\n",
-        steno->dictionary_paths[match],
-        new_enabled ? "enabled" : "disabled");
-    return true;
-}
-
-static bool execute_toggle_dict_command(Steno *steno, const char *selections)
-{
-    const char *p = selections;
-    while (*p != '\0') {
-        const char *end = strchr(p, ',');
-        const size_t length = end == NULL ? strlen(p) : (size_t)(end - p);
-        char *selection = copy_trimmed_range(p, length);
-        if (selection == NULL) {
-            return false;
-        }
-        if (selection[0] != '\0') {
-            const char toggle = selection[0];
-            const char *path = selection + 1;
-            if (!toggle_dictionary_selection(steno, toggle, path)) {
-                free(selection);
-                return false;
-            }
-        }
-        free(selection);
-        if (end == NULL) {
-            break;
-        }
-        p = end + 1;
-    }
     return true;
 }
 
@@ -972,7 +594,7 @@ static bool execute_plover_command(Steno *steno, const char *command)
     }
 
     if (ascii_range_starts_with_ignore_case(command, strlen(command), "toggle_dict:")) {
-        return execute_toggle_dict_command(steno, command + strlen("toggle_dict:"));
+        return dictionary_stack_toggle(&steno->dictionary_stack, command + strlen("toggle_dict:"));
     }
 
     (void)steno;
@@ -1053,7 +675,7 @@ static void set_translation_match(
 
 static size_t effective_lookup_stroke_limit(const Steno *steno)
 {
-    size_t max_strokes = dictionary_longest_key(&steno->dictionary);
+    size_t max_strokes = dictionary_longest_key(&steno->dictionary_stack.dictionary);
     if (max_strokes == 0 || max_strokes > MAX_TRANSLATION_STROKES) {
         max_strokes = MAX_TRANSLATION_STROKES;
     }
@@ -1073,7 +695,7 @@ static bool find_translation_match(Steno *steno, uint64_t bits, Translation_Matc
     size_t replaced_count = 0;
     bool found = false;
 
-    const char *translation = dictionary_lookup_strokes(&steno->dictionary, candidate, candidate_count);
+    const char *translation = dictionary_lookup_strokes(&steno->dictionary_stack.dictionary, candidate, candidate_count);
     if (translation != NULL && translation[0] != '=') {
         set_translation_match(out_match, translation, candidate, candidate_count, replaced_count);
         found = true;
@@ -1096,7 +718,7 @@ static bool find_translation_match(Steno *steno, uint64_t bits, Translation_Matc
         candidate_count += previous_stroke_count;
         ++replaced_count;
 
-        translation = dictionary_lookup_strokes(&steno->dictionary, candidate, candidate_count);
+        translation = dictionary_lookup_strokes(&steno->dictionary_stack.dictionary, candidate, candidate_count);
         if (translation != NULL && translation[0] != '=') {
             set_translation_match(out_match, translation, candidate, candidate_count, replaced_count);
             found = true;
@@ -1118,7 +740,7 @@ static bool apply_retro_case(Steno *steno, const Translation_Match *match, Case_
 
     char *old_text = translation_range_text(steno->translations, translation_count - 1, 1);
     char *new_text = NULL;
-    if (old_text == NULL || !append_string(&new_text, old_text)) {
+    if (old_text == NULL || !text_append_cstring(&new_text, old_text)) {
         arrfree(old_text);
         arrfree(new_text);
         return false;
@@ -1126,7 +748,7 @@ static bool apply_retro_case(Steno *steno, const Translation_Match *match, Case_
     formatted_text_apply_case(new_text, mode);
 
     Translation next = {0};
-    if (!append_string(&next.utf8, new_text)
+    if (!text_append_cstring(&next.utf8, new_text)
         || !translation_set_strokes(
             &next,
             steno->translations[translation_count - 1].strokes,
@@ -1174,8 +796,8 @@ static bool apply_retro_delete_space(Steno *steno, const Translation_Match *matc
     char *old_text = translation_range_text(steno->translations, replace_start, 2);
     char *new_text = NULL;
     if (old_text == NULL
-        || !array_string_append_range(&new_text, first_text, first_length)
-        || !append_string(&new_text, second_text)) {
+        || !text_append_range(&new_text, first_text, first_length)
+        || !text_append_cstring(&new_text, second_text)) {
         arrfree(old_text);
         arrfree(new_text);
         return false;
@@ -1435,7 +1057,7 @@ static bool apply_translation_match(Steno *steno, const Translation_Match *match
     if (replaced_count == 0 && translation_count > 0) {
         const Translation *previous = &steno->translations[translation_count - 1];
         if (formatted.stitch && previous->glue) {
-            if (!array_string_prepend_range(
+            if (!text_prepend_range(
                     &formatted.text,
                     formatted.stitch_delimiter != NULL ? formatted.stitch_delimiter : "-",
                     strlen(formatted.stitch_delimiter != NULL ? formatted.stitch_delimiter : "-"))) {
@@ -1559,67 +1181,21 @@ static void count_completed_stroke(Steno *steno)
 
 bool steno_reload_dictionary(Steno *steno)
 {
-    if (steno == NULL || arrlenu(steno->dictionary_paths) == 0) {
-        return false;
-    }
-
-    Dictionary next = {0};
-    if (!load_dictionary_from_paths(
-            &next,
-            steno->dictionary_paths,
-            steno->dictionary_enabled,
-            arrlenu(steno->dictionary_paths))) {
-        dictionary_destroy(&next);
-        (void)refresh_dictionary_stamps(steno);
-        if (!steno->dictionary_reload_error_reported) {
-            fputs("stoin: dictionary changed but reload failed; keeping previous dictionary\n", stderr);
-            steno->dictionary_reload_error_reported = true;
-        }
-        return false;
-    }
-
-    dictionary_destroy(&steno->dictionary);
-    steno->dictionary = next;
-    if (!refresh_dictionary_stamps(steno)) {
-        fputs("stoin: warning: reloaded dictionary, but failed to refresh dictionary file stamps\n", stderr);
-    }
-
-    steno->dictionary_reload_error_reported = false;
-    fprintf(stderr, "stoin: reloaded %zu dictionary entries\n", dictionary_count(&steno->dictionary));
-    return true;
+    return steno != NULL && dictionary_stack_reload(&steno->dictionary_stack);
 }
 
 bool steno_reload_dictionary_if_changed(Steno *steno)
 {
-    if (steno == NULL) {
-        return false;
-    }
-
-    bool changed = false;
-    if (!dictionary_files_changed(steno, &changed)) {
-        if (!steno->dictionary_reload_error_reported) {
-            fputs("stoin: failed to check dictionary files for changes\n", stderr);
-            steno->dictionary_reload_error_reported = true;
-        }
-        return false;
-    }
-
-    if (!changed) {
-        return true;
-    }
-    steno->dictionary_reload_error_reported = false;
-    return steno_reload_dictionary(steno);
+    return steno != NULL && dictionary_stack_reload_if_changed(&steno->dictionary_stack);
 }
 
 bool steno_get_dictionary_paths(const Steno *steno, const char *const **out_paths, size_t *out_path_count)
 {
-    if (steno == NULL || out_paths == NULL || out_path_count == NULL) {
-        return false;
-    }
-
-    *out_paths = (const char *const *)steno->dictionary_paths;
-    *out_path_count = arrlenu(steno->dictionary_paths);
-    return true;
+    return dictionary_stack_get_paths(
+        steno == NULL ? NULL : &steno->dictionary_stack,
+        out_paths,
+        out_path_count
+    );
 }
 
 static bool translate_chord_bits(Steno *steno, uint64_t bits)
@@ -1633,7 +1209,7 @@ static bool translate_chord_bits(Steno *steno, uint64_t bits)
         return false;
     }
 
-    const char *single_stroke_translation = dictionary_lookup_bits(&steno->dictionary, bits);
+    const char *single_stroke_translation = dictionary_lookup_bits(&steno->dictionary_stack.dictionary, bits);
     if (single_stroke_translation != NULL && single_stroke_translation[0] == '=') {
         trace_stroke(steno, raw_chord, single_stroke_translation);
         const bool ok = execute_command(steno, single_stroke_translation, &bits, 1);
@@ -1681,17 +1257,15 @@ Steno *steno_create(const Steno_Config *config)
         return NULL;
     }
 
-    if (!set_dictionary_paths_from_config(steno, config)
-        || !load_dictionary_from_paths(
-            &steno->dictionary,
-            steno->dictionary_paths,
-            steno->dictionary_enabled,
-            arrlenu(steno->dictionary_paths))) {
+    if (!dictionary_stack_set_paths(
+            &steno->dictionary_stack,
+            config->dictionary_path,
+            config->dictionary_paths,
+            config->dictionary_enabled,
+            config->dictionary_path_count)
+        || !dictionary_stack_load(&steno->dictionary_stack)) {
         steno_destroy(steno);
         return NULL;
-    }
-    if (!refresh_dictionary_stamps(steno)) {
-        fputs("stoin: warning: failed to capture dictionary file stamps; hot reload may not work\n", stderr);
     }
 
     if (config->word_list_path != NULL && !orthography_load(&steno->orthography, config->word_list_path)) {
@@ -1709,13 +1283,12 @@ void steno_destroy(Steno *steno)
     }
 
     arrfree(steno->bindings);
-    clear_dictionary_paths(steno);
     for (size_t i = 0; i < arrlenu(steno->translations); ++i) {
         translation_destroy(&steno->translations[i]);
     }
     arrfree(steno->translations);
     orthography_destroy(&steno->orthography);
-    dictionary_destroy(&steno->dictionary);
+    dictionary_stack_destroy(&steno->dictionary_stack);
     free(steno->spacing.spacing);
     free(steno);
 }
@@ -1812,7 +1385,7 @@ size_t steno_key_binding_count(const Steno *steno)
 
 size_t steno_dictionary_count(const Steno *steno)
 {
-    return steno == NULL ? 0 : dictionary_count(&steno->dictionary);
+    return steno == NULL ? 0 : dictionary_count(&steno->dictionary_stack.dictionary);
 }
 
 size_t steno_translation_history_stroke_count(const Steno *steno)
@@ -1825,7 +1398,7 @@ bool steno_lookup_stroke(const Steno *steno, const char *stroke, const char **ou
     if (steno == NULL) {
         return false;
     }
-    return dictionary_lookup_stroke(&steno->dictionary, stroke, out_translation);
+    return dictionary_lookup_stroke(&steno->dictionary_stack.dictionary, stroke, out_translation);
 }
 
 bool steno_dump_dictionary_json(const Steno *steno, const char *path)
@@ -1833,5 +1406,5 @@ bool steno_dump_dictionary_json(const Steno *steno, const char *path)
     if (steno == NULL) {
         return false;
     }
-    return dictionary_dump_json(&steno->dictionary, path);
+    return dictionary_dump_json(&steno->dictionary_stack.dictionary, path);
 }

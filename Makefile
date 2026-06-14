@@ -6,6 +6,7 @@ TARGET := build/stoin
 TEST_TARGET := build/test_steno
 CORE_OBJECTS := \
 	build/dictionary.o \
+	build/dictionary_stack.o \
 	build/format.o \
 	build/gemini_pr.o \
 	build/orthography.o \
@@ -13,6 +14,7 @@ CORE_OBJECTS := \
 	build/steno.o \
 	build/steno_stroke.o \
 	build/stb_ds_impl.o \
+	build/text_util.o \
 	build/translation_history.o \
 	build/tx_bolt.o \
 	build/util.o
