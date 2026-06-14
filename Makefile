@@ -6,6 +6,7 @@ TARGET := build/stoin
 TEST_TARGET := build/test_steno
 CORE_OBJECTS := \
 	build/dictionary.o \
+	build/format.o \
 	build/gemini_pr.o \
 	build/orthography.o \
 	build/platform_macos.o \
