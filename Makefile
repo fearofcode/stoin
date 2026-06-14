@@ -9,6 +9,7 @@ CORE_OBJECTS := \
 	build/dictionary_stack.o \
 	build/format.o \
 	build/gemini_pr.o \
+	build/keymap.o \
 	build/orthography.o \
 	build/platform_macos_file_watcher.o \
 	build/platform_macos_output.o \
@@ -18,6 +19,7 @@ CORE_OBJECTS := \
 	build/steno.o \
 	build/steno_stroke.o \
 	build/stb_ds_impl.o \
+	build/stitch.o \
 	build/text_util.o \
 	build/translation_history.o \
 	build/tx_bolt.o \

@@ -2,9 +2,11 @@
 
 #include "dictionary_stack.h"
 #include "format.h"
+#include "keymap.h"
 #include "orthography.h"
 #include "retro.h"
 #include "steno_stroke.h"
+#include "stitch.h"
 #include "text_util.h"
 #include "translation_history.h"
 #include "util.h"
@@ -17,11 +19,6 @@
 
 #include "../stb_ds.h"
 
-typedef struct Key_Binding {
-    uint16_t keycode;
-    uint64_t bits;
-} Key_Binding;
-
 enum {
     MAX_TRANSLATION_STROKES = 100,
     TRANSLATION_COMPACT_INTERVAL_STROKES = 1000,
@@ -30,7 +27,7 @@ enum {
 };
 
 struct Steno {
-    Key_Binding *bindings;
+    Keymap keymap;
     Translation *translations;
     Dictionary_Stack dictionary_stack;
     Orthography orthography;
@@ -77,78 +74,6 @@ static const char *steno_spacing(const Steno *steno)
     return steno != NULL && steno->spacing.spacing != NULL ? steno->spacing.spacing : "";
 }
 
-static bool load_keymap(Steno *steno, const char *path)
-{
-    size_t size = 0;
-    char *file = read_entire_file(path, &size);
-    if (file == NULL) {
-        fprintf(stderr, "stoin: failed to read keymap '%s'\n", path);
-        return false;
-    }
-
-    char *cursor = file;
-    int line_number = 1;
-    while (*cursor != '\0') {
-        char *line = cursor;
-        char *newline = strchr(cursor, '\n');
-        if (newline != NULL) {
-            *newline = '\0';
-            cursor = newline + 1;
-        } else {
-            cursor += strlen(cursor);
-        }
-
-        while (isspace((unsigned char)*line)) {
-            ++line;
-        }
-        if (*line == '\0' || (line[0] == '/' && line[1] == '/')) {
-            ++line_number;
-            continue;
-        }
-
-        char key_name[64] = {0};
-        char steno_name[32] = {0};
-        if (sscanf(line, "%63s %31s", key_name, steno_name) != 2) {
-            fprintf(stderr, "stoin: invalid keymap line %d: %s\n", line_number, line);
-            free(file);
-            return false;
-        }
-
-        uint16_t keycode = 0;
-        uint64_t bits = 0;
-        if (!platform_keycode_from_name(key_name, &keycode)) {
-            fprintf(stderr, "stoin: unknown key name on keymap line %d: %s\n", line_number, key_name);
-            free(file);
-            return false;
-        }
-        if (!stroke_string_to_bits(steno_name, &bits)) {
-            fprintf(stderr, "stoin: invalid steno stroke on keymap line %d: %s\n", line_number, steno_name);
-            free(file);
-            return false;
-        }
-
-        Key_Binding binding = {
-            .keycode = keycode,
-            .bits = bits,
-        };
-        arrput(steno->bindings, binding);
-        ++line_number;
-    }
-
-    free(file);
-    return arrlenu(steno->bindings) > 0;
-}
-
-static const Key_Binding *find_binding(const Steno *steno, uint16_t keycode)
-{
-    for (size_t i = 0; i < arrlenu(steno->bindings); ++i) {
-        if (steno->bindings[i].keycode == keycode) {
-            return &steno->bindings[i];
-        }
-    }
-    return NULL;
-}
-
 static void reset_chord(Steno *steno)
 {
     steno->down_keycodes = 0;
@@ -183,156 +108,6 @@ static bool update_shortcut_modifier_state(Steno *steno, const Input_Event *even
     default:
         return false;
     }
-}
-
-typedef struct Text_Token {
-    size_t start;
-    size_t core_end;
-    size_t end;
-} Text_Token;
-
-static bool stitch_is_word_byte(unsigned char c)
-{
-    return c >= 0x80 || isalnum(c) || c == '_' || c == '\'';
-}
-
-static bool collect_text_tokens(const char *text, Text_Token **out_tokens)
-{
-    if (text == NULL || out_tokens == NULL) {
-        return false;
-    }
-
-    const size_t length = strlen(text);
-    size_t index = 0;
-    while (index < length) {
-        while (index < length && isspace((unsigned char)text[index])) {
-            ++index;
-        }
-        if (index >= length) {
-            break;
-        }
-
-        const size_t start = index;
-        if (stitch_is_word_byte((unsigned char)text[index])) {
-            ++index;
-            while (index < length) {
-                const unsigned char c = (unsigned char)text[index];
-                if (stitch_is_word_byte(c) || c == '-') {
-                    ++index;
-                } else {
-                    break;
-                }
-            }
-        } else {
-            ++index;
-            while (index < length
-                && !isspace((unsigned char)text[index])
-                && !stitch_is_word_byte((unsigned char)text[index])) {
-                ++index;
-            }
-        }
-
-        const size_t core_end = index;
-        while (index < length && isspace((unsigned char)text[index])) {
-            ++index;
-        }
-        arrput(*out_tokens, ((Text_Token) {
-            .start = start,
-            .core_end = core_end,
-            .end = index,
-        }));
-    }
-
-    return true;
-}
-
-static bool append_stitched_core(char **out, const char *start, const char *end, const char *delimiter)
-{
-    bool first = true;
-    for (const char *p = start; p < end;) {
-        const size_t length = utf8_codepoint_length(p, end);
-        if (!first && !text_append_range(out, delimiter, strlen(delimiter))) {
-            return false;
-        }
-        if (!text_append_range(out, p, length)) {
-            return false;
-        }
-        p += length;
-        first = false;
-    }
-    return true;
-}
-
-static bool stitch_text_suffix(
-    const char *text,
-    size_t token_count,
-    const char *delimiter,
-    bool phrase,
-    char **out
-)
-{
-    Text_Token *tokens = NULL;
-    if (!collect_text_tokens(text, &tokens)) {
-        return false;
-    }
-
-    const size_t available = arrlenu(tokens);
-    if (available == 0 || token_count == 0) {
-        arrfree(tokens);
-        return text_append_cstring(out, text);
-    }
-
-    if (token_count > available) {
-        token_count = available;
-    }
-
-    const size_t first_token = available - token_count;
-    const size_t prefix_end = tokens[first_token].start;
-    if (!text_append_range(out, text, prefix_end)) {
-        arrfree(tokens);
-        return false;
-    }
-
-    if (phrase) {
-        for (size_t i = first_token; i < available; ++i) {
-            if (i != first_token && !text_append_range(out, delimiter, strlen(delimiter))) {
-                arrfree(tokens);
-                return false;
-            }
-            if (!text_append_range(out, text + tokens[i].start, tokens[i].core_end - tokens[i].start)) {
-                arrfree(tokens);
-                return false;
-            }
-        }
-        const Text_Token last = tokens[available - 1];
-        if (!text_append_range(out, text + last.core_end, last.end - last.core_end)) {
-            arrfree(tokens);
-            return false;
-        }
-    } else {
-        for (size_t i = first_token; i < available; ++i) {
-            const Text_Token token = tokens[i];
-            if (!append_stitched_core(out, text + token.start, text + token.core_end, delimiter)
-                || !text_append_range(out, text + token.core_end, token.end - token.core_end)) {
-                arrfree(tokens);
-                return false;
-            }
-        }
-    }
-
-    arrfree(tokens);
-    return true;
-}
-
-static size_t stitch_token_count(const char *text)
-{
-    Text_Token *tokens = NULL;
-    if (!collect_text_tokens(text, &tokens)) {
-        return 0;
-    }
-    const size_t count = arrlenu(tokens);
-    arrfree(tokens);
-    return count;
 }
 
 static size_t text_length_without_trailing_space(const Steno *steno, const char *text)
@@ -491,7 +266,7 @@ static bool undo_last_translation(Steno *steno)
     return true;
 }
 
-static bool retro_replace_output_callback(void *userdata, const char *old_text, const char *new_text)
+static bool replace_output_callback(void *userdata, const char *old_text, const char *new_text)
 {
     return replace_output_text(userdata, old_text, new_text);
 }
@@ -511,9 +286,18 @@ static Retro_Context make_retro_context(Steno *steno)
     return (Retro_Context) {
         .translations = &steno->translations,
         .spacing = &steno->spacing,
-        .replace_output = retro_replace_output_callback,
+        .replace_output = replace_output_callback,
         .undo_last_translation = retro_undo_last_translation_callback,
         .translate_bits = retro_translate_bits_callback,
+        .userdata = steno,
+    };
+}
+
+static Stitch_Context make_stitch_context(Steno *steno)
+{
+    return (Stitch_Context) {
+        .translations = &steno->translations,
+        .replace_output = replace_output_callback,
         .userdata = steno,
     };
 }
@@ -759,78 +543,6 @@ static bool find_translation_match(Steno *steno, uint64_t bits, Translation_Matc
     return true;
 }
 
-static bool apply_stitch_retro_match(
-    Steno *steno,
-    const Translation_Match *match,
-    const Formatted_Text *formatted
-)
-{
-    const size_t translation_count = arrlenu(steno->translations);
-    if (match->replaced_count > translation_count) {
-        return false;
-    }
-
-    size_t replace_start = translation_count - match->replaced_count;
-    char *source_text = NULL;
-    while (true) {
-        arrfree(source_text);
-        source_text = translation_range_source_text(
-            steno->translations,
-            replace_start,
-            translation_count - replace_start
-        );
-        if (source_text == NULL) {
-            return false;
-        }
-        if (stitch_token_count(source_text) >= formatted->stitch_count || replace_start == 0) {
-            break;
-        }
-        --replace_start;
-    }
-
-    const size_t replaced_count = translation_count - replace_start;
-    char *old_text = translation_range_text(steno->translations, replace_start, replaced_count);
-    char *new_text = NULL;
-    if (old_text == NULL
-        || !stitch_text_suffix(
-            source_text,
-            formatted->stitch_count,
-            formatted->stitch_delimiter != NULL ? formatted->stitch_delimiter : "-",
-            formatted->stitch_phrase,
-            &new_text)) {
-        arrfree(old_text);
-        arrfree(source_text);
-        arrfree(new_text);
-        return false;
-    }
-
-    Translation next = {0};
-    next.utf8 = new_text;
-    if (!translation_set_strokes(&next, match->strokes, match->stroke_count)) {
-        arrfree(old_text);
-        arrfree(source_text);
-        translation_destroy(&next);
-        return false;
-    }
-
-    if (!replace_output_text(steno, old_text, next.utf8)) {
-        arrfree(old_text);
-        arrfree(source_text);
-        translation_destroy(&next);
-        return false;
-    }
-
-    for (size_t i = replace_start; i < translation_count; ++i) {
-        arrput(next.replaced, steno->translations[i]);
-    }
-    arrsetlen(steno->translations, replace_start);
-    arrput(steno->translations, next);
-
-    arrfree(old_text);
-    arrfree(source_text);
-    return true;
-}
-
 static bool apply_translation_match(Steno *steno, const Translation_Match *match)
 {
     if (steno == NULL || match == NULL) {
@@ -872,7 +584,16 @@ static bool apply_translation_match(Steno *steno, const Translation_Match *match
     }
 
     if (formatted.stitch_last_word || formatted.stitch_phrase) {
-        const bool ok = apply_stitch_retro_match(steno, match, &formatted);
+        Stitch_Context stitch = make_stitch_context(steno);
+        const bool ok = stitch_apply_retro(
+            &stitch,
+            match->strokes,
+            match->stroke_count,
+            match->replaced_count,
+            formatted.stitch_count,
+            formatted.stitch_delimiter,
+            formatted.stitch_phrase
+        );
         formatted_text_destroy(&formatted);
         return ok;
     }
@@ -1089,7 +810,7 @@ Steno *steno_create(const Steno_Config *config)
     steno->trace_file = config->trace_file;
 
     if (!steno_set_spacing(steno, " ")
-        || (config->keymap_path != NULL && !load_keymap(steno, config->keymap_path))) {
+        || (config->keymap_path != NULL && !keymap_load(&steno->keymap, config->keymap_path))) {
         steno_destroy(steno);
         return NULL;
     }
@@ -1119,7 +840,7 @@ void steno_destroy(Steno *steno)
         return;
     }
 
-    arrfree(steno->bindings);
+    keymap_destroy(&steno->keymap);
     for (size_t i = 0; i < arrlenu(steno->translations); ++i) {
         translation_destroy(&steno->translations[i]);
     }
@@ -1164,7 +885,7 @@ bool steno_handle_event(Steno *steno, const Input_Event *event)
         return false;
     }
 
-    const Key_Binding *binding = find_binding(steno, event->keycode);
+    const Key_Binding *binding = keymap_find_binding(&steno->keymap, event->keycode);
     if (binding == NULL) {
         return false;
     }
@@ -1217,7 +938,7 @@ void steno_set_session_active(Steno *steno, bool active)
 
 size_t steno_key_binding_count(const Steno *steno)
 {
-    return steno == NULL ? 0 : arrlenu(steno->bindings);
+    return steno == NULL ? 0 : keymap_binding_count(&steno->keymap);
 }
 
 size_t steno_dictionary_count(const Steno *steno)
