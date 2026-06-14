@@ -4,6 +4,7 @@
 #include "format.h"
 #include "orthography.h"
 #include "steno_stroke.h"
+#include "translation_history.h"
 #include "util.h"
 
 #include <ctype.h>
@@ -18,16 +19,6 @@ typedef struct Key_Binding {
     uint16_t keycode;
     uint64_t bits;
 } Key_Binding;
-
-typedef struct Translation Translation;
-struct Translation {
-    uint64_t *strokes;
-    char *utf8;
-    Translation *replaced;
-    bool glue;
-    bool next_attach;
-    bool retro_space_command;
-};
 
 enum {
     MAX_TRANSLATION_STROKES = 100,
@@ -395,33 +386,6 @@ static bool ascii_range_starts_with_ignore_case(const char *s, size_t length, co
     return length >= prefix_length && ascii_range_equals_ignore_case(s, prefix_length, prefix);
 }
 
-static void translation_destroy(Translation *translation)
-{
-    if (translation == NULL) {
-        return;
-    }
-
-    arrfree(translation->strokes);
-    arrfree(translation->utf8);
-    for (size_t i = 0; i < arrlenu(translation->replaced); ++i) {
-        translation_destroy(&translation->replaced[i]);
-    }
-    arrfree(translation->replaced);
-    memset(translation, 0, sizeof(*translation));
-}
-
-static bool translation_set_strokes(Translation *translation, const uint64_t *strokes, size_t stroke_count)
-{
-    if (translation == NULL || strokes == NULL || stroke_count == 0) {
-        return false;
-    }
-
-    for (size_t i = 0; i < stroke_count; ++i) {
-        arrput(translation->strokes, strokes[i]);
-    }
-    return true;
-}
-
 static bool append_string(char **out, const char *s)
 {
     if (out == NULL || s == NULL) {
@@ -703,61 +667,6 @@ static char *build_emitted_text(Steno *steno, const char *old_text, const Format
         arrput(emitted, '\0');
     }
     return emitted;
-}
-
-static char *translation_range_text(const Translation *translations, size_t start, size_t count)
-{
-    char *text = NULL;
-    arrput(text, '\0');
-    for (size_t i = 0; i < count; ++i) {
-        if (!append_string(&text, translations[start + i].utf8)) {
-            arrfree(text);
-            return NULL;
-        }
-    }
-    return text;
-}
-
-static char *translation_replaced_text(const Translation *translation)
-{
-    if (translation == NULL) {
-        return NULL;
-    }
-    return translation_range_text(translation->replaced, 0, arrlenu(translation->replaced));
-}
-
-static char *translation_source_text(const Translation *translation);
-
-static char *translation_range_source_text(const Translation *translations, size_t start, size_t count)
-{
-    char *text = NULL;
-    arrput(text, '\0');
-    for (size_t i = 0; i < count; ++i) {
-        char *source = translation_source_text(&translations[start + i]);
-        if (source == NULL || !append_string(&text, source)) {
-            arrfree(source);
-            arrfree(text);
-            return NULL;
-        }
-        arrfree(source);
-    }
-    return text;
-}
-
-static char *translation_source_text(const Translation *translation)
-{
-    if (translation == NULL) {
-        return NULL;
-    }
-    if (arrlenu(translation->replaced) > 0) {
-        return translation_range_source_text(translation->replaced, 0, arrlenu(translation->replaced));
-    }
-    char *text = NULL;
-    if (!append_string(&text, translation->utf8)) {
-        arrfree(text);
-        return NULL;
-    }
-    return text;
 }
 
 static size_t common_utf8_prefix_bytes(const char *a, const char *b)
@@ -1598,15 +1507,6 @@ static bool apply_translation_match(Steno *steno, const Translation_Match *match
     arrfree(old_text);
     formatted_text_destroy(&formatted);
     return true;
-}
-
-static size_t translation_history_stroke_count(const Translation *translations)
-{
-    size_t stroke_count = 0;
-    for (size_t i = 0; i < arrlenu(translations); ++i) {
-        stroke_count += arrlenu(translations[i].strokes);
-    }
-    return stroke_count;
 }
 
 static void compact_translation_history(Steno *steno)

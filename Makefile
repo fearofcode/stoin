@@ -13,6 +13,7 @@ CORE_OBJECTS := \
 	build/steno.o \
 	build/steno_stroke.o \
 	build/stb_ds_impl.o \
+	build/translation_history.o \
 	build/tx_bolt.o \
 	build/util.o
 APP_OBJECTS := build/main.o $(CORE_OBJECTS)
