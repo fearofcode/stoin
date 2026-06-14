@@ -26,6 +26,8 @@ struct Translation {
 
 enum {
     MAX_TRANSLATION_STROKES = 100,
+    TRANSLATION_COMPACT_INTERVAL_STROKES = 1000,
+    TRANSLATION_HISTORY_STROKE_LIMIT = 1000,
     MAX_TRANSLATION_OUTLINE_BYTES = 4096,
 };
 
@@ -35,6 +37,7 @@ struct Steno {
     Dictionary dictionary;
     uint64_t down_keycodes;
     uint64_t chord_bits;
+    size_t strokes_since_compaction;
     bool enabled;
     bool session_active;
     bool toggle_esc_down;
@@ -344,16 +347,22 @@ static void set_translation_match(
     );
 }
 
+static size_t effective_lookup_stroke_limit(const Steno *steno)
+{
+    size_t max_strokes = dictionary_longest_key(&steno->dictionary);
+    if (max_strokes == 0 || max_strokes > MAX_TRANSLATION_STROKES) {
+        max_strokes = MAX_TRANSLATION_STROKES;
+    }
+    return max_strokes;
+}
+
 static bool find_translation_match(Steno *steno, uint64_t bits, Translation_Match *out_match)
 {
     if (steno == NULL || out_match == NULL) {
         return false;
     }
 
-    size_t max_strokes = dictionary_longest_key(&steno->dictionary);
-    if (max_strokes == 0 || max_strokes > MAX_TRANSLATION_STROKES) {
-        max_strokes = MAX_TRANSLATION_STROKES;
-    }
+    const size_t max_strokes = effective_lookup_stroke_limit(steno);
 
     uint64_t candidate[MAX_TRANSLATION_STROKES] = { bits };
     size_t candidate_count = 1;
@@ -439,6 +448,63 @@ static bool apply_translation_match(Steno *steno, const Translation_Match *match
     return true;
 }
 
+static size_t translation_history_stroke_count(const Translation *translations)
+{
+    size_t stroke_count = 0;
+    for (size_t i = 0; i < arrlenu(translations); ++i) {
+        stroke_count += arrlenu(translations[i].strokes);
+    }
+    return stroke_count;
+}
+
+static void compact_translation_history(Steno *steno)
+{
+    const size_t translation_count = arrlenu(steno->translations);
+    if (translation_count == 0) {
+        return;
+    }
+
+    size_t keep_strokes = TRANSLATION_HISTORY_STROKE_LIMIT;
+    const size_t lookup_strokes = effective_lookup_stroke_limit(steno);
+    if (keep_strokes < lookup_strokes) {
+        keep_strokes = lookup_strokes;
+    }
+
+    size_t retained_strokes = 0;
+    size_t retained_translations = 0;
+    for (size_t i = translation_count; i > 0; --i) {
+        ++retained_translations;
+        retained_strokes += arrlenu(steno->translations[i - 1].strokes);
+        if (retained_strokes >= keep_strokes) {
+            break;
+        }
+    }
+
+    const size_t dropped_translations = translation_count - retained_translations;
+    if (dropped_translations == 0) {
+        return;
+    }
+
+    for (size_t i = 0; i < dropped_translations; ++i) {
+        translation_destroy(&steno->translations[i]);
+    }
+    memmove(
+        steno->translations,
+        steno->translations + dropped_translations,
+        retained_translations * sizeof(steno->translations[0])
+    );
+    arrsetlen(steno->translations, retained_translations);
+}
+
+static void count_completed_stroke(Steno *steno)
+{
+    ++steno->strokes_since_compaction;
+    if (steno->strokes_since_compaction >= TRANSLATION_COMPACT_INTERVAL_STROKES) {
+        compact_translation_history(steno);
+        steno->strokes_since_compaction = 0;
+    }
+}
+
 static bool translate_chord_bits(Steno *steno, uint64_t bits)
 {
     if (bits == 0) {
@@ -453,7 +519,11 @@ static bool translate_chord_bits(Steno *steno, uint64_t bits)
     const char *single_stroke_translation = dictionary_lookup_bits(&steno->dictionary, bits);
     if (single_stroke_translation != NULL && single_stroke_translation[0] == '=') {
         trace_stroke(steno, raw_chord, single_stroke_translation);
-        return execute_command(steno, single_stroke_translation);
+        const bool ok = execute_command(steno, single_stroke_translation);
+        if (ok) {
+            count_completed_stroke(steno);
+        }
+        return ok;
     }
 
     Translation_Match match = {0};
@@ -462,7 +532,11 @@ static bool translate_chord_bits(Steno *steno, uint64_t bits)
     }
 
     trace_stroke(steno, match.outline, match.translation);
-    return apply_translation_match(steno, &match);
+    const bool ok = apply_translation_match(steno, &match);
+    if (ok) {
+        count_completed_stroke(steno);
+    }
+    return ok;
 }
 
 Steno *steno_create(const Steno_Config *config)
@@ -596,6 +670,11 @@ size_t steno_key_binding_count(const Steno *steno)
 size_t steno_dictionary_count(const Steno *steno)
 {
     return steno == NULL ? 0 : dictionary_count(&steno->dictionary);
+}
+
+size_t steno_translation_history_stroke_count(const Steno *steno)
+{
+    return steno == NULL ? 0 : translation_history_stroke_count(steno->translations);
 }
 
 bool steno_lookup_stroke(const Steno *steno, const char *stroke, const char **out_translation)

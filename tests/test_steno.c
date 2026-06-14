@@ -105,6 +105,19 @@ static bool expect_string(const char *name, const char *actual, const char *expe
     return false;
 }
 
+static bool expect_size_at_most(const char *name, size_t actual, size_t expected_max)
+{
+    if (actual <= expected_max) {
+        return true;
+    }
+
+    fprintf(stderr, "test failed: %s: expected at most %zu, got %zu\n",
+        name,
+        expected_max,
+        actual);
+    return false;
+}
+
 static bool expect_stroke_format(const char *input, const char *expected)
 {
     uint64_t bits = 0;
@@ -302,11 +315,13 @@ int main(void)
     uint64_t past_bits = 0;
     uint64_t history_bits = 0;
     uint64_t undo_bits = 0;
+    uint64_t filler_bits = 0;
     ok = ok && stroke_string_to_bits("STOER", &story_bits);
     ok = ok && stroke_string_to_bits("-Z", &plural_bits);
     ok = ok && stroke_string_to_bits("-D", &past_bits);
     ok = ok && stroke_string_to_bits("HEU", &history_bits);
     ok = ok && stroke_string_to_bits("-R", &undo_bits);
+    ok = ok && stroke_string_to_bits("#", &filler_bits);
 
     clear_test_output(&output);
     reset_output_log(&output);
@@ -344,6 +359,41 @@ int main(void)
     ok = ok && expect_string("longest multi-stroke replacement", output.text, "histories ");
     ok = ok && expect_string("longest multi-stroke delete", output.last_delete, "HEU story ");
     ok = ok && expect_string("longest multi-stroke insert", output.last_send, "histories ");
+
+    Steno *compact_steno = steno_create(&config);
+    ok = ok && compact_steno != NULL;
+    if (compact_steno != NULL) {
+        clear_test_output(&output);
+        for (size_t i = 0; ok && i < 1999; ++i) {
+            ok = ok && steno_handle_stroke_bits(compact_steno, filler_bits);
+        }
+
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(compact_steno, story_bits);
+        ok = ok && expect_size_at_most(
+            "compacted history stroke count",
+            steno_translation_history_stroke_count(compact_steno),
+            1000
+        );
+        ok = ok && expect_string("compaction keeps current stroke output", output.text, "story ");
+
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(compact_steno, plural_bits);
+        ok = ok && expect_string("retro translation after compaction", output.text, "stories ");
+        ok = ok && expect_string("retro delete after compaction", output.last_delete, "y ");
+        ok = ok && expect_string("retro insert after compaction", output.last_send, "ies ");
+
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(compact_steno, undo_bits);
+        ok = ok && expect_string("undo after compaction", output.text, "story ");
+
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(compact_steno, past_bits);
+        ok = ok && expect_string("translation after compacted undo", output.text, "storied ");
+
+        steno_destroy(compact_steno);
+    }
 
     clear_test_output(&output);
     ok = ok && send_key_event(steno, "q", true);
