@@ -10,6 +10,9 @@ CORE_OBJECTS := \
 	build/format.o \
 	build/gemini_pr.o \
 	build/orthography.o \
+	build/platform_macos_file_watcher.o \
+	build/platform_macos_output.o \
+	build/platform_macos_serial.o \
 	build/platform_macos.o \
 	build/retro.o \
 	build/steno.o \
