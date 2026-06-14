@@ -570,6 +570,17 @@ int main(void)
     uint64_t glue_p_bits = 0;
     uint64_t basket_bits = 0;
     uint64_t ball_bits = 0;
+    uint64_t toggle_star_bits = 0;
+    uint64_t retro_delete_space_bits = 0;
+    uint64_t retro_insert_space_bits = 0;
+    uint64_t caps_mode_bits = 0;
+    uint64_t reset_mode_bits = 0;
+    uint64_t snake_mode_bits = 0;
+    uint64_t camel_mode_bits = 0;
+    uint64_t lower_mode_bits = 0;
+    uint64_t title_mode_bits = 0;
+    uint64_t empty_space_mode_bits = 0;
+    uint64_t reset_space_mode_bits = 0;
     uint64_t repeat_bits = 0;
     uint64_t period_bits = 0;
     uint64_t comma_bits = 0;
@@ -610,6 +621,17 @@ int main(void)
     ok = ok && stroke_string_to_bits("P*P", &glue_p_bits);
     ok = ok && stroke_string_to_bits("PWA", &basket_bits);
     ok = ok && stroke_string_to_bits("PWAL", &ball_bits);
+    ok = ok && stroke_string_to_bits("#*", &toggle_star_bits);
+    ok = ok && stroke_string_to_bits("SP-LS", &retro_delete_space_bits);
+    ok = ok && stroke_string_to_bits("S-PD", &retro_insert_space_bits);
+    ok = ok && stroke_string_to_bits("KA*PS", &caps_mode_bits);
+    ok = ok && stroke_string_to_bits("R*EFT", &reset_mode_bits);
+    ok = ok && stroke_string_to_bits("WRA", &snake_mode_bits);
+    ok = ok && stroke_string_to_bits("WRO", &camel_mode_bits);
+    ok = ok && stroke_string_to_bits("WRE", &lower_mode_bits);
+    ok = ok && stroke_string_to_bits("WRU", &title_mode_bits);
+    ok = ok && stroke_string_to_bits("TPHA", &empty_space_mode_bits);
+    ok = ok && stroke_string_to_bits("KPAO", &reset_space_mode_bits);
     ok = ok && stroke_string_to_bits("SKWR", &repeat_bits);
     ok = ok && stroke_string_to_bits("TP-PL", &period_bits);
     ok = ok && stroke_string_to_bits("KW-BG", &comma_bits);
@@ -793,6 +815,33 @@ int main(void)
 
         clear_test_output(&output);
         reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(format_steno, basket_bits);
+        ok = ok && steno_handle_stroke_bits(format_steno, ball_bits);
+        ok = ok && expect_string("retro delete-space base phrase", output.text, "basket ball ");
+
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(format_steno, retro_delete_space_bits);
+        ok = ok && expect_string("retro delete-space command", output.text, "basketball ");
+        ok = ok && expect_string("retro delete-space delete", output.last_delete, " ball ");
+        ok = ok && expect_string("retro delete-space insert", output.last_send, "ball ");
+
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(format_steno, retro_insert_space_bits);
+        ok = ok && expect_string("retro insert-space command", output.text, "basket ball ");
+        ok = ok && expect_string("retro insert-space delete", output.last_delete, "ball ");
+        ok = ok && expect_string("retro insert-space insert", output.last_send, " ball ");
+
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(format_steno, cat_bits);
+        ok = ok && expect_string("star toggle base word", output.text, "cat ");
+        ok = ok && steno_handle_stroke_bits(format_steno, toggle_star_bits);
+        ok = ok && expect_string("star toggle translated stroke", output.text, "kitty ");
+        ok = ok && expect_string("star toggle delete", output.last_delete, "cat ");
+        ok = ok && expect_string("star toggle insert", output.last_send, "kitty ");
+
+        clear_test_output(&output);
+        reset_output_log(&output);
         ok = ok && steno_handle_stroke_bits(format_steno, cat_bits);
         ok = ok && steno_handle_stroke_bits(format_steno, period_bits);
         ok = ok && expect_string("period attaches and sets capitalization", output.text, "cat. ");
@@ -839,6 +888,57 @@ int main(void)
         ok = ok && expect_string("retro lower insert", output.last_send, "plover ");
 
         steno_destroy(format_steno);
+    }
+
+    Steno *mode_steno = steno_create(&config);
+    ok = ok && expect_size("mode steno created", mode_steno != NULL ? 1 : 0, 1);
+    if (mode_steno != NULL) {
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(mode_steno, caps_mode_bits);
+        ok = ok && expect_string("caps mode emits nothing", output.text, "");
+        ok = ok && expect_size("caps mode send count", output.send_count, 0);
+        ok = ok && steno_handle_stroke_bits(mode_steno, cat_bits);
+        ok = ok && expect_string("caps mode word", output.text, "CAT ");
+
+        clear_test_output(&output);
+        ok = ok && steno_handle_stroke_bits(mode_steno, reset_mode_bits);
+        ok = ok && steno_handle_stroke_bits(mode_steno, cat_bits);
+        ok = ok && expect_string("reset mode word", output.text, "cat ");
+
+        clear_test_output(&output);
+        ok = ok && steno_handle_stroke_bits(mode_steno, lower_mode_bits);
+        ok = ok && steno_handle_stroke_bits(mode_steno, plover_bits);
+        ok = ok && expect_string("lower mode word", output.text, "plover ");
+
+        clear_test_output(&output);
+        ok = ok && steno_handle_stroke_bits(mode_steno, title_mode_bits);
+        ok = ok && steno_handle_stroke_bits(mode_steno, cat_bits);
+        ok = ok && expect_string("title mode word", output.text, "Cat ");
+
+        clear_test_output(&output);
+        ok = ok && steno_handle_stroke_bits(mode_steno, reset_mode_bits);
+        ok = ok && steno_handle_stroke_bits(mode_steno, snake_mode_bits);
+        ok = ok && steno_handle_stroke_bits(mode_steno, cat_bits);
+        ok = ok && steno_handle_stroke_bits(mode_steno, ball_bits);
+        ok = ok && expect_string("snake mode spacing", output.text, "cat_ball_");
+
+        clear_test_output(&output);
+        ok = ok && steno_handle_stroke_bits(mode_steno, reset_mode_bits);
+        ok = ok && steno_handle_stroke_bits(mode_steno, empty_space_mode_bits);
+        ok = ok && steno_handle_stroke_bits(mode_steno, cat_bits);
+        ok = ok && steno_handle_stroke_bits(mode_steno, ball_bits);
+        ok = ok && expect_string("empty set_space mode", output.text, "catball");
+        ok = ok && steno_handle_stroke_bits(mode_steno, reset_space_mode_bits);
+
+        clear_test_output(&output);
+        ok = ok && steno_handle_stroke_bits(mode_steno, reset_mode_bits);
+        ok = ok && steno_handle_stroke_bits(mode_steno, camel_mode_bits);
+        ok = ok && steno_handle_stroke_bits(mode_steno, cat_bits);
+        ok = ok && steno_handle_stroke_bits(mode_steno, ball_bits);
+        ok = ok && expect_string("camel mode spacing and case", output.text, "catBall");
+
+        steno_destroy(mode_steno);
     }
 
     Steno *key_combo_steno = steno_create(&config);

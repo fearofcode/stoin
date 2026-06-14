@@ -21,7 +21,7 @@ typedef enum Input_Mode {
     INPUT_MODE_GEMINI_PR,
 } Input_Mode;
 
-#define DEFAULT_DICTIONARY_PATH "stoin-dictionary.json"
+#define DEFAULT_DICTIONARY_PATH "lapwing-base.json"
 #define DEFAULT_CONFIG_PATH "stoin-config.json"
 #define DEFAULT_WORD_LIST_PATH "american_english_words.txt"
 

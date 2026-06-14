@@ -20,7 +20,7 @@ typedef enum Spacing_Mode {
 
 typedef struct Spacing_State {
     Spacing_Mode mode;
-    char spacing_char;
+    char *spacing;
 } Spacing_State;
 
 typedef struct Steno_Config {

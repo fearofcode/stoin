@@ -1,7 +1,7 @@
 {
   "word_list": "american_english_words.txt",
   "dictionaries": [
-    "stoin-dictionary.json",
+    "lapwing-base.json",
     "lapwing-commands.json",
     { "path": "lapwing-semi-modal-movement.json", "enabled": false },
     "stoin-custom.json"
