@@ -11,6 +11,7 @@ CORE_OBJECTS := \
 	build/gemini_pr.o \
 	build/orthography.o \
 	build/platform_macos.o \
+	build/retro.o \
 	build/steno.o \
 	build/steno_stroke.o \
 	build/stb_ds_impl.o \

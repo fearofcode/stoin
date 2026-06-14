@@ -95,3 +95,40 @@ size_t translation_history_stroke_count(const Translation *translations)
     }
     return stroke_count;
 }
+
+void translation_history_compact(Translation **translations, size_t keep_strokes)
+{
+    if (translations == NULL || *translations == NULL) {
+        return;
+    }
+
+    const size_t translation_count = arrlenu(*translations);
+    if (translation_count == 0) {
+        return;
+    }
+
+    size_t retained_strokes = 0;
+    size_t retained_translations = 0;
+    for (size_t i = translation_count; i > 0; --i) {
+        ++retained_translations;
+        retained_strokes += arrlenu((*translations)[i - 1].strokes);
+        if (retained_strokes >= keep_strokes) {
+            break;
+        }
+    }
+
+    const size_t dropped_translations = translation_count - retained_translations;
+    if (dropped_translations == 0) {
+        return;
+    }
+
+    for (size_t i = 0; i < dropped_translations; ++i) {
+        translation_destroy(&(*translations)[i]);
+    }
+    memmove(
+        *translations,
+        *translations + dropped_translations,
+        retained_translations * sizeof((*translations)[0])
+    );
+    arrsetlen(*translations, retained_translations);
+}

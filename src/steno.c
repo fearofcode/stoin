@@ -3,6 +3,7 @@
 #include "dictionary_stack.h"
 #include "format.h"
 #include "orthography.h"
+#include "retro.h"
 #include "steno_stroke.h"
 #include "text_util.h"
 #include "translation_history.h"
@@ -490,6 +491,33 @@ static bool undo_last_translation(Steno *steno)
     return true;
 }
 
+static bool retro_replace_output_callback(void *userdata, const char *old_text, const char *new_text)
+{
+    return replace_output_text(userdata, old_text, new_text);
+}
+
+static bool retro_undo_last_translation_callback(void *userdata)
+{
+    return undo_last_translation(userdata);
+}
+
+static bool retro_translate_bits_callback(void *userdata, uint64_t bits)
+{
+    return translate_chord_bits(userdata, bits);
+}
+
+static Retro_Context make_retro_context(Steno *steno)
+{
+    return (Retro_Context) {
+        .translations = &steno->translations,
+        .spacing = &steno->spacing,
+        .replace_output = retro_replace_output_callback,
+        .undo_last_translation = retro_undo_last_translation_callback,
+        .translate_bits = retro_translate_bits_callback,
+        .userdata = steno,
+    };
+}
+
 static bool repeat_last_translation(Steno *steno, const uint64_t *strokes, size_t stroke_count)
 {
     const size_t translation_count = arrlenu(steno->translations);
@@ -731,165 +759,6 @@ static bool find_translation_match(Steno *steno, uint64_t bits, Translation_Matc
     return true;
 }
 
-static bool apply_retro_case(Steno *steno, const Translation_Match *match, Case_Mode mode)
-{
-    const size_t translation_count = arrlenu(steno->translations);
-    if (translation_count == 0) {
-        return true;
-    }
-
-    char *old_text = translation_range_text(steno->translations, translation_count - 1, 1);
-    char *new_text = NULL;
-    if (old_text == NULL || !text_append_cstring(&new_text, old_text)) {
-        arrfree(old_text);
-        arrfree(new_text);
-        return false;
-    }
-    formatted_text_apply_case(new_text, mode);
-
-    Translation next = {0};
-    if (!text_append_cstring(&next.utf8, new_text)
-        || !translation_set_strokes(
-            &next,
-            steno->translations[translation_count - 1].strokes,
-            arrlenu(steno->translations[translation_count - 1].strokes))
-        || !translation_set_strokes(&next, match->strokes, match->stroke_count)) {
-        arrfree(old_text);
-        arrfree(new_text);
-        translation_destroy(&next);
-        return false;
-    }
-
-    if (!replace_output_text(steno, old_text, next.utf8)) {
-        arrfree(old_text);
-        arrfree(new_text);
-        translation_destroy(&next);
-        return false;
-    }
-
-    arrput(next.replaced, steno->translations[translation_count - 1]);
-    arrsetlen(steno->translations, translation_count - 1);
-    arrput(steno->translations, next);
-
-    arrfree(old_text);
-    arrfree(new_text);
-    return true;
-}
-
-static bool apply_retro_delete_space(Steno *steno, const Translation_Match *match)
-{
-    const size_t translation_count = arrlenu(steno->translations);
-    if (translation_count < 2) {
-        return true;
-    }
-    if (steno->translations[translation_count - 1].retro_space_command) {
-        return true;
-    }
-
-    const size_t replace_start = translation_count - 2;
-    const Translation *first = &steno->translations[replace_start];
-    const Translation *second = &steno->translations[replace_start + 1];
-    const char *first_text = first->utf8 != NULL ? first->utf8 : "";
-    const char *second_text = second->utf8 != NULL ? second->utf8 : "";
-    const size_t first_length = text_length_without_trailing_space(steno, first_text);
-
-    char *old_text = translation_range_text(steno->translations, replace_start, 2);
-    char *new_text = NULL;
-    if (old_text == NULL
-        || !text_append_range(&new_text, first_text, first_length)
-        || !text_append_cstring(&new_text, second_text)) {
-        arrfree(old_text);
-        arrfree(new_text);
-        return false;
-    }
-
-    Translation next = {
-        .utf8 = new_text,
-        .retro_space_command = true,
-    };
-    new_text = NULL;
-    if (!translation_set_strokes(&next, match->strokes, match->stroke_count)) {
-        arrfree(old_text);
-        translation_destroy(&next);
-        return false;
-    }
-
-    if (!replace_output_text(steno, old_text, next.utf8)) {
-        arrfree(old_text);
-        translation_destroy(&next);
-        return false;
-    }
-
-    arrput(next.replaced, steno->translations[replace_start]);
-    arrput(next.replaced, steno->translations[replace_start + 1]);
-    arrsetlen(steno->translations, replace_start);
-    arrput(steno->translations, next);
-
-    arrfree(old_text);
-    return true;
-}
-
-static bool apply_retro_insert_space(Steno *steno, const Translation_Match *match)
-{
-    const size_t translation_count = arrlenu(steno->translations);
-    if (translation_count == 0) {
-        return true;
-    }
-
-    const Translation *last = &steno->translations[translation_count - 1];
-    if (!last->retro_space_command || arrlenu(last->replaced) == 0) {
-        return true;
-    }
-
-    char *old_text = translation_range_text(steno->translations, translation_count - 1, 1);
-    char *new_text = translation_replaced_text(last);
-    if (old_text == NULL || new_text == NULL) {
-        arrfree(old_text);
-        arrfree(new_text);
-        return false;
-    }
-
-    Translation next = {
-        .utf8 = new_text,
-    };
-    new_text = NULL;
-    if (!translation_set_strokes(&next, match->strokes, match->stroke_count)) {
-        arrfree(old_text);
-        translation_destroy(&next);
-        return false;
-    }
-
-    if (!replace_output_text(steno, old_text, next.utf8)) {
-        arrfree(old_text);
-        translation_destroy(&next);
-        return false;
-    }
-
-    arrput(next.replaced, steno->translations[translation_count - 1]);
-    arrsetlen(steno->translations, translation_count - 1);
-    arrput(steno->translations, next);
-
-    arrfree(old_text);
-    return true;
-}
-
-static bool apply_retro_toggle_asterisk(Steno *steno)
-{
-    const size_t translation_count = arrlenu(steno->translations);
-    if (translation_count == 0) {
-        return true;
-    }
-
-    const Translation *last = &steno->translations[translation_count - 1];
-    const size_t stroke_count = arrlenu(last->strokes);
-    if (stroke_count == 0) {
-        return true;
-    }
-
-    const uint64_t toggled_bits = last->strokes[stroke_count - 1] ^ steno_bit(STENO_STAR);
-    return undo_last_translation(steno) && translate_chord_bits(steno, toggled_bits);
-}
-
 static bool apply_stitch_retro_match(
     Steno *steno,
     const Translation_Match *match,
@@ -982,16 +851,17 @@ static bool apply_translation_match(Steno *steno, const Translation_Match *match
     }
 
     if (formatted.retro_command != RETRO_COMMAND_NONE) {
+        Retro_Context retro = make_retro_context(steno);
         bool ok = false;
         switch (formatted.retro_command) {
         case RETRO_COMMAND_TOGGLE_ASTERISK:
-            ok = apply_retro_toggle_asterisk(steno);
+            ok = retro_apply_toggle_asterisk(&retro);
             break;
         case RETRO_COMMAND_DELETE_SPACE:
-            ok = apply_retro_delete_space(steno, match);
+            ok = retro_apply_delete_space(&retro, match->strokes, match->stroke_count);
             break;
         case RETRO_COMMAND_INSERT_SPACE:
-            ok = apply_retro_insert_space(steno, match);
+            ok = retro_apply_insert_space(&retro, match->strokes, match->stroke_count);
             break;
         case RETRO_COMMAND_NONE:
             ok = true;
@@ -1008,7 +878,8 @@ static bool apply_translation_match(Steno *steno, const Translation_Match *match
     }
 
     if (formatted.retro_case != CASE_MODE_NORMAL) {
-        const bool ok = apply_retro_case(steno, match, formatted.retro_case);
+        Retro_Context retro = make_retro_context(steno);
+        const bool ok = retro_apply_case(&retro, match->strokes, match->stroke_count, formatted.retro_case);
         formatted_text_destroy(&formatted);
         return ok;
     }
@@ -1131,50 +1002,16 @@ static bool apply_translation_match(Steno *steno, const Translation_Match *match
     return true;
 }
 
-static void compact_translation_history(Steno *steno)
-{
-    const size_t translation_count = arrlenu(steno->translations);
-    if (translation_count == 0) {
-        return;
-    }
-
-    size_t keep_strokes = TRANSLATION_HISTORY_STROKE_LIMIT;
-    const size_t lookup_strokes = effective_lookup_stroke_limit(steno);
-    if (keep_strokes < lookup_strokes) {
-        keep_strokes = lookup_strokes;
-    }
-
-    size_t retained_strokes = 0;
-    size_t retained_translations = 0;
-    for (size_t i = translation_count; i > 0; --i) {
-        ++retained_translations;
-        retained_strokes += arrlenu(steno->translations[i - 1].strokes);
-        if (retained_strokes >= keep_strokes) {
-            break;
-        }
-    }
-
-    const size_t dropped_translations = translation_count - retained_translations;
-    if (dropped_translations == 0) {
-        return;
-    }
-
-    for (size_t i = 0; i < dropped_translations; ++i) {
-        translation_destroy(&steno->translations[i]);
-    }
-    memmove(
-        steno->translations,
-        steno->translations + dropped_translations,
-        retained_translations * sizeof(steno->translations[0])
-    );
-    arrsetlen(steno->translations, retained_translations);
-}
-
 static void count_completed_stroke(Steno *steno)
 {
     ++steno->strokes_since_compaction;
     if (steno->strokes_since_compaction >= TRANSLATION_COMPACT_INTERVAL_STROKES) {
-        compact_translation_history(steno);
+        size_t keep_strokes = TRANSLATION_HISTORY_STROKE_LIMIT;
+        const size_t lookup_strokes = effective_lookup_stroke_limit(steno);
+        if (keep_strokes < lookup_strokes) {
+            keep_strokes = lookup_strokes;
+        }
+        translation_history_compact(&steno->translations, keep_strokes);
         steno->strokes_since_compaction = 0;
     }
 }

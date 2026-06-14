@@ -22,5 +22,6 @@ char *translation_replaced_text(const Translation *translation);
 char *translation_range_source_text(const Translation *translations, size_t start, size_t count);
 char *translation_source_text(const Translation *translation);
 size_t translation_history_stroke_count(const Translation *translations);
+void translation_history_compact(Translation **translations, size_t keep_strokes);
 
 #endif
