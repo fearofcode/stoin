@@ -3,20 +3,29 @@
 #include "steno.h"
 #include "steno_stroke.h"
 #include "tx_bolt.h"
+#include "util.h"
 
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "../stb_ds.h"
 
 typedef struct Test_Output {
     char *text;
+    char last_send[128];
+    char last_delete[128];
+    size_t send_count;
+    size_t delete_count;
 } Test_Output;
 
 static bool test_send_text(const char *utf8, void *userdata)
 {
     Test_Output *output = userdata;
+    ++output->send_count;
+    snprintf(output->last_send, sizeof(output->last_send), "%s", utf8);
+
     if (output->text != NULL && arrlenu(output->text) > 0) {
         arrpop(output->text);
     }
@@ -46,6 +55,9 @@ static bool test_delete_text(const char *utf8, void *userdata)
         return false;
     }
 
+    ++output->delete_count;
+    snprintf(output->last_delete, sizeof(output->last_delete), "%s", utf8);
+
     const size_t new_length = length - delete_length;
     arrsetlen(output->text, new_length + 1);
     output->text[new_length] = '\0';
@@ -56,6 +68,14 @@ static void clear_test_output(Test_Output *output)
 {
     arrsetlen(output->text, 0);
     arrput(output->text, '\0');
+}
+
+static void reset_output_log(Test_Output *output)
+{
+    output->last_send[0] = '\0';
+    output->last_delete[0] = '\0';
+    output->send_count = 0;
+    output->delete_count = 0;
 }
 
 static bool send_key_event(Steno *steno, const char *key_name, bool is_down)
@@ -211,6 +231,25 @@ int main(void)
     ok = ok && steno_lookup_stroke(steno, "-R", &undo);
     ok = ok && expect_string("dictionary lookup -R", undo, "=undo");
 
+    const char *stories = NULL;
+    ok = ok && steno_lookup_stroke(steno, "STOE-R/-Z", &stories);
+    ok = ok && expect_string("dictionary lookup canonical multi-stroke", stories, "stories");
+
+    const char *histories = NULL;
+    ok = ok && steno_lookup_stroke(steno, "HEU/STOE-R/-Z", &histories);
+    ok = ok && expect_string("dictionary lookup longest multi-stroke", histories, "histories");
+
+    const char *dump_path = "build/test-dictionary-dump.json";
+    ok = ok && steno_dump_dictionary_json(steno, dump_path);
+    size_t dump_size = 0;
+    char *dump = read_entire_file(dump_path, &dump_size);
+    ok = ok && dump != NULL && dump_size > 0;
+    if (dump != NULL) {
+        ok = ok && strstr(dump, "\"STOER/Z\": \"stories\"") != NULL;
+        free(dump);
+    }
+    remove(dump_path);
+
     FILE *trace_file = tmpfile();
     ok = ok && trace_file != NULL;
     if (trace_file != NULL) {
@@ -258,6 +297,55 @@ int main(void)
     ok = ok && send_key_event(steno, "j", false);
     ok = ok && expect_string("unicode undo", output.text, "");
 
+    uint64_t story_bits = 0;
+    uint64_t plural_bits = 0;
+    uint64_t past_bits = 0;
+    uint64_t history_bits = 0;
+    uint64_t undo_bits = 0;
+    ok = ok && stroke_string_to_bits("STOER", &story_bits);
+    ok = ok && stroke_string_to_bits("-Z", &plural_bits);
+    ok = ok && stroke_string_to_bits("-D", &past_bits);
+    ok = ok && stroke_string_to_bits("HEU", &history_bits);
+    ok = ok && stroke_string_to_bits("-R", &undo_bits);
+
+    clear_test_output(&output);
+    reset_output_log(&output);
+    ok = ok && steno_handle_stroke_bits(steno, story_bits);
+    ok = ok && expect_string("story first stroke", output.text, "story ");
+    ok = ok && output.send_count == 1 && output.delete_count == 0;
+    ok = ok && expect_string("story send text", output.last_send, "story ");
+
+    reset_output_log(&output);
+    ok = ok && steno_handle_stroke_bits(steno, plural_bits);
+    ok = ok && expect_string("stories retroactive replacement", output.text, "stories ");
+    ok = ok && output.send_count == 1 && output.delete_count == 1;
+    ok = ok && expect_string("stories minimal delete", output.last_delete, "y ");
+    ok = ok && expect_string("stories minimal insert", output.last_send, "ies ");
+
+    reset_output_log(&output);
+    ok = ok && steno_handle_stroke_bits(steno, undo_bits);
+    ok = ok && expect_string("undo restores replaced translation", output.text, "story ");
+    ok = ok && output.send_count == 1 && output.delete_count == 1;
+    ok = ok && expect_string("undo stories delete", output.last_delete, "ies ");
+    ok = ok && expect_string("undo stories insert", output.last_send, "y ");
+
+    reset_output_log(&output);
+    ok = ok && steno_handle_stroke_bits(steno, past_bits);
+    ok = ok && expect_string("past tense after undo uses restored stroke history", output.text, "storied ");
+    ok = ok && output.send_count == 1 && output.delete_count == 1;
+    ok = ok && expect_string("storied minimal delete", output.last_delete, "y ");
+    ok = ok && expect_string("storied minimal insert", output.last_send, "ied ");
+
+    clear_test_output(&output);
+    reset_output_log(&output);
+    ok = ok && steno_handle_stroke_bits(steno, history_bits);
+    ok = ok && steno_handle_stroke_bits(steno, story_bits);
+    ok = ok && steno_handle_stroke_bits(steno, plural_bits);
+    ok = ok && expect_string("longest multi-stroke replacement", output.text, "histories ");
+    ok = ok && expect_string("longest multi-stroke delete", output.last_delete, "HEU story ");
+    ok = ok && expect_string("longest multi-stroke insert", output.last_send, "histories ");
+
+    clear_test_output(&output);
     ok = ok && send_key_event(steno, "q", true);
     ok = ok && send_key_event(steno, "q", false);
     ok = ok && expect_string("raw # chord", output.text, "# ");

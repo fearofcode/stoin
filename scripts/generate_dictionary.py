@@ -2,6 +2,7 @@
 import argparse
 import json
 from pathlib import Path
+from typing import Optional
 
 
 STENO_ORDER = [
@@ -62,8 +63,8 @@ RIGHT = {
 RIGHT_BITS = {1 << index for index in RIGHT.values()}
 
 
-def stroke_to_bits(stroke: str) -> int | None:
-    if not stroke or "/" in stroke:
+def stroke_to_bits(stroke: str) -> Optional[int]:
+    if not stroke:
         return None
 
     bits = 0
@@ -118,11 +119,31 @@ def bits_to_stroke(bits: int) -> str:
             left_and_vowels.append(key)
 
     if right:
+        implicit = "".join(left_and_vowels + right)
+        if stroke_to_bits(implicit) == bits:
+            return implicit
         return "".join(left_and_vowels) + "-" + "".join(right)
     return "".join(left_and_vowels)
 
 
-def is_plain_translation(value: str) -> bool:
+def outline_to_canonical(outline: str) -> Optional[str]:
+    strokes = outline.split("/")
+    if not strokes:
+        return None
+
+    canonical = []
+    for stroke in strokes:
+        bits = stroke_to_bits(stroke)
+        if bits is None:
+            return None
+        canonical.append(bits_to_stroke(bits))
+
+    return "/".join(canonical)
+
+
+def is_supported_translation(value: str) -> bool:
+    if value == "=undo":
+        return True
     return (
         value != ""
         and not value.startswith("=")
@@ -137,14 +158,13 @@ def generate(input_path: Path) -> dict[str, str]:
     for stroke, translation in source.items():
         if not isinstance(stroke, str) or not isinstance(translation, str):
             continue
-        if not is_plain_translation(translation):
+        if not is_supported_translation(translation):
             continue
 
-        bits = stroke_to_bits(stroke)
-        if bits is None:
+        canonical = outline_to_canonical(stroke)
+        if canonical is None:
             continue
 
-        canonical = bits_to_stroke(bits)
         output.setdefault(canonical, translation)
 
     return dict(sorted(output.items()))
@@ -152,7 +172,7 @@ def generate(input_path: Path) -> dict[str, str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Generate Stoin's starter dictionary from plain single-stroke Lapwing entries."
+        description="Generate Stoin's starter dictionary from plain Lapwing entries."
     )
     parser.add_argument("--input", default="lapwing-base.json", type=Path)
     parser.add_argument("--output", default="stoin-dictionary.json", type=Path)

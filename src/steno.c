@@ -17,13 +17,21 @@ typedef struct Key_Binding {
     uint64_t bits;
 } Key_Binding;
 
-typedef struct Emitted_Text {
+typedef struct Translation Translation;
+struct Translation {
+    uint64_t *strokes;
     char *utf8;
-} Emitted_Text;
+    Translation *replaced;
+};
+
+enum {
+    MAX_TRANSLATION_STROKES = 100,
+    MAX_TRANSLATION_OUTLINE_BYTES = 4096,
+};
 
 struct Steno {
     Key_Binding *bindings;
-    Emitted_Text *history;
+    Translation *translations;
     Dictionary dictionary;
     uint64_t down_keycodes;
     uint64_t chord_bits;
@@ -115,7 +123,7 @@ static void reset_chord(Steno *steno)
     steno->chord_bits = 0;
 }
 
-static bool emit_text(Steno *steno, const char *text)
+static char *format_emitted_text(const Steno *steno, const char *text)
 {
     char *emitted = NULL;
     for (const char *p = text; *p != '\0'; ++p) {
@@ -127,33 +135,130 @@ static bool emit_text(Steno *steno, const char *text)
     }
     arrput(emitted, '\0');
 
-    if (!steno->send_text(emitted, steno->send_userdata)) {
-        arrfree(emitted);
+    return emitted;
+}
+
+static void translation_destroy(Translation *translation)
+{
+    if (translation == NULL) {
+        return;
+    }
+
+    arrfree(translation->strokes);
+    arrfree(translation->utf8);
+    for (size_t i = 0; i < arrlenu(translation->replaced); ++i) {
+        translation_destroy(&translation->replaced[i]);
+    }
+    arrfree(translation->replaced);
+    memset(translation, 0, sizeof(*translation));
+}
+
+static bool translation_set_strokes(Translation *translation, const uint64_t *strokes, size_t stroke_count)
+{
+    if (translation == NULL || strokes == NULL || stroke_count == 0) {
         return false;
     }
 
-    Emitted_Text history_entry = {
-        .utf8 = emitted,
-    };
-    arrput(steno->history, history_entry);
+    for (size_t i = 0; i < stroke_count; ++i) {
+        arrput(translation->strokes, strokes[i]);
+    }
+    return true;
+}
+
+static bool append_string(char **out, const char *s)
+{
+    if (out == NULL || s == NULL) {
+        return false;
+    }
+
+    if (*out != NULL && arrlenu(*out) > 0) {
+        arrpop(*out);
+    }
+    for (const char *p = s; *p != '\0'; ++p) {
+        arrput(*out, *p);
+    }
+    arrput(*out, '\0');
+    return true;
+}
+
+static char *translation_range_text(const Translation *translations, size_t start, size_t count)
+{
+    char *text = NULL;
+    arrput(text, '\0');
+    for (size_t i = 0; i < count; ++i) {
+        if (!append_string(&text, translations[start + i].utf8)) {
+            arrfree(text);
+            return NULL;
+        }
+    }
+    return text;
+}
+
+static char *translation_replaced_text(const Translation *translation)
+{
+    if (translation == NULL) {
+        return NULL;
+    }
+    return translation_range_text(translation->replaced, 0, arrlenu(translation->replaced));
+}
+
+static size_t common_utf8_prefix_bytes(const char *a, const char *b)
+{
+    size_t index = 0;
+    size_t last_boundary = 0;
+
+    while (a[index] != '\0' && b[index] != '\0' && a[index] == b[index]) {
+        ++index;
+        if (((unsigned char)a[index] & 0xC0) != 0x80) {
+            last_boundary = index;
+        }
+    }
+
+    return last_boundary;
+}
+
+static bool replace_output_text(Steno *steno, const char *old_text, const char *new_text)
+{
+    const size_t prefix = common_utf8_prefix_bytes(old_text, new_text);
+    const char *delete_suffix = old_text + prefix;
+    const char *insert_suffix = new_text + prefix;
+
+    if (delete_suffix[0] != '\0' && !steno->delete_text(delete_suffix, steno->send_userdata)) {
+        return false;
+    }
+    if (insert_suffix[0] != '\0' && !steno->send_text(insert_suffix, steno->send_userdata)) {
+        return false;
+    }
 
     return true;
 }
 
 static bool undo_last_translation(Steno *steno)
 {
-    const size_t history_count = arrlenu(steno->history);
-    if (history_count == 0) {
+    const size_t translation_count = arrlenu(steno->translations);
+    if (translation_count == 0) {
         return true;
     }
 
-    Emitted_Text *entry = &steno->history[history_count - 1];
-    if (!steno->delete_text(entry->utf8, steno->send_userdata)) {
+    Translation translation = steno->translations[translation_count - 1];
+    char *replacement_text = translation_replaced_text(&translation);
+    if (replacement_text == NULL) {
         return false;
     }
 
-    arrfree(entry->utf8);
-    arrsetlen(steno->history, history_count - 1);
+    if (!replace_output_text(steno, translation.utf8, replacement_text)) {
+        arrfree(replacement_text);
+        return false;
+    }
+
+    arrsetlen(steno->translations, translation_count - 1);
+    for (size_t i = 0; i < arrlenu(translation.replaced); ++i) {
+        arrput(steno->translations, translation.replaced[i]);
+    }
+
+    arrsetlen(translation.replaced, 0);
+    translation_destroy(&translation);
+    arrfree(replacement_text);
     return true;
 }
 
@@ -181,7 +286,160 @@ static void trace_stroke(const Steno *steno, const char *raw_chord, const char *
     fflush(steno->trace_file);
 }
 
-static bool emit_chord_bits(Steno *steno, uint64_t bits)
+static bool stroke_sequence_to_string(const uint64_t *strokes, size_t stroke_count, char *out, size_t out_size)
+{
+    if (strokes == NULL || stroke_count == 0 || out == NULL || out_size == 0) {
+        return false;
+    }
+
+    size_t index = 0;
+    out[0] = '\0';
+
+    for (size_t i = 0; i < stroke_count; ++i) {
+        char stroke[64] = {0};
+        if (!chord_bits_to_string(strokes[i], stroke, sizeof(stroke))) {
+            return false;
+        }
+
+        const size_t separator_length = i == 0 ? 0 : 1;
+        const size_t stroke_length = strlen(stroke);
+        if (index + separator_length + stroke_length >= out_size) {
+            return false;
+        }
+        if (i != 0) {
+            out[index++] = '/';
+        }
+        memcpy(out + index, stroke, stroke_length + 1);
+        index += stroke_length;
+    }
+
+    return true;
+}
+
+typedef struct Translation_Match {
+    const char *translation;
+    uint64_t strokes[MAX_TRANSLATION_STROKES];
+    size_t stroke_count;
+    size_t replaced_count;
+    char outline[MAX_TRANSLATION_OUTLINE_BYTES];
+} Translation_Match;
+
+static void set_translation_match(
+    Translation_Match *match,
+    const char *translation,
+    const uint64_t *strokes,
+    size_t stroke_count,
+    size_t replaced_count
+)
+{
+    match->translation = translation;
+    match->stroke_count = stroke_count;
+    match->replaced_count = replaced_count;
+    memcpy(match->strokes, strokes, stroke_count * sizeof(strokes[0]));
+    (void)stroke_sequence_to_string(
+        strokes,
+        stroke_count,
+        match->outline,
+        sizeof(match->outline)
+    );
+}
+
+static bool find_translation_match(Steno *steno, uint64_t bits, Translation_Match *out_match)
+{
+    if (steno == NULL || out_match == NULL) {
+        return false;
+    }
+
+    size_t max_strokes = dictionary_longest_key(&steno->dictionary);
+    if (max_strokes == 0 || max_strokes > MAX_TRANSLATION_STROKES) {
+        max_strokes = MAX_TRANSLATION_STROKES;
+    }
+
+    uint64_t candidate[MAX_TRANSLATION_STROKES] = { bits };
+    size_t candidate_count = 1;
+    size_t replaced_count = 0;
+    bool found = false;
+
+    const char *translation = dictionary_lookup_strokes(&steno->dictionary, candidate, candidate_count);
+    if (translation != NULL && translation[0] != '=') {
+        set_translation_match(out_match, translation, candidate, candidate_count, replaced_count);
+        found = true;
+    }
+
+    for (size_t i = arrlenu(steno->translations); i > 0 && candidate_count < max_strokes;) {
+        --i;
+        const Translation *previous = &steno->translations[i];
+        const size_t previous_stroke_count = arrlenu(previous->strokes);
+        if (previous_stroke_count == 0 || candidate_count + previous_stroke_count > max_strokes) {
+            break;
+        }
+
+        memmove(
+            candidate + previous_stroke_count,
+            candidate,
+            candidate_count * sizeof(candidate[0])
+        );
+        memcpy(candidate, previous->strokes, previous_stroke_count * sizeof(candidate[0]));
+        candidate_count += previous_stroke_count;
+        ++replaced_count;
+
+        translation = dictionary_lookup_strokes(&steno->dictionary, candidate, candidate_count);
+        if (translation != NULL && translation[0] != '=') {
+            set_translation_match(out_match, translation, candidate, candidate_count, replaced_count);
+            found = true;
+        }
+    }
+
+    if (!found) {
+        set_translation_match(out_match, NULL, &bits, 1, 0);
+    }
+    return true;
+}
+
+static bool apply_translation_match(Steno *steno, const Translation_Match *match)
+{
+    if (steno == NULL || match == NULL) {
+        return false;
+    }
+
+    const char *translation_text = match->translation != NULL ? match->translation : match->outline;
+    Translation next = {0};
+    next.utf8 = format_emitted_text(steno, translation_text);
+    if (next.utf8 == NULL || !translation_set_strokes(&next, match->strokes, match->stroke_count)) {
+        translation_destroy(&next);
+        return false;
+    }
+
+    const size_t translation_count = arrlenu(steno->translations);
+    if (match->replaced_count > translation_count) {
+        translation_destroy(&next);
+        return false;
+    }
+
+    const size_t replace_start = translation_count - match->replaced_count;
+    char *old_text = translation_range_text(steno->translations, replace_start, match->replaced_count);
+    if (old_text == NULL) {
+        translation_destroy(&next);
+        return false;
+    }
+
+    if (!replace_output_text(steno, old_text, next.utf8)) {
+        arrfree(old_text);
+        translation_destroy(&next);
+        return false;
+    }
+
+    for (size_t i = replace_start; i < translation_count; ++i) {
+        arrput(next.replaced, steno->translations[i]);
+    }
+    arrsetlen(steno->translations, replace_start);
+    arrput(steno->translations, next);
+
+    arrfree(old_text);
+    return true;
+}
+
+static bool translate_chord_bits(Steno *steno, uint64_t bits)
 {
     if (bits == 0) {
         return true;
@@ -192,16 +450,19 @@ static bool emit_chord_bits(Steno *steno, uint64_t bits)
         return false;
     }
 
-    const char *translation = dictionary_lookup_bits(&steno->dictionary, bits);
-    trace_stroke(steno, raw_chord, translation);
-    if (translation != NULL) {
-        if (translation[0] == '=') {
-            return execute_command(steno, translation);
-        }
-        return emit_text(steno, translation);
+    const char *single_stroke_translation = dictionary_lookup_bits(&steno->dictionary, bits);
+    if (single_stroke_translation != NULL && single_stroke_translation[0] == '=') {
+        trace_stroke(steno, raw_chord, single_stroke_translation);
+        return execute_command(steno, single_stroke_translation);
     }
 
-    return emit_text(steno, raw_chord);
+    Translation_Match match = {0};
+    if (!find_translation_match(steno, bits, &match)) {
+        return false;
+    }
+
+    trace_stroke(steno, match.outline, match.translation);
+    return apply_translation_match(steno, &match);
 }
 
 Steno *steno_create(const Steno_Config *config)
@@ -246,10 +507,10 @@ void steno_destroy(Steno *steno)
     }
 
     arrfree(steno->bindings);
-    for (size_t i = 0; i < arrlenu(steno->history); ++i) {
-        arrfree(steno->history[i].utf8);
+    for (size_t i = 0; i < arrlenu(steno->translations); ++i) {
+        translation_destroy(&steno->translations[i]);
     }
-    arrfree(steno->history);
+    arrfree(steno->translations);
     dictionary_destroy(&steno->dictionary);
     free(steno);
 }
@@ -299,7 +560,7 @@ bool steno_handle_event(Steno *steno, const Input_Event *event)
 
     steno->down_keycodes &= ~physical_bit;
     if (steno->down_keycodes == 0) {
-        (void)emit_chord_bits(steno, steno->chord_bits);
+        (void)translate_chord_bits(steno, steno->chord_bits);
         reset_chord(steno);
     }
     return true;
@@ -313,7 +574,7 @@ bool steno_handle_stroke_bits(Steno *steno, uint64_t bits)
     if (!steno->session_active) {
         return false;
     }
-    return emit_chord_bits(steno, bits);
+    return translate_chord_bits(steno, bits);
 }
 
 void steno_set_session_active(Steno *steno, bool active)

@@ -3,5 +3,9 @@
   "F": "fee",
   "-P": "pay",
   "-R": "=undo",
-  "HF": "caffè"
+  "HF": "caffè",
+  "STOER": "story",
+  "STOER/-Z": "stories",
+  "STOER/-D": "storied",
+  "HEU/STOER/-Z": "histories"
 }
