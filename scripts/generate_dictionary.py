@@ -141,14 +141,49 @@ def outline_to_canonical(outline: str) -> Optional[str]:
     return "/".join(canonical)
 
 
+def is_supported_meta(meta: str) -> bool:
+    if meta.startswith("&"):
+        return True
+    if meta.startswith(":glue:") or meta.startswith("glue:"):
+        return True
+    if meta == ":attach" or meta.startswith(":attach:"):
+        return True
+    if "~" in meta or "|" in meta:
+        return False
+    return meta.startswith("^") or meta.endswith("^")
+
+
 def is_supported_translation(value: str) -> bool:
     if value == "=undo":
         return True
-    return (
-        value != ""
-        and not value.startswith("=")
-        and not any(char in value for char in "{}^")
-    )
+    if value == "" or value.startswith("="):
+        return False
+
+    index = 0
+    while index < len(value):
+        char = value[index]
+        if char == "^" or char == "}":
+            return False
+        if char == "\\":
+            index += 2
+            continue
+        if char != "{":
+            index += 1
+            continue
+
+        end = index + 1
+        while end < len(value):
+            if value[end] == "\\":
+                end += 2
+                continue
+            if value[end] == "}":
+                break
+            end += 1
+        if end >= len(value) or not is_supported_meta(value[index + 1:end]):
+            return False
+        index = end + 1
+
+    return True
 
 
 def generate(input_path: Path) -> dict[str, str]:
@@ -172,7 +207,7 @@ def generate(input_path: Path) -> dict[str, str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Generate Stoin's starter dictionary from plain Lapwing entries."
+        description="Generate Stoin's starter dictionary from supported Lapwing entries."
     )
     parser.add_argument("--input", default="lapwing-base.json", type=Path)
     parser.add_argument("--output", default="stoin-dictionary.json", type=Path)

@@ -22,6 +22,8 @@ struct Translation {
     uint64_t *strokes;
     char *utf8;
     Translation *replaced;
+    bool glue;
+    bool next_attach;
 };
 
 enum {
@@ -126,19 +128,239 @@ static void reset_chord(Steno *steno)
     steno->chord_bits = 0;
 }
 
-static char *format_emitted_text(const Steno *steno, const char *text)
+typedef struct Formatted_Text {
+    char *text;
+    bool attach_prev;
+    bool attach_next;
+    bool glue;
+} Formatted_Text;
+
+static bool array_string_append_char(char **out, char c)
 {
-    char *emitted = NULL;
-    for (const char *p = text; *p != '\0'; ++p) {
-        arrput(emitted, *p);
+    if (out == NULL) {
+        return false;
     }
 
-    if (steno->spacing.mode == SPACING_MODE_AFTER_WORD && steno->spacing.spacing_char != '\0') {
-        arrput(emitted, steno->spacing.spacing_char);
+    if (*out != NULL && arrlenu(*out) > 0) {
+        arrpop(*out);
     }
-    arrput(emitted, '\0');
+    arrput(*out, c);
+    arrput(*out, '\0');
+    return true;
+}
 
-    return emitted;
+static bool array_string_append_range(char **out, const char *start, size_t length)
+{
+    for (size_t i = 0; i < length; ++i) {
+        if (!array_string_append_char(out, start[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool is_digit_string(const char *s)
+{
+    if (s == NULL || s[0] == '\0') {
+        return false;
+    }
+
+    for (const unsigned char *p = (const unsigned char *)s; *p != '\0'; ++p) {
+        if (!isdigit(*p)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool append_escaped_translation_byte(char **out, const char **cursor)
+{
+    const char *p = *cursor;
+    if (*p != '\\') {
+        const bool ok = array_string_append_char(out, *p);
+        *cursor = p + 1;
+        return ok;
+    }
+
+    ++p;
+    char c = *p;
+    if (c == '\0') {
+        c = '\\';
+        *cursor = p;
+    } else {
+        switch (c) {
+        case 'n': c = '\n'; break;
+        case 'r': c = '\r'; break;
+        case 't': c = '\t'; break;
+        default: break;
+        }
+        *cursor = p + 1;
+    }
+
+    return array_string_append_char(out, c);
+}
+
+static bool parse_attach_meta(Formatted_Text *formatted, const char *text, size_t length)
+{
+    bool begin = length > 0 && text[0] == '^';
+    bool end = length > 0 && text[length - 1] == '^';
+    if (!begin && !end) {
+        begin = true;
+        end = true;
+    }
+
+    size_t start = begin ? 1 : 0;
+    size_t end_index = length - (end ? 1 : 0);
+    if (start > end_index) {
+        start = end_index;
+    }
+
+    if (begin) {
+        formatted->attach_prev = true;
+    }
+    if (end) {
+        formatted->attach_next = true;
+    }
+    return array_string_append_range(&formatted->text, text + start, end_index - start);
+}
+
+static bool is_attach_meta(const char *text, size_t length)
+{
+    return length > 0
+        && memchr(text, '~', length) == NULL
+        && memchr(text, '|', length) == NULL
+        && (text[0] == '^' || text[length - 1] == '^');
+}
+
+static bool apply_translation_meta(
+    Formatted_Text *formatted,
+    const char *translation,
+    const char *meta_start,
+    size_t meta_length,
+    bool *pending_attach_prev
+)
+{
+    if (meta_length >= 5 && memcmp(meta_start, "glue:", 5) == 0) {
+        formatted->glue = true;
+        return array_string_append_range(&formatted->text, meta_start + 5, meta_length - 5);
+    }
+    if (meta_length >= 6 && memcmp(meta_start, ":glue:", 6) == 0) {
+        formatted->glue = true;
+        return array_string_append_range(&formatted->text, meta_start + 6, meta_length - 6);
+    }
+    if (meta_length >= 1 && meta_start[0] == '&') {
+        formatted->glue = true;
+        return array_string_append_range(&formatted->text, meta_start + 1, meta_length - 1);
+    }
+
+    const char *attach = meta_start;
+    size_t attach_length = meta_length;
+    if (meta_length == 7 && memcmp(meta_start, ":attach", 7) == 0) {
+        attach = meta_start + 7;
+        attach_length = 0;
+    } else if (meta_length >= 8 && memcmp(meta_start, ":attach:", 8) == 0) {
+        attach = meta_start + 8;
+        attach_length = meta_length - 8;
+    } else if (!is_attach_meta(meta_start, meta_length)) {
+        if (*pending_attach_prev) {
+            formatted->attach_prev = true;
+            *pending_attach_prev = false;
+        }
+        return array_string_append_range(&formatted->text, translation, meta_length + 2);
+    }
+
+    if (attach_length == 1 && attach[0] == '^') {
+        if (formatted->text != NULL && formatted->text[0] != '\0') {
+            formatted->attach_next = true;
+        } else {
+            *pending_attach_prev = true;
+        }
+        return true;
+    }
+
+    if (*pending_attach_prev) {
+        formatted->attach_prev = true;
+        *pending_attach_prev = false;
+    }
+    return parse_attach_meta(formatted, attach, attach_length);
+}
+
+static bool format_translation_text(const char *translation, Formatted_Text *out)
+{
+    if (translation == NULL || out == NULL) {
+        return false;
+    }
+
+    bool pending_attach_prev = false;
+    if (is_digit_string(translation)) {
+        out->glue = true;
+    }
+
+    for (const char *p = translation; *p != '\0';) {
+        if (*p == '\\') {
+            if (pending_attach_prev) {
+                out->attach_prev = true;
+                pending_attach_prev = false;
+            }
+            if (!append_escaped_translation_byte(&out->text, &p)) {
+                return false;
+            }
+            continue;
+        }
+
+        if (*p != '{') {
+            if (pending_attach_prev) {
+                out->attach_prev = true;
+                pending_attach_prev = false;
+            }
+            if (!array_string_append_char(&out->text, *p++)) {
+                return false;
+            }
+            continue;
+        }
+
+        const char *meta = p + 1;
+        const char *end = meta;
+        while (*end != '\0') {
+            if (*end == '\\' && end[1] != '\0') {
+                end += 2;
+            } else if (*end == '}') {
+                break;
+            } else {
+                ++end;
+            }
+        }
+
+        if (*end != '}') {
+            if (!array_string_append_char(&out->text, *p++)) {
+                return false;
+            }
+            continue;
+        }
+
+        if (!apply_translation_meta(out, p, meta, (size_t)(end - meta), &pending_attach_prev)) {
+            return false;
+        }
+        p = end + 1;
+    }
+
+    if (pending_attach_prev) {
+        out->attach_prev = true;
+        out->attach_next = true;
+    }
+    if (out->text == NULL) {
+        arrput(out->text, '\0');
+    }
+    return true;
+}
+
+static void formatted_text_destroy(Formatted_Text *formatted)
+{
+    if (formatted == NULL) {
+        return;
+    }
+    arrfree(formatted->text);
+    memset(formatted, 0, sizeof(*formatted));
 }
 
 static void translation_destroy(Translation *translation)
@@ -182,6 +404,49 @@ static bool append_string(char **out, const char *s)
     }
     arrput(*out, '\0');
     return true;
+}
+
+static size_t text_length_without_trailing_space(const Steno *steno, const char *text)
+{
+    size_t length = strlen(text);
+    if (steno->spacing.mode == SPACING_MODE_AFTER_WORD
+        && steno->spacing.spacing_char != '\0'
+        && length > 0
+        && text[length - 1] == steno->spacing.spacing_char) {
+        --length;
+    }
+    return length;
+}
+
+static char *build_emitted_text(const Steno *steno, const char *old_text, const Formatted_Text *formatted)
+{
+    char *emitted = NULL;
+    if (formatted->attach_prev && old_text != NULL) {
+        if (!array_string_append_range(
+                &emitted,
+                old_text,
+                text_length_without_trailing_space(steno, old_text))) {
+            arrfree(emitted);
+            return NULL;
+        }
+    }
+
+    if (!array_string_append_range(&emitted, formatted->text, strlen(formatted->text))) {
+        arrfree(emitted);
+        return NULL;
+    }
+
+    if (!formatted->attach_next
+        && steno->spacing.mode == SPACING_MODE_AFTER_WORD
+        && steno->spacing.spacing_char != '\0'
+        && !array_string_append_char(&emitted, steno->spacing.spacing_char)) {
+        arrfree(emitted);
+        return NULL;
+    }
+    if (emitted == NULL) {
+        arrput(emitted, '\0');
+    }
+    return emitted;
 }
 
 static char *translation_range_text(const Translation *translations, size_t start, size_t count)
@@ -412,22 +677,60 @@ static bool apply_translation_match(Steno *steno, const Translation_Match *match
     }
 
     const char *translation_text = match->translation != NULL ? match->translation : match->outline;
-    Translation next = {0};
-    next.utf8 = format_emitted_text(steno, translation_text);
-    if (next.utf8 == NULL || !translation_set_strokes(&next, match->strokes, match->stroke_count)) {
-        translation_destroy(&next);
+    Formatted_Text formatted = {0};
+    if (!format_translation_text(translation_text, &formatted)) {
+        formatted_text_destroy(&formatted);
         return false;
     }
 
     const size_t translation_count = arrlenu(steno->translations);
     if (match->replaced_count > translation_count) {
+        formatted_text_destroy(&formatted);
+        return false;
+    }
+
+    size_t replaced_count = match->replaced_count;
+    if (replaced_count == 0 && translation_count > 0) {
+        const Translation *previous = &steno->translations[translation_count - 1];
+        if (formatted.attach_prev || (formatted.glue && previous->glue)) {
+            replaced_count = 1;
+            formatted.attach_prev = true;
+        }
+    }
+
+    const size_t replace_start = translation_count - replaced_count;
+    char *old_text = translation_range_text(steno->translations, replace_start, replaced_count);
+    if (old_text == NULL) {
+        formatted_text_destroy(&formatted);
+        return false;
+    }
+
+    Translation next = {0};
+    next.utf8 = build_emitted_text(steno, old_text, &formatted);
+    next.glue = formatted.glue;
+    next.next_attach = formatted.attach_next;
+    formatted_text_destroy(&formatted);
+
+    if (next.utf8 == NULL) {
+        arrfree(old_text);
         translation_destroy(&next);
         return false;
     }
 
-    const size_t replace_start = translation_count - match->replaced_count;
-    char *old_text = translation_range_text(steno->translations, replace_start, match->replaced_count);
-    if (old_text == NULL) {
+    if (replaced_count != match->replaced_count) {
+        for (size_t i = replace_start; i < translation_count; ++i) {
+            if (!translation_set_strokes(
+                    &next,
+                    steno->translations[i].strokes,
+                    arrlenu(steno->translations[i].strokes))) {
+                arrfree(old_text);
+                translation_destroy(&next);
+                return false;
+            }
+        }
+    }
+    if (!translation_set_strokes(&next, match->strokes, match->stroke_count)) {
+        arrfree(old_text);
         translation_destroy(&next);
         return false;
     }

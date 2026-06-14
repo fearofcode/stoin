@@ -244,6 +244,14 @@ int main(void)
     ok = ok && steno_lookup_stroke(steno, "-R", &undo);
     ok = ok && expect_string("dictionary lookup -R", undo, "=undo");
 
+    const char *suffix_s = NULL;
+    ok = ok && steno_lookup_stroke(steno, "-S", &suffix_s);
+    ok = ok && expect_string("dictionary lookup -S", suffix_s, "{^s}");
+
+    const char *glue_p = NULL;
+    ok = ok && steno_lookup_stroke(steno, "P*P", &glue_p);
+    ok = ok && expect_string("dictionary lookup P*P", glue_p, "{&P}");
+
     const char *stories = NULL;
     ok = ok && steno_lookup_stroke(steno, "STOE-R/-Z", &stories);
     ok = ok && expect_string("dictionary lookup canonical multi-stroke", stories, "stories");
@@ -316,12 +324,34 @@ int main(void)
     uint64_t history_bits = 0;
     uint64_t undo_bits = 0;
     uint64_t filler_bits = 0;
+    uint64_t cat_bits = 0;
+    uint64_t suffix_s_bits = 0;
+    uint64_t prefix_bits = 0;
+    uint64_t port_bits = 0;
+    uint64_t delete_space_bits = 0;
+    uint64_t force_space_bits = 0;
+    uint64_t one_bits = 0;
+    uint64_t two_bits = 0;
+    uint64_t glue_p_bits = 0;
+    uint64_t basket_bits = 0;
+    uint64_t ball_bits = 0;
     ok = ok && stroke_string_to_bits("STOER", &story_bits);
     ok = ok && stroke_string_to_bits("-Z", &plural_bits);
     ok = ok && stroke_string_to_bits("-D", &past_bits);
     ok = ok && stroke_string_to_bits("HEU", &history_bits);
     ok = ok && stroke_string_to_bits("-R", &undo_bits);
     ok = ok && stroke_string_to_bits("#", &filler_bits);
+    ok = ok && stroke_string_to_bits("KAT", &cat_bits);
+    ok = ok && stroke_string_to_bits("-S", &suffix_s_bits);
+    ok = ok && stroke_string_to_bits("PRAOE", &prefix_bits);
+    ok = ok && stroke_string_to_bits("PORT", &port_bits);
+    ok = ok && stroke_string_to_bits("TK-LS", &delete_space_bits);
+    ok = ok && stroke_string_to_bits("S-P", &force_space_bits);
+    ok = ok && stroke_string_to_bits("#S", &one_bits);
+    ok = ok && stroke_string_to_bits("#T", &two_bits);
+    ok = ok && stroke_string_to_bits("P*P", &glue_p_bits);
+    ok = ok && stroke_string_to_bits("PWA", &basket_bits);
+    ok = ok && stroke_string_to_bits("PWAL", &ball_bits);
 
     clear_test_output(&output);
     reset_output_log(&output);
@@ -393,6 +423,107 @@ int main(void)
         ok = ok && expect_string("translation after compacted undo", output.text, "storied ");
 
         steno_destroy(compact_steno);
+    }
+
+    Steno *format_steno = steno_create(&config);
+    ok = ok && format_steno != NULL;
+    if (format_steno != NULL) {
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(format_steno, cat_bits);
+        ok = ok && expect_string("attach base word", output.text, "cat ");
+
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(format_steno, suffix_s_bits);
+        ok = ok && expect_string("attach suffix", output.text, "cats ");
+        ok = ok && output.send_count == 1 && output.delete_count == 1;
+        ok = ok && expect_string("attach suffix delete", output.last_delete, " ");
+        ok = ok && expect_string("attach suffix insert", output.last_send, "s ");
+
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(format_steno, undo_bits);
+        ok = ok && expect_string("undo attach suffix", output.text, "cat ");
+        ok = ok && expect_string("undo attach suffix delete", output.last_delete, "s ");
+        ok = ok && expect_string("undo attach suffix insert", output.last_send, " ");
+
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(format_steno, past_bits);
+        ok = ok && expect_string("attach raw ed suffix", output.text, "cated ");
+        ok = ok && expect_string("attach raw ed delete", output.last_delete, " ");
+        ok = ok && expect_string("attach raw ed insert", output.last_send, "ed ");
+
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(format_steno, prefix_bits);
+        ok = ok && expect_string("prefix attach first stroke", output.text, "pre");
+        ok = ok && expect_string("prefix attach first send", output.last_send, "pre");
+
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(format_steno, port_bits);
+        ok = ok && expect_string("prefix attach next word", output.text, "preport ");
+        ok = ok && expect_string("prefix attach next send", output.last_send, "port ");
+
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(format_steno, basket_bits);
+        ok = ok && expect_string("delete-space base word", output.text, "basket ");
+
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(format_steno, delete_space_bits);
+        ok = ok && expect_string("delete-space command", output.text, "basket");
+        ok = ok && output.send_count == 0 && output.delete_count == 1;
+        ok = ok && expect_string("delete-space delete", output.last_delete, " ");
+
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(format_steno, ball_bits);
+        ok = ok && expect_string("delete-space next word", output.text, "basketball ");
+
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(format_steno, prefix_bits);
+        ok = ok && steno_handle_stroke_bits(format_steno, force_space_bits);
+        ok = ok && expect_string("force-space command", output.text, "pre ");
+        ok = ok && expect_string("force-space insert", output.last_send, " ");
+
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(format_steno, port_bits);
+        ok = ok && expect_string("force-space next word", output.text, "pre port ");
+
+        steno_destroy(format_steno);
+    }
+
+    Steno *digit_steno = steno_create(&config);
+    ok = ok && digit_steno != NULL;
+    if (digit_steno != NULL) {
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(digit_steno, one_bits);
+        ok = ok && expect_string("digit glue first", output.text, "1 ");
+
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(digit_steno, two_bits);
+        ok = ok && expect_string("digit glue second", output.text, "12 ");
+        ok = ok && expect_string("digit glue delete", output.last_delete, " ");
+        ok = ok && expect_string("digit glue insert", output.last_send, "2 ");
+
+        steno_destroy(digit_steno);
+    }
+
+    Steno *glue_steno = steno_create(&config);
+    ok = ok && glue_steno != NULL;
+    if (glue_steno != NULL) {
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(glue_steno, glue_p_bits);
+        ok = ok && expect_string("explicit glue first", output.text, "P ");
+
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(glue_steno, glue_p_bits);
+        ok = ok && expect_string("explicit glue second", output.text, "PP ");
+        ok = ok && expect_string("explicit glue delete", output.last_delete, " ");
+        ok = ok && expect_string("explicit glue insert", output.last_send, "P ");
+
+        steno_destroy(glue_steno);
     }
 
     clear_test_output(&output);
