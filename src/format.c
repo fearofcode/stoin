@@ -279,8 +279,7 @@ static bool parse_stitch_retro_meta(
     Formatted_Text *formatted,
     const char *meta_start,
     size_t meta_length,
-    const char *command,
-    bool phrase
+    const char *command
 )
 {
     const size_t command_length = strlen(command);
@@ -312,8 +311,7 @@ static bool parse_stitch_retro_meta(
     }
 
     formatted->stitch_count = count;
-    formatted->stitch_last_word = !phrase;
-    formatted->stitch_phrase = phrase;
+    formatted->stitch_last_word = true;
     return formatted_set_stitch_delimiter(formatted, delimiter, delimiter_length);
 }
 
@@ -487,8 +485,7 @@ static bool apply_translation_meta(
     }
 
     if (parse_stitch_meta(formatted, meta_start, meta_length)
-        || parse_stitch_retro_meta(formatted, meta_start, meta_length, ":stitch_last_word", false)
-        || parse_stitch_retro_meta(formatted, meta_start, meta_length, ":stitch_phrase", true)) {
+        || parse_stitch_retro_meta(formatted, meta_start, meta_length, ":stitch_last_word")) {
         return true;
     }
 

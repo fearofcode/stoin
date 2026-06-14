@@ -583,7 +583,7 @@ static bool apply_translation_match(Steno *steno, const Translation_Match *match
         return ok;
     }
 
-    if (formatted.stitch_last_word || formatted.stitch_phrase) {
+    if (formatted.stitch_last_word) {
         Stitch_Context stitch = make_stitch_context(steno);
         const bool ok = stitch_apply_retro(
             &stitch,
@@ -591,8 +591,7 @@ static bool apply_translation_match(Steno *steno, const Translation_Match *match
             match->stroke_count,
             match->replaced_count,
             formatted.stitch_count,
-            formatted.stitch_delimiter,
-            formatted.stitch_phrase
+            formatted.stitch_delimiter
         );
         formatted_text_destroy(&formatted);
         return ok;

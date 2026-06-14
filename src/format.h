@@ -39,7 +39,6 @@ typedef struct Formatted_Text {
     bool glue;
     bool stitch;
     bool stitch_last_word;
-    bool stitch_phrase;
     bool carry_case;
     bool cancel_formatting;
     Retro_Command retro_command;

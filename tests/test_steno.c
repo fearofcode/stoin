@@ -553,8 +553,8 @@ int main(void)
     uint64_t test_bits = 0;
     uint64_t eye_bits = 0;
     uint64_t to_bits = 0;
+    uint64_t hyphen_bits = 0;
     uint64_t stitch_word_bits = 0;
-    uint64_t stitch_phrase_bits = 0;
     uint64_t suffix_s_bits = 0;
     uint64_t red_bits = 0;
     uint64_t cherry_bits = 0;
@@ -604,8 +604,8 @@ int main(void)
     ok = ok && stroke_string_to_bits("TEFT", &test_bits);
     ok = ok && stroke_string_to_bits("AOEU", &eye_bits);
     ok = ok && stroke_string_to_bits("TO", &to_bits);
+    ok = ok && stroke_string_to_bits("H-PB", &hyphen_bits);
     ok = ok && stroke_string_to_bits("-RBGS", &stitch_word_bits);
-    ok = ok && stroke_string_to_bits("#TPHFPLT", &stitch_phrase_bits);
     ok = ok && stroke_string_to_bits("-S", &suffix_s_bits);
     ok = ok && stroke_string_to_bits("RED", &red_bits);
     ok = ok && stroke_string_to_bits("KHER", &cherry_bits);
@@ -1062,10 +1062,6 @@ int main(void)
         ok = ok && steno_lookup_stroke(layered_steno, "KAT", &kitten);
         ok = ok && expect_string("dictionary override", kitten, "kitten");
 
-        const char *phrase_command = NULL;
-        ok = ok && steno_lookup_stroke(layered_steno, "#TPHFPLT", &phrase_command);
-        ok = ok && expect_string("custom stitch phrase command", phrase_command, "{:stitch_phrase:3:-}");
-
         const char *modal_off_undo = NULL;
         ok = ok && steno_lookup_stroke(layered_steno, "-R", &modal_off_undo);
         ok = ok && expect_string("disabled modal dictionary does not override", modal_off_undo, "=undo");
@@ -1094,10 +1090,11 @@ int main(void)
         clear_test_output(&output);
         reset_output_log(&output);
         ok = ok && steno_handle_stroke_bits(layered_steno, eye_bits);
+        ok = ok && steno_handle_stroke_bits(layered_steno, hyphen_bits);
         ok = ok && steno_handle_stroke_bits(layered_steno, to_bits);
+        ok = ok && steno_handle_stroke_bits(layered_steno, hyphen_bits);
         ok = ok && steno_handle_stroke_bits(layered_steno, eye_bits);
-        ok = ok && steno_handle_stroke_bits(layered_steno, stitch_phrase_bits);
-        ok = ok && expect_string("stitch phrase command", output.text, "eye-to-eye ");
+        ok = ok && expect_string("hyphen command between words", output.text, "eye-to-eye ");
 
         steno_destroy(layered_steno);
     }

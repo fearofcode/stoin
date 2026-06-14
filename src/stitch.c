@@ -89,7 +89,6 @@ static bool stitch_text_suffix(
     const char *text,
     size_t token_count,
     const char *delimiter,
-    bool phrase,
     char **out
 )
 {
@@ -115,30 +114,12 @@ static bool stitch_text_suffix(
         return false;
     }
 
-    if (phrase) {
-        for (size_t i = first_token; i < available; ++i) {
-            if (i != first_token && !text_append_range(out, delimiter, strlen(delimiter))) {
-                arrfree(tokens);
-                return false;
-            }
-            if (!text_append_range(out, text + tokens[i].start, tokens[i].core_end - tokens[i].start)) {
-                arrfree(tokens);
-                return false;
-            }
-        }
-        const Text_Token last = tokens[available - 1];
-        if (!text_append_range(out, text + last.core_end, last.end - last.core_end)) {
+    for (size_t i = first_token; i < available; ++i) {
+        const Text_Token token = tokens[i];
+        if (!append_stitched_core(out, text + token.start, text + token.core_end, delimiter)
+            || !text_append_range(out, text + token.core_end, token.end - token.core_end)) {
             arrfree(tokens);
             return false;
-        }
-    } else {
-        for (size_t i = first_token; i < available; ++i) {
-            const Text_Token token = tokens[i];
-            if (!append_stitched_core(out, text + token.start, text + token.core_end, delimiter)
-                || !text_append_range(out, text + token.core_end, token.end - token.core_end)) {
-                arrfree(tokens);
-                return false;
-            }
         }
     }
 
@@ -163,8 +144,7 @@ bool stitch_apply_retro(
     size_t stroke_count,
     size_t replaced_count,
     size_t stitch_count,
-    const char *delimiter,
-    bool phrase
+    const char *delimiter
 )
 {
     if (stitch == NULL || stitch->translations == NULL || stitch->replace_output == NULL) {
@@ -200,7 +180,7 @@ bool stitch_apply_retro(
     char *old_text = translation_range_text(translations, replace_start, actual_replaced_count);
     char *new_text = NULL;
     if (old_text == NULL
-        || !stitch_text_suffix(source_text, stitch_count, actual_delimiter, phrase, &new_text)) {
+        || !stitch_text_suffix(source_text, stitch_count, actual_delimiter, &new_text)) {
         arrfree(old_text);
         arrfree(source_text);
         arrfree(new_text);

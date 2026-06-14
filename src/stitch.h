@@ -21,8 +21,7 @@ bool stitch_apply_retro(
     size_t stroke_count,
     size_t replaced_count,
     size_t stitch_count,
-    const char *delimiter,
-    bool phrase
+    const char *delimiter
 );
 
 #endif
