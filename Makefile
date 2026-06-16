@@ -22,6 +22,7 @@ CORE_OBJECTS := \
 	build/stitch.o \
 	build/text_util.o \
 	build/translation_history.o \
+	build/translation_match.o \
 	build/tx_bolt.o \
 	build/util.o
 APP_OBJECTS := build/main.o $(CORE_OBJECTS)

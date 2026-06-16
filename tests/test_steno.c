@@ -546,6 +546,10 @@ int main(void)
     uint64_t history_bits = 0;
     uint64_t undo_bits = 0;
     uint64_t filler_bits = 0;
+    uint64_t sap_bits = 0;
+    uint64_t saps_bits = 0;
+    uint64_t er_bits = 0;
+    uint64_t erz_bits = 0;
     uint64_t cat_bits = 0;
     uint64_t stitch_a_bits = 0;
     uint64_t stitch_b_bits = 0;
@@ -558,7 +562,10 @@ int main(void)
     uint64_t suffix_s_bits = 0;
     uint64_t red_bits = 0;
     uint64_t cherry_bits = 0;
+    uint64_t cherries_bits = 0;
     uint64_t defer_bits = 0;
+    uint64_t deferred_bits = 0;
+    uint64_t failing_bits = 0;
     uint64_t suffix_ish_bits = 0;
     uint64_t raw_ish_bits = 0;
     uint64_t prefix_bits = 0;
@@ -597,6 +604,10 @@ int main(void)
     ok = ok && stroke_string_to_bits("HEU", &history_bits);
     ok = ok && stroke_string_to_bits("-R", &undo_bits);
     ok = ok && stroke_string_to_bits("#", &filler_bits);
+    ok = ok && stroke_string_to_bits("SAP", &sap_bits);
+    ok = ok && stroke_string_to_bits("SAPS", &saps_bits);
+    ok = ok && stroke_string_to_bits("*ER", &er_bits);
+    ok = ok && stroke_string_to_bits("*ERZ", &erz_bits);
     ok = ok && stroke_string_to_bits("KAT", &cat_bits);
     ok = ok && stroke_string_to_bits("A", &stitch_a_bits);
     ok = ok && stroke_string_to_bits("PW", &stitch_b_bits);
@@ -609,7 +620,10 @@ int main(void)
     ok = ok && stroke_string_to_bits("-S", &suffix_s_bits);
     ok = ok && stroke_string_to_bits("RED", &red_bits);
     ok = ok && stroke_string_to_bits("KHER", &cherry_bits);
+    ok = ok && stroke_string_to_bits("KHERZ", &cherries_bits);
     ok = ok && stroke_string_to_bits("TKEFR", &defer_bits);
+    ok = ok && stroke_string_to_bits("TKEFRD", &deferred_bits);
+    ok = ok && stroke_string_to_bits("TPAEULG", &failing_bits);
     ok = ok && stroke_string_to_bits("EURB", &suffix_ish_bits);
     ok = ok && stroke_string_to_bits("R-R", &raw_ish_bits);
     ok = ok && stroke_string_to_bits("PRAOE", &prefix_bits);
@@ -670,6 +684,59 @@ int main(void)
     ok = ok && output.send_count == 1 && output.delete_count == 1;
     ok = ok && expect_string("storied minimal delete", output.last_delete, "y ");
     ok = ok && expect_string("storied minimal insert", output.last_send, "ied ");
+
+    Steno *suffix_key_steno = steno_create(&config);
+    ok = ok && suffix_key_steno != NULL;
+    if (suffix_key_steno != NULL) {
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(suffix_key_steno, saps_bits);
+        ok = ok && expect_string("suffix key single stroke", output.text, "saps ");
+        ok = ok && expect_string("suffix key single stroke send", output.last_send, "saps ");
+
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(suffix_key_steno, history_bits);
+        ok = ok && expect_string("suffix key multi-stroke first raw", output.text, "HEU ");
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(suffix_key_steno, saps_bits);
+        ok = ok && expect_string("suffix key multi-stroke", output.text, "history saps ");
+        ok = ok && expect_string("suffix key multi-stroke delete", output.last_delete, "HEU ");
+        ok = ok && expect_string("suffix key multi-stroke insert", output.last_send, "history saps ");
+
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(suffix_key_steno, cherries_bits);
+        ok = ok && expect_string("suffix key z orthography", output.text, "cherries ");
+
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(suffix_key_steno, deferred_bits);
+        ok = ok && expect_string("suffix key d orthography", output.text, "deferred ");
+
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(suffix_key_steno, failing_bits);
+        ok = ok && expect_string("suffix key g", output.text, "failing ");
+
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(suffix_key_steno, sap_bits);
+        ok = ok && steno_handle_stroke_bits(suffix_key_steno, er_bits);
+        ok = ok && steno_handle_stroke_bits(suffix_key_steno, suffix_s_bits);
+        ok = ok && expect_string("separate attach suffix strokes", output.text, "sappers ");
+
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(suffix_key_steno, sap_bits);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(suffix_key_steno, erz_bits);
+        ok = ok && expect_string("suffix key attaches base suffix to previous word", output.text, "sappers ");
+        ok = ok && expect_string("suffix key attach delete", output.last_delete, " ");
+        ok = ok && expect_string("suffix key attach insert", output.last_send, "pers ");
+
+        steno_destroy(suffix_key_steno);
+    }
 
     clear_test_output(&output);
     reset_output_log(&output);

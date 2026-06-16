@@ -9,6 +9,7 @@
 #include "stitch.h"
 #include "text_util.h"
 #include "translation_history.h"
+#include "translation_match.h"
 #include "util.h"
 
 #include <ctype.h>
@@ -20,10 +21,8 @@
 #include "../stb_ds.h"
 
 enum {
-    MAX_TRANSLATION_STROKES = 100,
     TRANSLATION_COMPACT_INTERVAL_STROKES = 1000,
     TRANSLATION_HISTORY_STROKE_LIMIT = 1000,
-    MAX_TRANSLATION_OUTLINE_BYTES = 4096,
 };
 
 struct Steno {
@@ -427,119 +426,161 @@ static void trace_stroke(const Steno *steno, const char *raw_chord, const char *
     fflush(steno->trace_file);
 }
 
-static bool stroke_sequence_to_string(const uint64_t *strokes, size_t stroke_count, char *out, size_t out_size)
-{
-    if (strokes == NULL || stroke_count == 0 || out == NULL || out_size == 0) {
-        return false;
-    }
-
-    size_t index = 0;
-    out[0] = '\0';
-
-    for (size_t i = 0; i < stroke_count; ++i) {
-        char stroke[64] = {0};
-        if (!chord_bits_to_string(strokes[i], stroke, sizeof(stroke))) {
-            return false;
-        }
-
-        const size_t separator_length = i == 0 ? 0 : 1;
-        const size_t stroke_length = strlen(stroke);
-        if (index + separator_length + stroke_length >= out_size) {
-            return false;
-        }
-        if (i != 0) {
-            out[index++] = '/';
-        }
-        memcpy(out + index, stroke, stroke_length + 1);
-        index += stroke_length;
-    }
-
-    return true;
-}
-
-typedef struct Translation_Match {
-    const char *translation;
-    uint64_t strokes[MAX_TRANSLATION_STROKES];
-    size_t stroke_count;
-    size_t replaced_count;
-    char outline[MAX_TRANSLATION_OUTLINE_BYTES];
-} Translation_Match;
-
-static void set_translation_match(
-    Translation_Match *match,
-    const char *translation,
-    const uint64_t *strokes,
-    size_t stroke_count,
-    size_t replaced_count
-)
-{
-    match->translation = translation;
-    match->stroke_count = stroke_count;
-    match->replaced_count = replaced_count;
-    memcpy(match->strokes, strokes, stroke_count * sizeof(strokes[0]));
-    (void)stroke_sequence_to_string(
-        strokes,
-        stroke_count,
-        match->outline,
-        sizeof(match->outline)
-    );
-}
-
 static size_t effective_lookup_stroke_limit(const Steno *steno)
 {
-    size_t max_strokes = dictionary_longest_key(&steno->dictionary_stack.dictionary);
-    if (max_strokes == 0 || max_strokes > MAX_TRANSLATION_STROKES) {
-        max_strokes = MAX_TRANSLATION_STROKES;
-    }
-    return max_strokes;
+    return translation_match_lookup_stroke_limit(steno == NULL ? NULL : &steno->dictionary_stack.dictionary);
 }
 
-static bool find_translation_match(Steno *steno, uint64_t bits, Translation_Match *out_match)
+static void apply_case_state_to_formatted(Steno *steno, Formatted_Text *formatted)
 {
-    if (steno == NULL || out_match == NULL) {
+    if (formatted->cancel_formatting) {
+        steno->next_case = CASE_MODE_NORMAL;
+    }
+    if (formatted->carry_case
+        && formatted->next_case == CASE_MODE_NORMAL
+        && steno->next_case != CASE_MODE_NORMAL) {
+        formatted->next_case = steno->next_case;
+    }
+    if (formatted->text[0] != '\0') {
+        formatted_text_apply_case(formatted->text, steno->case_mode);
+        const Case_Mode text_case = formatted->text_case != CASE_MODE_NORMAL
+            ? formatted->text_case
+            : steno->next_case;
+        formatted_text_apply_case(formatted->text, text_case);
+        steno->next_case = formatted->next_case;
+    } else if (formatted->next_case != CASE_MODE_NORMAL) {
+        steno->next_case = formatted->next_case;
+    }
+}
+
+static bool formatted_has_deferred_action(const Formatted_Text *formatted)
+{
+    return formatted->retro_command != RETRO_COMMAND_NONE
+        || formatted->stitch_last_word
+        || formatted->mode_command != NULL
+        || formatted->plover_command != NULL
+        || arrlenu(formatted->key_combos) != 0;
+}
+
+static bool apply_suffix_translation_match(Steno *steno, const Translation_Match *match)
+{
+    if (match->suffix_base_translation == NULL || match->suffix_translation == NULL) {
         return false;
     }
 
-    const size_t max_strokes = effective_lookup_stroke_limit(steno);
-
-    uint64_t candidate[MAX_TRANSLATION_STROKES] = { bits };
-    size_t candidate_count = 1;
-    size_t replaced_count = 0;
-    bool found = false;
-
-    const char *translation = dictionary_lookup_strokes(&steno->dictionary_stack.dictionary, candidate, candidate_count);
-    if (translation != NULL && translation[0] != '=') {
-        set_translation_match(out_match, translation, candidate, candidate_count, replaced_count);
-        found = true;
+    Formatted_Text base = {0};
+    Formatted_Text suffix = {0};
+    if (!format_translation_text(match->suffix_base_translation, &base)
+        || !format_translation_text(match->suffix_translation, &suffix)
+        || formatted_has_deferred_action(&base)
+        || formatted_has_deferred_action(&suffix)) {
+        formatted_text_destroy(&base);
+        formatted_text_destroy(&suffix);
+        return false;
     }
 
-    for (size_t i = arrlenu(steno->translations); i > 0 && candidate_count < max_strokes;) {
-        --i;
-        const Translation *previous = &steno->translations[i];
-        const size_t previous_stroke_count = arrlenu(previous->strokes);
-        if (previous_stroke_count == 0 || candidate_count + previous_stroke_count > max_strokes) {
-            break;
+    apply_case_state_to_formatted(steno, &base);
+
+    const size_t translation_count = arrlenu(steno->translations);
+    if (match->replaced_count > translation_count) {
+        formatted_text_destroy(&base);
+        formatted_text_destroy(&suffix);
+        return false;
+    }
+
+    size_t replaced_count = match->replaced_count;
+    if (replaced_count == 0 && translation_count > 0) {
+        const Translation *previous = &steno->translations[translation_count - 1];
+        if (base.stitch && previous->glue) {
+            const char *delimiter = base.stitch_delimiter != NULL ? base.stitch_delimiter : "-";
+            if (!text_prepend_range(&base.text, delimiter, strlen(delimiter))) {
+                formatted_text_destroy(&base);
+                formatted_text_destroy(&suffix);
+                return false;
+            }
         }
-
-        memmove(
-            candidate + previous_stroke_count,
-            candidate,
-            candidate_count * sizeof(candidate[0])
-        );
-        memcpy(candidate, previous->strokes, previous_stroke_count * sizeof(candidate[0]));
-        candidate_count += previous_stroke_count;
-        ++replaced_count;
-
-        translation = dictionary_lookup_strokes(&steno->dictionary_stack.dictionary, candidate, candidate_count);
-        if (translation != NULL && translation[0] != '=') {
-            set_translation_match(out_match, translation, candidate, candidate_count, replaced_count);
-            found = true;
+        if (base.attach_prev || (base.glue && previous->glue)) {
+            replaced_count = 1;
+            base.attach_prev = true;
         }
     }
 
-    if (!found) {
-        set_translation_match(out_match, NULL, &bits, 1, 0);
+    const size_t replace_start = translation_count - replaced_count;
+    char *old_text = translation_range_text(steno->translations, replace_start, replaced_count);
+    char *base_text = NULL;
+    char *final_text = NULL;
+    if (old_text == NULL) {
+        formatted_text_destroy(&base);
+        formatted_text_destroy(&suffix);
+        return false;
     }
+
+    base_text = build_emitted_text(steno, old_text, &base);
+    if (base_text == NULL) {
+        arrfree(old_text);
+        formatted_text_destroy(&base);
+        formatted_text_destroy(&suffix);
+        return false;
+    }
+
+    final_text = build_emitted_text(steno, base_text, &suffix);
+    if (final_text == NULL) {
+        arrfree(old_text);
+        arrfree(base_text);
+        formatted_text_destroy(&base);
+        formatted_text_destroy(&suffix);
+        return false;
+    }
+
+    Translation next = {
+        .utf8 = final_text,
+        .glue = suffix.glue,
+        .next_attach = suffix.attach_next,
+    };
+    final_text = NULL;
+    if (replaced_count != match->replaced_count) {
+        for (size_t i = replace_start; i < translation_count; ++i) {
+            if (!translation_set_strokes(
+                    &next,
+                    steno->translations[i].strokes,
+                    arrlenu(steno->translations[i].strokes))) {
+                arrfree(old_text);
+                arrfree(base_text);
+                formatted_text_destroy(&base);
+                formatted_text_destroy(&suffix);
+                translation_destroy(&next);
+                return false;
+            }
+        }
+    }
+    if (!translation_set_strokes(&next, match->strokes, match->stroke_count)) {
+        arrfree(old_text);
+        arrfree(base_text);
+        formatted_text_destroy(&base);
+        formatted_text_destroy(&suffix);
+        translation_destroy(&next);
+        return false;
+    }
+
+    if (!replace_output_text(steno, old_text, next.utf8)) {
+        arrfree(old_text);
+        arrfree(base_text);
+        formatted_text_destroy(&base);
+        formatted_text_destroy(&suffix);
+        translation_destroy(&next);
+        return false;
+    }
+
+    for (size_t i = replace_start; i < translation_count; ++i) {
+        arrput(next.replaced, steno->translations[i]);
+    }
+    arrsetlen(steno->translations, replace_start);
+    arrput(steno->translations, next);
+
+    arrfree(old_text);
+    arrfree(base_text);
+    formatted_text_destroy(&base);
+    formatted_text_destroy(&suffix);
     return true;
 }
 
@@ -560,6 +601,11 @@ static bool apply_translation_match(Steno *steno, const Translation_Match *match
     if (match->replaced_count > translation_count) {
         formatted_text_destroy(&formatted);
         return false;
+    }
+
+    if (match->suffix_match) {
+        formatted_text_destroy(&formatted);
+        return apply_suffix_translation_match(steno, match);
     }
 
     if (formatted.retro_command != RETRO_COMMAND_NONE) {
@@ -625,24 +671,7 @@ static bool apply_translation_match(Steno *steno, const Translation_Match *match
         return ok;
     }
 
-    if (formatted.cancel_formatting) {
-        steno->next_case = CASE_MODE_NORMAL;
-    }
-    if (formatted.carry_case
-        && formatted.next_case == CASE_MODE_NORMAL
-        && steno->next_case != CASE_MODE_NORMAL) {
-        formatted.next_case = steno->next_case;
-    }
-    if (formatted.text[0] != '\0') {
-        formatted_text_apply_case(formatted.text, steno->case_mode);
-        const Case_Mode text_case = formatted.text_case != CASE_MODE_NORMAL
-            ? formatted.text_case
-            : steno->next_case;
-        formatted_text_apply_case(formatted.text, text_case);
-        steno->next_case = formatted.next_case;
-    } else if (formatted.next_case != CASE_MODE_NORMAL) {
-        steno->next_case = formatted.next_case;
-    }
+    apply_case_state_to_formatted(steno, &formatted);
 
     size_t replaced_count = match->replaced_count;
     if (replaced_count == 0 && translation_count > 0) {
@@ -777,12 +806,13 @@ static bool translate_chord_bits(Steno *steno, uint64_t bits)
     }
 
     Translation_Match match = {0};
-    if (!find_translation_match(steno, bits, &match)) {
+    if (!translation_match_find(&steno->dictionary_stack.dictionary, steno->translations, bits, &match)) {
         return false;
     }
 
     trace_stroke(steno, match.outline, match.translation);
     const bool ok = apply_translation_match(steno, &match);
+    translation_match_destroy(&match);
     if (ok) {
         count_completed_stroke(steno);
     }
