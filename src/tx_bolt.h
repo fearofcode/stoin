@@ -28,7 +28,9 @@ void tx_bolt_close(Tx_Bolt *tx_bolt);
 const char *tx_bolt_port_path(const Tx_Bolt *tx_bolt);
 bool tx_bolt_had_error(const Tx_Bolt *tx_bolt);
 bool tx_bolt_read_stroke(Tx_Bolt *tx_bolt, uint64_t *out_bits);
+bool tx_bolt_read_stroke_nonblocking(Tx_Bolt *tx_bolt, uint64_t *out_bits, bool *out_read_byte);
 bool tx_bolt_decode_byte(Tx_Bolt *tx_bolt, uint8_t byte, uint64_t *out_bits);
 bool tx_bolt_flush_stroke(Tx_Bolt *tx_bolt, uint64_t *out_bits);
+bool tx_bolt_has_partial_stroke(const Tx_Bolt *tx_bolt);
 
 #endif

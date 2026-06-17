@@ -13,29 +13,72 @@
 
 struct Platform_Serial_Port {
     int fd;
-    char port_path[256];
+    char port_path[PLATFORM_SERIAL_PATH_MAX];
     bool had_error;
 };
 
-static bool find_first_glob_match(const char *pattern, char *out_path, size_t out_size)
+static bool serial_path_already_listed(
+    char out_paths[][PLATFORM_SERIAL_PATH_MAX],
+    size_t path_count,
+    const char *path
+)
 {
-    if (out_path == NULL || out_size == 0) {
+    for (size_t i = 0; i < path_count; ++i) {
+        if (strcmp(out_paths[i], path) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool add_serial_path(
+    char out_paths[][PLATFORM_SERIAL_PATH_MAX],
+    size_t max_paths,
+    size_t *path_count,
+    const char *path
+)
+{
+    if (out_paths == NULL || path_count == NULL || path == NULL || *path_count >= max_paths) {
         return false;
+    }
+    if (serial_path_already_listed(out_paths, *path_count, path)) {
+        return false;
+    }
+
+    const int written = snprintf(out_paths[*path_count], PLATFORM_SERIAL_PATH_MAX, "%s", path);
+    if (written <= 0 || (size_t)written >= PLATFORM_SERIAL_PATH_MAX) {
+        return false;
+    }
+
+    ++*path_count;
+    return true;
+}
+
+static void add_glob_matches(
+    const char *pattern,
+    char out_paths[][PLATFORM_SERIAL_PATH_MAX],
+    size_t max_paths,
+    size_t *path_count
+)
+{
+    if (pattern == NULL || out_paths == NULL || path_count == NULL || *path_count >= max_paths) {
+        return;
     }
 
     glob_t matches = {0};
     const int glob_result = glob(pattern, 0, NULL, &matches);
     if (glob_result != 0 || matches.gl_pathc == 0) {
         globfree(&matches);
-        return false;
+        return;
     }
 
-    const int written = snprintf(out_path, out_size, "%s", matches.gl_pathv[0]);
+    for (size_t i = 0; i < matches.gl_pathc && *path_count < max_paths; ++i) {
+        (void)add_serial_path(out_paths, max_paths, path_count, matches.gl_pathv[i]);
+    }
     globfree(&matches);
-    return written > 0 && (size_t)written < out_size;
 }
 
-bool platform_find_serial_device(char *out_path, size_t out_size)
+size_t platform_find_serial_devices(char out_paths[][PLATFORM_SERIAL_PATH_MAX], size_t max_paths)
 {
     const char *patterns[] = {
         "/dev/cu.usbmodem*",
@@ -45,12 +88,30 @@ bool platform_find_serial_device(char *out_path, size_t out_size)
         "/dev/cu.KeySerial*",
     };
 
-    for (size_t i = 0; i < sizeof(patterns) / sizeof(patterns[0]); ++i) {
-        if (find_first_glob_match(patterns[i], out_path, out_size)) {
-            return true;
-        }
+    if (out_paths == NULL || max_paths == 0) {
+        return 0;
     }
-    return false;
+
+    size_t path_count = 0;
+    for (size_t i = 0; i < sizeof(patterns) / sizeof(patterns[0]); ++i) {
+        add_glob_matches(patterns[i], out_paths, max_paths, &path_count);
+    }
+    return path_count;
+}
+
+bool platform_find_serial_device(char *out_path, size_t out_size)
+{
+    if (out_path == NULL || out_size == 0) {
+        return false;
+    }
+
+    char paths[1][PLATFORM_SERIAL_PATH_MAX] = {{0}};
+    if (platform_find_serial_devices(paths, 1) == 0) {
+        return false;
+    }
+
+    const int written = snprintf(out_path, out_size, "%s", paths[0]);
+    return written > 0 && (size_t)written < out_size;
 }
 
 bool platform_find_gemini_pr_device(char *out_path, size_t out_size)
@@ -120,7 +181,7 @@ bool platform_serial_open(Platform_Serial_Port **out_port, const char *port_path
         return false;
     }
 
-    char copied_path[256] = {0};
+    char copied_path[PLATFORM_SERIAL_PATH_MAX] = {0};
     const int written = snprintf(copied_path, sizeof(copied_path), "%s", port_path);
     if (written <= 0 || (size_t)written >= sizeof(copied_path)) {
         errno = ENAMETOOLONG;

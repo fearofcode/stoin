@@ -203,6 +203,15 @@ bool platform_user_session_is_active(void)
     return on_console && login_done && !screen_locked;
 }
 
+uint64_t platform_monotonic_ms(void)
+{
+    struct timespec now = {0};
+    if (clock_gettime(CLOCK_MONOTONIC, &now) != 0) {
+        return 0;
+    }
+    return (uint64_t)now.tv_sec * UINT64_C(1000) + (uint64_t)now.tv_nsec / UINT64_C(1000000);
+}
+
 void platform_sleep_ms(unsigned int milliseconds)
 {
     struct timespec requested = {

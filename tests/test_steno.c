@@ -3,6 +3,7 @@
 #include "platform.h"
 #include "steno.h"
 #include "steno_stroke.h"
+#include "stroke_merge.h"
 #include "tx_bolt.h"
 #include "util.h"
 
@@ -197,6 +198,19 @@ static bool expect_size(const char *name, size_t actual, size_t expected)
     return false;
 }
 
+static bool expect_u64(const char *name, uint64_t actual, uint64_t expected)
+{
+    if (actual == expected) {
+        return true;
+    }
+
+    fprintf(stderr, "test failed: %s: expected 0x%llx, got 0x%llx\n",
+        name,
+        (unsigned long long)expected,
+        (unsigned long long)actual);
+    return false;
+}
+
 static bool expect_stroke_format(const char *input, const char *expected)
 {
     uint64_t bits = 0;
@@ -369,6 +383,42 @@ int main(void)
     ok = ok && tx_bolt_flush_stroke(&tx_bolt, &tx_bolt_bits);
     ok = ok && chord_bits_to_string(tx_bolt_bits, tx_bolt_string, sizeof(tx_bolt_string));
     ok = ok && expect_string("TX Bolt queued next stroke", tx_bolt_string, "T");
+
+    Stroke_Merge merge = {0};
+    uint64_t merge_output = 0;
+    stroke_merge_init(&merge, 150);
+    ok = ok && stroke_merge_push(&merge, 1, UINT64_C(0x01), 1000);
+    ok = ok && !stroke_merge_next_output(&merge, &merge_output);
+    ok = ok && stroke_merge_push(&merge, 2, UINT64_C(0x20), 1030);
+    ok = ok && stroke_merge_next_output(&merge, &merge_output);
+    ok = ok && expect_u64("multi-input different devices merge", merge_output, UINT64_C(0x21));
+    ok = ok && !stroke_merge_next_output(&merge, &merge_output);
+
+    stroke_merge_clear(&merge);
+    ok = ok && stroke_merge_push(&merge, 1, UINT64_C(0x01), 2000);
+    ok = ok && stroke_merge_push(&merge, 1, UINT64_C(0x02), 2010);
+    ok = ok && !stroke_merge_next_output(&merge, &merge_output);
+    ok = ok && stroke_merge_push(&merge, 2, UINT64_C(0x20), 2020);
+    ok = ok && stroke_merge_next_output(&merge, &merge_output);
+    ok = ok && expect_u64("multi-input queued stroke merged first", merge_output, UINT64_C(0x21));
+    ok = ok && stroke_merge_next_output(&merge, &merge_output);
+    ok = ok && expect_u64("multi-input same device queued separately", merge_output, UINT64_C(0x02));
+
+    stroke_merge_clear(&merge);
+    ok = ok && stroke_merge_push(&merge, 1, UINT64_C(0x04), 3000);
+    ok = ok && stroke_merge_push(&merge, 1, UINT64_C(0x08), 3010);
+    ok = ok && stroke_merge_poll(&merge, 3150);
+    ok = ok && stroke_merge_next_output(&merge, &merge_output);
+    ok = ok && expect_u64("multi-input timeout emits pending", merge_output, UINT64_C(0x04));
+    ok = ok && stroke_merge_next_output(&merge, &merge_output);
+    ok = ok && expect_u64("multi-input timeout emits queued", merge_output, UINT64_C(0x08));
+
+    stroke_merge_clear(&merge);
+    stroke_merge_set_window_ms(&merge, 0);
+    ok = ok && stroke_merge_push(&merge, 1, UINT64_C(0x10), 4000);
+    ok = ok && stroke_merge_next_output(&merge, &merge_output);
+    ok = ok && expect_u64("zero merge window emits immediately", merge_output, UINT64_C(0x10));
+    stroke_merge_destroy(&merge);
 
     const char *the = NULL;
     ok = ok && steno_lookup_stroke(steno, "-T", &the);

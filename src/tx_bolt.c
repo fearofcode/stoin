@@ -155,6 +155,46 @@ bool tx_bolt_flush_stroke(Tx_Bolt *tx_bolt, uint64_t *out_bits)
     return dequeue_stroke(tx_bolt, out_bits);
 }
 
+bool tx_bolt_has_partial_stroke(const Tx_Bolt *tx_bolt)
+{
+    return tx_bolt != NULL && tx_bolt->stroke_bits != 0;
+}
+
+bool tx_bolt_read_stroke_nonblocking(Tx_Bolt *tx_bolt, uint64_t *out_bits, bool *out_read_byte)
+{
+    if (out_read_byte != NULL) {
+        *out_read_byte = false;
+    }
+    if (tx_bolt == NULL || out_bits == NULL || tx_bolt->serial == NULL) {
+        return false;
+    }
+
+    if (dequeue_stroke(tx_bolt, out_bits)) {
+        return true;
+    }
+
+    while (!tx_bolt_had_error(tx_bolt)) {
+        uint8_t byte = 0;
+        const Platform_Serial_Read_Result read_result =
+            platform_serial_read_byte(tx_bolt->serial, &byte, 0);
+        if (read_result == PLATFORM_SERIAL_READ_ERROR) {
+            return false;
+        }
+        if (read_result == PLATFORM_SERIAL_READ_NONE) {
+            return false;
+        }
+
+        if (out_read_byte != NULL) {
+            *out_read_byte = true;
+        }
+        if (tx_bolt_decode_byte(tx_bolt, byte, out_bits)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 bool tx_bolt_read_stroke(Tx_Bolt *tx_bolt, uint64_t *out_bits)
 {
     if (tx_bolt == NULL || out_bits == NULL || tx_bolt->serial == NULL) {

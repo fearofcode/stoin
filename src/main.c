@@ -1,10 +1,11 @@
 #include "gemini_pr.h"
 #include "platform.h"
+#include "raw_serial.h"
+#include "runtime_config.h"
 #include "steno.h"
 #include "tx_bolt.h"
-#include "util.h"
+#include "tx_bolt_multiple.h"
 
-#include <ctype.h>
 #include <errno.h>
 #include <signal.h>
 #include <stdbool.h>
@@ -24,12 +25,6 @@ typedef enum Input_Mode {
 #define DEFAULT_DICTIONARY_PATH "lapwing-base.json"
 #define DEFAULT_CONFIG_PATH "stoin-config.json"
 #define DEFAULT_WORD_LIST_PATH "american_english_words.txt"
-
-typedef struct Runtime_Config {
-    char **dictionary_paths;
-    bool *dictionary_enabled;
-    char *word_list_path;
-} Runtime_Config;
 
 typedef struct App {
     Steno *steno;
@@ -113,6 +108,31 @@ static void start_dictionary_watcher(App *app)
     }
 }
 
+static void run_app_maintenance_callback(void *userdata)
+{
+    run_app_maintenance(userdata);
+}
+
+static void start_dictionary_watcher_callback(void *userdata)
+{
+    start_dictionary_watcher(userdata);
+}
+
+static bool app_session_active_callback(void *userdata)
+{
+    App *app = userdata;
+    return app != NULL && app->session_state_known && app->session_active;
+}
+
+static bool handle_stroke_bits_callback(uint64_t bits, void *userdata)
+{
+    App *app = userdata;
+    if (app == NULL || app->steno == NULL) {
+        return false;
+    }
+    return steno_handle_stroke_bits(app->steno, bits);
+}
+
 static bool handle_input(const Input_Event *event, void *userdata)
 {
     App *app = userdata;
@@ -133,314 +153,11 @@ static void print_usage(void)
     fputs("usage: stoin [--config PATH] [--dictionary PATH ...] [--word-list PATH]\n", stderr);
     fputs("             [--input tx-bolt|gemini-pr|qwerty]\n", stderr);
     fputs("             [--serial-port PATH] [--serial-baud BAUD]\n", stderr);
+    fputs("             [--multiple-inputs] [--multi-input-window-ms MS]\n", stderr);
     fputs("             [--trace-strokes|--no-trace-strokes]\n", stderr);
     fputs("       stoin --raw-serial [--serial-port PATH] [--serial-baud BAUD]\n", stderr);
     fputs("       stoin [--config PATH] [--dictionary PATH ...] [--word-list PATH] --lookup STROKE\n", stderr);
     fputs("       stoin [--config PATH] [--dictionary PATH ...] [--word-list PATH] --dump-dictionary [OUTPUT_PATH]\n", stderr);
-}
-
-static const char *skip_json_ws(const char *p)
-{
-    while (*p != '\0' && isspace((unsigned char)*p)) {
-        ++p;
-    }
-    return p;
-}
-
-static bool parse_json_string(const char **cursor, char **out_string)
-{
-    const char *p = *cursor;
-    if (*p != '"') {
-        return false;
-    }
-    ++p;
-
-    char *result = NULL;
-    while (*p != '\0' && *p != '"') {
-        unsigned char c = (unsigned char)*p++;
-        if (c == '\\') {
-            c = (unsigned char)*p++;
-            switch (c) {
-            case '"': arrput(result, '"'); break;
-            case '\\': arrput(result, '\\'); break;
-            case '/': arrput(result, '/'); break;
-            case 'b': arrput(result, '\b'); break;
-            case 'f': arrput(result, '\f'); break;
-            case 'n': arrput(result, '\n'); break;
-            case 'r': arrput(result, '\r'); break;
-            case 't': arrput(result, '\t'); break;
-            default:
-                arrfree(result);
-                return false;
-            }
-        } else {
-            arrput(result, (char)c);
-        }
-    }
-
-    if (*p != '"') {
-        arrfree(result);
-        return false;
-    }
-    ++p;
-
-    arrput(result, '\0');
-    *cursor = p;
-    *out_string = result;
-    return true;
-}
-
-static void runtime_config_clear_dictionaries(Runtime_Config *config)
-{
-    if (config == NULL) {
-        return;
-    }
-    for (size_t i = 0; i < arrlenu(config->dictionary_paths); ++i) {
-        free(config->dictionary_paths[i]);
-    }
-    arrfree(config->dictionary_paths);
-    config->dictionary_paths = NULL;
-    arrfree(config->dictionary_enabled);
-    config->dictionary_enabled = NULL;
-}
-
-static bool runtime_config_add_dictionary_enabled(Runtime_Config *config, const char *path, bool enabled)
-{
-    char *copy = copy_cstring(path);
-    if (copy == NULL) {
-        return false;
-    }
-    arrput(config->dictionary_paths, copy);
-    arrput(config->dictionary_enabled, enabled);
-    return true;
-}
-
-static bool runtime_config_add_dictionary(Runtime_Config *config, const char *path)
-{
-    return runtime_config_add_dictionary_enabled(config, path, true);
-}
-
-static bool runtime_config_set_word_list(Runtime_Config *config, const char *path)
-{
-    char *copy = copy_cstring(path);
-    if (copy == NULL) {
-        return false;
-    }
-    free(config->word_list_path);
-    config->word_list_path = copy;
-    return true;
-}
-
-static bool parse_json_bool(const char **cursor, bool *out_value)
-{
-    const char *p = skip_json_ws(*cursor);
-    if (strncmp(p, "true", 4) == 0) {
-        *cursor = p + 4;
-        *out_value = true;
-        return true;
-    }
-    if (strncmp(p, "false", 5) == 0) {
-        *cursor = p + 5;
-        *out_value = false;
-        return true;
-    }
-    return false;
-}
-
-static void runtime_config_destroy(Runtime_Config *config)
-{
-    if (config == NULL) {
-        return;
-    }
-    runtime_config_clear_dictionaries(config);
-    free(config->word_list_path);
-    memset(config, 0, sizeof(*config));
-}
-
-static bool runtime_config_parse_dictionary_object(Runtime_Config *config, const char **cursor)
-{
-    const char *p = skip_json_ws(*cursor);
-    if (*p != '{') {
-        return false;
-    }
-    ++p;
-
-    char *path = NULL;
-    bool enabled = true;
-    bool parsed_ok = false;
-
-    while (true) {
-        p = skip_json_ws(p);
-        if (*p == '}') {
-            parsed_ok = path != NULL;
-            ++p;
-            break;
-        }
-
-        char *key = NULL;
-        if (!parse_json_string(&p, &key)) {
-            break;
-        }
-        p = skip_json_ws(p);
-        if (*p != ':') {
-            arrfree(key);
-            break;
-        }
-        ++p;
-
-        bool value_ok = false;
-        if (strcmp(key, "path") == 0) {
-            arrfree(path);
-            path = NULL;
-            p = skip_json_ws(p);
-            value_ok = parse_json_string(&p, &path);
-        } else if (strcmp(key, "enabled") == 0) {
-            value_ok = parse_json_bool(&p, &enabled);
-        }
-        arrfree(key);
-        if (!value_ok) {
-            break;
-        }
-
-        p = skip_json_ws(p);
-        if (*p == ',') {
-            ++p;
-            continue;
-        }
-        if (*p == '}') {
-            parsed_ok = path != NULL;
-            ++p;
-            break;
-        }
-        break;
-    }
-
-    bool ok = parsed_ok && runtime_config_add_dictionary_enabled(config, path, enabled);
-    arrfree(path);
-    if (!ok) {
-        return false;
-    }
-    *cursor = p;
-    return true;
-}
-
-static bool runtime_config_parse_dictionary_array(Runtime_Config *config, const char **cursor)
-{
-    const char *p = skip_json_ws(*cursor);
-    if (*p != '[') {
-        return false;
-    }
-    ++p;
-
-    runtime_config_clear_dictionaries(config);
-    while (true) {
-        p = skip_json_ws(p);
-        if (*p == ']') {
-            *cursor = p + 1;
-            return true;
-        }
-
-        if (*p == '{') {
-            if (!runtime_config_parse_dictionary_object(config, &p)) {
-                return false;
-            }
-        } else {
-            char *path = NULL;
-            if (!parse_json_string(&p, &path)) {
-                return false;
-            }
-            const bool ok = runtime_config_add_dictionary(config, path);
-            arrfree(path);
-            if (!ok) {
-                return false;
-            }
-        }
-
-        p = skip_json_ws(p);
-        if (*p == ',') {
-            ++p;
-            continue;
-        }
-        if (*p == ']') {
-            *cursor = p + 1;
-            return true;
-        }
-        return false;
-    }
-}
-
-static bool runtime_config_load(Runtime_Config *config, const char *path, bool missing_ok)
-{
-    size_t size = 0;
-    char *file = read_entire_file(path, &size);
-    if (file == NULL) {
-        if (missing_ok) {
-            return true;
-        }
-        fprintf(stderr, "stoin: failed to read config '%s'\n", path);
-        return false;
-    }
-
-    const char *p = skip_json_ws(file);
-    if (*p != '{') {
-        fprintf(stderr, "stoin: config '%s' is not a JSON object\n", path);
-        free(file);
-        return false;
-    }
-    ++p;
-
-    bool parsed_ok = false;
-    while (true) {
-        p = skip_json_ws(p);
-        if (*p == '}') {
-            parsed_ok = true;
-            break;
-        }
-
-        char *key = NULL;
-        if (!parse_json_string(&p, &key)) {
-            break;
-        }
-        p = skip_json_ws(p);
-        if (*p != ':') {
-            arrfree(key);
-            break;
-        }
-        ++p;
-
-        bool value_ok = false;
-        if (strcmp(key, "word_list") == 0) {
-            char *word_list = NULL;
-            p = skip_json_ws(p);
-            value_ok = parse_json_string(&p, &word_list)
-                && runtime_config_set_word_list(config, word_list);
-            arrfree(word_list);
-        } else if (strcmp(key, "dictionaries") == 0) {
-            value_ok = runtime_config_parse_dictionary_array(config, &p);
-        }
-        arrfree(key);
-        if (!value_ok) {
-            break;
-        }
-
-        p = skip_json_ws(p);
-        if (*p == ',') {
-            ++p;
-            continue;
-        }
-        if (*p == '}') {
-            parsed_ok = true;
-            break;
-        }
-        break;
-    }
-
-    free(file);
-    if (!parsed_ok) {
-        fprintf(stderr, "stoin: config '%s' could not be parsed\n", path);
-        return false;
-    }
-    return true;
 }
 
 static bool parse_baud_rate(const char *value, int *out_baud_rate)
@@ -451,6 +168,17 @@ static bool parse_baud_rate(const char *value, int *out_baud_rate)
         return false;
     }
     *out_baud_rate = (int)parsed;
+    return true;
+}
+
+static bool parse_milliseconds(const char *value, unsigned int *out_milliseconds)
+{
+    char *end = NULL;
+    const unsigned long parsed = strtoul(value, &end, 10);
+    if (value == end || *end != '\0' || parsed > 60000UL) {
+        return false;
+    }
+    *out_milliseconds = (unsigned int)parsed;
     return true;
 }
 
@@ -654,115 +382,6 @@ static int run_gemini_pr(App *app, const char *port_path, int baud_rate)
     return 0;
 }
 
-static void print_raw_serial_burst(const uint8_t *bytes, size_t count)
-{
-    if (bytes == NULL || count == 0) {
-        return;
-    }
-
-    printf("stoin: raw %zu byte%s:", count, count == 1 ? "" : "s");
-    for (size_t i = 0; i < count; ++i) {
-        printf(" %02X", bytes[i]);
-    }
-
-    fputs(" | ", stdout);
-    for (size_t i = 0; i < count; ++i) {
-        const unsigned char ch = bytes[i];
-        fputc(isprint(ch) ? ch : '.', stdout);
-    }
-    fputc('\n', stdout);
-    fflush(stdout);
-}
-
-static int run_raw_serial(const char *port_path, int baud_rate)
-{
-    enum {
-        RAW_SERIAL_BURST_CAPACITY = 256,
-    };
-
-    g_stop_requested = 0;
-    signal(SIGINT, request_stop);
-
-    const int resolved_baud_rate = baud_rate == 0 ? TX_BOLT_DEFAULT_BAUD_RATE : baud_rate;
-    printf("stoin: raw serial dump starting at %d baud 8N1\n", resolved_baud_rate);
-    puts("stoin: dictionary, text output, and keyboard capture are disabled in this mode");
-    puts("stoin: press Ctrl+C in this terminal to quit");
-
-    Platform_Serial_Port *serial = NULL;
-    bool announced_disconnected = false;
-    uint8_t burst[RAW_SERIAL_BURST_CAPACITY];
-    size_t burst_count = 0;
-
-    while (!g_stop_requested) {
-        if (serial == NULL) {
-            char resolved_port_path[256] = {0};
-            if (!resolve_serial_port(port_path, resolved_port_path, sizeof(resolved_port_path))) {
-                if (!announced_disconnected) {
-                    if (port_path != NULL) {
-                        fprintf(stderr, "stoin: raw serial disconnected; waiting for %s\n", port_path);
-                    } else {
-                        fputs("stoin: raw serial disconnected; waiting for a platform default serial device\n", stderr);
-                    }
-                    announced_disconnected = true;
-                }
-                platform_sleep_ms(1000);
-                continue;
-            }
-
-            errno = 0;
-            if (!platform_serial_open(&serial, resolved_port_path, resolved_baud_rate)) {
-                if (!announced_disconnected) {
-                    fprintf(stderr, "stoin: raw serial disconnected; waiting for %s", resolved_port_path);
-                    if (errno != 0) {
-                        fprintf(stderr, " (%s)", strerror(errno));
-                    }
-                    fputc('\n', stderr);
-                    announced_disconnected = true;
-                }
-                platform_sleep_ms(1000);
-                continue;
-            }
-
-            announced_disconnected = false;
-            printf("stoin: raw serial connected on %s\n", platform_serial_port_path(serial));
-        }
-
-        uint8_t byte = 0;
-        const Platform_Serial_Read_Result read_result = platform_serial_read_byte(serial, &byte, 100);
-        if (read_result == PLATFORM_SERIAL_READ_BYTE) {
-            if (burst_count == sizeof(burst)) {
-                print_raw_serial_burst(burst, burst_count);
-                burst_count = 0;
-            }
-            burst[burst_count++] = byte;
-        } else if (read_result == PLATFORM_SERIAL_READ_NONE) {
-            if (burst_count > 0) {
-                print_raw_serial_burst(burst, burst_count);
-                burst_count = 0;
-            }
-        } else {
-            if (burst_count > 0) {
-                print_raw_serial_burst(burst, burst_count);
-                burst_count = 0;
-            }
-            if (platform_serial_had_error(serial)) {
-                printf("stoin: raw serial disconnected from %s; waiting for reconnect\n", platform_serial_port_path(serial));
-            }
-            platform_serial_close(serial);
-            serial = NULL;
-            platform_sleep_ms(1000);
-        }
-    }
-
-    if (burst_count > 0) {
-        print_raw_serial_burst(burst, burst_count);
-    }
-    if (serial != NULL) {
-        platform_serial_close(serial);
-    }
-    return 0;
-}
-
 static Steno *create_steno(
     char *const *dictionary_paths,
     const bool *dictionary_enabled,
@@ -798,6 +417,8 @@ int main(int argc, char **argv)
     Input_Mode input_mode = INPUT_MODE_TX_BOLT;
     const char *serial_port = NULL;
     int serial_baud_rate = TX_BOLT_DEFAULT_BAUD_RATE;
+    bool multiple_inputs = false;
+    unsigned int multi_input_window_ms = TX_BOLT_MULTIPLE_DEFAULT_WINDOW_MS;
     bool trace_strokes = true;
 
     bool raw_serial_requested = false;
@@ -864,6 +485,14 @@ int main(int argc, char **argv)
             trace_strokes = true;
         } else if (strcmp(argv[i], "--no-trace-strokes") == 0) {
             trace_strokes = false;
+        } else if (strcmp(argv[i], "--multiple-inputs") == 0) {
+            multiple_inputs = true;
+        } else if (strcmp(argv[i], "--multi-input-window-ms") == 0 && i + 1 < argc) {
+            if (!parse_milliseconds(argv[++i], &multi_input_window_ms)) {
+                fprintf(stderr, "stoin: invalid multi-input window '%s'\n", argv[i]);
+                runtime_config_destroy(&runtime_config);
+                return 1;
+            }
         } else if (strcmp(argv[i], "--input") == 0 && i + 1 < argc) {
             ++i;
             if (strcmp(argv[i], "qwerty") == 0) {
@@ -901,8 +530,14 @@ int main(int argc, char **argv)
         }
     }
 
+    if (multiple_inputs && input_mode != INPUT_MODE_TX_BOLT) {
+        fputs("stoin: --multiple-inputs currently only supports --input tx-bolt\n", stderr);
+        runtime_config_destroy(&runtime_config);
+        return 1;
+    }
+
     if (raw_serial_dump) {
-        const int status = run_raw_serial(serial_port, serial_baud_rate);
+        const int status = raw_serial_run(serial_port, serial_baud_rate);
         runtime_config_destroy(&runtime_config);
         return status;
     }
@@ -982,7 +617,22 @@ int main(int argc, char **argv)
     if (input_mode == INPUT_MODE_QWERTY) {
         status = run_qwerty(&app);
     } else if (input_mode == INPUT_MODE_TX_BOLT) {
-        status = run_tx_bolt(&app, serial_port, serial_baud_rate);
+        if (multiple_inputs) {
+            const Tx_Bolt_Multiple_Config tx_bolt_multiple_config = {
+                .port_path = serial_port,
+                .baud_rate = serial_baud_rate,
+                .merge_window_ms = multi_input_window_ms,
+                .dictionary_count = steno_dictionary_count(app.steno),
+                .start_watcher = start_dictionary_watcher_callback,
+                .run_maintenance = run_app_maintenance_callback,
+                .session_active = app_session_active_callback,
+                .handle_stroke = handle_stroke_bits_callback,
+                .userdata = &app,
+            };
+            status = tx_bolt_multiple_run(&tx_bolt_multiple_config);
+        } else {
+            status = run_tx_bolt(&app, serial_port, serial_baud_rate);
+        }
     } else {
         status = run_gemini_pr(&app, serial_port, serial_baud_rate);
     }

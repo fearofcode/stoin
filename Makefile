@@ -15,15 +15,19 @@ CORE_OBJECTS := \
 	build/platform_macos_output.o \
 	build/platform_macos_serial.o \
 	build/platform_macos.o \
+	build/raw_serial.o \
 	build/retro.o \
+	build/runtime_config.o \
 	build/steno.o \
 	build/steno_stroke.o \
+	build/stroke_merge.o \
 	build/stb_ds_impl.o \
 	build/stitch.o \
 	build/text_util.o \
 	build/translation_history.o \
 	build/translation_match.o \
 	build/tx_bolt.o \
+	build/tx_bolt_multiple.o \
 	build/util.o
 APP_OBJECTS := build/main.o $(CORE_OBJECTS)
 TEST_OBJECTS := build/test_steno.o $(CORE_OBJECTS)

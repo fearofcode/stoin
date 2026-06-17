@@ -31,6 +31,8 @@ typedef struct Platform_File_Stamp {
     bool exists;
 } Platform_File_Stamp;
 
+#define PLATFORM_SERIAL_PATH_MAX 256
+
 typedef void (*Platform_File_Watch_Fn)(void *userdata);
 
 typedef struct Platform_Serial_Port Platform_Serial_Port;
@@ -44,6 +46,7 @@ bool platform_delete_text_utf8(const char *utf8);
 bool platform_send_key_combination(const char *combo);
 bool platform_keycode_from_name(const char *name, uint16_t *out_keycode);
 bool platform_find_serial_device(char *out_path, size_t out_size);
+size_t platform_find_serial_devices(char out_paths[][PLATFORM_SERIAL_PATH_MAX], size_t max_paths);
 bool platform_find_gemini_pr_device(char *out_path, size_t out_size);
 bool platform_serial_open(Platform_Serial_Port **out_port, const char *port_path, int baud_rate);
 void platform_serial_close(Platform_Serial_Port *port);
@@ -59,6 +62,7 @@ bool platform_file_stamp(const char *path, Platform_File_Stamp *out_stamp);
 bool platform_file_watcher_start(const char *const *paths, size_t path_count, Platform_File_Watch_Fn callback, void *userdata);
 void platform_file_watcher_poll(void);
 void platform_file_watcher_stop(void);
+uint64_t platform_monotonic_ms(void);
 void platform_sleep_ms(unsigned int milliseconds);
 
 #endif
