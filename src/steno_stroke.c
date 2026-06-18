@@ -11,6 +11,18 @@ bool steno_token_to_bit(const char *token, uint64_t *out_bit)
 {
     if (strcmp(token, "#") == 0) {
         *out_bit = steno_bit(STENO_NUM);
+    } else if (strcmp(token, "1") == 0) {
+        *out_bit = steno_bit(STENO_LEFT_S);
+    } else if (strcmp(token, "2") == 0) {
+        *out_bit = steno_bit(STENO_LEFT_T);
+    } else if (strcmp(token, "3") == 0) {
+        *out_bit = steno_bit(STENO_LEFT_P);
+    } else if (strcmp(token, "4") == 0) {
+        *out_bit = steno_bit(STENO_LEFT_H);
+    } else if (strcmp(token, "5") == 0) {
+        *out_bit = steno_bit(STENO_A);
+    } else if (strcmp(token, "0") == 0) {
+        *out_bit = steno_bit(STENO_O);
     } else if (strcmp(token, "S") == 0) {
         *out_bit = steno_bit(STENO_LEFT_S);
     } else if (strcmp(token, "T") == 0) {
@@ -37,17 +49,25 @@ bool steno_token_to_bit(const char *token, uint64_t *out_bit)
         *out_bit = steno_bit(STENO_U);
     } else if (strcmp(token, "-F") == 0) {
         *out_bit = steno_bit(STENO_RIGHT_F);
+    } else if (strcmp(token, "-6") == 0) {
+        *out_bit = steno_bit(STENO_RIGHT_F);
     } else if (strcmp(token, "-R") == 0) {
         *out_bit = steno_bit(STENO_RIGHT_R);
     } else if (strcmp(token, "-P") == 0) {
+        *out_bit = steno_bit(STENO_RIGHT_P);
+    } else if (strcmp(token, "-7") == 0) {
         *out_bit = steno_bit(STENO_RIGHT_P);
     } else if (strcmp(token, "-B") == 0) {
         *out_bit = steno_bit(STENO_RIGHT_B);
     } else if (strcmp(token, "-L") == 0) {
         *out_bit = steno_bit(STENO_RIGHT_L);
+    } else if (strcmp(token, "-8") == 0) {
+        *out_bit = steno_bit(STENO_RIGHT_L);
     } else if (strcmp(token, "-G") == 0) {
         *out_bit = steno_bit(STENO_RIGHT_G);
     } else if (strcmp(token, "-T") == 0) {
+        *out_bit = steno_bit(STENO_RIGHT_T);
+    } else if (strcmp(token, "-9") == 0) {
         *out_bit = steno_bit(STENO_RIGHT_T);
     } else if (strcmp(token, "-S") == 0) {
         *out_bit = steno_bit(STENO_RIGHT_S);
@@ -77,6 +97,17 @@ static uint64_t left_bit_for_char(char c)
     }
 }
 
+static uint64_t left_number_bit_for_char(char c)
+{
+    switch (c) {
+    case '1': return steno_bit(STENO_LEFT_S);
+    case '2': return steno_bit(STENO_LEFT_T);
+    case '3': return steno_bit(STENO_LEFT_P);
+    case '4': return steno_bit(STENO_LEFT_H);
+    default: return 0;
+    }
+}
+
 static uint64_t vowel_bit_for_char(char c)
 {
     switch (c) {
@@ -85,6 +116,15 @@ static uint64_t vowel_bit_for_char(char c)
     case '*': return steno_bit(STENO_STAR);
     case 'E': return steno_bit(STENO_E);
     case 'U': return steno_bit(STENO_U);
+    default: return 0;
+    }
+}
+
+static uint64_t vowel_number_bit_for_char(char c)
+{
+    switch (c) {
+    case '5': return steno_bit(STENO_A);
+    case '0': return steno_bit(STENO_O);
     default: return 0;
     }
 }
@@ -102,6 +142,17 @@ static uint64_t right_bit_for_char(char c)
     case 'S': return steno_bit(STENO_RIGHT_S);
     case 'D': return steno_bit(STENO_RIGHT_D);
     case 'Z': return steno_bit(STENO_RIGHT_Z);
+    default: return 0;
+    }
+}
+
+static uint64_t right_number_bit_for_char(char c)
+{
+    switch (c) {
+    case '6': return steno_bit(STENO_RIGHT_F);
+    case '7': return steno_bit(STENO_RIGHT_P);
+    case '8': return steno_bit(STENO_RIGHT_L);
+    case '9': return steno_bit(STENO_RIGHT_T);
     default: return 0;
     }
 }
@@ -126,6 +177,7 @@ bool stroke_string_to_bits(const char *stroke, uint64_t *out_bits)
     uint64_t bits = 0;
     enum Stroke_Region region = STROKE_REGION_LEFT;
     bool saw_any = false;
+    bool saw_number_digit = false;
 
     for (const char *p = stroke; *p != '\0'; ++p) {
         const char c = *p;
@@ -143,23 +195,56 @@ bool stroke_string_to_bits(const char *stroke, uint64_t *out_bits)
         case STROKE_REGION_LEFT:
             bit = left_bit_for_char(c);
             if (bit == 0) {
+                bit = left_number_bit_for_char(c);
+                if (bit != 0) saw_number_digit = true;
+            }
+            if (bit == 0) {
                 bit = vowel_bit_for_char(c);
                 if (bit != 0) region = STROKE_REGION_VOWEL;
             }
             if (bit == 0) {
+                bit = vowel_number_bit_for_char(c);
+                if (bit != 0) {
+                    region = STROKE_REGION_VOWEL;
+                    saw_number_digit = true;
+                }
+            }
+            if (bit == 0) {
                 bit = right_bit_for_char(c);
                 if (bit != 0) region = STROKE_REGION_RIGHT;
+            }
+            if (bit == 0) {
+                bit = right_number_bit_for_char(c);
+                if (bit != 0) {
+                    region = STROKE_REGION_RIGHT;
+                    saw_number_digit = true;
+                }
             }
             break;
         case STROKE_REGION_VOWEL:
             bit = vowel_bit_for_char(c);
             if (bit == 0) {
+                bit = vowel_number_bit_for_char(c);
+                if (bit != 0) saw_number_digit = true;
+            }
+            if (bit == 0) {
                 bit = right_bit_for_char(c);
                 if (bit != 0) region = STROKE_REGION_RIGHT;
+            }
+            if (bit == 0) {
+                bit = right_number_bit_for_char(c);
+                if (bit != 0) {
+                    region = STROKE_REGION_RIGHT;
+                    saw_number_digit = true;
+                }
             }
             break;
         case STROKE_REGION_RIGHT:
             bit = right_bit_for_char(c);
+            if (bit == 0) {
+                bit = right_number_bit_for_char(c);
+                if (bit != 0) saw_number_digit = true;
+            }
             break;
         }
 
@@ -169,7 +254,7 @@ bool stroke_string_to_bits(const char *stroke, uint64_t *out_bits)
         saw_any = true;
     }
 
-    if (!saw_any) {
+    if (!saw_any || (saw_number_digit && (bits & steno_bit(STENO_NUM)) == 0)) {
         return false;
     }
 

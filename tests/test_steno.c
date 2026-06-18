@@ -322,6 +322,19 @@ int main(void)
     ok = ok && expect_stroke_format("R-R", "R-R");
     ok = ok && expect_stroke_format("-T", "-T");
     ok = ok && expect_stroke_format("-F", "F");
+    ok = ok && expect_stroke_format("#1", "#S");
+    ok = ok && expect_stroke_format("#2", "#T");
+    ok = ok && expect_stroke_format("#3", "#P");
+    ok = ok && expect_stroke_format("#4", "#H");
+    ok = ok && expect_stroke_format("#5", "#A");
+    ok = ok && expect_stroke_format("#0", "#O");
+    ok = ok && expect_stroke_format("#-6", "#F");
+    ok = ok && expect_stroke_format("#-7", "#-P");
+    ok = ok && expect_stroke_format("#-8", "#L");
+    ok = ok && expect_stroke_format("#-9", "#-T");
+    ok = ok && expect_stroke_format("#*-678G", "#*FPLG");
+    uint64_t bare_number_bits = 0;
+    ok = ok && !stroke_string_to_bits("1", &bare_number_bits);
     const char *drill_chords[] = {
         "SAP", "HUD", "SOG", "TOD", "WET", "POG", "ROD", "KUS", "PEB", "ROR",
         "WEZ", "WEL", "TER", "TAT", "WEF", "KAB", "WES", "SAP", "TAS", "RET",
@@ -372,6 +385,34 @@ int main(void)
     ok = ok && tx_bolt_decode_byte(&tx_bolt, 0xD8, &tx_bolt_bits);
     ok = ok && chord_bits_to_string(tx_bolt_bits, tx_bolt_string, sizeof(tx_bolt_string));
     ok = ok && expect_string("TX Bolt number star Z packet", tx_bolt_string, "#*Z");
+
+    const struct {
+        uint8_t bytes[3];
+        size_t byte_count;
+        const char *expected;
+    } tx_bolt_number_bar_cases[] = {
+        { { 0x01, 0xD0 }, 2, "#S" },
+        { { 0x02, 0xD0 }, 2, "#T" },
+        { { 0x08, 0xD0 }, 2, "#P" },
+        { { 0x20, 0xD0 }, 2, "#H" },
+        { { 0x00, 0x42, 0xD0 }, 3, "#A" },
+        { { 0x44, 0xD0 }, 2, "#O" },
+        { { 0x81, 0xD0 }, 2, "#F" },
+        { { 0x84, 0xD0 }, 2, "#-P" },
+        { { 0x90, 0xD0 }, 2, "#L" },
+        { { 0xD1 }, 1, "#-T" },
+    };
+    for (size_t i = 0; i < sizeof(tx_bolt_number_bar_cases) / sizeof(tx_bolt_number_bar_cases[0]); ++i) {
+        memset(&tx_bolt, 0, sizeof(tx_bolt));
+        memset(tx_bolt_string, 0, sizeof(tx_bolt_string));
+        bool decoded = false;
+        for (size_t j = 0; j < tx_bolt_number_bar_cases[i].byte_count; ++j) {
+            decoded = tx_bolt_decode_byte(&tx_bolt, tx_bolt_number_bar_cases[i].bytes[j], &tx_bolt_bits);
+        }
+        ok = ok && decoded;
+        ok = ok && chord_bits_to_string(tx_bolt_bits, tx_bolt_string, sizeof(tx_bolt_string));
+        ok = ok && expect_string("TX Bolt number-bar position", tx_bolt_string, tx_bolt_number_bar_cases[i].expected);
+    }
 
     memset(&tx_bolt, 0, sizeof(tx_bolt));
     memset(tx_bolt_string, 0, sizeof(tx_bolt_string));
@@ -439,6 +480,14 @@ int main(void)
     const char *stories = NULL;
     ok = ok && steno_lookup_stroke(steno, "STOE-R/-Z", &stories);
     ok = ok && expect_string("dictionary lookup canonical multi-stroke", stories, "stories");
+
+    const char *questioningly = NULL;
+    ok = ok && steno_lookup_stroke(steno, "#*-678G", &questioningly);
+    ok = ok && expect_string("dictionary lookup number-bar digits", questioningly, "the questioningly");
+
+    const char *evergrande = NULL;
+    ok = ok && steno_lookup_stroke(steno, "#*-6R/TKPWRA-PBD", &evergrande);
+    ok = ok && expect_string("dictionary lookup multi-stroke number-bar digits", evergrande, "the Evergrande");
 
     const char *histories = NULL;
     ok = ok && steno_lookup_stroke(steno, "HEU/STOE-R/-Z", &histories);
