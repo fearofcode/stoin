@@ -27,6 +27,103 @@ static const char *skip_json_ws(const char *p)
     return p;
 }
 
+static int hex_digit_value(unsigned char c)
+{
+    if (c >= '0' && c <= '9') {
+        return c - '0';
+    }
+    if (c >= 'a' && c <= 'f') {
+        return c - 'a' + 10;
+    }
+    if (c >= 'A' && c <= 'F') {
+        return c - 'A' + 10;
+    }
+    return -1;
+}
+
+static bool parse_json_hex4(const char **cursor, uint32_t *out_value)
+{
+    const char *p = *cursor;
+    uint32_t value = 0;
+    for (size_t i = 0; i < 4; ++i) {
+        if (*p == '\0') {
+            return false;
+        }
+        const int digit = hex_digit_value((unsigned char)*p);
+        if (digit < 0) {
+            return false;
+        }
+        value = (value << 4) | (uint32_t)digit;
+        ++p;
+    }
+
+    *cursor = p;
+    *out_value = value;
+    return true;
+}
+
+static bool parse_json_unicode_escape(const char **cursor, uint32_t *out_codepoint)
+{
+    uint32_t code_unit = 0;
+    if (!parse_json_hex4(cursor, &code_unit)) {
+        return false;
+    }
+
+    if (code_unit >= 0xD800 && code_unit <= 0xDBFF) {
+        const char *p = *cursor;
+        if (p[0] != '\\' || p[1] != 'u') {
+            return false;
+        }
+        p += 2;
+
+        uint32_t low_surrogate = 0;
+        if (!parse_json_hex4(&p, &low_surrogate)
+            || low_surrogate < 0xDC00
+            || low_surrogate > 0xDFFF) {
+            return false;
+        }
+
+        *cursor = p;
+        *out_codepoint = UINT32_C(0x10000)
+            + ((code_unit - UINT32_C(0xD800)) << 10)
+            + (low_surrogate - UINT32_C(0xDC00));
+        return true;
+    }
+
+    if (code_unit >= 0xDC00 && code_unit <= 0xDFFF) {
+        return false;
+    }
+
+    *out_codepoint = code_unit;
+    return true;
+}
+
+static bool append_utf8_codepoint(char **out, uint32_t codepoint)
+{
+    if (codepoint == 0 || codepoint > 0x10FFFF
+        || (codepoint >= 0xD800 && codepoint <= 0xDFFF)) {
+        return false;
+    }
+
+    if (codepoint <= 0x7F) {
+        arrput(*out, (char)codepoint);
+    } else if (codepoint <= 0x7FF) {
+        arrput(*out, (char)(0xC0 | (codepoint >> 6)));
+        arrput(*out, (char)(0x80 | (codepoint & 0x3F)));
+    } else if (codepoint <= 0xFFFF) {
+        arrput(*out, (char)(0xE0 | (codepoint >> 12)));
+        arrput(*out, (char)(0x80 | ((codepoint >> 6) & 0x3F)));
+        arrput(*out, (char)(0x80 | (codepoint & 0x3F)));
+    } else {
+        arrput(*out, (char)(0xF0 | (codepoint >> 18)));
+        arrput(*out, (char)(0x80 | ((codepoint >> 12) & 0x3F)));
+        arrput(*out, (char)(0x80 | ((codepoint >> 6) & 0x3F)));
+        arrput(*out, (char)(0x80 | (codepoint & 0x3F)));
+    }
+
+    return true;
+}
+
 static bool parse_json_string(const char **cursor, char **out_string)
 {
     const char *p = *cursor;
@@ -49,13 +146,22 @@ static bool parse_json_string(const char **cursor, char **out_string)
             case 'n': arrput(result, '\n'); break;
             case 'r': arrput(result, '\r'); break;
             case 't': arrput(result, '\t'); break;
-            case 'u':
-                arrfree(result);
-                return false;
+            case 'u': {
+                uint32_t codepoint = 0;
+                if (!parse_json_unicode_escape(&p, &codepoint)
+                    || !append_utf8_codepoint(&result, codepoint)) {
+                    arrfree(result);
+                    return false;
+                }
+                break;
+            }
             default:
                 arrfree(result);
                 return false;
             }
+        } else if (c < 0x20) {
+            arrfree(result);
+            return false;
         } else {
             arrput(result, (char)c);
         }

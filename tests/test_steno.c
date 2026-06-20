@@ -477,6 +477,10 @@ int main(void)
     ok = ok && steno_lookup_stroke(steno, "P*P", &glue_p);
     ok = ok && expect_string("dictionary lookup P*P", glue_p, "{&P}");
 
+    const char *ampersand = NULL;
+    ok = ok && steno_lookup_stroke(steno, "PH", &ampersand);
+    ok = ok && expect_string("dictionary lookup unicode escaped key and value", ampersand, "&");
+
     const char *stories = NULL;
     ok = ok && steno_lookup_stroke(steno, "STOE-R/-Z", &stories);
     ok = ok && expect_string("dictionary lookup canonical multi-stroke", stories, "stories");
