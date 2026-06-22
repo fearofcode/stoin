@@ -669,6 +669,9 @@ int main(void)
     uint64_t defer_bits = 0;
     uint64_t deferred_bits = 0;
     uint64_t failing_bits = 0;
+    uint64_t nonfinal_d_suffix_bits = 0;
+    uint64_t nonfinal_s_suffix_bits = 0;
+    uint64_t nonfinal_g_suffix_bits = 0;
     uint64_t suffix_ish_bits = 0;
     uint64_t raw_ish_bits = 0;
     uint64_t prefix_bits = 0;
@@ -727,6 +730,9 @@ int main(void)
     ok = ok && stroke_string_to_bits("TKEFR", &defer_bits);
     ok = ok && stroke_string_to_bits("TKEFRD", &deferred_bits);
     ok = ok && stroke_string_to_bits("TPAEULG", &failing_bits);
+    ok = ok && stroke_string_to_bits("WADZ", &nonfinal_d_suffix_bits);
+    ok = ok && stroke_string_to_bits("KASD", &nonfinal_s_suffix_bits);
+    ok = ok && stroke_string_to_bits("KAURBGS", &nonfinal_g_suffix_bits);
     ok = ok && stroke_string_to_bits("EURB", &suffix_ish_bits);
     ok = ok && stroke_string_to_bits("R-R", &raw_ish_bits);
     ok = ok && stroke_string_to_bits("PRAOE", &prefix_bits);
@@ -821,6 +827,21 @@ int main(void)
         reset_output_log(&output);
         ok = ok && steno_handle_stroke_bits(suffix_key_steno, failing_bits);
         ok = ok && expect_string("suffix key g", output.text, "failing ");
+
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(suffix_key_steno, nonfinal_d_suffix_bits);
+        ok = ok && expect_string("suffix key d must be final", output.text, "WADZ ");
+
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(suffix_key_steno, nonfinal_s_suffix_bits);
+        ok = ok && expect_string("suffix key s must be final", output.text, "KASD ");
+
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(suffix_key_steno, nonfinal_g_suffix_bits);
+        ok = ok && expect_string("suffix key g must be final", output.text, "KAURBGS ");
 
         clear_test_output(&output);
         reset_output_log(&output);

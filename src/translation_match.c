@@ -107,6 +107,15 @@ size_t translation_match_lookup_stroke_limit(const Dictionary *dictionary)
     return max_strokes;
 }
 
+static uint64_t bits_after_steno_key(Steno_Key key)
+{
+    uint64_t bits = 0;
+    for (Steno_Key candidate = key + 1; candidate < STENO_KEY_COUNT; ++candidate) {
+        bits |= steno_bit(candidate);
+    }
+    return bits;
+}
+
 static bool try_suffix_translation_match(
     const Dictionary *dictionary,
     const uint64_t *candidate,
@@ -130,8 +139,11 @@ static bool try_suffix_translation_match(
     }
 
     for (size_t i = 0; i < sizeof(suffix_keys) / sizeof(suffix_keys[0]); ++i) {
-        const uint64_t suffix_bit = steno_bit(suffix_keys[i]);
-        if ((candidate[candidate_count - 1] & suffix_bit) == 0) {
+        const Steno_Key suffix_key = suffix_keys[i];
+        const uint64_t suffix_bit = steno_bit(suffix_key);
+        const uint64_t last_stroke = candidate[candidate_count - 1];
+        if ((last_stroke & suffix_bit) == 0
+            || (last_stroke & bits_after_steno_key(suffix_key)) != 0) {
             continue;
         }
 
