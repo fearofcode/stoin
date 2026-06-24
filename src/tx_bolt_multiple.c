@@ -182,7 +182,7 @@ static void process_merge_outputs(
     uint64_t stroke_bits = 0;
     while (stroke_merge_next_output(merge, &stroke_bits)) {
         if (session_active && config->handle_stroke != NULL) {
-            (void)config->handle_stroke(stroke_bits, config->userdata);
+            (void)config->handle_stroke(stroke_bits, platform_monotonic_ns(), config->userdata);
         }
     }
 }

@@ -62,6 +62,10 @@ bool platform_file_stamp(const char *path, Platform_File_Stamp *out_stamp);
 bool platform_file_watcher_start(const char *const *paths, size_t path_count, Platform_File_Watch_Fn callback, void *userdata);
 void platform_file_watcher_poll(void);
 void platform_file_watcher_stop(void);
+void platform_translation_timing_set_enabled(bool enabled);
+void platform_translation_timing_begin(uint64_t start_ns);
+void platform_translation_timing_cancel(void);
+uint64_t platform_monotonic_ns(void);
 uint64_t platform_monotonic_ms(void);
 void platform_sleep_ms(unsigned int milliseconds);
 

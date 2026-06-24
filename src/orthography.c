@@ -251,6 +251,15 @@ static bool rule_ying(const char *word, const char *suffix, char *out, size_t ou
     return copy_prefix_suffix(word, word_len - 2, "ying", out, out_size);
 }
 
+static bool rule_ie_ed(const char *word, const char *suffix, char *out, size_t out_size)
+{
+    const size_t word_len = strlen(word);
+    if (!ends_with(word, "ie") || word_len < 3 || !string_equals(suffix, "ed")) {
+        return false;
+    }
+    return copy_prefix_suffix(word, word_len, "d", out, out_size);
+}
+
 static bool rule_yist(const char *word, const char *suffix, char *out, size_t out_size)
 {
     const size_t word_len = strlen(word);
@@ -593,6 +602,7 @@ static const Orthography_Rule ORTHOGRAPHY_RULES[] = {
     { "chPlural", rule_ch_plural },
     { "consonantYPlural", rule_consonant_y_plural },
     { "ying", rule_ying },
+    { "ieEd", rule_ie_ed },
     { "yist", rule_yist },
     { "yToI", rule_y_to_i },
     { "tten", rule_tten },

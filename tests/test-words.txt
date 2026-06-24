@@ -9,6 +9,7 @@ cherries 1
 cosmetically 1
 days 1
 deferred 1
+died 1
 establishes 1
 filterer 1
 geologist 1
@@ -29,4 +30,6 @@ similarish 1
 speeches 1
 starches 1
 stomachs 1
+stymied 1
+tied 1
 tinkerer 1

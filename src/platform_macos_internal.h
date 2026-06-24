@@ -30,8 +30,12 @@ typedef struct Mac_State {
     Mac_File_Watch_Target *file_watcher_targets;
     int file_watcher_kq;
     int screen_lock_notify_token;
+    uint64_t translation_timing_start_ns;
+    uint64_t translation_timing_sequence;
     bool file_watcher_active;
     bool screen_lock_notify_registered;
+    bool translation_timing_enabled;
+    bool translation_timing_active;
 } Mac_State;
 
 extern Mac_State g_macos;

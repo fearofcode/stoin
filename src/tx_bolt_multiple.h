@@ -9,7 +9,7 @@
 
 typedef void (*Tx_Bolt_Multiple_Callback)(void *userdata);
 typedef bool (*Tx_Bolt_Multiple_Session_Active_Fn)(void *userdata);
-typedef bool (*Tx_Bolt_Multiple_Handle_Stroke_Fn)(uint64_t bits, void *userdata);
+typedef bool (*Tx_Bolt_Multiple_Handle_Stroke_Fn)(uint64_t bits, uint64_t received_ns, void *userdata);
 
 typedef struct Tx_Bolt_Multiple_Config {
     const char *port_path;

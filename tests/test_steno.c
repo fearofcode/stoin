@@ -310,6 +310,9 @@ int main(void)
     ok = ok && expect_orthography(&test_orthography, "red", "ish", "reddish");
     ok = ok && expect_orthography(&test_orthography, "tinker", "er", "tinkerer");
     ok = ok && expect_orthography(&test_orthography, "filter", "er", "filterer");
+    ok = ok && expect_orthography(&test_orthography, "stymie", "ed", "stymied");
+    ok = ok && expect_orthography(&test_orthography, "tie", "ed", "tied");
+    ok = ok && expect_orthography(&test_orthography, "die", "ed", "died");
     orthography_destroy(&test_orthography);
 
     uint64_t rr_bits = 0;
@@ -646,6 +649,8 @@ int main(void)
     uint64_t story_bits = 0;
     uint64_t plural_bits = 0;
     uint64_t past_bits = 0;
+    uint64_t stymie_first_bits = 0;
+    uint64_t stymied_second_bits = 0;
     uint64_t history_bits = 0;
     uint64_t undo_bits = 0;
     uint64_t filler_bits = 0;
@@ -707,6 +712,8 @@ int main(void)
     ok = ok && stroke_string_to_bits("STOER", &story_bits);
     ok = ok && stroke_string_to_bits("-Z", &plural_bits);
     ok = ok && stroke_string_to_bits("-D", &past_bits);
+    ok = ok && stroke_string_to_bits("STAOEU", &stymie_first_bits);
+    ok = ok && stroke_string_to_bits("PHAOED", &stymied_second_bits);
     ok = ok && stroke_string_to_bits("HEU", &history_bits);
     ok = ok && stroke_string_to_bits("-R", &undo_bits);
     ok = ok && stroke_string_to_bits("#", &filler_bits);
@@ -827,6 +834,16 @@ int main(void)
         reset_output_log(&output);
         ok = ok && steno_handle_stroke_bits(suffix_key_steno, failing_bits);
         ok = ok && expect_string("suffix key g", output.text, "failing ");
+
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(suffix_key_steno, stymie_first_bits);
+        ok = ok && expect_string("suffix key ie-ed first stroke", output.text, "sty ");
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(suffix_key_steno, stymied_second_bits);
+        ok = ok && expect_string("suffix key ie-ed orthography", output.text, "stymied ");
+        ok = ok && expect_string("suffix key ie-ed delete", output.last_delete, " ");
+        ok = ok && expect_string("suffix key ie-ed insert", output.last_send, "mied ");
 
         clear_test_output(&output);
         reset_output_log(&output);

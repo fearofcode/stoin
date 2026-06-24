@@ -7,9 +7,6 @@
       "path": "lapwing-semi-modal-movement.json",
       "enabled": false
     },
-    "stoin-custom.json",
-    "../steno-dictionaries/lapwing-additions.json",
-    "../steno-dictionaries/user-ae-tensing.json",
-    "../steno-dictionaries/lapwing-augmentations.json"
+    "stoin-custom.json"
   ]
 }

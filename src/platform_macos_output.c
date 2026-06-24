@@ -1,6 +1,7 @@
 #include "platform_macos_internal.h"
 
 #include <ctype.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -45,6 +46,27 @@ bool macos_event_was_generated_by_stoin(CGEventRef event)
     return CGEventGetIntegerValueField(event, kCGEventSourceUserData) == STOIN_GENERATED_EVENT_USER_DATA;
 }
 
+static void report_translation_timing_before_cgevent_post(const char *operation)
+{
+    if (!g_macos.translation_timing_enabled || !g_macos.translation_timing_active) {
+        return;
+    }
+
+    const uint64_t now_ns = platform_monotonic_ns();
+    const uint64_t start_ns = g_macos.translation_timing_start_ns;
+    const uint64_t elapsed_ns = now_ns >= start_ns ? now_ns - start_ns : 0;
+    g_macos.translation_timing_active = false;
+    g_macos.translation_timing_start_ns = 0;
+    ++g_macos.translation_timing_sequence;
+
+    fprintf(stderr,
+        "stoin: translation latency #%" PRIu64 " before %s CGEventPost: %.3f ms (%.1f us)\n",
+        g_macos.translation_timing_sequence,
+        operation != NULL ? operation : "first",
+        (double)elapsed_ns / 1000000.0,
+        (double)elapsed_ns / 1000.0);
+}
+
 bool platform_output_init(void)
 {
     if (g_macos.output_source != NULL) {
@@ -73,6 +95,7 @@ static bool post_keyboard_event_pair(CGKeyCode keycode)
     if (key_down != NULL && key_up != NULL) {
         macos_mark_generated_event(key_down);
         macos_mark_generated_event(key_up);
+        report_translation_timing_before_cgevent_post("key");
         CGEventPost(kCGSessionEventTap, key_down);
         CGEventPost(kCGSessionEventTap, key_up);
         ok = true;
@@ -99,6 +122,7 @@ static bool post_keyboard_event_pair_with_flags(CGKeyCode keycode, CGEventFlags 
         macos_mark_generated_event(key_up);
         CGEventSetFlags(key_down, flags);
         CGEventSetFlags(key_up, flags);
+        report_translation_timing_before_cgevent_post("key-combo");
         CGEventPost(kCGSessionEventTap, key_down);
         CGEventPost(kCGSessionEventTap, key_up);
         ok = true;
@@ -356,6 +380,7 @@ bool platform_send_text_utf8(const char *utf8)
         macos_mark_generated_event(key_up);
         CGEventKeyboardSetUnicodeString(key_down, (UniCharCount)length, utf16);
         CGEventKeyboardSetUnicodeString(key_up, (UniCharCount)length, utf16);
+        report_translation_timing_before_cgevent_post("text");
         CGEventPost(kCGSessionEventTap, key_down);
         CGEventPost(kCGSessionEventTap, key_up);
         ok = true;

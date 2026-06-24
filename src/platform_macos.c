@@ -203,13 +203,43 @@ bool platform_user_session_is_active(void)
     return on_console && login_done && !screen_locked;
 }
 
-uint64_t platform_monotonic_ms(void)
+void platform_translation_timing_set_enabled(bool enabled)
+{
+    g_macos.translation_timing_enabled = enabled;
+    if (!enabled) {
+        g_macos.translation_timing_active = false;
+        g_macos.translation_timing_start_ns = 0;
+    }
+}
+
+void platform_translation_timing_begin(uint64_t start_ns)
+{
+    if (!g_macos.translation_timing_enabled || start_ns == 0) {
+        return;
+    }
+
+    g_macos.translation_timing_start_ns = start_ns;
+    g_macos.translation_timing_active = true;
+}
+
+void platform_translation_timing_cancel(void)
+{
+    g_macos.translation_timing_active = false;
+    g_macos.translation_timing_start_ns = 0;
+}
+
+uint64_t platform_monotonic_ns(void)
 {
     struct timespec now = {0};
     if (clock_gettime(CLOCK_MONOTONIC, &now) != 0) {
         return 0;
     }
-    return (uint64_t)now.tv_sec * UINT64_C(1000) + (uint64_t)now.tv_nsec / UINT64_C(1000000);
+    return (uint64_t)now.tv_sec * UINT64_C(1000000000) + (uint64_t)now.tv_nsec;
+}
+
+uint64_t platform_monotonic_ms(void)
+{
+    return platform_monotonic_ns() / UINT64_C(1000000);
 }
 
 void platform_sleep_ms(unsigned int milliseconds)

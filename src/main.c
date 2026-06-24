@@ -30,6 +30,7 @@ typedef struct App {
     Steno *steno;
     bool session_active;
     bool session_state_known;
+    bool time_translations;
 } App;
 
 static volatile sig_atomic_t g_stop_requested;
@@ -124,13 +125,26 @@ static bool app_session_active_callback(void *userdata)
     return app != NULL && app->session_state_known && app->session_active;
 }
 
-static bool handle_stroke_bits_callback(uint64_t bits, void *userdata)
+static bool handle_stroke_bits(App *app, uint64_t bits, uint64_t received_ns)
 {
-    App *app = userdata;
     if (app == NULL || app->steno == NULL) {
         return false;
     }
-    return steno_handle_stroke_bits(app->steno, bits);
+
+    if (app->time_translations) {
+        platform_translation_timing_begin(received_ns);
+    }
+    const bool handled = steno_handle_stroke_bits(app->steno, bits);
+    if (app->time_translations) {
+        platform_translation_timing_cancel();
+    }
+    return handled;
+}
+
+static bool handle_stroke_bits_callback(uint64_t bits, uint64_t received_ns, void *userdata)
+{
+    App *app = userdata;
+    return handle_stroke_bits(app, bits, received_ns);
 }
 
 static bool handle_input(const Input_Event *event, void *userdata)
@@ -139,7 +153,15 @@ static bool handle_input(const Input_Event *event, void *userdata)
     if (!update_session_active(app)) {
         return false;
     }
-    return steno_handle_event(app->steno, event);
+
+    if (app != NULL && app->time_translations && event != NULL && !event->is_down) {
+        platform_translation_timing_begin(platform_monotonic_ns());
+    }
+    const bool handled = steno_handle_event(app->steno, event);
+    if (app != NULL && app->time_translations) {
+        platform_translation_timing_cancel();
+    }
+    return handled;
 }
 
 static void request_stop(int signum)
@@ -154,6 +176,7 @@ static void print_usage(void)
     fputs("             [--input tx-bolt|gemini-pr|qwerty]\n", stderr);
     fputs("             [--serial-port PATH] [--serial-baud BAUD]\n", stderr);
     fputs("             [--multiple-inputs] [--multi-input-window-ms MS]\n", stderr);
+    fputs("             [--time-translations]\n", stderr);
     fputs("             [--trace-strokes|--no-trace-strokes]\n", stderr);
     fputs("       stoin --raw-serial [--serial-port PATH] [--serial-baud BAUD]\n", stderr);
     fputs("       stoin [--config PATH] [--dictionary PATH ...] [--word-list PATH] --lookup STROKE\n", stderr);
@@ -281,7 +304,7 @@ static int run_tx_bolt(App *app, const char *port_path, int baud_rate)
         uint64_t stroke_bits = 0;
         if (tx_bolt_read_stroke(&tx_bolt, &stroke_bits)) {
             if (session_active) {
-                (void)steno_handle_stroke_bits(app->steno, stroke_bits);
+                (void)handle_stroke_bits(app, stroke_bits, platform_monotonic_ns());
             }
         } else if (tx_bolt_had_error(&tx_bolt)) {
             printf("stoin: TX Bolt disconnected from %s; waiting for reconnect\n", tx_bolt_port_path(&tx_bolt));
@@ -365,7 +388,7 @@ static int run_gemini_pr(App *app, const char *port_path, int baud_rate)
         uint64_t stroke_bits = 0;
         if (gemini_pr_read_stroke(&gemini, &stroke_bits)) {
             if (session_active) {
-                (void)steno_handle_stroke_bits(app->steno, stroke_bits);
+                (void)handle_stroke_bits(app, stroke_bits, platform_monotonic_ns());
             }
         } else if (gemini_pr_had_error(&gemini)) {
             printf("stoin: Gemini PR disconnected from %s; waiting for reconnect\n", gemini_pr_port_path(&gemini));
@@ -420,6 +443,7 @@ int main(int argc, char **argv)
     bool multiple_inputs = false;
     unsigned int multi_input_window_ms = TX_BOLT_MULTIPLE_DEFAULT_WINDOW_MS;
     bool trace_strokes = true;
+    bool time_translations = false;
 
     bool raw_serial_requested = false;
     for (int i = 1; i < argc; ++i) {
@@ -485,6 +509,9 @@ int main(int argc, char **argv)
             trace_strokes = true;
         } else if (strcmp(argv[i], "--no-trace-strokes") == 0) {
             trace_strokes = false;
+        } else if (strcmp(argv[i], "--time-translations") == 0
+            || strcmp(argv[i], "--time-translation") == 0) {
+            time_translations = true;
         } else if (strcmp(argv[i], "--multiple-inputs") == 0) {
             multiple_inputs = true;
         } else if (strcmp(argv[i], "--multi-input-window-ms") == 0 && i + 1 < argc) {
@@ -607,10 +634,19 @@ int main(int argc, char **argv)
             input_mode == INPUT_MODE_QWERTY ? "stoin.keymap" : NULL,
             trace_strokes ? stderr : NULL
         ),
+        .time_translations = time_translations,
     };
     if (app.steno == NULL) {
         runtime_config_destroy(&runtime_config);
         return 1;
+    }
+
+    platform_translation_timing_set_enabled(time_translations);
+    if (time_translations) {
+        fputs("stoin: translation timing enabled; latency stops immediately before the first CGEventPost\n", stderr);
+        if (trace_strokes) {
+            fputs("stoin: note: stroke tracing is enabled and included in the measured path; use --no-trace-strokes for cleaner benchmark numbers\n", stderr);
+        }
     }
 
     int status = 0;
