@@ -14,20 +14,22 @@ static const char *retro_spacing(const Retro_Context *retro)
         : "";
 }
 
-static size_t text_length_without_trailing_space(const Retro_Context *retro, const char *text)
+static const char *text_without_leading_spacing(const Retro_Context *retro, const char *text)
 {
-    size_t length = strlen(text);
+    if (text == NULL) {
+        return "";
+    }
+
     const char *spacing = retro_spacing(retro);
     const size_t spacing_length = strlen(spacing);
     if (retro != NULL
         && retro->spacing != NULL
-        && retro->spacing->mode == SPACING_MODE_AFTER_WORD
+        && retro->spacing->mode == SPACING_MODE_BEFORE_WORD
         && spacing_length > 0
-        && length >= spacing_length
-        && memcmp(text + length - spacing_length, spacing, spacing_length) == 0) {
-        length -= spacing_length;
+        && strncmp(text, spacing, spacing_length) == 0) {
+        return text + spacing_length;
     }
-    return length;
+    return text;
 }
 
 static bool retro_replace_output(Retro_Context *retro, const char *old_text, const char *new_text)
@@ -112,13 +114,13 @@ bool retro_apply_delete_space(Retro_Context *retro, const uint64_t *strokes, siz
     const Translation *second = &translations[replace_start + 1];
     const char *first_text = first->utf8 != NULL ? first->utf8 : "";
     const char *second_text = second->utf8 != NULL ? second->utf8 : "";
-    const size_t first_length = text_length_without_trailing_space(retro, first_text);
+    const char *second_without_spacing = text_without_leading_spacing(retro, second_text);
 
     char *old_text = translation_range_text(translations, replace_start, 2);
     char *new_text = NULL;
     if (old_text == NULL
-        || !text_append_range(&new_text, first_text, first_length)
-        || !text_append_cstring(&new_text, second_text)) {
+        || !text_append_cstring(&new_text, first_text)
+        || !text_append_cstring(&new_text, second_without_spacing)) {
         arrfree(old_text);
         arrfree(new_text);
         return false;

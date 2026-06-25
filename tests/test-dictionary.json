@@ -10,6 +10,7 @@
   "-R": "=undo",
   "SKWR": "=repeat_last_translation",
   "TP-PL": "{.}",
+  "PH-FP": "{.} ",
   "KW-BG": "{,}",
   "KPA": "{}{:case:cap_first_word}",
   "KPA*L": "{:case:upper_first_word}",

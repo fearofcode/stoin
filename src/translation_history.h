@@ -5,14 +5,21 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "format.h"
+
 typedef struct Translation Translation;
 struct Translation {
     uint64_t *strokes;
     char *utf8;
     Translation *replaced;
+    Case_Mode previous_case_mode;
+    Case_Mode previous_next_case;
+    Case_Mode resulting_case_mode;
+    Case_Mode resulting_next_case;
     bool glue;
     bool next_attach;
     bool retro_space_command;
+    bool has_case_state;
 };
 
 void translation_destroy(Translation *translation);

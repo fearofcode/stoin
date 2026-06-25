@@ -49,6 +49,11 @@ struct Steno {
     FILE *trace_file;
 };
 
+typedef struct Steno_Case_State {
+    Case_Mode case_mode;
+    Case_Mode next_case;
+} Steno_Case_State;
+
 static bool translate_chord_bits(Steno *steno, uint64_t bits);
 
 static bool steno_set_spacing(Steno *steno, const char *spacing)
@@ -64,13 +69,61 @@ static bool steno_set_spacing(Steno *steno, const char *spacing)
 
     free(steno->spacing.spacing);
     steno->spacing.spacing = copy;
-    steno->spacing.mode = SPACING_MODE_AFTER_WORD;
+    steno->spacing.mode = SPACING_MODE_BEFORE_WORD;
     return true;
 }
 
 static const char *steno_spacing(const Steno *steno)
 {
     return steno != NULL && steno->spacing.spacing != NULL ? steno->spacing.spacing : "";
+}
+
+static Steno_Case_State steno_case_state(const Steno *steno)
+{
+    return (Steno_Case_State) {
+        .case_mode = steno != NULL ? steno->case_mode : CASE_MODE_NORMAL,
+        .next_case = steno != NULL ? steno->next_case : CASE_MODE_NORMAL,
+    };
+}
+
+static void steno_restore_case_state(Steno *steno, Steno_Case_State state)
+{
+    if (steno == NULL) {
+        return;
+    }
+    steno->case_mode = state.case_mode;
+    steno->next_case = state.next_case;
+}
+
+static void translation_set_previous_case_state(Translation *translation, Steno_Case_State state)
+{
+    if (translation == NULL) {
+        return;
+    }
+    translation->previous_case_mode = state.case_mode;
+    translation->previous_next_case = state.next_case;
+    translation->has_case_state = true;
+}
+
+static void translation_set_resulting_case_state(Translation *translation, Steno_Case_State state)
+{
+    if (translation == NULL) {
+        return;
+    }
+    translation->resulting_case_mode = state.case_mode;
+    translation->resulting_next_case = state.next_case;
+    translation->has_case_state = true;
+}
+
+static void translation_restore_previous_case_state(Steno *steno, const Translation *translation)
+{
+    if (steno == NULL || translation == NULL || !translation->has_case_state) {
+        return;
+    }
+    steno_restore_case_state(steno, (Steno_Case_State) {
+        .case_mode = translation->previous_case_mode,
+        .next_case = translation->previous_next_case,
+    });
 }
 
 static void reset_chord(Steno *steno)
@@ -109,18 +162,73 @@ static bool update_shortcut_modifier_state(Steno *steno, const Input_Event *even
     }
 }
 
-static size_t text_length_without_trailing_space(const Steno *steno, const char *text)
+static bool text_starts_with_spacing(const Steno *steno, const char *text)
 {
-    size_t length = strlen(text);
     const char *spacing = steno_spacing(steno);
     const size_t spacing_length = strlen(spacing);
-    if (steno->spacing.mode == SPACING_MODE_AFTER_WORD
+    return steno != NULL
+        && text != NULL
+        && steno->spacing.mode == SPACING_MODE_BEFORE_WORD
+        && spacing_length > 0
+        && strncmp(text, spacing, spacing_length) == 0;
+}
+
+static bool text_ends_with_spacing(const Steno *steno, const char *text)
+{
+    if (text == NULL) {
+        return false;
+    }
+
+    const char *spacing = steno_spacing(steno);
+    const size_t spacing_length = strlen(spacing);
+    const size_t length = strlen(text);
+    return steno != NULL
+        && steno->spacing.mode == SPACING_MODE_BEFORE_WORD
         && spacing_length > 0
         && length >= spacing_length
-        && memcmp(text + length - spacing_length, spacing, spacing_length) == 0) {
-        length -= spacing_length;
+        && memcmp(text + length - spacing_length, spacing, spacing_length) == 0;
+}
+
+static bool should_prepend_spacing(
+    const Steno *steno,
+    const Translation *previous,
+    const char *old_text,
+    const Formatted_Text *formatted
+)
+{
+    const char *spacing = steno_spacing(steno);
+    if (steno == NULL
+        || formatted == NULL
+        || formatted->text == NULL
+        || formatted->text[0] == '\0'
+        || formatted->attach_prev
+        || formatted->glue
+        || steno->spacing.mode != SPACING_MODE_BEFORE_WORD
+        || spacing[0] == '\0'
+        || text_starts_with_spacing(steno, formatted->text)) {
+        return false;
     }
-    return length;
+
+    if (previous != NULL) {
+        if (previous->next_attach || text_ends_with_spacing(steno, previous->utf8)) {
+            return false;
+        }
+        return true;
+    }
+
+    return text_starts_with_spacing(steno, old_text);
+}
+
+static const Translation *previous_visible_translation(const Translation *translations, size_t before_index)
+{
+    while (before_index > 0) {
+        const Translation *previous = &translations[before_index - 1];
+        if (previous->utf8 != NULL && previous->utf8[0] != '\0') {
+            return previous;
+        }
+        --before_index;
+    }
+    return NULL;
 }
 
 static bool append_orthographic_join(
@@ -165,10 +273,23 @@ static bool append_orthographic_join(
     return ok;
 }
 
-static char *build_emitted_text(Steno *steno, const char *old_text, const Formatted_Text *formatted)
+static char *build_emitted_text(
+    Steno *steno,
+    const char *old_text,
+    const Formatted_Text *formatted,
+    bool prepend_spacing
+)
 {
     char *emitted = NULL;
-    const size_t old_text_length = old_text == NULL ? 0 : text_length_without_trailing_space(steno, old_text);
+    if (prepend_spacing) {
+        const char *spacing = steno_spacing(steno);
+        if (!text_append_range(&emitted, spacing, strlen(spacing))) {
+            arrfree(emitted);
+            return NULL;
+        }
+    }
+
+    const size_t old_text_length = old_text == NULL ? 0 : strlen(old_text);
     if (formatted->ortho_suffix != NULL && old_text != NULL) {
         if (!append_orthographic_join(steno, &emitted, old_text, old_text_length, formatted)) {
             arrfree(emitted);
@@ -188,17 +309,6 @@ static char *build_emitted_text(Steno *steno, const char *old_text, const Format
         }
     }
 
-    const bool has_visible_text = emitted != NULL && emitted[0] != '\0';
-    const char *spacing = steno_spacing(steno);
-    const size_t spacing_length = strlen(spacing);
-    if (has_visible_text
-        && !formatted->attach_next
-        && steno->spacing.mode == SPACING_MODE_AFTER_WORD
-        && spacing_length > 0
-        && !text_append_range(&emitted, spacing, spacing_length)) {
-        arrfree(emitted);
-        return NULL;
-    }
     if (emitted == NULL) {
         arrput(emitted, '\0');
     }
@@ -253,6 +363,8 @@ static bool undo_last_translation(Steno *steno)
         arrfree(replacement_text);
         return false;
     }
+
+    translation_restore_previous_case_state(steno, &translation);
 
     arrsetlen(steno->translations, translation_count - 1);
     for (size_t i = 0; i < arrlenu(translation.replaced); ++i) {
@@ -309,15 +421,27 @@ static bool repeat_last_translation(Steno *steno, const uint64_t *strokes, size_
     }
 
     const Translation *last = &steno->translations[translation_count - 1];
+    const Steno_Case_State previous_case_state = steno_case_state(steno);
     Translation next = {
         .glue = last->glue,
         .next_attach = last->next_attach,
     };
-    if (!text_append_cstring(&next.utf8, last->utf8)
+    const bool repeat_needs_spacing = steno->spacing.mode == SPACING_MODE_BEFORE_WORD
+        && !last->glue
+        && !last->next_attach
+        && last->utf8 != NULL
+        && last->utf8[0] != '\0'
+        && !text_starts_with_spacing(steno, last->utf8);
+    if ((repeat_needs_spacing
+            && !text_append_cstring(&next.utf8, steno_spacing(steno)))
+        || !text_append_cstring(&next.utf8, last->utf8)
         || !translation_set_strokes(&next, strokes, stroke_count)) {
         translation_destroy(&next);
         return false;
     }
+
+    translation_set_previous_case_state(&next, previous_case_state);
+    translation_set_resulting_case_state(&next, steno_case_state(steno));
 
     if (!replace_output_text(steno, "", next.utf8)) {
         translation_destroy(&next);
@@ -479,6 +603,7 @@ static bool apply_suffix_translation_match(Steno *steno, const Translation_Match
         return false;
     }
 
+    const Steno_Case_State previous_case_state = steno_case_state(steno);
     apply_case_state_to_formatted(steno, &base);
 
     const size_t translation_count = arrlenu(steno->translations);
@@ -515,7 +640,12 @@ static bool apply_suffix_translation_match(Steno *steno, const Translation_Match
         return false;
     }
 
-    base_text = build_emitted_text(steno, old_text, &base);
+    const Translation *previous = previous_visible_translation(steno->translations, replace_start);
+    base_text = build_emitted_text(
+        steno,
+        old_text,
+        &base,
+        should_prepend_spacing(steno, previous, old_text, &base));
     if (base_text == NULL) {
         arrfree(old_text);
         formatted_text_destroy(&base);
@@ -523,7 +653,7 @@ static bool apply_suffix_translation_match(Steno *steno, const Translation_Match
         return false;
     }
 
-    final_text = build_emitted_text(steno, base_text, &suffix);
+    final_text = build_emitted_text(steno, base_text, &suffix, false);
     if (final_text == NULL) {
         arrfree(old_text);
         arrfree(base_text);
@@ -537,6 +667,8 @@ static bool apply_suffix_translation_match(Steno *steno, const Translation_Match
         .glue = suffix.glue,
         .next_attach = suffix.attach_next,
     };
+    translation_set_previous_case_state(&next, previous_case_state);
+    translation_set_resulting_case_state(&next, steno_case_state(steno));
     final_text = NULL;
     if (replaced_count != match->replaced_count) {
         for (size_t i = replace_start; i < translation_count; ++i) {
@@ -671,6 +803,7 @@ static bool apply_translation_match(Steno *steno, const Translation_Match *match
         return ok;
     }
 
+    const Steno_Case_State previous_case_state = steno_case_state(steno);
     apply_case_state_to_formatted(steno, &formatted);
 
     size_t replaced_count = match->replaced_count;
@@ -699,9 +832,15 @@ static bool apply_translation_match(Steno *steno, const Translation_Match *match
     }
 
     Translation next = {0};
-    next.utf8 = build_emitted_text(steno, old_text, &formatted);
+    const Translation *previous = previous_visible_translation(steno->translations, replace_start);
+    next.utf8 = build_emitted_text(
+        steno,
+        old_text,
+        &formatted,
+        should_prepend_spacing(steno, previous, old_text, &formatted));
     next.glue = formatted.glue;
     next.next_attach = formatted.attach_next;
+    translation_set_previous_case_state(&next, previous_case_state);
 
     if (next.utf8 == NULL) {
         arrfree(old_text);
@@ -739,6 +878,8 @@ static bool apply_translation_match(Steno *steno, const Translation_Match *match
         formatted_text_destroy(&formatted);
         return false;
     }
+
+    translation_set_resulting_case_state(&next, steno_case_state(steno));
 
     for (size_t i = replace_start; i < translation_count; ++i) {
         arrput(next.replaced, steno->translations[i]);

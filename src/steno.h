@@ -15,7 +15,7 @@ typedef bool (*Delete_Text_Fn)(const char *utf8, void *userdata);
 typedef bool (*Send_Key_Combination_Fn)(const char *combo, void *userdata);
 
 typedef enum Spacing_Mode {
-    SPACING_MODE_AFTER_WORD,
+    SPACING_MODE_BEFORE_WORD,
 } Spacing_Mode;
 
 typedef struct Spacing_State {
