@@ -64,11 +64,11 @@ static bool update_session_active(App *app)
         steno_set_session_active(app->steno, active);
         if (app->session_state_known) {
             fprintf(stderr,
-                "stoin: macOS user session %s; steno capture %s\n",
+                "stoin: user session %s; steno capture %s\n",
                 active ? "active" : "inactive",
                 active ? "resumed" : "suspended");
         } else if (!active) {
-            fputs("stoin: macOS user session inactive; steno capture suspended until login\n", stderr);
+            fputs("stoin: user session inactive; steno capture suspended until login\n", stderr);
         }
         app->session_active = active;
         app->session_state_known = true;
@@ -225,12 +225,16 @@ static int run_qwerty(App *app)
     run_app_maintenance(app);
     start_dictionary_watcher(app);
 
+#if defined(__linux__)
+    puts("stoin: Linux evdev/uinput qwerty capture running");
+#else
     puts("stoin: macOS qwerty event tap running");
+#endif
     printf("stoin: loaded %zu key bindings and %zu dictionary entries\n",
         steno_key_binding_count(app->steno),
         steno_dictionary_count(app->steno));
     puts("stoin: steno capture starts enabled; press Ctrl+Esc to toggle it");
-    puts("stoin: Command/Control/Option shortcuts pass through; press Ctrl+C in this terminal to quit");
+    puts("stoin: shortcut-modified keys pass through; press Ctrl+C in this terminal to quit");
 
     platform_run();
     platform_shutdown();
@@ -643,7 +647,7 @@ int main(int argc, char **argv)
 
     platform_translation_timing_set_enabled(time_translations);
     if (time_translations) {
-        fputs("stoin: translation timing enabled; latency stops immediately before the first CGEventPost\n", stderr);
+        fputs("stoin: translation timing enabled; latency stops immediately before the first platform output event\n", stderr);
         if (trace_strokes) {
             fputs("stoin: note: stroke tracing is enabled and included in the measured path; use --no-trace-strokes for cleaner benchmark numbers\n", stderr);
         }

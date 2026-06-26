@@ -1,69 +1,117 @@
+UNAME_S := $(shell uname -s)
+HOST_PLATFORM := unsupported
+ifeq ($(UNAME_S),Darwin)
+HOST_PLATFORM := macos
+else ifeq ($(UNAME_S),Linux)
+HOST_PLATFORM := linux
+endif
+
+PLATFORM ?= $(HOST_PLATFORM)
+
+ifeq ($(origin CC),default)
+ifeq ($(PLATFORM),macos)
 CC := xcrun clang
-CFLAGS := -std=c11 -Wall -Wextra -Wpedantic -g
-RELEASE_CFLAGS := -std=c11 -Wall -Wextra -Wpedantic -O3 -DNDEBUG
-LDFLAGS := -framework ApplicationServices -framework CoreFoundation
+else
+CC := cc
+endif
+endif
 
-TARGET := build/stoin
-RELEASE_TARGET := build/release/stoin
-TEST_TARGET := build/test_steno
-CORE_OBJECTS := \
-	build/dictionary.o \
-	build/dictionary_stack.o \
-	build/format.o \
-	build/gemini_pr.o \
-	build/keymap.o \
-	build/orthography.o \
-	build/platform_macos_file_watcher.o \
-	build/platform_macos_output.o \
-	build/platform_macos_serial.o \
-	build/platform_macos.o \
-	build/raw_serial.o \
-	build/retro.o \
-	build/runtime_config.o \
-	build/steno.o \
-	build/steno_stroke.o \
-	build/stroke_merge.o \
-	build/stb_ds_impl.o \
-	build/stitch.o \
-	build/text_util.o \
-	build/translation_history.o \
-	build/translation_match.o \
-	build/tx_bolt.o \
-	build/tx_bolt_multiple.o \
-	build/util.o
-APP_OBJECTS := build/main.o $(CORE_OBJECTS)
-TEST_OBJECTS := build/test_steno.o $(CORE_OBJECTS)
-RELEASE_CORE_OBJECTS := $(patsubst build/%.o,build/release/%.o,$(CORE_OBJECTS))
-RELEASE_APP_OBJECTS := build/release/main.o $(RELEASE_CORE_OBJECTS)
+BASE_CFLAGS := -std=c11 -Wall -Wextra -Wpedantic -g
+BASE_RELEASE_CFLAGS := -std=c11 -Wall -Wextra -Wpedantic -O3 -DNDEBUG
+PLATFORM_CFLAGS :=
+PLATFORM_LDFLAGS :=
 
-.PHONY: all clean release run srs-web test
+COMMON_SOURCES := \
+	src/dictionary.c \
+	src/dictionary_stack.c \
+	src/format.c \
+	src/gemini_pr.c \
+	src/keymap.c \
+	src/orthography.c \
+	src/raw_serial.c \
+	src/retro.c \
+	src/runtime_config.c \
+	src/steno.c \
+	src/steno_stroke.c \
+	src/stroke_merge.c \
+	src/stb_ds_impl.c \
+	src/stitch.c \
+	src/text_util.c \
+	src/translation_history.c \
+	src/translation_match.c \
+	src/tx_bolt.c \
+	src/tx_bolt_multiple.c \
+	src/util.c
+
+ifeq ($(PLATFORM),macos)
+PLATFORM_LDFLAGS += -framework ApplicationServices -framework CoreFoundation
+PLATFORM_SOURCES := \
+	src/platform_macos.c \
+	src/platform_macos_file_watcher.c \
+	src/platform_macos_output.c \
+	src/platform_posix_serial.c
+else ifeq ($(PLATFORM),linux)
+PLATFORM_CFLAGS += -D_DEFAULT_SOURCE
+PLATFORM_SOURCES := \
+	src/platform_linux.c \
+	src/platform_linux_file_watcher.c \
+	src/platform_linux_output.c \
+	src/platform_posix_serial.c
+else
+$(error Unsupported PLATFORM '$(PLATFORM)'; use PLATFORM=macos or PLATFORM=linux)
+endif
+
+CFLAGS := $(BASE_CFLAGS) $(PLATFORM_CFLAGS)
+RELEASE_CFLAGS := $(BASE_RELEASE_CFLAGS) $(PLATFORM_CFLAGS)
+LDFLAGS := $(PLATFORM_LDFLAGS)
+
+BUILD_DIR := build/$(PLATFORM)
+RELEASE_DIR := $(BUILD_DIR)/release
+TARGET := $(BUILD_DIR)/stoin
+RELEASE_TARGET := $(RELEASE_DIR)/stoin
+TEST_TARGET := $(BUILD_DIR)/test_steno
+
+CORE_SOURCES := $(COMMON_SOURCES) $(PLATFORM_SOURCES)
+CORE_OBJECTS := $(patsubst src/%.c,$(BUILD_DIR)/%.o,$(CORE_SOURCES))
+APP_OBJECTS := $(BUILD_DIR)/main.o $(CORE_OBJECTS)
+TEST_OBJECTS := $(BUILD_DIR)/test_steno.o $(CORE_OBJECTS)
+RELEASE_CORE_OBJECTS := $(patsubst src/%.c,$(RELEASE_DIR)/%.o,$(CORE_SOURCES))
+RELEASE_APP_OBJECTS := $(RELEASE_DIR)/main.o $(RELEASE_CORE_OBJECTS)
+
+.PHONY: all clean linux macos release run srs-web test
 
 all: $(TARGET)
 
+macos:
+	$(MAKE) PLATFORM=macos
+
+linux:
+	$(MAKE) PLATFORM=linux
+
 release: $(RELEASE_TARGET)
 
-$(TARGET): $(APP_OBJECTS) | build
+$(TARGET): $(APP_OBJECTS) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(APP_OBJECTS) $(LDFLAGS) -o $@
 
-$(RELEASE_TARGET): $(RELEASE_APP_OBJECTS) | build/release
+$(RELEASE_TARGET): $(RELEASE_APP_OBJECTS) | $(RELEASE_DIR)
 	$(CC) $(RELEASE_CFLAGS) $(RELEASE_APP_OBJECTS) $(LDFLAGS) -o $@
 
-$(TEST_TARGET): $(TEST_OBJECTS) | build
+$(TEST_TARGET): $(TEST_OBJECTS) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(TEST_OBJECTS) $(LDFLAGS) -o $@
 
-build:
+$(BUILD_DIR):
 	mkdir -p $@
 
-build/release:
+$(RELEASE_DIR):
 	mkdir -p $@
 
-build/%.o: src/%.c src/*.h | build
+$(BUILD_DIR)/%.o: src/%.c src/*.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-build/release/%.o: src/%.c src/*.h | build/release
+$(RELEASE_DIR)/%.o: src/%.c src/*.h | $(RELEASE_DIR)
 	$(CC) $(RELEASE_CFLAGS) -c $< -o $@
 
-build/%.o: tests/%.c src/*.h | build
+$(BUILD_DIR)/%.o: tests/%.c src/*.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -I src -c $< -o $@
 
 run: $(TARGET)
