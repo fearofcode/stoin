@@ -1,0 +1,44 @@
+Basic words:
+a
+at
+ate
+eight
+say
+sat
+
+Basic briefs:
+is
+it
+the
+and
+
+Basic phrases:
+is a
+as a
+is the
+as the
+and a
+and the
+
+Initial T/final L words:
+Al
+Sal
+salt
+
+Phrases (T/L):
+at a
+is it
+as it
+is it the
+it will
+and will
+
+Words (final S):
+sass
+salts
+stat
+stats
+
+Phrases (final S):
+it is
+and it is

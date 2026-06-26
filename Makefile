@@ -36,7 +36,7 @@ TEST_OBJECTS := build/test_steno.o $(CORE_OBJECTS)
 RELEASE_CORE_OBJECTS := $(patsubst build/%.o,build/release/%.o,$(CORE_OBJECTS))
 RELEASE_APP_OBJECTS := build/release/main.o $(RELEASE_CORE_OBJECTS)
 
-.PHONY: all clean release run test
+.PHONY: all clean release run srs-web test
 
 all: $(TARGET)
 
@@ -69,8 +69,12 @@ build/%.o: tests/%.c src/*.h | build
 run: $(TARGET)
 	./$(TARGET)
 
+srs-web:
+	go run ./cmd/stoin-srs-web
+
 test: $(TEST_TARGET)
 	./$(TEST_TARGET)
+	go test ./...
 
 clean:
 	rm -rf build
