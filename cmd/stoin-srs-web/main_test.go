@@ -138,6 +138,37 @@ func TestApplyReviewBatchAdvancesAndResetsSchedule(t *testing.T) {
 	}
 }
 
+func TestLearningStatsCountsIntroReps(t *testing.T) {
+	app := testApp(t)
+	ctx := context.Background()
+	deckID, err := app.getOrCreateDeck(ctx, "briefs", time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = app.ingestGroups(ctx, deckID, []ImportGroup{{Name: "words", Words: []string{"a", "the"}}}, "test", "one")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var itemID int64
+	if err := app.db.QueryRow(`SELECT id FROM items WHERE text = 'a'`).Scan(&itemID); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		if err := app.applyReviewBatch(ctx, []ReviewResult{{ItemID: itemID, Prompt: "a", Answer: "a", Correct: true}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	stats, err := app.learningStats(ctx, deckID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stats.Count != 2 || stats.IntroRemaining != 8 {
+		t.Fatalf("expected 2 learning items with 8 intro reps left, got %#v", stats)
+	}
+}
+
 func TestDueItemsHonorsLimit(t *testing.T) {
 	app := testApp(t)
 	ctx := context.Background()

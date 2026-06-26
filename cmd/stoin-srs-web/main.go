@@ -44,11 +44,13 @@ type Deck struct {
 }
 
 type Group struct {
-	ID        int64
-	DeckID    int64
-	Name      string
-	CreatedAt string
-	Items     []Item
+	ID             int64
+	DeckID         int64
+	Name           string
+	CreatedAt      string
+	LearningCount  int
+	IntroRemaining int
+	Items          []Item
 }
 
 type Item struct {
@@ -86,12 +88,14 @@ type ImportStats struct {
 }
 
 type IndexPageData struct {
-	Decks    []Deck
-	Errors   []ParseIssue
-	Notice   string
-	Form     ImportFormData
-	DueLimit int
-	DueCount int
+	Decks          []Deck
+	Errors         []ParseIssue
+	Notice         string
+	Form           ImportFormData
+	DueLimit       int
+	DueCount       int
+	LearningCount  int
+	IntroRemaining int
 }
 
 type ImportFormData struct {
@@ -102,13 +106,15 @@ type ImportFormData struct {
 }
 
 type DeckPageData struct {
-	Deck       Deck
-	Groups     []Group
-	Errors     []ParseIssue
-	Notice     string
-	Form       ImportFormData
-	TotalItems int
-	DueCount   int
+	Deck           Deck
+	Groups         []Group
+	Errors         []ParseIssue
+	Notice         string
+	Form           ImportFormData
+	TotalItems     int
+	DueCount       int
+	LearningCount  int
+	IntroRemaining int
 }
 
 type SessionItem struct {
@@ -529,12 +535,18 @@ func (a *App) indexData(ctx context.Context, issues []ParseIssue, form ImportFor
 	if err != nil {
 		return IndexPageData{}, err
 	}
+	learning, err := a.learningStats(ctx, 0)
+	if err != nil {
+		return IndexPageData{}, err
+	}
 	return IndexPageData{
-		Decks:    decks,
-		Errors:   issues,
-		Form:     form,
-		DueLimit: reviewAllDueLimit,
-		DueCount: dueCount,
+		Decks:          decks,
+		Errors:         issues,
+		Form:           form,
+		DueLimit:       reviewAllDueLimit,
+		DueCount:       dueCount,
+		LearningCount:  learning.Count,
+		IntroRemaining: learning.IntroRemaining,
 	}, nil
 }
 
@@ -551,18 +563,24 @@ func (a *App) deckData(ctx context.Context, deckID int64, issues []ParseIssue, f
 	if err != nil {
 		return DeckPageData{}, err
 	}
+	learning, err := a.learningStats(ctx, deckID)
+	if err != nil {
+		return DeckPageData{}, err
+	}
 	total := 0
 	for _, group := range groups {
 		total += len(group.Items)
 	}
 	form.DeckID = deckID
 	return DeckPageData{
-		Deck:       deck,
-		Groups:     groups,
-		Errors:     issues,
-		Form:       form,
-		TotalItems: total,
-		DueCount:   dueCount,
+		Deck:           deck,
+		Groups:         groups,
+		Errors:         issues,
+		Form:           form,
+		TotalItems:     total,
+		DueCount:       dueCount,
+		LearningCount:  learning.Count,
+		IntroRemaining: learning.IntroRemaining,
 	}, nil
 }
 
@@ -666,12 +684,13 @@ ORDER BY g.name, i.id`, deckID)
 		}
 		if itemID.Valid {
 			due, _ := parseDBTime(dueAt.String)
+			introRemaining := int(intro.Int64)
 			groups[index].Items = append(groups[index].Items, Item{
 				ID:             itemID.Int64,
 				GroupID:        groupID,
 				GroupName:      groupName,
 				Text:           itemText.String,
-				IntroRemaining: int(intro.Int64),
+				IntroRemaining: introRemaining,
 				ScheduleStage:  int(stage.Int64),
 				IntervalDays:   interval.Float64,
 				DueAt:          due,
@@ -679,9 +698,18 @@ ORDER BY g.name, i.id`, deckID)
 				CorrectCount:   int(correctCount.Int64),
 				IncorrectCount: int(incorrectCount.Int64),
 			})
+			if introRemaining > 0 {
+				groups[index].LearningCount++
+				groups[index].IntroRemaining += introRemaining
+			}
 		}
 	}
 	return groups, rows.Err()
+}
+
+type LearningStats struct {
+	Count          int
+	IntroRemaining int
 }
 
 func (a *App) countDue(ctx context.Context, deckID int64) (int, error) {
@@ -698,6 +726,22 @@ FROM items i
 JOIN groups g ON g.id = i.group_id
 WHERE (i.intro_remaining > 0 OR i.due_at <= ?)`+filter, args...).Scan(&count)
 	return count, err
+}
+
+func (a *App) learningStats(ctx context.Context, deckID int64) (LearningStats, error) {
+	args := []any{}
+	filter := ""
+	if deckID > 0 {
+		filter = " AND g.deck_id = ?"
+		args = append(args, deckID)
+	}
+	var stats LearningStats
+	err := a.db.QueryRowContext(ctx, `
+SELECT COUNT(*), COALESCE(SUM(i.intro_remaining), 0)
+FROM items i
+JOIN groups g ON g.id = i.group_id
+WHERE i.intro_remaining > 0`+filter, args...).Scan(&stats.Count, &stats.IntroRemaining)
+	return stats, err
 }
 
 func (a *App) validateImportDeck(ctx context.Context, form ImportFormData) (int64, []ParseIssue, error) {
@@ -1486,7 +1530,7 @@ const pageTemplates = `
 	{{end}}
 	<form method="post" action="/session/review-all-due">
 		<button type="submit">Review all due across all decks</button>
-		<span class="small">{{.DueCount}} due, up to {{.DueLimit}} per session</span>
+		<span class="small">{{.DueCount}} due now{{if gt .LearningCount 0}}, {{.LearningCount}} learning, {{.IntroRemaining}} intro reps left{{end}}; up to {{.DueLimit}} per session</span>
 	</form>
 </div>
 <h2>Import</h2>
@@ -1499,7 +1543,7 @@ const pageTemplates = `
 <p><a href="/">All decks</a></p>
 {{if .Notice}}<p class="notice">{{.Notice}}</p>{{end}}
 <h1>{{.Deck.Name}}</h1>
-<p class="small">{{.TotalItems}} words, {{.DueCount}} due</p>
+<p class="small">{{.TotalItems}} words, {{.DueCount}} due now{{if gt .LearningCount 0}}, {{.LearningCount}} learning, {{.IntroRemaining}} intro reps left{{end}}</p>
 <form method="post" action="/session/start" id="selection-form">
 	<input type="hidden" name="deck_id" value="{{.Deck.ID}}">
 	<div class="actions">
@@ -1513,7 +1557,7 @@ const pageTemplates = `
 	<section class="group">
 		<header>
 			<label><input type="checkbox" class="group-check" data-group="{{.ID}}"> {{.Name}}</label>
-			<span class="small">{{len .Items}} words</span>
+			<span class="small">{{len .Items}} words{{if gt .LearningCount 0}}, {{.LearningCount}} learning, {{.IntroRemaining}} reps left{{end}}</span>
 		</header>
 		{{if .Items}}
 		{{range .Items}}
@@ -1580,8 +1624,10 @@ document.querySelectorAll('.group-check').forEach(function(box) {
 </form>
 <script>
 const items = {{.ItemsJSON}};
+const correctDebounceMs = 50;
 let index = 0;
 let currentInput = '';
+let correctTimer = 0;
 const results = Array(items.length).fill('');
 const submit = document.getElementById('submit');
 const lines = Array.from(document.querySelectorAll('.session-line'));
@@ -1605,6 +1651,25 @@ function inputPrefixIsOk() {
 	if (index >= items.length) return true;
 	const typed = norm(currentInput);
 	return typed === '' || items[index].text.startsWith(typed);
+}
+function currentInputIsCorrect() {
+	return index < items.length && norm(currentInput) === items[index].text;
+}
+function cancelCorrectTimer() {
+	if (!correctTimer) return;
+	window.clearTimeout(correctTimer);
+	correctTimer = 0;
+}
+function scheduleCorrectCompletion() {
+	cancelCorrectTimer();
+	const scheduledIndex = index;
+	const scheduledInput = currentInput;
+	correctTimer = window.setTimeout(function() {
+		correctTimer = 0;
+		if (index === scheduledIndex && currentInput === scheduledInput && currentInputIsCorrect()) {
+			completeCurrent(true);
+		}
+	}, correctDebounceMs);
 }
 function makeSpan(className, text) {
 	const span = document.createElement('span');
@@ -1670,6 +1735,7 @@ function syncControls() {
 	});
 	if (index >= items.length) {
 		submit.disabled = false;
+		submit.focus();
 	}
 }
 function focusCurrentInput(scroll) {
@@ -1690,6 +1756,7 @@ function renderSession(options) {
 }
 function completeCurrent(correct) {
 	if (index >= items.length) return;
+	cancelCorrectTimer();
 	const answer = currentInput;
 	document.getElementById('answer_' + index).value = answer;
 	document.getElementById('result_' + index).value = correct ? 'correct' : 'missed';
@@ -1703,9 +1770,11 @@ function completeCurrent(correct) {
 lineInputs.forEach((input, lineIndex) => {
 	input.addEventListener('input', function() {
 		if (lineIndex !== currentLineIndex()) return;
+		cancelCorrectTimer();
 		currentInput = input.value;
-		if (index < items.length && norm(currentInput) === items[index].text) {
-			completeCurrent(true);
+		if (currentInputIsCorrect()) {
+			scheduleCorrectCompletion();
+			renderSession({focus: false, scroll: false});
 		} else {
 			renderSession({focus: false, scroll: false});
 		}

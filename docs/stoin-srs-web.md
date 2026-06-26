@@ -46,6 +46,10 @@ Invalid imports show line-specific errors and do not create decks or words.
 The root page lists decks and has a button to review all due words across all
 decks. That cross-deck review pulls at most 100 words per session.
 
+Newly imported words are in a learning/intro state for 5 correct reviews. They
+still count as due during that phase, and the deck/root summaries show how many
+items are learning plus the total intro repetitions remaining.
+
 Each deck page shows groups and words. Select whole groups or individual words,
 then choose:
 
