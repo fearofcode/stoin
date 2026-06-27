@@ -970,6 +970,22 @@ int main(void)
     ok = ok && expect_string("qwerty phrase namespace can begin mid-chord", output.text, "it is a");
 
     ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_CORE, true);
+    ok = ok && steno_handle_stroke_bits(steno, phrase_it_is_a_bits);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_CORE, false);
+    ok = ok && expect_string("serial phrase namespace routes direct stroke", output.text, "it is a");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_CORE, true);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_CORE, false);
+    ok = ok && steno_handle_stroke_bits(steno, phrase_it_is_a_bits);
+    ok = ok && expect_string("serial phrase namespace latches tapped pedal", output.text, "it is a");
+    ok = ok && steno_handle_stroke_bits(steno, phrase_it_is_a_bits);
+    ok = ok && expect_string("serial phrase namespace latch clears after stroke", output.text, "it is a PBS");
+
+    ok = ok && reset_test_steno(&steno, &config);
 
     clear_test_output(&output);
     reset_output_log(&output);

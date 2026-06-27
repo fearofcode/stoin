@@ -902,7 +902,7 @@ For qwerty chord gathering, "during the stroke" can be exact:
 - If a phrase pedal goes down while qwerty steno keys are already held, mark the in-progress chord with that phrase namespace.
 - When all qwerty steno keys are released, finish the chord with the accumulated flags.
 
-For TX Bolt, Gemini PR, and multi-machine serial input, the machine sends only completed strokes. There is no per-key press/release stream for Stoin to observe. For serial inputs, phrase namespace should be sampled when the stroke packet is received. Practically, this means the phrase pedal needs to still be down when the machine emits the stroke.
+For TX Bolt, Gemini PR, and multi-machine serial input, the machine sends only completed strokes. There is no per-key press/release stream for Stoin to observe. For serial inputs, phrase namespace is sampled from current pedal state plus a one-stroke latch. Pressing a phrase pedal marks the next completed serial stroke with that namespace, even if the pedal is released before the serial packet is processed.
 
 ## Platform Pedal Layer
 
@@ -913,8 +913,7 @@ typedef enum Platform_Pedal_Role {
     PLATFORM_PEDAL_ROLE_NONE,
     PLATFORM_PEDAL_ROLE_PHRASE_CORE,
     PLATFORM_PEDAL_ROLE_PHRASE_NONVERB,
-    PLATFORM_PEDAL_ROLE_NUM,
-    PLATFORM_PEDAL_ROLE_STAR,
+    PLATFORM_PEDAL_ROLE_COUNT,
 } Platform_Pedal_Role;
 
 typedef void (*Platform_Pedal_Event_Fn)(
@@ -924,12 +923,12 @@ typedef void (*Platform_Pedal_Event_Fn)(
 );
 ```
 
-The updated API should probably be:
+The implemented API is:
 
 ```c
 bool platform_pedals_init(
     const char *config_path,
-    bool register_pedals,
+    Platform_Pedal_Role register_role,
     Platform_Pedal_Event_Fn callback,
     void *userdata
 );
@@ -937,16 +936,18 @@ void platform_pedals_poll(void);
 void platform_pedals_shutdown(void);
 ```
 
-`platform_pedals_poll()` can be a no-op on macOS if IOHID callbacks run on the run loop, but it gives Linux a natural place to poll evdev pedal devices inside the existing serial loops.
+`platform_pedals_poll()` is still useful on macOS. Qwerty mode naturally runs the CFRunLoop, but serial modes need to pump pending IOHID callbacks from the serial polling loop before each completed stroke is translated.
 
 ### Registration
 
 Add:
 
 ```text
---register-pedals
+--register-pedal core|nonverb
 --pedal-config PATH
 ```
+
+`--register-pedals` is accepted as a compatibility alias for registering the core phrase pedal.
 
 Default path:
 
@@ -956,52 +957,59 @@ stoin-pedals.json
 
 Registration flow:
 
-1. Start Stoin with `--register-pedals`.
-2. Prompt for each configured role, for example "press the pedal to use for core phrase mode".
+1. Start Stoin with `--register-pedal core` or `--register-pedal nonverb`.
+2. Prompt for the chosen role, for example "press the pedal to use for core phrase mode".
 3. Platform captures device identity and button identity.
 4. Persist role mapping.
 5. Future runs silently load that mapping.
 
-Suggested config shape:
+Implemented macOS config shape:
 
 ```json
 {
-  "pedals": [
-    {
-      "role": "phrase_core",
-      "platform": "macos",
-      "vendor_id": 1234,
-      "product_id": 5678,
-      "location_id": 9012,
-      "usage_page": 9,
-      "usage": 1,
-      "element_cookie": 42
-    }
-  ]
+  "version": 1,
+  "phrase_core": {
+    "vendor_id": 1234,
+    "product_id": 5678,
+    "location_id": 9012,
+    "usage_page": 9,
+    "usage": 1
+  },
+  "phrase_nonverb": {
+    "vendor_id": 1234,
+    "product_id": 5678,
+    "location_id": 9012,
+    "usage_page": 9,
+    "usage": 2
+  }
 }
 ```
 
-Linux can use the same outer shape with Linux-specific fields:
+Linux can use the same role names with Linux-specific fields:
 
 ```json
 {
-  "role": "phrase_core",
-  "platform": "linux",
-  "device_name": "USB Foot Switch",
-  "physical_path": "usb-0000:00:14.0-3/input0",
-  "event_code": 256
+  "version": 1,
+  "phrase_core": {
+    "device_name": "USB Foot Switch",
+    "physical_path": "usb-0000:00:14.0-3/input0",
+    "event_code": 256
+  }
 }
 ```
 
 ### macOS
 
-Use IOHIDManager in a macOS platform pedal module, probably `src/platform_macos_pedals.c`.
+Use IOHIDManager in `src/platform_macos_pedals.c`.
 
-Expected approach:
+Current approach:
 
 - Enumerate HID devices that expose button-like elements.
-- On registration, listen for the next button down event and persist device + element identity.
-- On normal startup, open only configured devices/elements.
+- On registration, listen for the next keyboard/button-page down event and persist device + element identity.
+- On normal startup, open only configured devices.
+- Try to open configured keyboard-page devices exclusively so pedal key events do not leak into the active app.
+- Treat normal text-producing keyboard usages as unsafe pedal triggers. A downstream CGEvent tap cannot reliably distinguish a pedal's `a` from a real keyboard `a`, and even an apparent exclusive IOHID open might not stop macOS from typing it.
+- Allow keyboard-page pedals mapped to F13-F24, because those are non-printing keys and can run in shared mode if exclusive open is unavailable.
 - Emit `Platform_Pedal_Event_Fn(role, is_down, userdata)`.
 - Call `platform_pedals_shutdown()` from `platform_shutdown()`.
 

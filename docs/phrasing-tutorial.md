@@ -9,17 +9,40 @@ Implemented:
 - Core phrase namespace: `PHRASE_NAMESPACE_CORE`.
 - Core phrase grammar for subject, tense, auxiliary, negation, aspect, inversion, verb, and tail.
 - Mock-pedal tests using `steno_set_phrase_namespace()`.
+- macOS USB HID pedal registration for the core phrase namespace.
 - Phrase output goes through normal Stoin translation history, spacing, undo, and tracing.
 
 Not implemented yet:
 
-- Physical USB pedal registration.
-- Runtime pedal input on macOS or Linux.
+- Runtime pedal input on Linux.
 - Non-verb phrase pedal.
 - Both-pedal modifier/operator namespace.
 - SRS/practice deck integration.
 
-So today, the phrase engine is tested but not yet reachable from `./build/stoin` with a real pedal. Once pedal input is wired, holding the core phrase pedal during a stroke should route these outlines through the phrase engine.
+So today, the phrase engine is reachable on macOS with a registered USB HID pedal. Holding the core phrase pedal during a stroke routes that outline through the phrase engine. For serial machines, tapping the pedal before the stroke also works: Stoin latches the phrase namespace for the next completed machine stroke, then clears it.
+
+## Register The Core Pedal
+
+On macOS:
+
+```sh
+make
+./build/macos/stoin --register-pedal core
+```
+
+When prompted, press the pedal you want to use for core phrase mode. Stoin saves the mapping in local `stoin-pedals.json`, which is ignored by git. After registration, the app continues normally. Future runs can just use:
+
+```sh
+./build/macos/stoin
+```
+
+For qwerty testing:
+
+```sh
+./build/macos/stoin --input qwerty
+```
+
+If your pedal acts like a keyboard key, map it to F13-F24 before registering it. Do not map it to `a`, another ordinary letter, space, enter, or punctuation. Stoin ignores registered text-producing keyboard keys because macOS may still type them into the active app, and a downstream event tap cannot reliably tell the pedal's `a` apart from the `a` on your real keyboard.
 
 ## Run The Current Smoke Test
 
@@ -213,7 +236,7 @@ K-RPBT        x + m + k + , + ;
 
 The first things to validate once pedal input is wired:
 
-- Holding the core pedal changes `P-BS` from raw `PBS` to `it is a`.
+- Holding or tapping the core pedal before the next serial stroke changes `P-BS` from raw `PBS` to `it is a`.
 - Releasing the core pedal returns the same stroke to normal dictionary behavior.
 - Phrase output gets normal leading spaces between phrases.
 - `=undo` can undo a phrase translation.

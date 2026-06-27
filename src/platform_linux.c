@@ -615,6 +615,7 @@ void platform_shutdown(void)
 {
     g_linux.running = false;
     platform_file_watcher_stop();
+    platform_pedals_shutdown();
     close_keyboard_devices();
     linux_output_shutdown();
     g_linux.handler = NULL;
@@ -623,4 +624,30 @@ void platform_shutdown(void)
     g_linux.control_down = false;
     g_linux.option_down = false;
     g_linux.command_down = false;
+}
+
+bool platform_pedals_init(
+    const char *config_path,
+    Platform_Pedal_Role register_role,
+    Platform_Pedal_Event_Fn handler,
+    void *userdata
+)
+{
+    (void)config_path;
+    (void)handler;
+    (void)userdata;
+
+    if (register_role != PLATFORM_PEDAL_ROLE_NONE) {
+        fputs("stoin: USB pedal registration is not implemented on Linux yet\n", stderr);
+        return false;
+    }
+    return true;
+}
+
+void platform_pedals_poll(void)
+{
+}
+
+void platform_pedals_shutdown(void)
+{
 }

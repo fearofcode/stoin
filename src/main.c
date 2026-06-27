@@ -24,6 +24,7 @@ typedef enum Input_Mode {
 
 #define DEFAULT_DICTIONARY_PATH "lapwing-base.json"
 #define DEFAULT_CONFIG_PATH "stoin-config.json"
+#define DEFAULT_PEDAL_CONFIG_PATH "stoin-pedals.json"
 #define DEFAULT_WORD_LIST_PATH "american_english_words.txt"
 
 typedef struct App {
@@ -83,6 +84,7 @@ static void run_app_maintenance(App *app)
         return;
     }
 
+    platform_pedals_poll();
     platform_file_watcher_poll();
     (void)update_session_active(app);
 }
@@ -134,6 +136,7 @@ static bool handle_stroke_bits(App *app, uint64_t bits, uint64_t received_ns)
     if (app->time_translations) {
         platform_translation_timing_begin(received_ns);
     }
+    platform_pedals_poll();
     const bool handled = steno_handle_stroke_bits(app->steno, bits);
     if (app->time_translations) {
         platform_translation_timing_cancel();
@@ -164,6 +167,27 @@ static bool handle_input(const Input_Event *event, void *userdata)
     return handled;
 }
 
+static void handle_pedal_event(Platform_Pedal_Role role, bool is_down, void *userdata)
+{
+    App *app = userdata;
+    if (app == NULL || app->steno == NULL) {
+        return;
+    }
+
+    switch (role) {
+    case PLATFORM_PEDAL_ROLE_PHRASE_CORE:
+        steno_set_phrase_namespace(app->steno, PHRASE_NAMESPACE_CORE, is_down);
+        break;
+    case PLATFORM_PEDAL_ROLE_PHRASE_NONVERB:
+        steno_set_phrase_namespace(app->steno, PHRASE_NAMESPACE_NONVERB, is_down);
+        break;
+    case PLATFORM_PEDAL_ROLE_NONE:
+    case PLATFORM_PEDAL_ROLE_COUNT:
+    default:
+        break;
+    }
+}
+
 static void request_stop(int signum)
 {
     (void)signum;
@@ -176,6 +200,7 @@ static void print_usage(void)
     fputs("             [--input tx-bolt|gemini-pr|qwerty]\n", stderr);
     fputs("             [--serial-port PATH] [--serial-baud BAUD]\n", stderr);
     fputs("             [--multiple-inputs] [--multi-input-window-ms MS]\n", stderr);
+    fputs("             [--pedal-config PATH] [--register-pedal core|nonverb]\n", stderr);
     fputs("             [--time-translations]\n", stderr);
     fputs("             [--trace-strokes|--no-trace-strokes]\n", stderr);
     fputs("       stoin --raw-serial [--serial-port PATH] [--serial-baud BAUD]\n", stderr);
@@ -203,6 +228,28 @@ static bool parse_milliseconds(const char *value, unsigned int *out_milliseconds
     }
     *out_milliseconds = (unsigned int)parsed;
     return true;
+}
+
+static bool parse_pedal_role(const char *value, Platform_Pedal_Role *out_role)
+{
+    if (value == NULL || out_role == NULL) {
+        return false;
+    }
+
+    if (strcmp(value, "core") == 0
+        || strcmp(value, "phrase-core") == 0
+        || strcmp(value, "phrase_core") == 0) {
+        *out_role = PLATFORM_PEDAL_ROLE_PHRASE_CORE;
+        return true;
+    }
+    if (strcmp(value, "nonverb") == 0
+        || strcmp(value, "non-verb") == 0
+        || strcmp(value, "phrase-nonverb") == 0
+        || strcmp(value, "phrase_nonverb") == 0) {
+        *out_role = PLATFORM_PEDAL_ROLE_PHRASE_NONVERB;
+        return true;
+    }
+    return false;
 }
 
 static bool resolve_serial_port(const char *requested_port, char *out_path, size_t out_size)
@@ -448,6 +495,8 @@ int main(int argc, char **argv)
     unsigned int multi_input_window_ms = TX_BOLT_MULTIPLE_DEFAULT_WINDOW_MS;
     bool trace_strokes = true;
     bool time_translations = false;
+    const char *pedal_config_path = DEFAULT_PEDAL_CONFIG_PATH;
+    Platform_Pedal_Role register_pedal_role = PLATFORM_PEDAL_ROLE_NONE;
 
     bool raw_serial_requested = false;
     for (int i = 1; i < argc; ++i) {
@@ -521,6 +570,17 @@ int main(int argc, char **argv)
         } else if (strcmp(argv[i], "--multi-input-window-ms") == 0 && i + 1 < argc) {
             if (!parse_milliseconds(argv[++i], &multi_input_window_ms)) {
                 fprintf(stderr, "stoin: invalid multi-input window '%s'\n", argv[i]);
+                runtime_config_destroy(&runtime_config);
+                return 1;
+            }
+        } else if (strcmp(argv[i], "--pedal-config") == 0 && i + 1 < argc) {
+            pedal_config_path = argv[++i];
+        } else if (strcmp(argv[i], "--register-pedals") == 0) {
+            register_pedal_role = PLATFORM_PEDAL_ROLE_PHRASE_CORE;
+        } else if (strcmp(argv[i], "--register-pedal") == 0 && i + 1 < argc) {
+            if (!parse_pedal_role(argv[++i], &register_pedal_role)) {
+                fprintf(stderr, "stoin: unknown pedal role '%s'\n", argv[i]);
+                print_usage();
                 runtime_config_destroy(&runtime_config);
                 return 1;
             }
@@ -651,6 +711,12 @@ int main(int argc, char **argv)
         if (trace_strokes) {
             fputs("stoin: note: stroke tracing is enabled and included in the measured path; use --no-trace-strokes for cleaner benchmark numbers\n", stderr);
         }
+    }
+
+    if (!platform_pedals_init(pedal_config_path, register_pedal_role, handle_pedal_event, &app)) {
+        steno_destroy(app.steno);
+        runtime_config_destroy(&runtime_config);
+        return 1;
     }
 
     int status = 0;

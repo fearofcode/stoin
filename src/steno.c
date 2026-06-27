@@ -38,6 +38,8 @@ struct Steno {
     bool session_active;
     bool core_phrase_down;
     bool nonverb_phrase_down;
+    bool core_phrase_pending;
+    bool nonverb_phrase_pending;
     bool toggle_esc_down;
     bool control_down;
     bool option_down;
@@ -137,21 +139,33 @@ static void reset_chord(Steno *steno)
     steno->chord_phrase_namespace = PHRASE_NAMESPACE_NONE;
 }
 
-static Phrase_Namespace steno_current_phrase_namespace(const Steno *steno)
+static Phrase_Namespace steno_current_or_pending_phrase_namespace(const Steno *steno)
 {
     if (steno == NULL) {
         return PHRASE_NAMESPACE_NONE;
     }
-    if (steno->core_phrase_down && steno->nonverb_phrase_down) {
+
+    const bool core = steno->core_phrase_down || steno->core_phrase_pending;
+    const bool nonverb = steno->nonverb_phrase_down || steno->nonverb_phrase_pending;
+    if (core && nonverb) {
         return PHRASE_NAMESPACE_CORE_OPERATOR;
     }
-    if (steno->core_phrase_down) {
+    if (core) {
         return PHRASE_NAMESPACE_CORE;
     }
-    if (steno->nonverb_phrase_down) {
+    if (nonverb) {
         return PHRASE_NAMESPACE_NONVERB;
     }
     return PHRASE_NAMESPACE_NONE;
+}
+
+static void steno_clear_pending_phrase_namespace(Steno *steno)
+{
+    if (steno == NULL) {
+        return;
+    }
+    steno->core_phrase_pending = false;
+    steno->nonverb_phrase_pending = false;
 }
 
 enum {
@@ -1024,6 +1038,13 @@ static bool translate_stroke_input(Steno *steno, Stroke_Input stroke)
     return translate_chord_bits(steno, stroke.bits);
 }
 
+static bool translate_completed_stroke_input(Steno *steno, Stroke_Input stroke)
+{
+    const bool ok = translate_stroke_input(steno, stroke);
+    steno_clear_pending_phrase_namespace(steno);
+    return ok;
+}
+
 Steno *steno_create(const Steno_Config *config)
 {
     if (config == NULL || config->send_text == NULL || config->delete_text == NULL) {
@@ -1132,7 +1153,7 @@ bool steno_handle_event(Steno *steno, const Input_Event *event)
     if (event->is_down) {
         if ((steno->down_keycodes & physical_bit) == 0 && !event->is_repeat) {
             if (steno->down_keycodes == 0) {
-                steno->chord_phrase_namespace = steno_current_phrase_namespace(steno);
+                steno->chord_phrase_namespace = steno_current_or_pending_phrase_namespace(steno);
             }
             steno->down_keycodes |= physical_bit;
             steno->chord_bits |= binding->bits;
@@ -1142,7 +1163,7 @@ bool steno_handle_event(Steno *steno, const Input_Event *event)
 
     steno->down_keycodes &= ~physical_bit;
     if (steno->down_keycodes == 0) {
-        (void)translate_stroke_input(steno, (Stroke_Input) {
+        (void)translate_completed_stroke_input(steno, (Stroke_Input) {
             .bits = steno->chord_bits,
             .phrase_namespace = steno->chord_phrase_namespace,
         });
@@ -1159,7 +1180,7 @@ bool steno_handle_stroke(Steno *steno, Stroke_Input stroke)
     if (!steno->session_active) {
         return false;
     }
-    return translate_stroke_input(steno, stroke);
+    return translate_completed_stroke_input(steno, stroke);
 }
 
 bool steno_handle_stroke_bits(Steno *steno, uint64_t bits)
@@ -1169,7 +1190,7 @@ bool steno_handle_stroke_bits(Steno *steno, uint64_t bits)
     }
     return steno_handle_stroke(steno, (Stroke_Input) {
         .bits = bits,
-        .phrase_namespace = PHRASE_NAMESPACE_NONE,
+        .phrase_namespace = steno_current_or_pending_phrase_namespace(steno),
     });
 }
 
@@ -1182,13 +1203,23 @@ void steno_set_phrase_namespace(Steno *steno, Phrase_Namespace namespace, bool i
     switch (namespace) {
     case PHRASE_NAMESPACE_CORE:
         steno->core_phrase_down = is_down;
+        if (is_down) {
+            steno->core_phrase_pending = true;
+        }
         break;
     case PHRASE_NAMESPACE_NONVERB:
         steno->nonverb_phrase_down = is_down;
+        if (is_down) {
+            steno->nonverb_phrase_pending = true;
+        }
         break;
     case PHRASE_NAMESPACE_CORE_OPERATOR:
         steno->core_phrase_down = is_down;
         steno->nonverb_phrase_down = is_down;
+        if (is_down) {
+            steno->core_phrase_pending = true;
+            steno->nonverb_phrase_pending = true;
+        }
         break;
     case PHRASE_NAMESPACE_NONE:
     default:
@@ -1196,7 +1227,7 @@ void steno_set_phrase_namespace(Steno *steno, Phrase_Namespace namespace, bool i
     }
 
     if (is_down && steno->down_keycodes != 0) {
-        steno->chord_phrase_namespace = steno_current_phrase_namespace(steno);
+        steno->chord_phrase_namespace = steno_current_or_pending_phrase_namespace(steno);
     }
 }
 
@@ -1214,6 +1245,7 @@ void steno_set_session_active(Steno *steno, bool active)
     steno->command_down = false;
     steno->core_phrase_down = false;
     steno->nonverb_phrase_down = false;
+    steno_clear_pending_phrase_namespace(steno);
 }
 
 size_t steno_key_binding_count(const Steno *steno)
