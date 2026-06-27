@@ -580,7 +580,7 @@ static bool send_unicode_codepoint(uint32_t codepoint)
         ok = hex_digit_keycode(*p, &keycode) && linux_uinput_tap_key(keycode);
     }
 
-    return ok && linux_uinput_tap_key(KEY_ENTER);
+    return ok && linux_uinput_tap_key(KEY_SPACE);
 }
 
 bool platform_send_text_utf8(const char *utf8)
