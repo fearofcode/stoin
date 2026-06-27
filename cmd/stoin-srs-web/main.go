@@ -450,7 +450,7 @@ func (a *App) handleReviewAllDue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	items, err := a.dueItems(r.Context(), reviewAllDueLimit)
+	items, err := a.dueItems(r.Context(), 0, reviewAllDueLimit)
 	if err != nil {
 		serverError(w, err)
 		return
@@ -478,6 +478,7 @@ func (a *App) handleSessionSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	mode := r.FormValue("mode")
+	deckID := parseOptionalInt64(r.FormValue("deck_id"))
 	returnURL := r.FormValue("return")
 	if returnURL == "" {
 		returnURL = "/"
@@ -494,6 +495,21 @@ func (a *App) handleSessionSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := a.applyReviewBatch(r.Context(), results); err != nil {
 		serverError(w, err)
+		return
+	}
+	nextItems, err := a.dueItems(r.Context(), deckID, reviewAllDueLimit)
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	if len(nextItems) > 0 {
+		a.renderSession(w, SessionPageData{
+			Mode:      "review",
+			DeckID:    deckID,
+			ReturnURL: returnURL,
+			Items:     nextItems,
+			IsReview:  true,
+		})
 		return
 	}
 	redirectWithNotice(w, r, returnURL, "Review saved.")
@@ -960,7 +976,14 @@ ORDER BY g.name, i.id`, deckID)
 	return items, rows.Err()
 }
 
-func (a *App) dueItems(ctx context.Context, limit int) ([]SessionItem, error) {
+func (a *App) dueItems(ctx context.Context, deckID int64, limit int) ([]SessionItem, error) {
+	args := []any{formatDBTime(time.Now().UTC())}
+	filter := ""
+	if deckID > 0 {
+		filter = " AND g.deck_id = ?"
+		args = append(args, deckID)
+	}
+	args = append(args, limit)
 	rows, err := a.db.QueryContext(ctx, `
 SELECT
 	i.id,
@@ -970,9 +993,9 @@ SELECT
 FROM items i
 JOIN groups g ON g.id = i.group_id
 JOIN decks d ON d.id = g.deck_id
-WHERE i.intro_remaining > 0 OR i.due_at <= ?
+WHERE (i.intro_remaining > 0 OR i.due_at <= ?)`+filter+`
 ORDER BY i.due_at, i.id
-LIMIT ?`, formatDBTime(time.Now().UTC()), limit)
+LIMIT ?`, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -1597,6 +1620,7 @@ document.querySelectorAll('.group-check').forEach(function(box) {
 <form method="post" action="/session/submit" id="session-form">
 	<input type="hidden" name="mode" value="{{.Mode}}">
 	<input type="hidden" name="return" value="{{.ReturnURL}}">
+	{{if .DeckID}}<input type="hidden" name="deck_id" value="{{.DeckID}}">{{end}}
 	<div class="session-list" id="word-list">
 	{{range $line := .Lines}}
 		<div class="session-line" data-line="{{$line.Index}}" data-start="{{$line.StartIndex}}" data-end="{{$line.EndIndex}}">
@@ -1620,16 +1644,23 @@ document.querySelectorAll('.group-check').forEach(function(box) {
 	</div>
 	<div class="actions">
 		<button class="primary" type="submit" id="submit" disabled>Submit</button>
+		<span class="small" id="auto-submit-status" aria-live="polite"></span>
 	</div>
 </form>
 <script>
 const items = {{.ItemsJSON}};
+const isReview = {{if .IsReview}}true{{else}}false{{end}};
 const correctDebounceMs = 50;
+const autoSubmitSeconds = 3;
 let index = 0;
 let currentInput = '';
 let correctTimer = 0;
+let autoSubmitTimer = 0;
+let autoSubmitRemaining = 0;
 const results = Array(items.length).fill('');
+const form = document.getElementById('session-form');
 const submit = document.getElementById('submit');
+const autoSubmitStatus = document.getElementById('auto-submit-status');
 const lines = Array.from(document.querySelectorAll('.session-line'));
 const lineInputs = Array.from(document.querySelectorAll('.session-line-input'));
 const skipButtons = Array.from(document.querySelectorAll('.session-skip'));
@@ -1659,6 +1690,42 @@ function cancelCorrectTimer() {
 	if (!correctTimer) return;
 	window.clearTimeout(correctTimer);
 	correctTimer = 0;
+}
+function anyMissed() {
+	return results.some((result) => result === 'missed');
+}
+function cancelAutoSubmit() {
+	if (autoSubmitTimer) {
+		window.clearInterval(autoSubmitTimer);
+		autoSubmitTimer = 0;
+	}
+	autoSubmitStatus.textContent = '';
+}
+function submitReviewForm() {
+	autoSubmitStatus.textContent = 'Submitting...';
+	if (form.requestSubmit) {
+		form.requestSubmit(submit);
+	} else {
+		form.submit();
+	}
+}
+function updateAutoSubmitStatus() {
+	autoSubmitStatus.textContent = 'Submitting in ' + autoSubmitRemaining + '...';
+}
+function scheduleAutoSubmit() {
+	if (!isReview || index < items.length || anyMissed() || autoSubmitTimer) return;
+	autoSubmitRemaining = autoSubmitSeconds;
+	updateAutoSubmitStatus();
+	autoSubmitTimer = window.setInterval(function() {
+		autoSubmitRemaining--;
+		if (autoSubmitRemaining <= 0) {
+			window.clearInterval(autoSubmitTimer);
+			autoSubmitTimer = 0;
+			submitReviewForm();
+			return;
+		}
+		updateAutoSubmitStatus();
+	}, 1000);
 }
 function scheduleCorrectCompletion() {
 	cancelCorrectTimer();
@@ -1736,6 +1803,14 @@ function syncControls() {
 	if (index >= items.length) {
 		submit.disabled = false;
 		submit.focus();
+		if (isReview && anyMissed()) {
+			cancelAutoSubmit();
+			autoSubmitStatus.textContent = 'Skipped item present; press Enter to submit.';
+		} else {
+			scheduleAutoSubmit();
+		}
+	} else {
+		cancelAutoSubmit();
 	}
 }
 function focusCurrentInput(scroll) {

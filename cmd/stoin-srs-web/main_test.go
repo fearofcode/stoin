@@ -184,12 +184,92 @@ func TestDueItemsHonorsLimit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	items, err := app.dueItems(ctx, reviewAllDueLimit)
+	items, err := app.dueItems(ctx, 0, reviewAllDueLimit)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(items) != reviewAllDueLimit {
 		t.Fatalf("expected %d due items, got %d", reviewAllDueLimit, len(items))
+	}
+}
+
+func TestReviewSubmitContinuesWhenDueItemsRemain(t *testing.T) {
+	app := testApp(t)
+	ctx := context.Background()
+	deckID, err := app.getOrCreateDeck(ctx, "briefs", time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = app.ingestGroups(ctx, deckID, []ImportGroup{{Name: "words", Words: []string{"put"}}}, "test", "one")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var itemID int64
+	if err := app.db.QueryRow(`SELECT id FROM items WHERE text = 'put'`).Scan(&itemID); err != nil {
+		t.Fatal(err)
+	}
+
+	form := url.Values{}
+	form.Set("mode", "review")
+	form.Set("return", fmt.Sprintf("/deck?id=%d", deckID))
+	form.Set("deck_id", fmt.Sprint(deckID))
+	form.Add("session_index", "0")
+	form.Set("item_id_0", fmt.Sprint(itemID))
+	form.Set("prompt_0", "put")
+	form.Set("answer_0", "put")
+	form.Set("result_0", "correct")
+	req := httptest.NewRequest(http.MethodPost, "/session/submit", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+
+	app.handleSessionSubmit(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected continued review session, got %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "<h1>Review</h1>") || !strings.Contains(body, `name="deck_id"`) {
+		t.Fatalf("expected next review session for deck, got body %q", body)
+	}
+}
+
+func TestReviewSubmitRedirectsWhenNoDueItemsRemain(t *testing.T) {
+	app := testApp(t)
+	ctx := context.Background()
+	deckID, err := app.getOrCreateDeck(ctx, "briefs", time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = app.ingestGroups(ctx, deckID, []ImportGroup{{Name: "words", Words: []string{"put"}}}, "test", "one")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var itemID int64
+	if err := app.db.QueryRow(`SELECT id FROM items WHERE text = 'put'`).Scan(&itemID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.db.Exec(`UPDATE items SET intro_remaining = 1 WHERE id = ?`, itemID); err != nil {
+		t.Fatal(err)
+	}
+
+	form := url.Values{}
+	form.Set("mode", "review")
+	form.Set("return", fmt.Sprintf("/deck?id=%d", deckID))
+	form.Set("deck_id", fmt.Sprint(deckID))
+	form.Add("session_index", "0")
+	form.Set("item_id_0", fmt.Sprint(itemID))
+	form.Set("prompt_0", "put")
+	form.Set("answer_0", "put")
+	form.Set("result_0", "correct")
+	req := httptest.NewRequest(http.MethodPost, "/session/submit", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+
+	app.handleSessionSubmit(rec, req)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("expected redirect after final due item, got %d with body %q", rec.Code, rec.Body.String())
+	}
+	if location := rec.Header().Get("Location"); !strings.HasPrefix(location, fmt.Sprintf("/deck?id=%d", deckID)) {
+		t.Fatalf("unexpected redirect location %q", location)
 	}
 }
 

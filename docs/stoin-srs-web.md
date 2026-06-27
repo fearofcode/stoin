@@ -59,3 +59,9 @@ then choose:
   checkbox selection.
 
 Practice mode accepts a practice count before starting the session.
+
+After a review submit, the app checks for more due words in the same review
+scope. Deck reviews continue with due words from that deck; the root review-all
+flow continues across all decks. A fully correct review session auto-submits
+after a short countdown, while sessions with skipped entries wait for manual
+submit.
