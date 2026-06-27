@@ -336,6 +336,26 @@ static bool append_perfect_progressive_predicate(
         && append_words3(out, "been", verb->present_participle, NULL);
 }
 
+static bool append_bare_aux_complement(
+    char **out,
+    const Phrase_Grammar *grammar,
+    const Phrase_Verb *verb
+)
+{
+    switch (grammar->aspect) {
+    case PHRASE_ASPECT_SIMPLE:
+        return append_word(out, verb->base);
+    case PHRASE_ASPECT_PROGRESSIVE:
+        return append_words3(out, "be", verb->present_participle, NULL);
+    case PHRASE_ASPECT_PERFECT:
+        return append_words3(out, "have", verb->past_participle, NULL);
+    case PHRASE_ASPECT_PERFECT_PROGRESSIVE:
+        return append_words3(out, "have", "been", verb->present_participle);
+    default:
+        return false;
+    }
+}
+
 static bool append_predicate(
     char **out,
     Phrase_Starter starter,
@@ -380,12 +400,7 @@ static bool append_inverted_predicate(
             || !append_word(out, starter.text)) {
             return false;
         }
-        Phrase_Grammar noninverted = *grammar;
-        noninverted.inverted = false;
-        noninverted.aux = PHRASE_AUX_NONE;
-        noninverted.negative = false;
-        noninverted.past = false;
-        return append_predicate(out, starter, &noninverted, verb);
+        return append_bare_aux_complement(out, grammar, verb);
     }
 
     if (grammar->aspect == PHRASE_ASPECT_PROGRESSIVE) {
