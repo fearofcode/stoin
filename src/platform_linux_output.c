@@ -52,6 +52,134 @@ bool linux_uinput_tap_key(unsigned int evdev_keycode)
         && linux_uinput_emit_key_event(evdev_keycode, 0);
 }
 
+typedef struct Linux_Ascii_Key {
+    unsigned int evdev_keycode;
+    bool shift;
+} Linux_Ascii_Key;
+
+static bool letter_keycode(uint32_t letter, unsigned int *out_keycode)
+{
+    if (out_keycode == NULL) {
+        return false;
+    }
+
+    switch (letter) {
+    case 'a': *out_keycode = KEY_A; return true;
+    case 'b': *out_keycode = KEY_B; return true;
+    case 'c': *out_keycode = KEY_C; return true;
+    case 'd': *out_keycode = KEY_D; return true;
+    case 'e': *out_keycode = KEY_E; return true;
+    case 'f': *out_keycode = KEY_F; return true;
+    case 'g': *out_keycode = KEY_G; return true;
+    case 'h': *out_keycode = KEY_H; return true;
+    case 'i': *out_keycode = KEY_I; return true;
+    case 'j': *out_keycode = KEY_J; return true;
+    case 'k': *out_keycode = KEY_K; return true;
+    case 'l': *out_keycode = KEY_L; return true;
+    case 'm': *out_keycode = KEY_M; return true;
+    case 'n': *out_keycode = KEY_N; return true;
+    case 'o': *out_keycode = KEY_O; return true;
+    case 'p': *out_keycode = KEY_P; return true;
+    case 'q': *out_keycode = KEY_Q; return true;
+    case 'r': *out_keycode = KEY_R; return true;
+    case 's': *out_keycode = KEY_S; return true;
+    case 't': *out_keycode = KEY_T; return true;
+    case 'u': *out_keycode = KEY_U; return true;
+    case 'v': *out_keycode = KEY_V; return true;
+    case 'w': *out_keycode = KEY_W; return true;
+    case 'x': *out_keycode = KEY_X; return true;
+    case 'y': *out_keycode = KEY_Y; return true;
+    case 'z': *out_keycode = KEY_Z; return true;
+    default: return false;
+    }
+}
+
+static bool ascii_key_from_codepoint(uint32_t codepoint, Linux_Ascii_Key *out_key)
+{
+    if (out_key == NULL || codepoint > 0x7F) {
+        return false;
+    }
+
+    memset(out_key, 0, sizeof(*out_key));
+
+    if (codepoint >= 'a' && codepoint <= 'z') {
+        return letter_keycode(codepoint, &out_key->evdev_keycode);
+    }
+    if (codepoint >= 'A' && codepoint <= 'Z') {
+        if (!letter_keycode((uint32_t)tolower((int)codepoint), &out_key->evdev_keycode)) {
+            return false;
+        }
+        out_key->shift = true;
+        return true;
+    }
+
+    switch (codepoint) {
+    case '1': out_key->evdev_keycode = KEY_1; return true;
+    case '2': out_key->evdev_keycode = KEY_2; return true;
+    case '3': out_key->evdev_keycode = KEY_3; return true;
+    case '4': out_key->evdev_keycode = KEY_4; return true;
+    case '5': out_key->evdev_keycode = KEY_5; return true;
+    case '6': out_key->evdev_keycode = KEY_6; return true;
+    case '7': out_key->evdev_keycode = KEY_7; return true;
+    case '8': out_key->evdev_keycode = KEY_8; return true;
+    case '9': out_key->evdev_keycode = KEY_9; return true;
+    case '0': out_key->evdev_keycode = KEY_0; return true;
+    case '!': out_key->evdev_keycode = KEY_1; out_key->shift = true; return true;
+    case '@': out_key->evdev_keycode = KEY_2; out_key->shift = true; return true;
+    case '#': out_key->evdev_keycode = KEY_3; out_key->shift = true; return true;
+    case '$': out_key->evdev_keycode = KEY_4; out_key->shift = true; return true;
+    case '%': out_key->evdev_keycode = KEY_5; out_key->shift = true; return true;
+    case '^': out_key->evdev_keycode = KEY_6; out_key->shift = true; return true;
+    case '&': out_key->evdev_keycode = KEY_7; out_key->shift = true; return true;
+    case '*': out_key->evdev_keycode = KEY_8; out_key->shift = true; return true;
+    case '(': out_key->evdev_keycode = KEY_9; out_key->shift = true; return true;
+    case ')': out_key->evdev_keycode = KEY_0; out_key->shift = true; return true;
+    case ' ': out_key->evdev_keycode = KEY_SPACE; return true;
+    case '\n': out_key->evdev_keycode = KEY_ENTER; return true;
+    case '\t': out_key->evdev_keycode = KEY_TAB; return true;
+    case '-': out_key->evdev_keycode = KEY_MINUS; return true;
+    case '_': out_key->evdev_keycode = KEY_MINUS; out_key->shift = true; return true;
+    case '=': out_key->evdev_keycode = KEY_EQUAL; return true;
+    case '+': out_key->evdev_keycode = KEY_EQUAL; out_key->shift = true; return true;
+    case '[': out_key->evdev_keycode = KEY_LEFTBRACE; return true;
+    case '{': out_key->evdev_keycode = KEY_LEFTBRACE; out_key->shift = true; return true;
+    case ']': out_key->evdev_keycode = KEY_RIGHTBRACE; return true;
+    case '}': out_key->evdev_keycode = KEY_RIGHTBRACE; out_key->shift = true; return true;
+    case '\\': out_key->evdev_keycode = KEY_BACKSLASH; return true;
+    case '|': out_key->evdev_keycode = KEY_BACKSLASH; out_key->shift = true; return true;
+    case ';': out_key->evdev_keycode = KEY_SEMICOLON; return true;
+    case ':': out_key->evdev_keycode = KEY_SEMICOLON; out_key->shift = true; return true;
+    case '\'': out_key->evdev_keycode = KEY_APOSTROPHE; return true;
+    case '"': out_key->evdev_keycode = KEY_APOSTROPHE; out_key->shift = true; return true;
+    case ',': out_key->evdev_keycode = KEY_COMMA; return true;
+    case '<': out_key->evdev_keycode = KEY_COMMA; out_key->shift = true; return true;
+    case '.': out_key->evdev_keycode = KEY_DOT; return true;
+    case '>': out_key->evdev_keycode = KEY_DOT; out_key->shift = true; return true;
+    case '/': out_key->evdev_keycode = KEY_SLASH; return true;
+    case '?': out_key->evdev_keycode = KEY_SLASH; out_key->shift = true; return true;
+    case '`': out_key->evdev_keycode = KEY_GRAVE; return true;
+    case '~': out_key->evdev_keycode = KEY_GRAVE; out_key->shift = true; return true;
+    default: return false;
+    }
+}
+
+static bool send_ascii_key(const Linux_Ascii_Key *key)
+{
+    if (key == NULL) {
+        return false;
+    }
+
+    bool ok = true;
+    if (key->shift) {
+        ok = linux_uinput_emit_key_event(KEY_LEFTSHIFT, 1) && ok;
+    }
+    ok = linux_uinput_tap_key(key->evdev_keycode) && ok;
+    if (key->shift) {
+        ok = linux_uinput_emit_key_event(KEY_LEFTSHIFT, 0) && ok;
+    }
+    return ok;
+}
+
 bool platform_output_init(void)
 {
     if (g_linux.uinput_fd >= 0) {
@@ -478,7 +606,13 @@ bool platform_send_text_utf8(const char *utf8)
             linux_report_translation_timing_before_output("text");
             reported_timing = true;
         }
-        if (!send_unicode_codepoint(codepoint)) {
+
+        Linux_Ascii_Key ascii_key = {0};
+        if (ascii_key_from_codepoint(codepoint, &ascii_key)) {
+            if (!send_ascii_key(&ascii_key)) {
+                return false;
+            }
+        } else if (!send_unicode_codepoint(codepoint)) {
             return false;
         }
     }
