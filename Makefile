@@ -28,6 +28,7 @@ COMMON_SOURCES := \
 	src/gemini_pr.c \
 	src/keymap.c \
 	src/orthography.c \
+	src/phrasing.c \
 	src/raw_serial.c \
 	src/retro.c \
 	src/runtime_config.c \

@@ -32,9 +32,12 @@ struct Steno {
     Orthography orthography;
     uint64_t down_keycodes;
     uint64_t chord_bits;
+    Phrase_Namespace chord_phrase_namespace;
     size_t strokes_since_compaction;
     bool enabled;
     bool session_active;
+    bool core_phrase_down;
+    bool nonverb_phrase_down;
     bool toggle_esc_down;
     bool control_down;
     bool option_down;
@@ -55,6 +58,7 @@ typedef struct Steno_Case_State {
 } Steno_Case_State;
 
 static bool translate_chord_bits(Steno *steno, uint64_t bits);
+static bool translate_stroke_input(Steno *steno, Stroke_Input stroke);
 
 static bool steno_set_spacing(Steno *steno, const char *spacing)
 {
@@ -130,6 +134,24 @@ static void reset_chord(Steno *steno)
 {
     steno->down_keycodes = 0;
     steno->chord_bits = 0;
+    steno->chord_phrase_namespace = PHRASE_NAMESPACE_NONE;
+}
+
+static Phrase_Namespace steno_current_phrase_namespace(const Steno *steno)
+{
+    if (steno == NULL) {
+        return PHRASE_NAMESPACE_NONE;
+    }
+    if (steno->core_phrase_down && steno->nonverb_phrase_down) {
+        return PHRASE_NAMESPACE_CORE_OPERATOR;
+    }
+    if (steno->core_phrase_down) {
+        return PHRASE_NAMESPACE_CORE;
+    }
+    if (steno->nonverb_phrase_down) {
+        return PHRASE_NAMESPACE_NONVERB;
+    }
+    return PHRASE_NAMESPACE_NONE;
 }
 
 enum {
@@ -925,6 +947,40 @@ bool steno_get_dictionary_paths(const Steno *steno, const char *const **out_path
     );
 }
 
+static bool translate_phrase_stroke(Steno *steno, Stroke_Input stroke)
+{
+    if (stroke.bits == 0) {
+        return true;
+    }
+
+    char raw_chord[64] = {0};
+    if (!chord_bits_to_string(stroke.bits, raw_chord, sizeof(raw_chord))) {
+        return false;
+    }
+
+    char *phrase_text = NULL;
+    const Phrase_Lookup_Result result = phrasing_lookup(stroke.phrase_namespace, stroke.bits, &phrase_text);
+    if (result == PHRASE_LOOKUP_ERROR) {
+        free(phrase_text);
+        return false;
+    }
+
+    Translation_Match match = {0};
+    match.translation = result == PHRASE_LOOKUP_HIT ? phrase_text : NULL;
+    match.strokes[0] = stroke.bits;
+    match.stroke_count = 1;
+    match.replaced_count = 0;
+    snprintf(match.outline, sizeof(match.outline), "%s", raw_chord);
+
+    trace_stroke(steno, raw_chord, match.translation);
+    const bool ok = apply_translation_match(steno, &match);
+    free(phrase_text);
+    if (ok) {
+        count_completed_stroke(steno);
+    }
+    return ok;
+}
+
 static bool translate_chord_bits(Steno *steno, uint64_t bits)
 {
     if (bits == 0) {
@@ -958,6 +1014,14 @@ static bool translate_chord_bits(Steno *steno, uint64_t bits)
         count_completed_stroke(steno);
     }
     return ok;
+}
+
+static bool translate_stroke_input(Steno *steno, Stroke_Input stroke)
+{
+    if (stroke.phrase_namespace != PHRASE_NAMESPACE_NONE) {
+        return translate_phrase_stroke(steno, stroke);
+    }
+    return translate_chord_bits(steno, stroke.bits);
 }
 
 Steno *steno_create(const Steno_Config *config)
@@ -1067,6 +1131,9 @@ bool steno_handle_event(Steno *steno, const Input_Event *event)
     const uint64_t physical_bit = UINT64_C(1) << event->keycode;
     if (event->is_down) {
         if ((steno->down_keycodes & physical_bit) == 0 && !event->is_repeat) {
+            if (steno->down_keycodes == 0) {
+                steno->chord_phrase_namespace = steno_current_phrase_namespace(steno);
+            }
             steno->down_keycodes |= physical_bit;
             steno->chord_bits |= binding->bits;
         }
@@ -1075,13 +1142,16 @@ bool steno_handle_event(Steno *steno, const Input_Event *event)
 
     steno->down_keycodes &= ~physical_bit;
     if (steno->down_keycodes == 0) {
-        (void)translate_chord_bits(steno, steno->chord_bits);
+        (void)translate_stroke_input(steno, (Stroke_Input) {
+            .bits = steno->chord_bits,
+            .phrase_namespace = steno->chord_phrase_namespace,
+        });
         reset_chord(steno);
     }
     return true;
 }
 
-bool steno_handle_stroke_bits(Steno *steno, uint64_t bits)
+bool steno_handle_stroke(Steno *steno, Stroke_Input stroke)
 {
     if (steno == NULL) {
         return false;
@@ -1089,7 +1159,45 @@ bool steno_handle_stroke_bits(Steno *steno, uint64_t bits)
     if (!steno->session_active) {
         return false;
     }
-    return translate_chord_bits(steno, bits);
+    return translate_stroke_input(steno, stroke);
+}
+
+bool steno_handle_stroke_bits(Steno *steno, uint64_t bits)
+{
+    if (steno == NULL) {
+        return false;
+    }
+    return steno_handle_stroke(steno, (Stroke_Input) {
+        .bits = bits,
+        .phrase_namespace = PHRASE_NAMESPACE_NONE,
+    });
+}
+
+void steno_set_phrase_namespace(Steno *steno, Phrase_Namespace namespace, bool is_down)
+{
+    if (steno == NULL) {
+        return;
+    }
+
+    switch (namespace) {
+    case PHRASE_NAMESPACE_CORE:
+        steno->core_phrase_down = is_down;
+        break;
+    case PHRASE_NAMESPACE_NONVERB:
+        steno->nonverb_phrase_down = is_down;
+        break;
+    case PHRASE_NAMESPACE_CORE_OPERATOR:
+        steno->core_phrase_down = is_down;
+        steno->nonverb_phrase_down = is_down;
+        break;
+    case PHRASE_NAMESPACE_NONE:
+    default:
+        break;
+    }
+
+    if (is_down && steno->down_keycodes != 0) {
+        steno->chord_phrase_namespace = steno_current_phrase_namespace(steno);
+    }
 }
 
 void steno_set_session_active(Steno *steno, bool active)
@@ -1104,6 +1212,8 @@ void steno_set_session_active(Steno *steno, bool active)
     steno->control_down = false;
     steno->option_down = false;
     steno->command_down = false;
+    steno->core_phrase_down = false;
+    steno->nonverb_phrase_down = false;
 }
 
 size_t steno_key_binding_count(const Steno *steno)

@@ -722,6 +722,11 @@ int main(void)
     uint64_t plover_bits = 0;
     uint64_t right_arrow_bits = 0;
     uint64_t modal_toggle_bits = 0;
+    uint64_t phrase_it_is_a_bits = 0;
+    uint64_t phrase_they_didnt_go_bits = 0;
+    uint64_t phrase_she_believed_her_bits = 0;
+    uint64_t phrase_she_would_have_believed_her_bits = 0;
+    uint64_t phrase_miss_bits = 0;
     ok = ok && stroke_string_to_bits("STOER", &story_bits);
     ok = ok && stroke_string_to_bits("-Z", &plural_bits);
     ok = ok && stroke_string_to_bits("-D", &past_bits);
@@ -786,6 +791,73 @@ int main(void)
     ok = ok && stroke_string_to_bits("PHROF", &plover_bits);
     ok = ok && stroke_string_to_bits("STPH-G", &right_arrow_bits);
     ok = ok && stroke_string_to_bits("STPH", &modal_toggle_bits);
+    ok = ok && stroke_string_to_bits("P-BS", &phrase_it_is_a_bits);
+    ok = ok && stroke_string_to_bits("TH*G", &phrase_they_didnt_go_bits);
+    ok = ok && stroke_string_to_bits("SKH-BLSD", &phrase_she_believed_her_bits);
+    ok = ok && stroke_string_to_bits("SKHRAO-BLSD", &phrase_she_would_have_believed_her_bits);
+    ok = ok && stroke_string_to_bits("SAO", &phrase_miss_bits);
+
+    clear_test_output(&output);
+    reset_output_log(&output);
+    ok = ok && steno_handle_stroke_bits(steno, phrase_it_is_a_bits);
+    ok = ok && expect_string("phrase outline without namespace stays normal steno", output.text, "PBS");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    reset_output_log(&output);
+    ok = ok && steno_handle_stroke(steno, (Stroke_Input) {
+        .bits = phrase_it_is_a_bits,
+        .phrase_namespace = PHRASE_NAMESPACE_CORE,
+    });
+    ok = ok && expect_string("core phrase it is a", output.text, "it is a");
+    ok = ok && steno_handle_stroke(steno, (Stroke_Input) {
+        .bits = phrase_they_didnt_go_bits,
+        .phrase_namespace = PHRASE_NAMESPACE_CORE,
+    });
+    ok = ok && expect_string("core phrase spacing and negation", output.text, "it is a they didn't go");
+    ok = ok && steno_handle_stroke_bits(steno, undo_bits);
+    ok = ok && expect_string("core phrase undo", output.text, "it is a");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    ok = ok && steno_handle_stroke(steno, (Stroke_Input) {
+        .bits = phrase_she_believed_her_bits,
+        .phrase_namespace = PHRASE_NAMESPACE_CORE,
+    });
+    ok = ok && expect_string("core phrase she believed her", output.text, "she believed her");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    ok = ok && steno_handle_stroke(steno, (Stroke_Input) {
+        .bits = phrase_she_would_have_believed_her_bits,
+        .phrase_namespace = PHRASE_NAMESPACE_CORE,
+    });
+    ok = ok && expect_string(
+        "core phrase conditional perfect",
+        output.text,
+        "she would have believed her");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    ok = ok && steno_handle_stroke(steno, (Stroke_Input) {
+        .bits = phrase_miss_bits,
+        .phrase_namespace = PHRASE_NAMESPACE_CORE,
+    });
+    ok = ok && expect_string("core phrase miss emits raw outline", output.text, "SAO");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_CORE, true);
+    ok = ok && send_key_event(steno, "e", true);
+    ok = ok && send_key_event(steno, "k", true);
+    ok = ok && send_key_event(steno, "semicolon", true);
+    ok = ok && send_key_event(steno, "e", false);
+    ok = ok && send_key_event(steno, "k", false);
+    ok = ok && send_key_event(steno, "semicolon", false);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_CORE, false);
+    ok = ok && expect_string("qwerty phrase namespace routes gathered chord", output.text, "it is a");
+
+    ok = ok && reset_test_steno(&steno, &config);
 
     clear_test_output(&output);
     reset_output_log(&output);
