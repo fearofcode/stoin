@@ -255,22 +255,43 @@ static bool input_device_is_keyboard(int fd)
         && test_bit(KEY_ENTER, key_bits, sizeof(key_bits) / sizeof(key_bits[0]));
 }
 
-static bool add_keyboard_device(const char *path)
+typedef enum Linux_Keyboard_Open_Result {
+    LINUX_KEYBOARD_OPEN_ADDED,
+    LINUX_KEYBOARD_OPEN_PERMISSION_DENIED,
+    LINUX_KEYBOARD_OPEN_FAILED,
+    LINUX_KEYBOARD_OPEN_NOT_KEYBOARD,
+    LINUX_KEYBOARD_OPEN_GRAB_FAILED,
+    LINUX_KEYBOARD_OPEN_ALLOCATION_FAILED,
+} Linux_Keyboard_Open_Result;
+
+typedef struct Linux_Keyboard_Open_Report {
+    size_t path_count;
+    size_t added_count;
+    size_t permission_denied_count;
+    size_t open_failed_count;
+    size_t non_keyboard_count;
+    size_t grab_failed_count;
+    size_t allocation_failed_count;
+} Linux_Keyboard_Open_Report;
+
+static Linux_Keyboard_Open_Result add_keyboard_device(const char *path)
 {
     if (path == NULL) {
-        return false;
+        return LINUX_KEYBOARD_OPEN_FAILED;
     }
 
     const int fd = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
     if (fd < 0) {
-        return false;
+        return (errno == EACCES || errno == EPERM)
+            ? LINUX_KEYBOARD_OPEN_PERMISSION_DENIED
+            : LINUX_KEYBOARD_OPEN_FAILED;
     }
 
     char name[256] = {0};
     (void)ioctl(fd, EVIOCGNAME(sizeof(name)), name);
     if (device_name_is_stoin_virtual_keyboard(name) || !input_device_is_keyboard(fd)) {
         close(fd);
-        return false;
+        return LINUX_KEYBOARD_OPEN_NOT_KEYBOARD;
     }
 
     if (ioctl(fd, EVIOCGRAB, 1) != 0) {
@@ -280,14 +301,14 @@ static bool add_keyboard_device(const char *path)
         }
         fputc('\n', stderr);
         close(fd);
-        return false;
+        return LINUX_KEYBOARD_OPEN_GRAB_FAILED;
     }
 
     char *path_copy = copy_cstring(path);
     if (path_copy == NULL) {
         (void)ioctl(fd, EVIOCGRAB, 0);
         close(fd);
-        return false;
+        return LINUX_KEYBOARD_OPEN_ALLOCATION_FAILED;
     }
 
     Linux_Keyboard_Device device = {
@@ -296,7 +317,7 @@ static bool add_keyboard_device(const char *path)
     };
     snprintf(device.name, sizeof(device.name), "%s", name[0] != '\0' ? name : path);
     arrput(g_linux.keyboards, device);
-    return true;
+    return LINUX_KEYBOARD_OPEN_ADDED;
 }
 
 static void close_keyboard_devices(void)
@@ -312,20 +333,67 @@ static void close_keyboard_devices(void)
     g_linux.keyboards = NULL;
 }
 
+static void print_keyboard_open_report(const Linux_Keyboard_Open_Report *report)
+{
+    if (report == NULL) {
+        return;
+    }
+
+    fprintf(stderr,
+        "stoin: checked %zu Linux input event devices: %zu opened, %zu permission denied, %zu open failed, %zu not keyboards, %zu grab failed\n",
+        report->path_count,
+        report->added_count,
+        report->permission_denied_count,
+        report->open_failed_count,
+        report->non_keyboard_count,
+        report->grab_failed_count);
+    if (report->permission_denied_count > 0) {
+        fputs("stoin: qwerty capture needs read/grab access to keyboard devices under /dev/input/event*\n", stderr);
+        fputs("stoin: see docs/linux-setup.md for the stoin input-device udev rule\n", stderr);
+    }
+}
+
 static bool open_keyboard_devices(void)
 {
     glob_t matches = {0};
     const int glob_result = glob("/dev/input/event*", 0, NULL, &matches);
     if (glob_result != 0 || matches.gl_pathc == 0) {
         globfree(&matches);
+        fputs("stoin: no Linux input event devices found under /dev/input/event*\n", stderr);
         return false;
     }
 
+    Linux_Keyboard_Open_Report report = {
+        .path_count = matches.gl_pathc,
+    };
+
     for (size_t i = 0; i < matches.gl_pathc; ++i) {
-        (void)add_keyboard_device(matches.gl_pathv[i]);
+        switch (add_keyboard_device(matches.gl_pathv[i])) {
+        case LINUX_KEYBOARD_OPEN_ADDED:
+            ++report.added_count;
+            break;
+        case LINUX_KEYBOARD_OPEN_PERMISSION_DENIED:
+            ++report.permission_denied_count;
+            break;
+        case LINUX_KEYBOARD_OPEN_FAILED:
+            ++report.open_failed_count;
+            break;
+        case LINUX_KEYBOARD_OPEN_NOT_KEYBOARD:
+            ++report.non_keyboard_count;
+            break;
+        case LINUX_KEYBOARD_OPEN_GRAB_FAILED:
+            ++report.grab_failed_count;
+            break;
+        case LINUX_KEYBOARD_OPEN_ALLOCATION_FAILED:
+            ++report.allocation_failed_count;
+            break;
+        }
     }
 
     globfree(&matches);
+    if (arrlenu(g_linux.keyboards) == 0) {
+        print_keyboard_open_report(&report);
+    }
     return arrlenu(g_linux.keyboards) > 0;
 }
 
@@ -474,7 +542,7 @@ bool platform_init(Handle_Input_Fn handler, void *userdata)
 
     if (!open_keyboard_devices()) {
         fputs("stoin: failed to open and grab any Linux keyboard devices under /dev/input/event*\n", stderr);
-        fputs("stoin: check permissions for /dev/input/event* and /dev/uinput, then restart stoin\n", stderr);
+        fputs("stoin: check qwerty capture permissions for /dev/input/event*, then restart stoin\n", stderr);
         platform_shutdown();
         return false;
     }

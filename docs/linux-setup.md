@@ -39,4 +39,35 @@ sudo chown "$USER":stoin /dev/uinput
 sudo chmod 660 /dev/uinput
 ```
 
-If qwerty capture is used later, `/dev/input/event*` permissions may need a similar rule or group policy. TX Bolt and Gemini PR input only need serial access plus `/dev/uinput` output access.
+TX Bolt and Gemini PR input only need serial access plus `/dev/uinput` output access.
+
+## Qwerty keyboard capture
+
+The `--input qwerty` mode also needs read/grab access to physical keyboard event devices under `/dev/input/event*`. This is separate from `/dev/uinput`.
+
+Warning: access to keyboard event devices lets a process read raw keyboard input. Only grant this to a group whose members you trust.
+
+One udev rule approach using the same `stoin` group is:
+
+```sh
+sudo groupadd -f stoin
+sudo usermod -aG stoin "$USER"
+printf 'KERNEL=="event*", SUBSYSTEM=="input", ENV{ID_INPUT_KEYBOARD}=="1", GROUP="stoin", MODE="0660"\n' \
+  | sudo tee /etc/udev/rules.d/99-stoin-input.rules
+sudo udevadm control --reload-rules
+sudo udevadm trigger --subsystem-match=input
+```
+
+Then log out and back in, or reboot. To inspect current permissions:
+
+```sh
+ls -l /dev/input/event*
+```
+
+Some distributions already use an `input` group for these devices. If your keyboard event devices are group-owned by `input`, adding your user to that group can be enough:
+
+```sh
+sudo usermod -aG input "$USER"
+```
+
+Log out and back in after changing group membership.
