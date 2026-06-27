@@ -80,6 +80,7 @@ static void add_glob_matches(
 
 size_t platform_find_serial_devices(char out_paths[][PLATFORM_SERIAL_PATH_MAX], size_t max_paths)
 {
+#if defined(__APPLE__)
     const char *patterns[] = {
         "/dev/cu.usbmodem*",
         "/dev/cu.usbserial*",
@@ -87,6 +88,17 @@ size_t platform_find_serial_devices(char out_paths[][PLATFORM_SERIAL_PATH_MAX], 
         "/dev/cu.wchusbserial*",
         "/dev/cu.KeySerial*",
     };
+#elif defined(__linux__)
+    const char *patterns[] = {
+        "/dev/serial/by-id/*",
+        "/dev/ttyACM*",
+        "/dev/ttyUSB*",
+        "/dev/ttyAMA*",
+        "/dev/rfcomm*",
+    };
+#else
+    const char *patterns[] = {0};
+#endif
 
     if (out_paths == NULL || max_paths == 0) {
         return 0;
@@ -130,8 +142,21 @@ static speed_t baud_rate_to_speed(int baud_rate)
     case 9600: return B9600;
     case 19200: return B19200;
     case 38400: return B38400;
+#ifdef B57600
     case 57600: return B57600;
+#endif
+#ifdef B115200
     case 115200: return B115200;
+#endif
+#ifdef B230400
+    case 230400: return B230400;
+#endif
+#ifdef B460800
+    case 460800: return B460800;
+#endif
+#ifdef B921600
+    case 921600: return B921600;
+#endif
     default: return 0;
     }
 }
