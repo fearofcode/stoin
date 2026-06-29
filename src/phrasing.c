@@ -11,6 +11,7 @@
 #include "../stb_ds.h"
 
 typedef enum Phrase_Subject_Form {
+    PHRASE_SUBJECT_EMPTY,
     PHRASE_SUBJECT_FIRST_SINGULAR,
     PHRASE_SUBJECT_SECOND_OR_PLURAL,
     PHRASE_SUBJECT_THIRD_SINGULAR,
@@ -77,6 +78,10 @@ static bool starter_lookup(uint64_t bits, Phrase_Starter *out)
     const uint64_t w = steno_bit(STENO_LEFT_W);
 
     if (bits == 0) {
+        *out = (Phrase_Starter) { .text = "", .form = PHRASE_SUBJECT_EMPTY };
+        return true;
+    }
+    if (bits == s) {
         *out = (Phrase_Starter) { .text = "I", .form = PHRASE_SUBJECT_FIRST_SINGULAR };
         return true;
     }
@@ -111,9 +116,15 @@ static bool starter_lookup(uint64_t bits, Phrase_Starter *out)
     return false;
 }
 
+static bool starter_is_empty(Phrase_Starter starter)
+{
+    return starter.form == PHRASE_SUBJECT_EMPTY;
+}
+
 static bool subject_is_3ps(Phrase_Starter starter)
 {
-    return starter.form == PHRASE_SUBJECT_THIRD_SINGULAR;
+    return starter.form == PHRASE_SUBJECT_EMPTY
+        || starter.form == PHRASE_SUBJECT_THIRD_SINGULAR;
 }
 
 static bool subject_is_first_singular(Phrase_Starter starter)
@@ -356,6 +367,21 @@ static bool append_bare_aux_complement(
     }
 }
 
+static bool grammar_is_simple_infinitive(const Phrase_Grammar *grammar)
+{
+    return grammar != NULL
+        && !grammar->past
+        && !grammar->negative
+        && !grammar->inverted
+        && grammar->aux == PHRASE_AUX_NONE
+        && grammar->aspect == PHRASE_ASPECT_SIMPLE;
+}
+
+static bool append_infinitive_predicate(char **out, const Phrase_Verb *verb)
+{
+    return append_word(out, "to") && append_word(out, verb == NULL ? NULL : verb->base);
+}
+
 static bool append_predicate(
     char **out,
     Phrase_Starter starter,
@@ -505,7 +531,9 @@ static Phrase_Lookup_Result lookup_core(uint64_t bits, char **out_utf8)
 
     char *text = NULL;
     bool ok = true;
-    if (grammar.inverted) {
+    if (starter_is_empty(starter) && grammar_is_simple_infinitive(&grammar)) {
+        ok = append_infinitive_predicate(&text, verb);
+    } else if (grammar.inverted) {
         ok = append_inverted_predicate(&text, starter, &grammar, verb);
     } else {
         ok = append_word(&text, starter.text)

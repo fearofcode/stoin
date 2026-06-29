@@ -42,6 +42,8 @@ For qwerty testing:
 ./build/macos/stoin --input qwerty
 ```
 
+Without a pedal, tap Shift by itself to route the next qwerty steno chord through core phrase mode. For example, tap Shift, release it, then chord `P-BS` to emit `it is a`. If Shift is chorded with other qwerty steno keys, it stays part of the steno chord instead of arming phrase mode.
+
 If your pedal acts like a keyboard key, map it to F13-F24 before registering it. Do not map it to `a`, another ordinary letter, space, enter, or punctuation. Stoin ignores registered text-producing keyboard keys because macOS may still type them into the active app, and a downstream event tap cannot reliably tell the pedal's `a` apart from the `a` on your real keyboard.
 
 ## Run The Current Smoke Test
@@ -51,6 +53,18 @@ make test
 ```
 
 The relevant tests are in `tests/test_steno.c`; search for `core phrase`.
+
+## Paper Tape
+
+When stroke tracing is enabled, phrase-mode rows are marked on the left side of the tape:
+
+```text
+PBS [phrase] -> it is a
+TEFT [phrase fallback] -> test
+SAO [phrase fallback] -> [untranslated]
+```
+
+`[phrase]` means the phrase engine generated the output. `[phrase fallback]` means a phrase pedal was active, but the phrase engine missed and Stoin used the regular dictionary/raw-steno path.
 
 ## Core Phrase Shape
 
@@ -72,7 +86,8 @@ right T S D Z         tail
 ## Implemented Starters
 
 ```text
-empty  I
+empty  bare infinitive / empty starter
+S      I
 W      we
 K      he
 SK     she
@@ -152,7 +167,8 @@ When the core phrase pedal exists, hold it and stroke:
 ```text
 P-BS          it is a
 TH*G          they didn't go
--B            I am
+-B            to be
+S-B           I am
 K-G           he goes
 TH-B          they were
 SKH-BLSD      she believed her
@@ -168,7 +184,7 @@ SKHRAO-BLSD   she would have believed her
 K-RPBT        he understands the
 ```
 
-Without the core phrase pedal, these are ordinary steno strokes. For example, `P-BS` currently stays in normal dictionary/raw-steno mode and emits `PBS` if it is untranslated.
+Without the core phrase pedal, these are ordinary steno strokes. For example, `P-BS` currently stays in normal dictionary/raw-steno mode and emits `PBS` if it is untranslated. With the pedal held, a stroke that is not part of the phrase grammar falls back to the regular dictionary stack, so you can keep the pedal down while writing an ordinary word between phrases.
 
 ## QWERTY Layout Hints
 
@@ -217,6 +233,7 @@ Example qwerty chords for the first practice set:
 P-BS          d + , + /
 TH*G          s + f + g + .
 -B            ,
+S-B           z + ,
 K-G           x + .
 TH-B          s + f + ,
 SKH-BLSD      z + x + f + , + l + / + '
@@ -249,7 +266,8 @@ If these outlines feel stable in practice, the SRS app can start with this table
 ```text
 P-BS          it is a
 TH*G          they didn't go
--B            I am
+-B            to be
+S-B           I am
 K-G           he goes
 TH-B          they were
 SKH-BLSD      she believed her

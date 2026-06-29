@@ -189,7 +189,8 @@ These anchors intentionally copy the spirit of Jeff Phrasing without preserving 
 Starter anchors are harder because the draft split gives only `S T K P W` to the starter field. Still, use Jeff-like shadows where they fit:
 
 ```text
-empty starter -> I
+empty starter -> no subject; bare simple verbs emit infinitives such as "to be"
+S             -> I
 W             -> we
 K             -> he
 SK            -> she
@@ -892,8 +893,9 @@ Phrase mode should mean:
 - If the non-verb phrase pedal is held for a stroke, the completed stroke is interpreted by the non-verb phrase engine.
 - If both phrase pedals are held for a stroke, the completed stroke is interpreted by the interstitial core-operator engine.
 - If no phrase pedal is held, behavior is unchanged.
-- Phrase mode bypasses normal dictionaries by default.
-- A phrase miss should initially emit the raw chord, just like untranslated normal steno, and trace it as a phrase miss.
+- Phrase mode checks the phrase engine first.
+- A phrase miss should fall back to the regular dictionary stack. If the normal stack also misses, it emits the raw chord just like ordinary untranslated steno.
+- Stroke tracing should mark phrase-engine hits as `[phrase]` and phrase misses that use the regular stack as `[phrase fallback]`.
 
 For qwerty chord gathering, "during the stroke" can be exact:
 
@@ -1112,7 +1114,7 @@ completed stroke
   if phrase namespace:
     phrase lookup in that namespace
       hit  -> apply generated text as a normal translation
-      miss -> emit raw chord as untranslated phrase stroke
+      miss -> fall back to regular dictionary stack
   else:
     existing dictionary translation path
 ```
@@ -1288,7 +1290,7 @@ Add steno integration tests:
 - same stroke with core phrase namespace uses the core phrase engine,
 - same stroke with non-verb phrase namespace uses the non-verb phrase engine,
 - same stroke with both-pedal namespace uses the core-operator phrase engine,
-- phrase miss emits raw chord,
+- phrase miss falls back to the regular dictionary stack,
 - phrase translation can be undone,
 - phrase output respects leading spacing policy,
 - qwerty pedal-down during chord sets phrase namespace,
@@ -1299,7 +1301,7 @@ Add platform tests where feasible by keeping platform pedal parsing split from O
 ## Open Questions
 
 - What exact WSI mapping do we want for starter, verb, grammar, and suffix fields?
-- Should phrase misses default to raw chord, no output, or normal dictionary fallback?
+- Phrase misses fall back to the regular dictionary stack.
 - Should phrase-mode suffix strokes be allowed after normal dictionary words, or only after phrase outputs?
 - Do we want to ship with only `phrase_core`, or register `phrase_nonverb` from the start?
 - Do we still want non-phrase pedal roles such as `number` and `star`?
