@@ -65,3 +65,11 @@ scope. Deck reviews continue with due words from that deck; the root review-all
 flow continues across all decks. A fully correct review session auto-submits
 after a short countdown, while sessions with skipped entries wait for manual
 submit.
+
+## Phrasing Trainer
+
+The root page links to `/phrasing`, a non-SRS trainer for Stoin's core phrase
+mode. It generates phrase prompts from the same starter, grammar, verb, and tail
+banks as the C phrase engine. Current-lesson mode walks one progression step at
+a time; cumulative-random mode draws a bounded session from every progression
+step up to the selected one.

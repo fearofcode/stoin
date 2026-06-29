@@ -382,6 +382,28 @@ func TestInvalidImportDoesNotCreateDeck(t *testing.T) {
 	}
 }
 
+func TestPhrasingTrainerPage(t *testing.T) {
+	app := testApp(t)
+	req := httptest.NewRequest(http.MethodGet, "/phrasing", nil)
+	rec := httptest.NewRecorder()
+
+	app.handlePhrasingTrainer(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected phrasing trainer page, got %d", rec.Code)
+	}
+	body := rec.Body.String()
+	for _, want := range []string{
+		"<h1>Phrasing Trainer</h1>",
+		"const phraseStarters",
+		"1. Verb alone",
+		"Cumulative random",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("expected body to contain %q, got %q", want, body)
+		}
+	}
+}
+
 func contains(s string, sub string) bool {
 	return strings.Contains(s, sub)
 }
