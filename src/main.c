@@ -2,6 +2,7 @@
 #include "platform.h"
 #include "raw_serial.h"
 #include "runtime_config.h"
+#include "stentura.h"
 #include "steno.h"
 #include "tx_bolt.h"
 #include "tx_bolt_multiple.h"
@@ -20,6 +21,7 @@ typedef enum Input_Mode {
     INPUT_MODE_QWERTY,
     INPUT_MODE_TX_BOLT,
     INPUT_MODE_GEMINI_PR,
+    INPUT_MODE_STENTURA,
 } Input_Mode;
 
 #define DEFAULT_DICTIONARY_PATH "lapwing-base.json"
@@ -197,7 +199,7 @@ static void request_stop(int signum)
 static void print_usage(void)
 {
     fputs("usage: stoin [--config PATH] [--dictionary PATH ...] [--word-list PATH]\n", stderr);
-    fputs("             [--input tx-bolt|gemini-pr|qwerty]\n", stderr);
+    fputs("             [--input tx-bolt|gemini-pr|stentura|qwerty]\n", stderr);
     fputs("             [--serial-port PATH] [--serial-baud BAUD]\n", stderr);
     fputs("             [--multiple-inputs] [--multi-input-window-ms MS]\n", stderr);
     fputs("             [--pedal-config PATH] [--register-pedal core|nonverb]\n", stderr);
@@ -456,6 +458,111 @@ static int run_gemini_pr(App *app, const char *port_path, int baud_rate)
     return 0;
 }
 
+static int run_stentura(App *app, const char *port_path, int baud_rate)
+{
+    g_stop_requested = 0;
+    signal(SIGINT, request_stop);
+
+    const int resolved_baud_rate = baud_rate == 0 ? STENTURA_DEFAULT_BAUD_RATE : baud_rate;
+    printf("stoin: Stentura serial capture starting at %d baud 8N1\n", resolved_baud_rate);
+    printf("stoin: loaded %zu dictionary entries\n", steno_dictionary_count(app->steno));
+    puts("stoin: press Ctrl+C in this terminal to quit");
+
+    Stentura stentura = {0};
+    bool connected = false;
+    bool output_ready = false;
+    bool announced_disconnected = false;
+    start_dictionary_watcher(app);
+
+    while (!g_stop_requested) {
+        run_app_maintenance(app);
+        const bool session_active = app->session_state_known && app->session_active;
+
+        if (!connected) {
+            bool opened = false;
+            char resolved_port_path[PLATFORM_SERIAL_PATH_MAX] = {0};
+            if (port_path != NULL) {
+                const int written = snprintf(resolved_port_path, sizeof(resolved_port_path), "%s", port_path);
+                if (written > 0 && (size_t)written < sizeof(resolved_port_path)) {
+                    const Stentura_Config stentura_config = {
+                        .port_path = resolved_port_path,
+                        .baud_rate = resolved_baud_rate,
+                    };
+                    errno = 0;
+                    opened = stentura_open(&stentura, &stentura_config);
+                } else {
+                    errno = ENAMETOOLONG;
+                }
+            } else {
+                char serial_paths[16][PLATFORM_SERIAL_PATH_MAX] = {{0}};
+                const size_t serial_path_count =
+                    platform_find_serial_devices(serial_paths, sizeof(serial_paths) / sizeof(serial_paths[0]));
+                for (size_t i = 0; i < serial_path_count && !opened; ++i) {
+                    const Stentura_Config stentura_config = {
+                        .port_path = serial_paths[i],
+                        .baud_rate = resolved_baud_rate,
+                    };
+                    errno = 0;
+                    if (stentura_open(&stentura, &stentura_config)) {
+                        const int written =
+                            snprintf(resolved_port_path, sizeof(resolved_port_path), "%s", serial_paths[i]);
+                        opened = written > 0 && (size_t)written < sizeof(resolved_port_path);
+                        if (!opened) {
+                            stentura_close(&stentura);
+                            errno = ENAMETOOLONG;
+                        }
+                    }
+                }
+            }
+
+            if (!opened) {
+                if (!announced_disconnected) {
+                    if (port_path != NULL) {
+                        fprintf(stderr, "stoin: Stentura disconnected; waiting for %s", port_path);
+                    } else {
+                        fputs("stoin: Stentura disconnected; waiting for a Stentura-compatible serial device", stderr);
+                    }
+                    if (port_path != NULL && errno != 0) {
+                        fprintf(stderr, " (%s)", strerror(errno));
+                    }
+                    fputc('\n', stderr);
+                    announced_disconnected = true;
+                }
+                platform_sleep_ms(1000);
+                continue;
+            }
+
+            if (!output_ready && !platform_output_init()) {
+                stentura_close(&stentura);
+                platform_shutdown();
+                return 1;
+            }
+            output_ready = true;
+            connected = true;
+            announced_disconnected = false;
+            printf("stoin: Stentura connected on %s\n", stentura_port_path(&stentura));
+        }
+
+        uint64_t stroke_bits = 0;
+        if (stentura_read_stroke(&stentura, &stroke_bits)) {
+            if (session_active) {
+                (void)handle_stroke_bits(app, stroke_bits, platform_monotonic_ns());
+            }
+        } else if (stentura_had_error(&stentura)) {
+            printf("stoin: Stentura disconnected from %s; waiting for reconnect\n", stentura_port_path(&stentura));
+            stentura_close(&stentura);
+            connected = false;
+            platform_sleep_ms(1000);
+        }
+    }
+
+    if (connected) {
+        stentura_close(&stentura);
+    }
+    platform_shutdown();
+    return 0;
+}
+
 static Steno *create_steno(
     char *const *dictionary_paths,
     const bool *dictionary_enabled,
@@ -594,6 +701,11 @@ int main(int argc, char **argv)
                 input_mode = INPUT_MODE_TX_BOLT;
             } else if (strcmp(argv[i], "gemini-pr") == 0 || strcmp(argv[i], "gemini") == 0) {
                 input_mode = INPUT_MODE_GEMINI_PR;
+            } else if (strcmp(argv[i], "stentura") == 0
+                || strcmp(argv[i], "stenograph") == 0
+                || strcmp(argv[i], "stenograph-8000") == 0
+                || strcmp(argv[i], "8000") == 0) {
+                input_mode = INPUT_MODE_STENTURA;
             } else {
                 fprintf(stderr, "stoin: unknown input mode '%s'\n", argv[i]);
                 print_usage();
@@ -603,12 +715,14 @@ int main(int argc, char **argv)
         } else if ((strcmp(argv[i], "--serial-port") == 0
                 || strcmp(argv[i], "--port") == 0
                 || strcmp(argv[i], "--tx-bolt-port") == 0
-                || strcmp(argv[i], "--gemini-port") == 0) && i + 1 < argc) {
+                || strcmp(argv[i], "--gemini-port") == 0
+                || strcmp(argv[i], "--stentura-port") == 0) && i + 1 < argc) {
             serial_port = argv[++i];
         } else if ((strcmp(argv[i], "--serial-baud") == 0
                 || strcmp(argv[i], "--baud") == 0
                 || strcmp(argv[i], "--tx-bolt-baud") == 0
-                || strcmp(argv[i], "--gemini-baud") == 0) && i + 1 < argc) {
+                || strcmp(argv[i], "--gemini-baud") == 0
+                || strcmp(argv[i], "--stentura-baud") == 0) && i + 1 < argc) {
             if (!parse_baud_rate(argv[++i], &serial_baud_rate)) {
                 fprintf(stderr, "stoin: invalid serial baud rate '%s'\n", argv[i]);
                 runtime_config_destroy(&runtime_config);
@@ -739,8 +853,10 @@ int main(int argc, char **argv)
         } else {
             status = run_tx_bolt(&app, serial_port, serial_baud_rate);
         }
-    } else {
+    } else if (input_mode == INPUT_MODE_GEMINI_PR) {
         status = run_gemini_pr(&app, serial_port, serial_baud_rate);
+    } else {
+        status = run_stentura(&app, serial_port, serial_baud_rate);
     }
 
     steno_destroy(app.steno);

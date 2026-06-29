@@ -258,6 +258,14 @@ bool platform_serial_had_error(const Platform_Serial_Port *port)
     return port != NULL && port->had_error;
 }
 
+void platform_serial_flush(Platform_Serial_Port *port)
+{
+    if (port == NULL || port->fd < 0) {
+        return;
+    }
+    tcflush(port->fd, TCIOFLUSH);
+}
+
 Platform_Serial_Read_Result platform_serial_read_byte(
     Platform_Serial_Port *port,
     uint8_t *out_byte,
@@ -303,4 +311,59 @@ Platform_Serial_Read_Result platform_serial_read_byte(
 
     port->had_error = true;
     return PLATFORM_SERIAL_READ_ERROR;
+}
+
+bool platform_serial_write_all(
+    Platform_Serial_Port *port,
+    const uint8_t *bytes,
+    size_t byte_count,
+    unsigned int timeout_ms
+)
+{
+    if (port == NULL || bytes == NULL || port->fd < 0) {
+        if (port != NULL) {
+            port->had_error = true;
+        }
+        errno = EBADF;
+        return false;
+    }
+
+    size_t written_count = 0;
+    while (written_count < byte_count) {
+        fd_set write_fds;
+        FD_ZERO(&write_fds);
+        FD_SET(port->fd, &write_fds);
+
+        struct timeval timeout = {
+            .tv_sec = (time_t)(timeout_ms / 1000),
+            .tv_usec = (suseconds_t)((timeout_ms % 1000) * 1000),
+        };
+
+        const int ready = select(port->fd + 1, NULL, &write_fds, NULL, &timeout);
+        if (ready < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            port->had_error = true;
+            return false;
+        }
+        if (ready == 0) {
+            errno = ETIMEDOUT;
+            return false;
+        }
+
+        const ssize_t bytes_written = write(port->fd, bytes + written_count, byte_count - written_count);
+        if (bytes_written > 0) {
+            written_count += (size_t)bytes_written;
+            continue;
+        }
+        if (bytes_written == 0 || errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
+            continue;
+        }
+
+        port->had_error = true;
+        return false;
+    }
+
+    return true;
 }

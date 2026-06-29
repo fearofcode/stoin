@@ -61,9 +61,16 @@ bool platform_serial_open(Platform_Serial_Port **out_port, const char *port_path
 void platform_serial_close(Platform_Serial_Port *port);
 const char *platform_serial_port_path(const Platform_Serial_Port *port);
 bool platform_serial_had_error(const Platform_Serial_Port *port);
+void platform_serial_flush(Platform_Serial_Port *port);
 Platform_Serial_Read_Result platform_serial_read_byte(
     Platform_Serial_Port *port,
     uint8_t *out_byte,
+    unsigned int timeout_ms
+);
+bool platform_serial_write_all(
+    Platform_Serial_Port *port,
+    const uint8_t *bytes,
+    size_t byte_count,
     unsigned int timeout_ms
 );
 bool platform_user_session_is_active(void);

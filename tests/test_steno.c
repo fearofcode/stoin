@@ -1,6 +1,7 @@
 #include "gemini_pr.h"
 #include "orthography.h"
 #include "platform.h"
+#include "stentura.h"
 #include "steno.h"
 #include "steno_stroke.h"
 #include "stroke_merge.h"
@@ -258,6 +259,36 @@ static bool expect_u64(const char *name, uint64_t actual, uint64_t expected)
     return false;
 }
 
+static bool expect_bytes(
+    const char *name,
+    const uint8_t *actual,
+    size_t actual_size,
+    const uint8_t *expected,
+    size_t expected_size
+)
+{
+    if (actual_size == expected_size && memcmp(actual, expected, expected_size) == 0) {
+        return true;
+    }
+
+    fprintf(stderr, "test failed: %s: expected %zu bytes, got %zu bytes\n",
+        name,
+        expected_size,
+        actual_size);
+    const size_t min_size = actual_size < expected_size ? actual_size : expected_size;
+    for (size_t i = 0; i < min_size; ++i) {
+        if (actual[i] != expected[i]) {
+            fprintf(stderr, "test failed: %s: byte %zu expected 0x%02x, got 0x%02x\n",
+                name,
+                i,
+                expected[i],
+                actual[i]);
+            break;
+        }
+    }
+    return false;
+}
+
 static bool expect_stroke_format(const char *input, const char *expected)
 {
     uint64_t bits = 0;
@@ -427,6 +458,101 @@ int main(void)
     ok = ok && !gemini_pr_decode_packet(bad_gemini_start, &gemini_bits);
     const uint8_t bad_gemini_continuation[GEMINI_PR_PACKET_SIZE] = { 0x80, 0xC0, 0x20, 0x00, 0x04, 0x00 };
     ok = ok && !gemini_pr_decode_packet(bad_gemini_continuation, &gemini_bits);
+
+    const uint8_t stentura_crc_input[] = "123456789";
+    ok = ok && expect_u64(
+        "Stentura CRC-16 check value",
+        stentura_crc16(stentura_crc_input, sizeof(stentura_crc_input) - 1),
+        0xBB3D);
+
+    uint64_t stentura_bits = 0;
+    char stentura_string[64] = {0};
+    const uint8_t stentura_sat[4] = { 0xC8, 0xC4, 0xC0, 0xC8 };
+    ok = ok && stentura_decode_stroke(stentura_sat, &stentura_bits);
+    ok = ok && chord_bits_to_string(stentura_bits, stentura_string, sizeof(stentura_string));
+    ok = ok && expect_string("Stentura SAT stroke", stentura_string, "SAT");
+
+    const uint8_t stentura_praoerbgs[4] = { 0xC1, 0xCE, 0xE5, 0xD4 };
+    memset(stentura_string, 0, sizeof(stentura_string));
+    ok = ok && stentura_decode_stroke(stentura_praoerbgs, &stentura_bits);
+    ok = ok && chord_bits_to_string(stentura_bits, stentura_string, sizeof(stentura_string));
+    ok = ok && expect_string("Stentura PRAOERBGS stroke", stentura_string, "PRAOERBGS");
+
+    const uint8_t bad_stentura_stroke[4] = { 0xC8, 0x84, 0xC0, 0xC8 };
+    ok = ok && !stentura_decode_stroke(bad_stentura_stroke, &stentura_bits);
+
+    const uint8_t stentura_strokes[] = {
+        0xC8, 0xC4, 0xC0, 0xC8,
+        0xC1, 0xCE, 0xE5, 0xD4,
+    };
+    uint64_t decoded_stentura_strokes[2] = {0};
+    size_t decoded_stentura_count = 0;
+    ok = ok && stentura_decode_strokes(
+        stentura_strokes,
+        sizeof(stentura_strokes),
+        decoded_stentura_strokes,
+        sizeof(decoded_stentura_strokes) / sizeof(decoded_stentura_strokes[0]),
+        &decoded_stentura_count);
+    ok = ok && expect_size("Stentura decoded stroke count", decoded_stentura_count, 2);
+
+    uint8_t stentura_packet[64] = {0};
+    const uint8_t expected_stentura_read[] = {
+        0x01, 0x20, 0x12, 0x00, 0x0B, 0x00, 0x01, 0x00, 0x00,
+        0x00, 0x14, 0x00, 0x01, 0x00, 0x08, 0x00, 0x83, 0x3C,
+    };
+    size_t stentura_packet_size = stentura_make_read(stentura_packet, sizeof(stentura_packet), 32, 1, 8, 20);
+    ok = ok && expect_bytes(
+        "Stentura READC request",
+        stentura_packet,
+        stentura_packet_size,
+        expected_stentura_read,
+        sizeof(expected_stentura_read));
+
+    const uint8_t expected_stentura_open[] = {
+        0x01, 0x4F, 0x20, 0x00, 0x0A, 0x00, 0x41, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x65, 0xDD,
+        0x52, 0x45, 0x41, 0x4C, 0x54, 0x49, 0x4D, 0x45, 0x2E,
+        0x30, 0x30, 0x30, 0x49, 0xF2,
+    };
+    memset(stentura_packet, 0, sizeof(stentura_packet));
+    stentura_packet_size =
+        stentura_make_open(stentura_packet, sizeof(stentura_packet), 79, 'A', "REALTIME.000");
+    ok = ok && expect_bytes(
+        "Stentura OPEN request",
+        stentura_packet,
+        stentura_packet_size,
+        expected_stentura_open,
+        sizeof(expected_stentura_open));
+
+    const uint8_t expected_stentura_reset[] = {
+        0x01, 0x43, 0x12, 0x00, 0x14, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x21, 0x13,
+    };
+    memset(stentura_packet, 0, sizeof(stentura_packet));
+    stentura_packet_size = stentura_make_reset(stentura_packet, sizeof(stentura_packet), 67);
+    ok = ok && expect_bytes(
+        "Stentura RESET request",
+        stentura_packet,
+        stentura_packet_size,
+        expected_stentura_reset,
+        sizeof(expected_stentura_reset));
+
+    const uint8_t valid_stentura_response[] = {
+        0x01, 0x05, 0x0E, 0x00, 0x09, 0x00, 0x01,
+        0x00, 0x02, 0x00, 0x03, 0x00, 0xB0, 0xCA,
+    };
+    const uint8_t valid_stentura_data_response[] = {
+        0x01, 0x05, 0x15, 0x00, 0x09, 0x00, 0x01, 0x00, 0x02,
+        0x00, 0x03, 0x00, 0xC0, 0xBA, 0x68, 0x65, 0x6C, 0x6C,
+        0x6F, 0xD2, 0x34,
+    };
+    ok = ok && stentura_validate_response(valid_stentura_response, sizeof(valid_stentura_response));
+    ok = ok && stentura_validate_response(valid_stentura_data_response, sizeof(valid_stentura_data_response));
+    ok = ok && !stentura_validate_response(valid_stentura_response, sizeof(valid_stentura_response) - 1);
+    uint8_t bad_stentura_response[sizeof(valid_stentura_data_response)] = {0};
+    memcpy(bad_stentura_response, valid_stentura_data_response, sizeof(bad_stentura_response));
+    bad_stentura_response[sizeof(bad_stentura_response) - 1] ^= 0x01;
+    ok = ok && !stentura_validate_response(bad_stentura_response, sizeof(bad_stentura_response));
 
     Tx_Bolt tx_bolt = {0};
     uint64_t tx_bolt_bits = 0;

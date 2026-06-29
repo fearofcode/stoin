@@ -32,6 +32,7 @@ COMMON_SOURCES := \
 	src/raw_serial.c \
 	src/retro.c \
 	src/runtime_config.c \
+	src/stentura.c \
 	src/steno.c \
 	src/steno_stroke.c \
 	src/stroke_merge.c \
