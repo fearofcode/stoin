@@ -651,7 +651,7 @@ int main(void)
             ok = ok && stroke_string_to_bits("-T", &trace_bits);
             ok = ok && steno_handle_stroke_bits(trace_steno, trace_bits);
             ok = ok && handle_mock_pedal_stroke(trace_steno, PHRASE_NAMESPACE_CORE, "P-BS");
-            ok = ok && handle_mock_pedal_stroke(trace_steno, PHRASE_NAMESPACE_CORE, "TEFT");
+            ok = ok && handle_mock_pedal_stroke(trace_steno, PHRASE_NAMESPACE_CORE, "#KW");
             ok = ok && handle_mock_pedal_stroke(trace_steno, PHRASE_NAMESPACE_CORE, "SAO");
             ok = ok && expect_trace_contains(trace_file, "trace translated stroke", "-T -> the\n");
             ok = ok && expect_trace_contains(
@@ -661,7 +661,7 @@ int main(void)
             ok = ok && expect_trace_contains(
                 trace_file,
                 "trace phrase fallback dictionary stroke",
-                "TEFT [phrase fallback] -> test\n");
+                "#KW [phrase fallback] -> test\n");
             ok = ok && expect_trace_contains(
                 trace_file,
                 "trace phrase fallback raw stroke",
@@ -734,6 +734,7 @@ int main(void)
     uint64_t stitch_b_bits = 0;
     uint64_t stitch_c_bits = 0;
     uint64_t test_bits = 0;
+    uint64_t phrase_fallback_test_bits = 0;
     uint64_t eye_bits = 0;
     uint64_t to_bits = 0;
     uint64_t hyphen_bits = 0;
@@ -799,6 +800,7 @@ int main(void)
     ok = ok && stroke_string_to_bits("PW", &stitch_b_bits);
     ok = ok && stroke_string_to_bits("KR", &stitch_c_bits);
     ok = ok && stroke_string_to_bits("TEFT", &test_bits);
+    ok = ok && stroke_string_to_bits("#KW", &phrase_fallback_test_bits);
     ok = ok && stroke_string_to_bits("AOEU", &eye_bits);
     ok = ok && stroke_string_to_bits("TO", &to_bits);
     ok = ok && stroke_string_to_bits("H-PB", &hyphen_bits);
@@ -989,6 +991,162 @@ int main(void)
         "core phrase the tail",
         "K-RPBT",
         "he understands the");
+    ok = ok && expect_mock_pedal_phrase(
+        &steno,
+        &config,
+        &output,
+        "core phrase starter this",
+        "TP-B",
+        "this is");
+    ok = ok && expect_mock_pedal_phrase(
+        &steno,
+        &config,
+        &output,
+        "core phrase starter there singular",
+        "TK-B",
+        "there is");
+    ok = ok && expect_mock_pedal_phrase(
+        &steno,
+        &config,
+        &output,
+        "core phrase starter there plural",
+        "TKW-B",
+        "there are");
+    ok = ok && expect_mock_pedal_phrase(
+        &steno,
+        &config,
+        &output,
+        "core phrase blank plural starter",
+        "SW-B",
+        "are");
+    ok = ok && expect_mock_pedal_phrase(
+        &steno,
+        &config,
+        &output,
+        "core phrase question starter who",
+        "KW-FR",
+        "who sees");
+    ok = ok && expect_mock_pedal_phrase(
+        &steno,
+        &config,
+        &output,
+        "core phrase question starter what",
+        "TW-FR",
+        "what sees");
+    ok = ok && expect_mock_pedal_phrase(
+        &steno,
+        &config,
+        &output,
+        "core phrase indefinite starter someone",
+        "SP-B",
+        "someone is");
+    ok = ok && expect_mock_pedal_phrase(
+        &steno,
+        &config,
+        &output,
+        "core phrase indefinite starter something",
+        "SPW-FP",
+        "something happens");
+    ok = ok && expect_mock_pedal_phrase(
+        &steno,
+        &config,
+        &output,
+        "core phrase indefinite starter everyone",
+        "KP-PB",
+        "everyone knows");
+    ok = ok && expect_mock_pedal_phrase(
+        &steno,
+        &config,
+        &output,
+        "core phrase indefinite starter everything",
+        "KPW-PG",
+        "everything gets");
+    ok = ok && expect_mock_pedal_phrase(
+        &steno,
+        &config,
+        &output,
+        "core phrase negative pronoun starter nobody",
+        "SKP-FR",
+        "nobody sees");
+    ok = ok && expect_mock_pedal_phrase(
+        &steno,
+        &config,
+        &output,
+        "core phrase negative pronoun starter nothing",
+        "SKPW-FP",
+        "nothing happens");
+
+    const struct {
+        const char *stroke;
+        const char *expected;
+    } phrase_verb_cases[] = {
+        { "-F", "to have" },
+        { "-R", "to run" },
+        { "-P", "to want" },
+        { "-B", "to be" },
+        { "-L", "to look" },
+        { "-G", "to go" },
+        { "-FR", "to see" },
+        { "-FP", "to happen" },
+        { "-FB", "to say" },
+        { "-FL", "to feel" },
+        { "-FG", "to come" },
+        { "-RP", "to do" },
+        { "-RB", "to ask" },
+        { "-RL", "to recall" },
+        { "-RG", "to forget" },
+        { "-PB", "to know" },
+        { "-PL", "to move" },
+        { "-PG", "to get" },
+        { "-BL", "to believe" },
+        { "-BG", "to become" },
+        { "-LG", "to love" },
+        { "-FRP", "to read" },
+        { "-FRB", "to care" },
+        { "-FRPB", "to try" },
+        { "-FRL", "to change" },
+        { "-FRG", "to consider" },
+        { "-FPB", "to expect" },
+        { "-FPL", "to hope" },
+        { "-FPG", "to hear" },
+        { "-FBL", "to keep" },
+        { "-FBG", "to learn" },
+        { "-FLG", "to leave" },
+        { "-RPB", "to understand" },
+        { "-RPL", "to remember" },
+        { "-RPG", "to need" },
+        { "-RBL", "to take" },
+        { "-RBG", "to work" },
+        { "-RLG", "to realize" },
+        { "-PBL", "to mean" },
+        { "-PBG", "to think" },
+        { "-PLG", "to imagine" },
+        { "-BLG", "to like" },
+        { "-FRPL", "to wish" },
+        { "-FRPBL", "to use" },
+        { "-FRPG", "to give" },
+        { "-FRBL", "to let" },
+        { "-FRBG", "to tell" },
+        { "-FRLG", "to live" },
+        { "-FPBL", "to mind" },
+        { "-FPBG", "to put" },
+        { "-FPLG", "to set" },
+        { "-FBLG", "to seem" },
+        { "-RPBL", "to make" },
+        { "-RPBG", "to show" },
+        { "-RPLG", "to remain" },
+        { "-RBLG", "to call" },
+        { "-PBLG", "to find" },
+    };
+    for (size_t i = 0; i < sizeof(phrase_verb_cases) / sizeof(phrase_verb_cases[0]); ++i) {
+        ok = ok && expect_mock_pedal_phrase(
+            &steno,
+            &config,
+            &output,
+            "core phrase verb inventory",
+            phrase_verb_cases[i].stroke,
+            phrase_verb_cases[i].expected);
+    }
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
@@ -997,14 +1155,14 @@ int main(void)
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    ok = ok && handle_mock_pedal_stroke(steno, PHRASE_NAMESPACE_CORE, "TEFT");
+    ok = ok && handle_mock_pedal_stroke(steno, PHRASE_NAMESPACE_CORE, "#KW");
     ok = ok && expect_string("core phrase miss falls back to dictionary", output.text, "test");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
     steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_CORE, true);
     ok = ok && steno_handle_stroke_bits(steno, phrase_it_is_a_bits);
-    ok = ok && steno_handle_stroke_bits(steno, test_bits);
+    ok = ok && steno_handle_stroke_bits(steno, phrase_fallback_test_bits);
     ok = ok && steno_handle_stroke_bits(steno, phrase_it_is_a_bits);
     steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_CORE, false);
     ok = ok && expect_string("held phrase pedal allows dictionary word between phrases", output.text, "it is a test it is a");

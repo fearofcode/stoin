@@ -95,6 +95,18 @@ P      it
 T      they
 ST     that
 PW     you
+TP     this
+TK     there (singular)
+TKW    there (plural)
+SW     blank plural starter
+KW     who
+TW     what
+SP     someone
+SPW    something
+KP     everyone
+KPW    everything
+SKP    nobody
+SKPW   nothing
 ```
 
 ## Implemented Grammar Bits
@@ -131,13 +143,68 @@ KAU-G    can he go
 ## Implemented Verbs
 
 ```text
-B     be
-G     go
-BL    believe
-RPB   understand
+F       have
+R       run
+P       want
+B       be
+L       look
+G       go
+FR      see
+FP      happen
+FB      say
+FL      feel
+FG      come
+RP      do
+RB      ask
+RL      recall
+RG      forget
+PB      know
+PL      move
+PG      get
+BL      believe
+BG      become
+LG      love
+FRP     read
+FRB     care
+FRPB    try
+FRL     change
+FRG     consider
+FPB     expect
+FPL     hope
+FPG     hear
+FBL     keep
+FBG     learn
+FLG     leave
+RPB     understand
+RPL     remember
+RPG     need
+RBL     take
+RBG     work
+RLG     realize
+PBL     mean
+PBG     think
+PLG     imagine
+BLG     like
+FRPL    wish
+FRPBL   use
+FRPG    give
+FRBL    let
+FRBG    tell
+FRLG    live
+FPBL    mind
+FPBG    put
+FPLG    set
+FBLG    seem
+RPBL    make
+RPBG    show
+RPLG    remain
+RBLG    call
+PBLG    find
 ```
 
-These are mnemonic anchors and should be considered stable.
+The short mnemonic anchors should be considered stable. The longer verb chords
+fill out the Jeff-inspired verb inventory while keeping the right `T S D Z`
+field free for tails.
 
 ## Implemented Tails
 
