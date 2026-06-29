@@ -1,0 +1,46 @@
+{{define "phrasingTrainer"}}
+{{template "layoutTop" .}}
+<p><a href="/">All decks</a></p>
+<h1>Phrasing Trainer</h1>
+<section class="panel">
+	<div class="trainer-controls">
+		<label>Progression
+			<select id="phrase-lesson"></select>
+		</label>
+		<label>Verb focus
+			<select id="phrase-verb"></select>
+		</label>
+		<label>Random session length
+			<input type="number" id="phrase-count" min="1" max="500" value="40">
+		</label>
+		<label>Hints
+			<select id="phrase-hints">
+				<option value="after" selected>after mistake</option>
+				<option value="on">always on</option>
+				<option value="off">off</option>
+			</select>
+		</label>
+	</div>
+	<div class="actions segmented" role="radiogroup" aria-label="Practice mode">
+		<label><input type="radio" name="phrase-mode" value="ordered" checked> Current lesson</label>
+		<label><input type="radio" name="phrase-mode" value="cumulative"> Cumulative random</label>
+	</div>
+	<div class="actions">
+		<button type="button" id="phrase-restart" class="primary">Restart</button>
+		<button type="button" id="phrase-reroll">Shuffle</button>
+		<span class="small" id="phrase-set-summary"></span>
+	</div>
+</section>
+<section class="panel" id="phrase-trainer">
+	<div class="phrase-progress">
+		<span id="phrase-progress"></span>
+		<span id="phrase-lesson-name"></span>
+	</div>
+	<div class="phrase-prompt" id="phrase-prompt"></div>
+	<div class="phrase-hint hidden" id="phrase-hint"></div>
+	<input class="phrase-answer" id="phrase-answer" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off">
+	<p class="small" id="phrase-status" aria-live="polite"></p>
+</section>
+<script src="/static/phrasing-trainer.js"></script>
+{{template "layoutBottom" .}}
+{{end}}

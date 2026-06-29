@@ -1,0 +1,51 @@
+{{define "deck"}}
+{{template "layoutTop" .}}
+<p><a href="/">All decks</a></p>
+{{if .Notice}}<p class="notice">{{.Notice}}</p>{{end}}
+<h1>{{.Deck.Name}}</h1>
+<p class="small">{{.TotalItems}} words, {{.DueCount}} due now{{if gt .LearningCount 0}}, {{.LearningCount}} learning, {{.IntroRemaining}} intro reps left{{end}}</p>
+<form method="post" action="/session/start" id="selection-form">
+	<input type="hidden" name="deck_id" value="{{.Deck.ID}}">
+	<div class="actions">
+		<button class="primary" type="submit" name="mode" value="review">Review selected</button>
+		<label>Practice count <input type="number" name="practice_count" min="1" value="1"></label>
+		<button type="submit" name="mode" value="practice">Practice selected</button>
+		<button type="submit" name="mode" value="practice_all">Practice all</button>
+	</div>
+	{{if .Groups}}
+	{{range .Groups}}
+	<section class="group">
+		<header>
+			<label><input type="checkbox" class="group-check" data-group="{{.ID}}"> {{.Name}}</label>
+			<span class="small">{{len .Items}} words{{if gt .LearningCount 0}}, {{.LearningCount}} learning, {{.IntroRemaining}} reps left{{end}}</span>
+		</header>
+		{{if .Items}}
+		{{range .Items}}
+		<div class="word-row">
+			<input type="checkbox" name="item_id" value="{{.ID}}" data-group="{{.GroupID}}">
+			<span>{{.Text}}</span>
+			<span class="word-meta">{{if gt .IntroRemaining 0}}learning {{.IntroRemaining}}{{else}}due {{.DueAt.Format "2006-01-02"}}{{end}}</span>
+		</div>
+		{{end}}
+		{{else}}
+		<div class="word-row"><span></span><span class="small">No words in this group.</span><span></span></div>
+		{{end}}
+	</section>
+	{{end}}
+	{{else}}
+	<p>No groups yet.</p>
+	{{end}}
+</form>
+<h2>Import Into {{.Deck.Name}}</h2>
+{{template "importForm" dict "Errors" .Errors "Form" .Form "Decks" nil "DeckID" .Deck.ID "Return" (printf "/deck?id=%d" .Deck.ID)}}
+<script>
+document.querySelectorAll('.group-check').forEach(function(box) {
+	box.addEventListener('change', function() {
+		document.querySelectorAll('input[name="item_id"][data-group="'+box.dataset.group+'"]').forEach(function(item) {
+			item.checked = box.checked;
+		});
+	});
+});
+</script>
+{{template "layoutBottom" .}}
+{{end}}

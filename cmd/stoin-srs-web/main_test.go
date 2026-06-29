@@ -394,13 +394,29 @@ func TestPhrasingTrainerPage(t *testing.T) {
 	body := rec.Body.String()
 	for _, want := range []string{
 		"<h1>Phrasing Trainer</h1>",
-		"const phraseStarters",
-		"1. Verb alone",
+		`src="/static/phrasing-trainer.js"`,
 		"Cumulative random",
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("expected body to contain %q, got %q", want, body)
 		}
+	}
+}
+
+func TestStaticPhrasingTrainerScript(t *testing.T) {
+	app := testApp(t)
+	mux := http.NewServeMux()
+	app.routes(mux)
+	req := httptest.NewRequest(http.MethodGet, "/static/phrasing-trainer.js", nil)
+	rec := httptest.NewRecorder()
+
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected static trainer script, got %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "const phraseStarters") || !strings.Contains(body, "1. Verb alone") {
+		t.Fatalf("expected trainer script contents, got %q", rec.Body.String())
 	}
 }
 
