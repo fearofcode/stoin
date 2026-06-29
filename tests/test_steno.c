@@ -29,6 +29,8 @@ typedef struct Watch_Test {
     size_t reload_count;
 } Watch_Test;
 
+static bool expect_string(const char *name, const char *actual, const char *expected);
+
 enum {
     TEST_KEYCODE_ESCAPE = 53,
     TEST_KEYCODE_LEFT_CONTROL = 59,
@@ -110,6 +112,41 @@ static bool reset_test_steno(Steno **steno, const Steno_Config *config)
     steno_destroy(*steno);
     *steno = steno_create(config);
     return *steno != NULL;
+}
+
+static bool handle_mock_pedal_stroke(Steno *steno, Phrase_Namespace namespace, const char *stroke)
+{
+    uint64_t bits = 0;
+    if (!stroke_string_to_bits(stroke, &bits)) {
+        fprintf(stderr, "test failed: could not parse mock pedal stroke '%s'\n", stroke);
+        return false;
+    }
+
+    steno_set_phrase_namespace(steno, namespace, true);
+    const bool ok = steno_handle_stroke(steno, (Stroke_Input) {
+        .bits = bits,
+        .phrase_namespace = namespace,
+    });
+    steno_set_phrase_namespace(steno, namespace, false);
+    return ok;
+}
+
+static bool expect_mock_pedal_phrase(
+    Steno **steno,
+    const Steno_Config *config,
+    Test_Output *output,
+    const char *name,
+    const char *stroke,
+    const char *expected
+)
+{
+    if (!reset_test_steno(steno, config)) {
+        return false;
+    }
+    clear_test_output(output);
+    reset_output_log(output);
+    return handle_mock_pedal_stroke(*steno, PHRASE_NAMESPACE_CORE, stroke)
+        && expect_string(name, output->text, expected);
 }
 
 static bool write_text_file(const char *path, const char *contents)
@@ -256,14 +293,23 @@ static bool expect_orthography(
     return ok;
 }
 
-static bool read_trace_line(FILE *trace_file, char *line, size_t line_size)
+static bool expect_trace_contains(FILE *trace_file, const char *name, const char *expected)
 {
+    char contents[1024] = {0};
+
     fflush(trace_file);
     rewind(trace_file);
-    if (fgets(line, (int)line_size, trace_file) == NULL) {
-        return false;
+    const size_t read = fread(contents, 1, sizeof(contents) - 1, trace_file);
+    contents[read] = '\0';
+    if (strstr(contents, expected) != NULL) {
+        return true;
     }
-    return true;
+
+    fprintf(stderr, "test failed: %s: expected trace to contain '%s', got '%s'\n",
+        name,
+        expected,
+        contents);
+    return false;
 }
 
 int main(void)
@@ -600,13 +646,26 @@ int main(void)
         Steno *trace_steno = steno_create(&trace_config);
         ok = ok && trace_steno != NULL;
         if (trace_steno != NULL) {
-            char trace_line[128] = {0};
             uint64_t trace_bits = 0;
             clear_test_output(&output);
             ok = ok && stroke_string_to_bits("-T", &trace_bits);
             ok = ok && steno_handle_stroke_bits(trace_steno, trace_bits);
-            ok = ok && read_trace_line(trace_file, trace_line, sizeof(trace_line));
-            ok = ok && expect_string("trace translated stroke", trace_line, "-T -> the\n");
+            ok = ok && handle_mock_pedal_stroke(trace_steno, PHRASE_NAMESPACE_CORE, "P-BS");
+            ok = ok && handle_mock_pedal_stroke(trace_steno, PHRASE_NAMESPACE_CORE, "TEFT");
+            ok = ok && handle_mock_pedal_stroke(trace_steno, PHRASE_NAMESPACE_CORE, "SAO");
+            ok = ok && expect_trace_contains(trace_file, "trace translated stroke", "-T -> the\n");
+            ok = ok && expect_trace_contains(
+                trace_file,
+                "trace phrase stroke",
+                "PBS [phrase] -> it is a\n");
+            ok = ok && expect_trace_contains(
+                trace_file,
+                "trace phrase fallback dictionary stroke",
+                "TEFT [phrase fallback] -> test\n");
+            ok = ok && expect_trace_contains(
+                trace_file,
+                "trace phrase fallback raw stroke",
+                "SAO [phrase fallback] -> [untranslated]\n");
             steno_destroy(trace_steno);
         }
         fclose(trace_file);
@@ -722,6 +781,7 @@ int main(void)
     uint64_t plover_bits = 0;
     uint64_t right_arrow_bits = 0;
     uint64_t modal_toggle_bits = 0;
+    uint64_t phrase_it_is_a_bits = 0;
     ok = ok && stroke_string_to_bits("STOER", &story_bits);
     ok = ok && stroke_string_to_bits("-Z", &plural_bits);
     ok = ok && stroke_string_to_bits("-D", &past_bits);
@@ -786,6 +846,235 @@ int main(void)
     ok = ok && stroke_string_to_bits("PHROF", &plover_bits);
     ok = ok && stroke_string_to_bits("STPH-G", &right_arrow_bits);
     ok = ok && stroke_string_to_bits("STPH", &modal_toggle_bits);
+    ok = ok && stroke_string_to_bits("P-BS", &phrase_it_is_a_bits);
+
+    clear_test_output(&output);
+    reset_output_log(&output);
+    ok = ok && steno_handle_stroke_bits(steno, phrase_it_is_a_bits);
+    ok = ok && expect_string("phrase outline without namespace stays normal steno", output.text, "PBS");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    reset_output_log(&output);
+    ok = ok && handle_mock_pedal_stroke(steno, PHRASE_NAMESPACE_CORE, "P-BS");
+    ok = ok && expect_string("core phrase it is a", output.text, "it is a");
+    ok = ok && handle_mock_pedal_stroke(steno, PHRASE_NAMESPACE_CORE, "TH*G");
+    ok = ok && expect_string("core phrase spacing and negation", output.text, "it is a they didn't go");
+    ok = ok && steno_handle_stroke_bits(steno, undo_bits);
+    ok = ok && expect_string("core phrase undo", output.text, "it is a");
+
+    ok = ok && expect_mock_pedal_phrase(
+        &steno,
+        &config,
+        &output,
+        "core phrase bare be infinitive",
+        "-B",
+        "to be");
+    ok = ok && expect_mock_pedal_phrase(
+        &steno,
+        &config,
+        &output,
+        "core phrase bare be infinitive with tail",
+        "-BS",
+        "to be a");
+    ok = ok && expect_mock_pedal_phrase(
+        &steno,
+        &config,
+        &output,
+        "core phrase empty starter past be",
+        "H-BS",
+        "was a");
+    ok = ok && expect_mock_pedal_phrase(
+        &steno,
+        &config,
+        &output,
+        "core phrase bare go infinitive",
+        "-G",
+        "to go");
+    ok = ok && expect_mock_pedal_phrase(
+        &steno,
+        &config,
+        &output,
+        "core phrase first singular be",
+        "S-B",
+        "I am");
+    ok = ok && expect_mock_pedal_phrase(
+        &steno,
+        &config,
+        &output,
+        "core phrase present agreement",
+        "K-G",
+        "he goes");
+    ok = ok && expect_mock_pedal_phrase(
+        &steno,
+        &config,
+        &output,
+        "core phrase past plural be",
+        "TH-B",
+        "they were");
+    ok = ok && expect_mock_pedal_phrase(
+        &steno,
+        &config,
+        &output,
+        "core phrase she believed her",
+        "SKH-BLSD",
+        "she believed her");
+    ok = ok && expect_mock_pedal_phrase(
+        &steno,
+        &config,
+        &output,
+        "core phrase modal",
+        "KA-G",
+        "he can go");
+    ok = ok && expect_mock_pedal_phrase(
+        &steno,
+        &config,
+        &output,
+        "core phrase conditional",
+        "KHAO-G",
+        "he would go");
+    ok = ok && expect_mock_pedal_phrase(
+        &steno,
+        &config,
+        &output,
+        "core phrase progressive",
+        "KE-G",
+        "he is going");
+    ok = ok && expect_mock_pedal_phrase(
+        &steno,
+        &config,
+        &output,
+        "core phrase perfect",
+        "KR-G",
+        "he has gone");
+    ok = ok && expect_mock_pedal_phrase(
+        &steno,
+        &config,
+        &output,
+        "core phrase perfect progressive",
+        "KRE-G",
+        "he has been going");
+    ok = ok && expect_mock_pedal_phrase(
+        &steno,
+        &config,
+        &output,
+        "core phrase inverted",
+        "KU-G",
+        "does he go");
+    ok = ok && expect_mock_pedal_phrase(
+        &steno,
+        &config,
+        &output,
+        "core phrase negative inverted",
+        "K*U-G",
+        "doesn't he go");
+    ok = ok && expect_mock_pedal_phrase(
+        &steno,
+        &config,
+        &output,
+        "core phrase modal inverted",
+        "KAU-G",
+        "can he go");
+    ok = ok && expect_mock_pedal_phrase(
+        &steno,
+        &config,
+        &output,
+        "core phrase conditional perfect",
+        "SKHRAO-BLSD",
+        "she would have believed her");
+    ok = ok && expect_mock_pedal_phrase(
+        &steno,
+        &config,
+        &output,
+        "core phrase the tail",
+        "K-RPBT",
+        "he understands the");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    ok = ok && handle_mock_pedal_stroke(steno, PHRASE_NAMESPACE_CORE, "SAO");
+    ok = ok && expect_string("core phrase miss falls back to raw outline", output.text, "SAO");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    ok = ok && handle_mock_pedal_stroke(steno, PHRASE_NAMESPACE_CORE, "TEFT");
+    ok = ok && expect_string("core phrase miss falls back to dictionary", output.text, "test");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_CORE, true);
+    ok = ok && steno_handle_stroke_bits(steno, phrase_it_is_a_bits);
+    ok = ok && steno_handle_stroke_bits(steno, test_bits);
+    ok = ok && steno_handle_stroke_bits(steno, phrase_it_is_a_bits);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_CORE, false);
+    ok = ok && expect_string("held phrase pedal allows dictionary word between phrases", output.text, "it is a test it is a");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_CORE, true);
+    ok = ok && send_key_event(steno, "e", true);
+    ok = ok && send_key_event(steno, "k", true);
+    ok = ok && send_key_event(steno, "semicolon", true);
+    ok = ok && send_key_event(steno, "e", false);
+    ok = ok && send_key_event(steno, "k", false);
+    ok = ok && send_key_event(steno, "semicolon", false);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_CORE, false);
+    ok = ok && expect_string("qwerty phrase namespace routes gathered chord", output.text, "it is a");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    ok = ok && send_key_event(steno, "e", true);
+    ok = ok && send_key_event(steno, "k", true);
+    ok = ok && send_key_event(steno, "semicolon", true);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_CORE, true);
+    ok = ok && send_key_event(steno, "e", false);
+    ok = ok && send_key_event(steno, "k", false);
+    ok = ok && send_key_event(steno, "semicolon", false);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_CORE, false);
+    ok = ok && expect_string("qwerty phrase namespace can begin mid-chord", output.text, "it is a");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    ok = ok && !send_key_event(steno, "left_shift", true);
+    ok = ok && !send_key_event(steno, "left_shift", false);
+    ok = ok && send_key_event(steno, "e", true);
+    ok = ok && send_key_event(steno, "k", true);
+    ok = ok && send_key_event(steno, "semicolon", true);
+    ok = ok && send_key_event(steno, "e", false);
+    ok = ok && send_key_event(steno, "k", false);
+    ok = ok && send_key_event(steno, "semicolon", false);
+    ok = ok && expect_string("qwerty shift tap routes next chord through phrase namespace", output.text, "it is a");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    ok = ok && send_key_event(steno, "right_shift", true);
+    ok = ok && send_key_event(steno, "right_shift", false);
+    ok = ok && expect_string("qwerty mapped shift tap emits nothing", output.text, "");
+    ok = ok && send_key_event(steno, "e", true);
+    ok = ok && send_key_event(steno, "k", true);
+    ok = ok && send_key_event(steno, "semicolon", true);
+    ok = ok && send_key_event(steno, "e", false);
+    ok = ok && send_key_event(steno, "k", false);
+    ok = ok && send_key_event(steno, "semicolon", false);
+    ok = ok && expect_string("qwerty mapped shift tap routes next chord through phrase namespace", output.text, "it is a");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_CORE, true);
+    ok = ok && steno_handle_stroke_bits(steno, phrase_it_is_a_bits);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_CORE, false);
+    ok = ok && expect_string("serial phrase namespace routes direct stroke", output.text, "it is a");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_CORE, true);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_CORE, false);
+    ok = ok && steno_handle_stroke_bits(steno, phrase_it_is_a_bits);
+    ok = ok && expect_string("serial phrase namespace latches tapped pedal", output.text, "it is a");
+    ok = ok && steno_handle_stroke_bits(steno, phrase_it_is_a_bits);
+    ok = ok && expect_string("serial phrase namespace latch clears after stroke", output.text, "it is a PBS");
+
+    ok = ok && reset_test_steno(&steno, &config);
 
     clear_test_output(&output);
     reset_output_log(&output);

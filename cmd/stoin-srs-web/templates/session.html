@@ -1,0 +1,43 @@
+{{define "session"}}
+{{template "layoutTop" .}}
+<p><a href="{{.ReturnURL}}">Back</a></p>
+<h1>{{if .IsReview}}Review{{else}}Practice{{end}}</h1>
+<form method="post" action="/session/submit" id="session-form">
+	<input type="hidden" name="mode" value="{{.Mode}}">
+	<input type="hidden" name="return" value="{{.ReturnURL}}">
+	{{if .DeckID}}<input type="hidden" name="deck_id" value="{{.DeckID}}">{{end}}
+	<div class="session-list" id="word-list">
+	{{range $line := .Lines}}
+		<div class="session-line" data-line="{{$line.Index}}" data-start="{{$line.StartIndex}}" data-end="{{$line.EndIndex}}">
+			<div class="session-target">
+			{{range $i, $lineItem := $line.Items}}{{if $i}} {{end}}<span class="session-token future" data-index="{{$lineItem.Index}}">{{$lineItem.Item.Text}}</span>{{end}}
+			</div>
+			<div class="session-input-row">
+				<div class="session-echo" id="line_echo_{{$line.Index}}"></div>
+				<button type="button" class="session-skip" data-line="{{$line.Index}}" disabled>Skip</button>
+			</div>
+			<textarea class="session-line-input" id="typing_line_{{$line.Index}}" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" disabled></textarea>
+			{{range $lineItem := $line.Items}}
+			<input type="hidden" name="session_index" value="{{$lineItem.Index}}">
+			<input type="hidden" name="item_id_{{$lineItem.Index}}" value="{{$lineItem.Item.ID}}">
+			<input type="hidden" name="prompt_{{$lineItem.Index}}" value="{{$lineItem.Item.Text}}">
+			<input type="hidden" name="answer_{{$lineItem.Index}}" id="answer_{{$lineItem.Index}}">
+			<input type="hidden" name="result_{{$lineItem.Index}}" id="result_{{$lineItem.Index}}">
+			{{end}}
+		</div>
+	{{end}}
+	</div>
+	<div class="actions">
+		<button class="primary" type="submit" id="submit" disabled>Submit</button>
+		<span class="small" id="auto-submit-status" aria-live="polite"></span>
+	</div>
+</form>
+<script>
+window.stoinSession = {
+	items: {{.ItemsJSON}},
+	isReview: {{if .IsReview}}true{{else}}false{{end}},
+};
+</script>
+<script src="/static/session.js"></script>
+{{template "layoutBottom" .}}
+{{end}}

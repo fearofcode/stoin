@@ -32,9 +32,16 @@ struct Steno {
     Orthography orthography;
     uint64_t down_keycodes;
     uint64_t chord_bits;
+    Phrase_Namespace chord_phrase_namespace;
     size_t strokes_since_compaction;
     bool enabled;
     bool session_active;
+    bool core_phrase_down;
+    bool nonverb_phrase_down;
+    bool core_phrase_pending;
+    bool nonverb_phrase_pending;
+    uint64_t qwerty_phrase_shift_down_keycodes;
+    bool qwerty_phrase_shift_chorded;
     bool toggle_esc_down;
     bool control_down;
     bool option_down;
@@ -54,7 +61,15 @@ typedef struct Steno_Case_State {
     Case_Mode next_case;
 } Steno_Case_State;
 
+typedef enum Trace_Stroke_Mode {
+    TRACE_STROKE_NORMAL,
+    TRACE_STROKE_PHRASE,
+    TRACE_STROKE_PHRASE_FALLBACK,
+} Trace_Stroke_Mode;
+
 static bool translate_chord_bits(Steno *steno, uint64_t bits);
+static bool translate_chord_bits_with_trace(Steno *steno, uint64_t bits, Trace_Stroke_Mode trace_mode);
+static bool translate_stroke_input(Steno *steno, Stroke_Input stroke);
 
 static bool steno_set_spacing(Steno *steno, const char *spacing)
 {
@@ -130,6 +145,38 @@ static void reset_chord(Steno *steno)
 {
     steno->down_keycodes = 0;
     steno->chord_bits = 0;
+    steno->chord_phrase_namespace = PHRASE_NAMESPACE_NONE;
+    steno->qwerty_phrase_shift_down_keycodes = 0;
+    steno->qwerty_phrase_shift_chorded = false;
+}
+
+static Phrase_Namespace steno_current_or_pending_phrase_namespace(const Steno *steno)
+{
+    if (steno == NULL) {
+        return PHRASE_NAMESPACE_NONE;
+    }
+
+    const bool core = steno->core_phrase_down || steno->core_phrase_pending;
+    const bool nonverb = steno->nonverb_phrase_down || steno->nonverb_phrase_pending;
+    if (core && nonverb) {
+        return PHRASE_NAMESPACE_CORE_OPERATOR;
+    }
+    if (core) {
+        return PHRASE_NAMESPACE_CORE;
+    }
+    if (nonverb) {
+        return PHRASE_NAMESPACE_NONVERB;
+    }
+    return PHRASE_NAMESPACE_NONE;
+}
+
+static void steno_clear_pending_phrase_namespace(Steno *steno)
+{
+    if (steno == NULL) {
+        return;
+    }
+    steno->core_phrase_pending = false;
+    steno->nonverb_phrase_pending = false;
 }
 
 enum {
@@ -140,7 +187,85 @@ enum {
     KEYCODE_RIGHT_OPTION = 61,
     KEYCODE_LEFT_CONTROL = 59,
     KEYCODE_RIGHT_CONTROL = 62,
+    KEYCODE_LEFT_SHIFT = 56,
+    KEYCODE_RIGHT_SHIFT = 60,
 };
+
+static bool keycode_is_shift(uint16_t keycode)
+{
+    return keycode == KEYCODE_LEFT_SHIFT || keycode == KEYCODE_RIGHT_SHIFT;
+}
+
+static uint64_t keycode_physical_bit(uint16_t keycode)
+{
+    return keycode < 64 ? UINT64_C(1) << keycode : 0;
+}
+
+static void mark_qwerty_phrase_shift_chorded(Steno *steno)
+{
+    if (steno != NULL && steno->qwerty_phrase_shift_down_keycodes != 0) {
+        steno->qwerty_phrase_shift_chorded = true;
+    }
+}
+
+static bool shift_tap_would_arm_phrase(const Steno *steno, const Input_Event *event)
+{
+    if (steno == NULL
+        || event == NULL
+        || !keycode_is_shift(event->keycode)
+        || event->is_down
+        || event->is_repeat) {
+        return false;
+    }
+
+    const uint64_t physical_bit = keycode_physical_bit(event->keycode);
+    return physical_bit != 0
+        && (steno->qwerty_phrase_shift_down_keycodes & physical_bit) != 0
+        && !steno->qwerty_phrase_shift_chorded;
+}
+
+static void update_qwerty_phrase_shift_state(Steno *steno, const Input_Event *event)
+{
+    if (steno == NULL || event == NULL || event->is_repeat) {
+        return;
+    }
+
+    const bool shift_key_event = keycode_is_shift(event->keycode);
+    if (!shift_key_event) {
+        if (event->is_down) {
+            mark_qwerty_phrase_shift_chorded(steno);
+        }
+        return;
+    }
+
+    const uint64_t physical_bit = keycode_physical_bit(event->keycode);
+    if (physical_bit == 0) {
+        return;
+    }
+
+    if (event->is_down) {
+        if ((steno->qwerty_phrase_shift_down_keycodes & physical_bit) == 0
+            && steno->qwerty_phrase_shift_down_keycodes != 0) {
+            steno->qwerty_phrase_shift_chorded = true;
+        }
+        if (steno->down_keycodes != 0) {
+            steno->qwerty_phrase_shift_chorded = true;
+        }
+        steno->qwerty_phrase_shift_down_keycodes |= physical_bit;
+    } else {
+        steno->qwerty_phrase_shift_down_keycodes &= ~physical_bit;
+        if (steno->qwerty_phrase_shift_down_keycodes == 0) {
+            steno->qwerty_phrase_shift_chorded = false;
+        }
+    }
+}
+
+static void arm_qwerty_core_phrase_shortcut(Steno *steno)
+{
+    if (steno != NULL) {
+        steno->core_phrase_pending = true;
+    }
+}
 
 static bool update_shortcut_modifier_state(Steno *steno, const Input_Event *event)
 {
@@ -536,16 +661,35 @@ static bool execute_plover_command(Steno *steno, const char *command)
     return true;
 }
 
-static void trace_stroke(const Steno *steno, const char *raw_chord, const char *translation)
+static const char *trace_stroke_mode_label(Trace_Stroke_Mode mode)
+{
+    switch (mode) {
+    case TRACE_STROKE_PHRASE:
+        return " [phrase]";
+    case TRACE_STROKE_PHRASE_FALLBACK:
+        return " [phrase fallback]";
+    case TRACE_STROKE_NORMAL:
+    default:
+        return "";
+    }
+}
+
+static void trace_stroke_with_mode(
+    const Steno *steno,
+    const char *raw_chord,
+    const char *translation,
+    Trace_Stroke_Mode mode
+)
 {
     if (steno == NULL || steno->trace_file == NULL || raw_chord == NULL) {
         return;
     }
 
+    const char *label = trace_stroke_mode_label(mode);
     if (translation != NULL) {
-        fprintf(steno->trace_file, "%s -> %s\n", raw_chord, translation);
+        fprintf(steno->trace_file, "%s%s -> %s\n", raw_chord, label, translation);
     } else {
-        fprintf(steno->trace_file, "%s -> [untranslated]\n", raw_chord);
+        fprintf(steno->trace_file, "%s%s -> [untranslated]\n", raw_chord, label);
     }
     fflush(steno->trace_file);
 }
@@ -925,7 +1069,50 @@ bool steno_get_dictionary_paths(const Steno *steno, const char *const **out_path
     );
 }
 
+static bool translate_phrase_stroke(Steno *steno, Stroke_Input stroke)
+{
+    if (stroke.bits == 0) {
+        return true;
+    }
+
+    char raw_chord[64] = {0};
+    if (!chord_bits_to_string(stroke.bits, raw_chord, sizeof(raw_chord))) {
+        return false;
+    }
+
+    char *phrase_text = NULL;
+    const Phrase_Lookup_Result result = phrasing_lookup(stroke.phrase_namespace, stroke.bits, &phrase_text);
+    if (result == PHRASE_LOOKUP_ERROR) {
+        free(phrase_text);
+        return false;
+    }
+    if (result == PHRASE_LOOKUP_MISS) {
+        free(phrase_text);
+        return translate_chord_bits_with_trace(steno, stroke.bits, TRACE_STROKE_PHRASE_FALLBACK);
+    }
+
+    Translation_Match match = {0};
+    match.translation = phrase_text;
+    match.strokes[0] = stroke.bits;
+    match.stroke_count = 1;
+    match.replaced_count = 0;
+    snprintf(match.outline, sizeof(match.outline), "%s", raw_chord);
+
+    trace_stroke_with_mode(steno, raw_chord, match.translation, TRACE_STROKE_PHRASE);
+    const bool ok = apply_translation_match(steno, &match);
+    free(phrase_text);
+    if (ok) {
+        count_completed_stroke(steno);
+    }
+    return ok;
+}
+
 static bool translate_chord_bits(Steno *steno, uint64_t bits)
+{
+    return translate_chord_bits_with_trace(steno, bits, TRACE_STROKE_NORMAL);
+}
+
+static bool translate_chord_bits_with_trace(Steno *steno, uint64_t bits, Trace_Stroke_Mode trace_mode)
 {
     if (bits == 0) {
         return true;
@@ -938,7 +1125,7 @@ static bool translate_chord_bits(Steno *steno, uint64_t bits)
 
     const char *single_stroke_translation = dictionary_lookup_bits(&steno->dictionary_stack.dictionary, bits);
     if (single_stroke_translation != NULL && single_stroke_translation[0] == '=') {
-        trace_stroke(steno, raw_chord, single_stroke_translation);
+        trace_stroke_with_mode(steno, raw_chord, single_stroke_translation, trace_mode);
         const bool ok = execute_command(steno, single_stroke_translation, &bits, 1);
         if (ok) {
             count_completed_stroke(steno);
@@ -951,12 +1138,27 @@ static bool translate_chord_bits(Steno *steno, uint64_t bits)
         return false;
     }
 
-    trace_stroke(steno, match.outline, match.translation);
+    trace_stroke_with_mode(steno, match.outline, match.translation, trace_mode);
     const bool ok = apply_translation_match(steno, &match);
     translation_match_destroy(&match);
     if (ok) {
         count_completed_stroke(steno);
     }
+    return ok;
+}
+
+static bool translate_stroke_input(Steno *steno, Stroke_Input stroke)
+{
+    if (stroke.phrase_namespace != PHRASE_NAMESPACE_NONE) {
+        return translate_phrase_stroke(steno, stroke);
+    }
+    return translate_chord_bits(steno, stroke.bits);
+}
+
+static bool translate_completed_stroke_input(Steno *steno, Stroke_Input stroke)
+{
+    const bool ok = translate_stroke_input(steno, stroke);
+    steno_clear_pending_phrase_namespace(steno);
     return ok;
 }
 
@@ -1051,12 +1253,22 @@ bool steno_handle_event(Steno *steno, const Input_Event *event)
         return true;
     }
 
+    if (modifier_key_event || shortcut_modifier_down) {
+        mark_qwerty_phrase_shift_chorded(steno);
+    }
+
     if (modifier_key_event || !steno->enabled || shortcut_modifier_down) {
         return false;
     }
 
+    const bool shift_tap = shift_tap_would_arm_phrase(steno, event);
+    update_qwerty_phrase_shift_state(steno, event);
+
     const Key_Binding *binding = keymap_find_binding(&steno->keymap, event->keycode);
     if (binding == NULL) {
+        if (shift_tap && steno->down_keycodes == 0) {
+            arm_qwerty_core_phrase_shortcut(steno);
+        }
         return false;
     }
 
@@ -1064,24 +1276,35 @@ bool steno_handle_event(Steno *steno, const Input_Event *event)
         return false;
     }
 
-    const uint64_t physical_bit = UINT64_C(1) << event->keycode;
+    const uint64_t physical_bit = keycode_physical_bit(event->keycode);
     if (event->is_down) {
         if ((steno->down_keycodes & physical_bit) == 0 && !event->is_repeat) {
+            if (steno->down_keycodes == 0) {
+                steno->chord_phrase_namespace = steno_current_or_pending_phrase_namespace(steno);
+            }
             steno->down_keycodes |= physical_bit;
             steno->chord_bits |= binding->bits;
         }
         return true;
     }
 
+    const bool shift_only_chord = shift_tap && steno->down_keycodes == physical_bit;
     steno->down_keycodes &= ~physical_bit;
     if (steno->down_keycodes == 0) {
-        (void)translate_chord_bits(steno, steno->chord_bits);
+        if (shift_only_chord) {
+            arm_qwerty_core_phrase_shortcut(steno);
+        } else {
+            (void)translate_completed_stroke_input(steno, (Stroke_Input) {
+                .bits = steno->chord_bits,
+                .phrase_namespace = steno->chord_phrase_namespace,
+            });
+        }
         reset_chord(steno);
     }
     return true;
 }
 
-bool steno_handle_stroke_bits(Steno *steno, uint64_t bits)
+bool steno_handle_stroke(Steno *steno, Stroke_Input stroke)
 {
     if (steno == NULL) {
         return false;
@@ -1089,7 +1312,55 @@ bool steno_handle_stroke_bits(Steno *steno, uint64_t bits)
     if (!steno->session_active) {
         return false;
     }
-    return translate_chord_bits(steno, bits);
+    return translate_completed_stroke_input(steno, stroke);
+}
+
+bool steno_handle_stroke_bits(Steno *steno, uint64_t bits)
+{
+    if (steno == NULL) {
+        return false;
+    }
+    return steno_handle_stroke(steno, (Stroke_Input) {
+        .bits = bits,
+        .phrase_namespace = steno_current_or_pending_phrase_namespace(steno),
+    });
+}
+
+void steno_set_phrase_namespace(Steno *steno, Phrase_Namespace namespace, bool is_down)
+{
+    if (steno == NULL) {
+        return;
+    }
+
+    switch (namespace) {
+    case PHRASE_NAMESPACE_CORE:
+        steno->core_phrase_down = is_down;
+        if (is_down) {
+            steno->core_phrase_pending = true;
+        }
+        break;
+    case PHRASE_NAMESPACE_NONVERB:
+        steno->nonverb_phrase_down = is_down;
+        if (is_down) {
+            steno->nonverb_phrase_pending = true;
+        }
+        break;
+    case PHRASE_NAMESPACE_CORE_OPERATOR:
+        steno->core_phrase_down = is_down;
+        steno->nonverb_phrase_down = is_down;
+        if (is_down) {
+            steno->core_phrase_pending = true;
+            steno->nonverb_phrase_pending = true;
+        }
+        break;
+    case PHRASE_NAMESPACE_NONE:
+    default:
+        break;
+    }
+
+    if (is_down && steno->down_keycodes != 0) {
+        steno->chord_phrase_namespace = steno_current_or_pending_phrase_namespace(steno);
+    }
 }
 
 void steno_set_session_active(Steno *steno, bool active)
@@ -1104,6 +1375,9 @@ void steno_set_session_active(Steno *steno, bool active)
     steno->control_down = false;
     steno->option_down = false;
     steno->command_down = false;
+    steno->core_phrase_down = false;
+    steno->nonverb_phrase_down = false;
+    steno_clear_pending_phrase_namespace(steno);
 }
 
 size_t steno_key_binding_count(const Steno *steno)

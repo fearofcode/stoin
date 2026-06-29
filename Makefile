@@ -28,6 +28,7 @@ COMMON_SOURCES := \
 	src/gemini_pr.c \
 	src/keymap.c \
 	src/orthography.c \
+	src/phrasing.c \
 	src/raw_serial.c \
 	src/retro.c \
 	src/runtime_config.c \
@@ -44,11 +45,12 @@ COMMON_SOURCES := \
 	src/util.c
 
 ifeq ($(PLATFORM),macos)
-PLATFORM_LDFLAGS += -framework ApplicationServices -framework CoreFoundation
+PLATFORM_LDFLAGS += -framework ApplicationServices -framework CoreFoundation -framework IOKit
 PLATFORM_SOURCES := \
 	src/platform_macos.c \
 	src/platform_macos_file_watcher.c \
 	src/platform_macos_output.c \
+	src/platform_macos_pedals.c \
 	src/platform_posix_serial.c
 else ifeq ($(PLATFORM),linux)
 PLATFORM_CFLAGS += -D_DEFAULT_SOURCE

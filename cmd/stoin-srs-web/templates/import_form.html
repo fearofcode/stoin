@@ -1,0 +1,32 @@
+{{define "importForm"}}
+{{if .Errors}}
+<div class="errors">
+	<strong>Import failed</strong>
+	<ul>
+	{{range .Errors}}<li>line {{.Line}}: {{.Message}}</li>{{end}}
+	</ul>
+</div>
+{{end}}
+<form method="post" action="/import" class="panel">
+	<input type="hidden" name="return" value="{{.Return}}">
+	{{if .DeckID}}<input type="hidden" name="deck_id" value="{{.DeckID}}">{{end}}
+	{{if not .DeckID}}
+	<div class="grid">
+		<label>Existing deck
+			<select name="deck_id">
+				<option value="">choose...</option>
+				{{range .Decks}}<option value="{{.ID}}" {{if eq $.Form.DeckID .ID}}selected{{end}}>{{.Name}}</option>{{end}}
+			</select>
+		</label>
+		<label>New deck name
+			<input name="deck_name" value="{{.Form.DeckName}}">
+		</label>
+	</div>
+	{{end}}
+	<label>Plain-list group name
+		<input name="group_name" value="{{.Form.GroupName}}" placeholder="leave blank for grouped format">
+	</label>
+	<textarea name="content" spellcheck="false">{{.Form.Content}}</textarea>
+	<div class="actions"><button class="primary" type="submit">Import</button></div>
+</form>
+{{end}}

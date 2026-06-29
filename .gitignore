@@ -16,6 +16,7 @@ compile_commands.json
 
 # Local runtime logs
 *.log
+stoin-pedals.json
 
 # Local spaced repetition state
 *.db

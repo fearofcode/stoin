@@ -1,0 +1,26 @@
+{{define "index"}}
+{{template "layoutTop" .}}
+<h1>Stoin SRS</h1>
+{{if .Notice}}<p class="notice">{{.Notice}}</p>{{end}}
+<div class="panel">
+	<h2>Decks</h2>
+	{{if .Decks}}
+	<ul>
+		{{range .Decks}}<li><a href="/deck?id={{.ID}}">{{.Name}}</a></li>{{end}}
+	</ul>
+	{{else}}
+	<p>No decks yet.</p>
+	{{end}}
+	<form method="post" action="/session/review-all-due">
+		<button type="submit">Review all due across all decks</button>
+		<span class="small">{{.DueCount}} due now{{if gt .LearningCount 0}}, {{.LearningCount}} learning, {{.IntroRemaining}} intro reps left{{end}}; up to {{.DueLimit}} per session</span>
+	</form>
+</div>
+<div class="panel">
+	<h2>Trainers</h2>
+	<p><a href="/phrasing">Phrasing trainer</a></p>
+</div>
+<h2>Import</h2>
+{{template "importForm" dict "Errors" .Errors "Form" .Form "Decks" .Decks "DeckID" 0 "Return" "/"}}
+{{template "layoutBottom" .}}
+{{end}}

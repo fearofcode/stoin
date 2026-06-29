@@ -371,6 +371,7 @@ void platform_run(void)
 void platform_shutdown(void)
 {
     platform_file_watcher_stop();
+    platform_pedals_shutdown();
 
     if (g_macos.tap != NULL) {
         CGEventTapEnable(g_macos.tap, false);
