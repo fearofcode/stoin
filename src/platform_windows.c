@@ -1070,15 +1070,38 @@ static const char *find_matching_object(const char *json, const char *name, cons
         return NULL;
     }
 
-    const char *end = strchr(start, '}');
-    if (end == NULL) {
-        return NULL;
+    const char *p = start;
+    int depth = 0;
+    bool in_string = false;
+    bool escaped = false;
+    while (*p != '\0') {
+        if (in_string) {
+            if (escaped) {
+                escaped = false;
+            } else if (*p == '\\') {
+                escaped = true;
+            } else if (*p == '"') {
+                in_string = false;
+            }
+        } else if (*p == '"') {
+            in_string = true;
+        } else if (*p == '{') {
+            ++depth;
+        } else if (*p == '}') {
+            --depth;
+            if (depth == 0) {
+                if (out_end != NULL) {
+                    *out_end = p;
+                }
+                return start;
+            }
+            if (depth < 0) {
+                return NULL;
+            }
+        }
+        ++p;
     }
-
-    if (out_end != NULL) {
-        *out_end = end;
-    }
-    return start;
+    return NULL;
 }
 
 static bool parse_uint_field(const char *start, const char *end, const char *name, uint32_t *out_value)
