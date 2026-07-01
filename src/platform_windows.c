@@ -5,6 +5,7 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <setupapi.h>
 
 #include <ctype.h>
 #include <errno.h>
@@ -21,6 +22,7 @@
 #define WINDOWS_FILE_WATCH_POLL_MS 250
 #define WINDOWS_PEDAL_CLASS_NAME "StoinPedalRawInputWindow"
 #define WINDOWS_PEDAL_MAX_RAW_INPUT_SIZE 8192
+#define WINDOWS_SERIAL_MAX_CANDIDATES 256
 #define HID_PAGE_KEYBOARD 0x07
 
 typedef enum Windows_Combo_Modifier {
@@ -41,6 +43,17 @@ typedef struct Windows_File_Watch_Target {
     char *path;
     Platform_File_Stamp stamp;
 } Windows_File_Watch_Target;
+
+typedef struct Windows_Serial_Candidate {
+    char name[16];
+    char path[PLATFORM_SERIAL_PATH_MAX];
+    char friendly_name[256];
+    char description[256];
+    char manufacturer[256];
+    int score;
+    unsigned int number;
+    bool exists;
+} Windows_Serial_Candidate;
 
 typedef struct Windows_Pedal_Binding {
     char *device_name;
@@ -1614,21 +1627,297 @@ static bool add_serial_path(
     return true;
 }
 
+static bool copy_registry_string_property(
+    HDEVINFO device_info,
+    SP_DEVINFO_DATA *device_data,
+    DWORD property,
+    char *out_value,
+    size_t out_size
+)
+{
+    if (out_value == NULL || out_size == 0) {
+        return false;
+    }
+    out_value[0] = '\0';
+
+    DWORD type = 0;
+    DWORD required_size = 0;
+    if (!SetupDiGetDeviceRegistryPropertyA(
+            device_info,
+            device_data,
+            property,
+            &type,
+            (PBYTE)out_value,
+            (DWORD)out_size,
+            &required_size)
+        || (type != REG_SZ && type != REG_EXPAND_SZ)) {
+        out_value[0] = '\0';
+        return false;
+    }
+    out_value[out_size - 1] = '\0';
+    return true;
+}
+
+static bool copy_port_name_from_device_registry(
+    HDEVINFO device_info,
+    SP_DEVINFO_DATA *device_data,
+    char *out_name,
+    size_t out_size
+)
+{
+    if (out_name == NULL || out_size == 0) {
+        return false;
+    }
+    out_name[0] = '\0';
+
+    HKEY key = SetupDiOpenDevRegKey(
+        device_info,
+        device_data,
+        DICS_FLAG_GLOBAL,
+        0,
+        DIREG_DEV,
+        KEY_QUERY_VALUE);
+    if (key == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+
+    DWORD type = 0;
+    DWORD size = (DWORD)out_size;
+    const LONG result = RegQueryValueExA(key, "PortName", NULL, &type, (LPBYTE)out_name, &size);
+    RegCloseKey(key);
+    if (result != ERROR_SUCCESS || (type != REG_SZ && type != REG_EXPAND_SZ)) {
+        out_name[0] = '\0';
+        return false;
+    }
+    out_name[out_size - 1] = '\0';
+    return true;
+}
+
+static bool windows_ascii_contains_ci(const char *text, const char *needle)
+{
+    if (text == NULL || needle == NULL || *needle == '\0') {
+        return false;
+    }
+
+    for (const char *p = text; *p != '\0'; ++p) {
+        const char *a = p;
+        const char *b = needle;
+        while (*a != '\0'
+            && *b != '\0'
+            && tolower((unsigned char)*a) == tolower((unsigned char)*b)) {
+            ++a;
+            ++b;
+        }
+        if (*b == '\0') {
+            return true;
+        }
+    }
+    return false;
+}
+
+static unsigned int serial_port_number_from_name(const char *name)
+{
+    if (name == NULL
+        || (name[0] != 'C' && name[0] != 'c')
+        || (name[1] != 'O' && name[1] != 'o')
+        || (name[2] != 'M' && name[2] != 'm')
+        || !isdigit((unsigned char)name[3])) {
+        return 0;
+    }
+
+    char *end = NULL;
+    const unsigned long parsed = strtoul(name + 3, &end, 10);
+    if (end == name + 3 || *end != '\0' || parsed == 0 || parsed > 256) {
+        return 0;
+    }
+    return (unsigned int)parsed;
+}
+
+static int windows_serial_metadata_score(const Windows_Serial_Candidate *candidate)
+{
+    if (candidate == NULL) {
+        return 0;
+    }
+
+    int score = 0;
+    const char *fields[] = {
+        candidate->friendly_name,
+        candidate->description,
+        candidate->manufacturer,
+    };
+    for (size_t i = 0; i < sizeof(fields) / sizeof(fields[0]); ++i) {
+        const char *field = fields[i];
+        if (windows_ascii_contains_ci(field, "usb serial port")) {
+            score += 120;
+        }
+        if (windows_ascii_contains_ci(field, "usb serial")) {
+            score += 80;
+        }
+        if (windows_ascii_contains_ci(field, "ftdi")) {
+            score += 70;
+        }
+        if (windows_ascii_contains_ci(field, "usb")) {
+            score += 30;
+        }
+        if (windows_ascii_contains_ci(field, "intel")
+            || windows_ascii_contains_ci(field, "active management")
+            || windows_ascii_contains_ci(field, "amt")) {
+            score -= 100;
+        }
+    }
+    return score;
+}
+
+static Windows_Serial_Candidate *find_serial_candidate(
+    Windows_Serial_Candidate candidates[WINDOWS_SERIAL_MAX_CANDIDATES],
+    size_t candidate_count,
+    const char *name
+)
+{
+    for (size_t i = 0; i < candidate_count; ++i) {
+        if (strcmp(candidates[i].name, name) == 0) {
+            return &candidates[i];
+        }
+    }
+    return NULL;
+}
+
+static Windows_Serial_Candidate *add_or_find_serial_candidate(
+    Windows_Serial_Candidate candidates[WINDOWS_SERIAL_MAX_CANDIDATES],
+    size_t *candidate_count,
+    const char *name
+)
+{
+    if (candidate_count == NULL || name == NULL) {
+        return NULL;
+    }
+
+    Windows_Serial_Candidate *existing = find_serial_candidate(candidates, *candidate_count, name);
+    if (existing != NULL) {
+        return existing;
+    }
+    if (*candidate_count >= WINDOWS_SERIAL_MAX_CANDIDATES) {
+        return NULL;
+    }
+
+    Windows_Serial_Candidate *candidate = &candidates[(*candidate_count)++];
+    memset(candidate, 0, sizeof(*candidate));
+    const int name_written = snprintf(candidate->name, sizeof(candidate->name), "%s", name);
+    const int path_written = snprintf(candidate->path, sizeof(candidate->path), "\\\\.\\%s", name);
+    if (name_written <= 0
+        || (size_t)name_written >= sizeof(candidate->name)
+        || path_written <= 0
+        || (size_t)path_written >= sizeof(candidate->path)) {
+        --*candidate_count;
+        return NULL;
+    }
+    candidate->number = serial_port_number_from_name(name);
+    candidate->exists = true;
+    return candidate;
+}
+
+static void add_setupapi_serial_candidates(
+    Windows_Serial_Candidate candidates[WINDOWS_SERIAL_MAX_CANDIDATES],
+    size_t *candidate_count
+)
+{
+    GUID ports_guid = {0};
+    DWORD guid_count = 0;
+    if (!SetupDiClassGuidsFromNameA("Ports", &ports_guid, 1, &guid_count) || guid_count == 0) {
+        return;
+    }
+
+    HDEVINFO device_info = SetupDiGetClassDevsA(&ports_guid, NULL, NULL, DIGCF_PRESENT);
+    if (device_info == INVALID_HANDLE_VALUE) {
+        return;
+    }
+
+    for (DWORD index = 0; ; ++index) {
+        SP_DEVINFO_DATA device_data;
+        memset(&device_data, 0, sizeof(device_data));
+        device_data.cbSize = sizeof(device_data);
+        if (!SetupDiEnumDeviceInfo(device_info, index, &device_data)) {
+            break;
+        }
+
+        char port_name[16] = {0};
+        if (!copy_port_name_from_device_registry(device_info, &device_data, port_name, sizeof(port_name))
+            || serial_port_number_from_name(port_name) == 0) {
+            continue;
+        }
+
+        Windows_Serial_Candidate *candidate =
+            add_or_find_serial_candidate(candidates, candidate_count, port_name);
+        if (candidate == NULL) {
+            continue;
+        }
+
+        (void)copy_registry_string_property(
+            device_info,
+            &device_data,
+            SPDRP_FRIENDLYNAME,
+            candidate->friendly_name,
+            sizeof(candidate->friendly_name));
+        (void)copy_registry_string_property(
+            device_info,
+            &device_data,
+            SPDRP_DEVICEDESC,
+            candidate->description,
+            sizeof(candidate->description));
+        (void)copy_registry_string_property(
+            device_info,
+            &device_data,
+            SPDRP_MFG,
+            candidate->manufacturer,
+            sizeof(candidate->manufacturer));
+        candidate->score = windows_serial_metadata_score(candidate);
+    }
+
+    SetupDiDestroyDeviceInfoList(device_info);
+}
+
+static int compare_serial_candidates(const void *a, const void *b)
+{
+    const Windows_Serial_Candidate *left = a;
+    const Windows_Serial_Candidate *right = b;
+    if (left->score != right->score) {
+        return right->score - left->score;
+    }
+    if (left->number < right->number) {
+        return -1;
+    }
+    if (left->number > right->number) {
+        return 1;
+    }
+    return strcmp(left->name, right->name);
+}
+
 size_t platform_find_serial_devices(char out_paths[][PLATFORM_SERIAL_PATH_MAX], size_t max_paths)
 {
     if (out_paths == NULL || max_paths == 0) {
         return 0;
     }
 
-    size_t path_count = 0;
-    for (unsigned int i = 1; i <= 256 && path_count < max_paths; ++i) {
+    Windows_Serial_Candidate candidates[WINDOWS_SERIAL_MAX_CANDIDATES];
+    memset(candidates, 0, sizeof(candidates));
+    size_t candidate_count = 0;
+    add_setupapi_serial_candidates(candidates, &candidate_count);
+
+    for (unsigned int i = 1; i <= 256; ++i) {
         char name[16] = {0};
         char target[512] = {0};
         snprintf(name, sizeof(name), "COM%u", i);
         if (QueryDosDeviceA(name, target, sizeof(target)) != 0) {
-            char path[32] = {0};
-            snprintf(path, sizeof(path), "\\\\.\\%s", name);
-            (void)add_serial_path(out_paths, max_paths, &path_count, path);
+            (void)add_or_find_serial_candidate(candidates, &candidate_count, name);
+        }
+    }
+
+    qsort(candidates, candidate_count, sizeof(candidates[0]), compare_serial_candidates);
+
+    size_t path_count = 0;
+    for (size_t i = 0; i < candidate_count && path_count < max_paths; ++i) {
+        if (candidates[i].exists) {
+            (void)add_serial_path(out_paths, max_paths, &path_count, candidates[i].path);
         }
     }
     return path_count;

@@ -33,7 +33,7 @@ This path is intended for a make-capable Windows shell. `build.bat` is the simpl
 
 ## Serial devices
 
-Stoin scans `COM1` through `COM256` and opens Windows serial paths such as `\\.\COM3`. You can let it auto-scan or pass a port explicitly:
+Stoin scans `COM1` through `COM256` and opens Windows serial paths such as `\\.\COM3`. When Windows exposes port metadata, Stoin prefers ports whose friendly name, description, or manufacturer look like a USB serial adapter, such as `USB Serial Port` or `FTDI`. You can let it auto-scan or pass a port explicitly:
 
 ```sh
 build\windows\stoin.exe --input stentura --serial-port COM3
