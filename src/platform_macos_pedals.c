@@ -1,5 +1,6 @@
 #include "platform.h"
 
+#include "json_util.h"
 #include "util.h"
 
 #include <CoreFoundation/CoreFoundation.h>
@@ -346,61 +347,10 @@ static const Mac_Pedal_Binding *find_unsafe_keyboard_binding(
     return NULL;
 }
 
-static const char *find_matching_object(const char *json, const char *name, const char **out_end)
-{
-    char pattern[64] = {0};
-    snprintf(pattern, sizeof(pattern), "\"%s\"", name);
-
-    const char *name_pos = strstr(json, pattern);
-    if (name_pos == NULL) {
-        return NULL;
-    }
-
-    const char *start = strchr(name_pos, '{');
-    if (start == NULL) {
-        return NULL;
-    }
-
-    const char *end = strchr(start, '}');
-    if (end == NULL) {
-        return NULL;
-    }
-
-    if (out_end != NULL) {
-        *out_end = end;
-    }
-    return start;
-}
-
-static bool parse_uint_field(const char *start, const char *end, const char *name, uint32_t *out_value)
-{
-    char pattern[48] = {0};
-    snprintf(pattern, sizeof(pattern), "\"%s\"", name);
-
-    const char *field = strstr(start, pattern);
-    if (field == NULL || field >= end) {
-        return false;
-    }
-
-    const char *colon = strchr(field, ':');
-    if (colon == NULL || colon >= end) {
-        return false;
-    }
-
-    char *parse_end = NULL;
-    const unsigned long parsed = strtoul(colon + 1, &parse_end, 0);
-    if (parse_end == colon + 1 || parse_end > end || parsed > UINT32_MAX) {
-        return false;
-    }
-
-    *out_value = (uint32_t)parsed;
-    return true;
-}
-
 static bool parse_optional_uint_field(const char *start, const char *end, const char *name, uint32_t *out_value)
 {
     uint32_t value = 0;
-    if (!parse_uint_field(start, end, name, &value)) {
+    if (!json_parse_uint_field(start, end, name, &value)) {
         return false;
     }
     if (out_value != NULL) {
@@ -412,17 +362,17 @@ static bool parse_optional_uint_field(const char *start, const char *end, const 
 static bool load_binding_from_json(const char *json, Platform_Pedal_Role role, Mac_Pedal_Binding *binding)
 {
     const char *end = NULL;
-    const char *start = find_matching_object(json, pedal_role_name(role), &end);
+    const char *start = json_find_object(json, pedal_role_name(role), &end);
     if (start == NULL) {
         return false;
     }
 
     Mac_Pedal_Binding loaded = {0};
-    if (!parse_uint_field(start, end, "vendor_id", &loaded.vendor_id)
-        || !parse_uint_field(start, end, "product_id", &loaded.product_id)
-        || !parse_uint_field(start, end, "location_id", &loaded.location_id)
-        || !parse_uint_field(start, end, "usage_page", &loaded.usage_page)
-        || !parse_uint_field(start, end, "usage", &loaded.usage)) {
+    if (!json_parse_uint_field(start, end, "vendor_id", &loaded.vendor_id)
+        || !json_parse_uint_field(start, end, "product_id", &loaded.product_id)
+        || !json_parse_uint_field(start, end, "location_id", &loaded.location_id)
+        || !json_parse_uint_field(start, end, "usage_page", &loaded.usage_page)
+        || !json_parse_uint_field(start, end, "usage", &loaded.usage)) {
         fprintf(stderr,
             "stoin: warning: ignoring incomplete %s pedal binding in %s\n",
             pedal_role_label(role),

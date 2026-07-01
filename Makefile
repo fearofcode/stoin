@@ -32,6 +32,7 @@ COMMON_SOURCES := \
 	src/dictionary_stack.c \
 	src/format.c \
 	src/gemini_pr.c \
+	src/json_util.c \
 	src/keymap.c \
 	src/orthography.c \
 	src/phrasing.c \

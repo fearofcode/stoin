@@ -1,5 +1,6 @@
 #include "platform.h"
 
+#include "json_util.h"
 #include "util.h"
 
 #define WIN32_LEAN_AND_MEAN
@@ -1055,147 +1056,6 @@ static void clear_pedal_bindings(void)
     }
 }
 
-static const char *find_matching_object(const char *json, const char *name, const char **out_end)
-{
-    char pattern[64] = {0};
-    snprintf(pattern, sizeof(pattern), "\"%s\"", name);
-
-    const char *name_pos = strstr(json, pattern);
-    if (name_pos == NULL) {
-        return NULL;
-    }
-
-    const char *start = strchr(name_pos, '{');
-    if (start == NULL) {
-        return NULL;
-    }
-
-    const char *p = start;
-    int depth = 0;
-    bool in_string = false;
-    bool escaped = false;
-    while (*p != '\0') {
-        if (in_string) {
-            if (escaped) {
-                escaped = false;
-            } else if (*p == '\\') {
-                escaped = true;
-            } else if (*p == '"') {
-                in_string = false;
-            }
-        } else if (*p == '"') {
-            in_string = true;
-        } else if (*p == '{') {
-            ++depth;
-        } else if (*p == '}') {
-            --depth;
-            if (depth == 0) {
-                if (out_end != NULL) {
-                    *out_end = p;
-                }
-                return start;
-            }
-            if (depth < 0) {
-                return NULL;
-            }
-        }
-        ++p;
-    }
-    return NULL;
-}
-
-static bool parse_uint_field(const char *start, const char *end, const char *name, uint32_t *out_value)
-{
-    char pattern[48] = {0};
-    snprintf(pattern, sizeof(pattern), "\"%s\"", name);
-
-    const char *field = strstr(start, pattern);
-    if (field == NULL || field >= end) {
-        return false;
-    }
-
-    const char *colon = strchr(field, ':');
-    if (colon == NULL || colon >= end) {
-        return false;
-    }
-
-    char *parse_end = NULL;
-    const unsigned long parsed = strtoul(colon + 1, &parse_end, 0);
-    if (parse_end == colon + 1 || parse_end > end || parsed > UINT32_MAX) {
-        return false;
-    }
-
-    *out_value = (uint32_t)parsed;
-    return true;
-}
-
-static bool parse_json_string_value(const char **cursor, const char *end, char **out_value)
-{
-    const char *p = *cursor;
-    while (p < end && isspace((unsigned char)*p)) {
-        ++p;
-    }
-    if (p >= end || *p != '"') {
-        return false;
-    }
-    ++p;
-
-    char *value = NULL;
-    while (p < end && *p != '"') {
-        unsigned char c = (unsigned char)*p++;
-        if (c == '\\') {
-            if (p >= end) {
-                arrfree(value);
-                return false;
-            }
-            c = (unsigned char)*p++;
-            switch (c) {
-            case '"': arrput(value, '"'); break;
-            case '\\': arrput(value, '\\'); break;
-            case '/': arrput(value, '/'); break;
-            case 'b': arrput(value, '\b'); break;
-            case 'f': arrput(value, '\f'); break;
-            case 'n': arrput(value, '\n'); break;
-            case 'r': arrput(value, '\r'); break;
-            case 't': arrput(value, '\t'); break;
-            default:
-                arrfree(value);
-                return false;
-            }
-        } else {
-            arrput(value, (char)c);
-        }
-    }
-
-    if (p >= end || *p != '"') {
-        arrfree(value);
-        return false;
-    }
-    arrput(value, '\0');
-    *cursor = p + 1;
-    *out_value = value;
-    return true;
-}
-
-static bool parse_string_field(const char *start, const char *end, const char *name, char **out_value)
-{
-    char pattern[48] = {0};
-    snprintf(pattern, sizeof(pattern), "\"%s\"", name);
-
-    const char *field = strstr(start, pattern);
-    if (field == NULL || field >= end) {
-        return false;
-    }
-
-    const char *colon = strchr(field, ':');
-    if (colon == NULL || colon >= end) {
-        return false;
-    }
-    ++colon;
-
-    return parse_json_string_value(&colon, end, out_value);
-}
-
 static bool load_pedal_binding_from_json(
     const char *json,
     Platform_Pedal_Role role,
@@ -1203,18 +1063,18 @@ static bool load_pedal_binding_from_json(
 )
 {
     const char *end = NULL;
-    const char *start = find_matching_object(json, pedal_role_name(role), &end);
+    const char *start = json_find_object(json, pedal_role_name(role), &end);
     if (start == NULL) {
         return false;
     }
 
     Windows_Pedal_Binding loaded;
     memset(&loaded, 0, sizeof(loaded));
-    if (!parse_uint_field(start, end, "usage_page", &loaded.usage_page)
-        || !parse_uint_field(start, end, "usage", &loaded.usage)
-        || !parse_uint_field(start, end, "scan_code", &loaded.scan_code)
-        || !parse_uint_field(start, end, "vk", &loaded.vk)
-        || !parse_string_field(start, end, "device_name", &loaded.device_name)) {
+    if (!json_parse_uint_field(start, end, "usage_page", &loaded.usage_page)
+        || !json_parse_uint_field(start, end, "usage", &loaded.usage)
+        || !json_parse_uint_field(start, end, "scan_code", &loaded.scan_code)
+        || !json_parse_uint_field(start, end, "vk", &loaded.vk)
+        || !json_parse_string_field(start, end, "device_name", &loaded.device_name)) {
         fprintf(stderr,
             "stoin: warning: ignoring incomplete %s pedal binding in %s\n",
             pedal_role_label(role),
@@ -1223,8 +1083,8 @@ static bool load_pedal_binding_from_json(
         return false;
     }
 
-    (void)parse_uint_field(start, end, "vendor_id", &loaded.vendor_id);
-    (void)parse_uint_field(start, end, "product_id", &loaded.product_id);
+    (void)json_parse_uint_field(start, end, "vendor_id", &loaded.vendor_id);
+    (void)json_parse_uint_field(start, end, "product_id", &loaded.product_id);
     loaded.valid = true;
     *binding = loaded;
     return true;
@@ -1259,24 +1119,6 @@ static bool load_pedal_config(const char *path)
     return loaded_any;
 }
 
-static void write_json_string(FILE *file, const char *value)
-{
-    fputc('"', file);
-    for (const char *p = value != NULL ? value : ""; *p != '\0'; ++p) {
-        switch (*p) {
-        case '"': fputs("\\\"", file); break;
-        case '\\': fputs("\\\\", file); break;
-        case '\b': fputs("\\b", file); break;
-        case '\f': fputs("\\f", file); break;
-        case '\n': fputs("\\n", file); break;
-        case '\r': fputs("\\r", file); break;
-        case '\t': fputs("\\t", file); break;
-        default: fputc(*p, file); break;
-        }
-    }
-    fputc('"', file);
-}
-
 static bool save_pedal_config(const char *path)
 {
     FILE *file = fopen(path, "wb");
@@ -1299,7 +1141,7 @@ static bool save_pedal_config(const char *path)
         fprintf(file, "  \"%s\": {\n", pedal_role_name(role));
         fprintf(file, "    \"backend\": \"windows_raw_input\",\n");
         fprintf(file, "    \"device_name\": ");
-        write_json_string(file, binding->device_name);
+        json_write_string(file, binding->device_name);
         fprintf(file, ",\n");
         fprintf(file, "    \"vendor_id\": %u,\n", binding->vendor_id);
         fprintf(file, "    \"product_id\": %u,\n", binding->product_id);
@@ -1332,7 +1174,7 @@ static void print_pedal_binding(const Windows_Pedal_Binding *binding, Platform_P
         binding->usage,
         binding->scan_code,
         binding->vk);
-    write_json_string(stdout, binding->device_name);
+    json_write_string(stdout, binding->device_name);
     fputc('\n', stdout);
 }
 
