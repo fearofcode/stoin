@@ -1,5 +1,7 @@
 #include "platform_linux_internal.h"
 
+#include "json_util.h"
+#include "util.h"
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -235,6 +237,39 @@ static bool device_name_is_stoin_virtual_keyboard(const char *name)
     return name != NULL && strcmp(name, STOIN_LINUX_UINPUT_NAME) == 0;
 }
 
+static const char *pedal_role_name(Platform_Pedal_Role role)
+{
+    switch (role) {
+    case PLATFORM_PEDAL_ROLE_PHRASE_CORE:
+        return "phrase_core";
+    case PLATFORM_PEDAL_ROLE_PHRASE_NONVERB:
+        return "phrase_nonverb";
+    case PLATFORM_PEDAL_ROLE_NONE:
+    case PLATFORM_PEDAL_ROLE_COUNT:
+    default:
+        return "none";
+    }
+}
+
+static const char *pedal_role_label(Platform_Pedal_Role role)
+{
+    switch (role) {
+    case PLATFORM_PEDAL_ROLE_PHRASE_CORE:
+        return "core phrase";
+    case PLATFORM_PEDAL_ROLE_PHRASE_NONVERB:
+        return "non-verb phrase";
+    case PLATFORM_PEDAL_ROLE_NONE:
+    case PLATFORM_PEDAL_ROLE_COUNT:
+    default:
+        return "unassigned";
+    }
+}
+
+static bool pedal_role_is_bindable(Platform_Pedal_Role role)
+{
+    return role > PLATFORM_PEDAL_ROLE_NONE && role < PLATFORM_PEDAL_ROLE_COUNT;
+}
+
 static bool input_device_is_keyboard(int fd)
 {
     unsigned long ev_bits[BIT_ARRAY_LENGTH(EV_MAX)] = {0};
@@ -253,6 +288,453 @@ static bool input_device_is_keyboard(int fd)
     return test_bit(KEY_A, key_bits, sizeof(key_bits) / sizeof(key_bits[0]))
         && test_bit(KEY_SPACE, key_bits, sizeof(key_bits) / sizeof(key_bits[0]))
         && test_bit(KEY_ENTER, key_bits, sizeof(key_bits) / sizeof(key_bits[0]));
+}
+
+static bool input_device_is_pedal_candidate(int fd)
+{
+    unsigned long ev_bits[BIT_ARRAY_LENGTH(EV_MAX)] = {0};
+    if (ioctl(fd, EVIOCGBIT(0, sizeof(ev_bits)), ev_bits) < 0) {
+        return false;
+    }
+
+    if (test_bit(EV_KEY, ev_bits, sizeof(ev_bits) / sizeof(ev_bits[0]))) {
+        unsigned long key_bits[BIT_ARRAY_LENGTH(KEY_MAX)] = {0};
+        if (ioctl(fd, EVIOCGBIT(EV_KEY, sizeof(key_bits)), key_bits) == 0) {
+            for (unsigned int code = 0; code < KEY_MAX; ++code) {
+                if (test_bit(code, key_bits, sizeof(key_bits) / sizeof(key_bits[0]))) {
+                    return true;
+                }
+            }
+        }
+    }
+
+    if (test_bit(EV_ABS, ev_bits, sizeof(ev_bits) / sizeof(ev_bits[0]))) {
+        unsigned long abs_bits[BIT_ARRAY_LENGTH(ABS_MAX)] = {0};
+        if (ioctl(fd, EVIOCGBIT(EV_ABS, sizeof(abs_bits)), abs_bits) == 0) {
+            for (unsigned int code = 0; code < ABS_MAX; ++code) {
+                if (test_bit(code, abs_bits, sizeof(abs_bits) / sizeof(abs_bits[0]))) {
+                    return true;
+                }
+            }
+        }
+    }
+
+    return false;
+}
+
+static void linux_device_identity(int fd, Linux_Pedal_Device *device)
+{
+    if (device == NULL) {
+        return;
+    }
+
+    struct input_id id = {0};
+    if (ioctl(fd, EVIOCGID, &id) == 0) {
+        device->bustype = id.bustype;
+        device->vendor_id = id.vendor;
+        device->product_id = id.product;
+        device->version = id.version;
+    }
+    (void)ioctl(fd, EVIOCGNAME(sizeof(device->name)), device->name);
+}
+
+static void free_pedal_binding(Linux_Pedal_Binding *binding)
+{
+    if (binding == NULL) {
+        return;
+    }
+    free(binding->path);
+    memset(binding, 0, sizeof(*binding));
+}
+
+static void clear_pedal_bindings(void)
+{
+    for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_PHRASE_CORE;
+         role < PLATFORM_PEDAL_ROLE_COUNT;
+         ++role) {
+        free_pedal_binding(&g_linux.pedal_bindings[role]);
+    }
+}
+
+static bool parse_optional_u32_field(const char *start, const char *end, const char *name, uint32_t *out_value)
+{
+    uint32_t value = 0;
+    if (!json_parse_uint_field(start, end, name, &value)) {
+        return false;
+    }
+    if (out_value != NULL) {
+        *out_value = value;
+    }
+    return true;
+}
+
+static bool load_pedal_binding_from_json(
+    const char *json,
+    Platform_Pedal_Role role,
+    Linux_Pedal_Binding *binding
+)
+{
+    const char *end = NULL;
+    const char *start = json_find_object(json, pedal_role_name(role), &end);
+    if (start == NULL) {
+        return false;
+    }
+
+    Linux_Pedal_Binding loaded;
+    memset(&loaded, 0, sizeof(loaded));
+    char *path = NULL;
+    uint32_t type = 0;
+    uint32_t code = 0;
+    if (!json_parse_uint_field(start, end, "type", &type)
+        || !json_parse_uint_field(start, end, "code", &code)
+        || type > UINT16_MAX
+        || code > UINT16_MAX
+        || !json_parse_string_field(start, end, "path", &path)) {
+        fprintf(stderr,
+            "stoin: warning: ignoring incomplete %s pedal binding in %s\n",
+            pedal_role_label(role),
+            g_linux.pedal_config_path);
+        free(path);
+        return false;
+    }
+    loaded.path = path;
+    loaded.type = (uint16_t)type;
+    loaded.code = (uint16_t)code;
+
+    uint32_t value = 0;
+    if (parse_optional_u32_field(start, end, "value", &value)) {
+        loaded.value = (int)value;
+    }
+    uint32_t temp = 0;
+    if (parse_optional_u32_field(start, end, "vendor_id", &temp)) loaded.vendor_id = (uint16_t)temp;
+    if (parse_optional_u32_field(start, end, "product_id", &temp)) loaded.product_id = (uint16_t)temp;
+    if (parse_optional_u32_field(start, end, "bustype", &temp)) loaded.bustype = (uint16_t)temp;
+    if (parse_optional_u32_field(start, end, "version", &temp)) loaded.version = (uint16_t)temp;
+    char *name = NULL;
+    if (json_parse_string_field(start, end, "name", &name)) {
+        snprintf(loaded.name, sizeof(loaded.name), "%s", name);
+        free(name);
+    }
+
+    loaded.valid = true;
+    *binding = loaded;
+    return true;
+}
+
+static bool load_pedal_config(const char *path)
+{
+    size_t size = 0;
+    char *json = read_entire_file(path, &size);
+    (void)size;
+    if (json == NULL) {
+        return false;
+    }
+
+    bool loaded_any = false;
+    for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_PHRASE_CORE;
+         role < PLATFORM_PEDAL_ROLE_COUNT;
+         ++role) {
+        Linux_Pedal_Binding binding;
+        memset(&binding, 0, sizeof(binding));
+        if (load_pedal_binding_from_json(json, role, &binding)) {
+            free_pedal_binding(&g_linux.pedal_bindings[role]);
+            g_linux.pedal_bindings[role] = binding;
+            loaded_any = true;
+        }
+    }
+
+    free(json);
+    if (loaded_any) {
+        printf("stoin: loaded pedal config from %s\n", path);
+    }
+    return loaded_any;
+}
+
+static bool save_pedal_config(const char *path)
+{
+    FILE *file = fopen(path, "wb");
+    if (file == NULL) {
+        return false;
+    }
+
+    fprintf(file, "{\n");
+    fprintf(file, "  \"version\": 1");
+    bool wrote_binding = false;
+    for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_PHRASE_CORE;
+         role < PLATFORM_PEDAL_ROLE_COUNT;
+         ++role) {
+        const Linux_Pedal_Binding *binding = &g_linux.pedal_bindings[role];
+        if (!binding->valid) {
+            continue;
+        }
+
+        fprintf(file, ",\n");
+        fprintf(file, "  \"%s\": {\n", pedal_role_name(role));
+        fprintf(file, "    \"backend\": \"linux_evdev\",\n");
+        fprintf(file, "    \"path\": ");
+        json_write_string(file, binding->path);
+        fprintf(file, ",\n");
+        fprintf(file, "    \"name\": ");
+        json_write_string(file, binding->name);
+        fprintf(file, ",\n");
+        fprintf(file, "    \"vendor_id\": %u,\n", binding->vendor_id);
+        fprintf(file, "    \"product_id\": %u,\n", binding->product_id);
+        fprintf(file, "    \"bustype\": %u,\n", binding->bustype);
+        fprintf(file, "    \"version\": %u,\n", binding->version);
+        fprintf(file, "    \"type\": %u,\n", binding->type);
+        fprintf(file, "    \"code\": %u,\n", binding->code);
+        fprintf(file, "    \"value\": %d\n", binding->value);
+        fprintf(file, "  }");
+        wrote_binding = true;
+    }
+    fprintf(file, "\n}\n");
+
+    if (fclose(file) != 0) {
+        return false;
+    }
+
+    if (wrote_binding) {
+        printf("stoin: saved pedal config to %s\n", path);
+    }
+    return true;
+}
+
+static void print_pedal_binding(const Linux_Pedal_Binding *binding, Platform_Pedal_Role role)
+{
+    printf("stoin: pedal %s = path=", pedal_role_label(role));
+    json_write_string(stdout, binding->path);
+    printf(" name=");
+    json_write_string(stdout, binding->name);
+    printf(" vid=0x%04x pid=0x%04x type=%u code=%u value=%d\n",
+        binding->vendor_id,
+        binding->product_id,
+        binding->type,
+        binding->code,
+        binding->value);
+}
+
+static bool binding_matches_pedal_device(const Linux_Pedal_Binding *binding, const Linux_Pedal_Device *device)
+{
+    if (binding == NULL || device == NULL || !binding->valid) {
+        return false;
+    }
+    if (binding->path != NULL && device->path != NULL && strcmp(binding->path, device->path) == 0) {
+        return true;
+    }
+    return binding->vendor_id != 0
+        && binding->product_id != 0
+        && binding->vendor_id == device->vendor_id
+        && binding->product_id == device->product_id
+        && (binding->name[0] == '\0' || strcmp(binding->name, device->name) == 0);
+}
+
+static bool pedal_event_is_press(const struct input_event *event)
+{
+    if (event == NULL) {
+        return false;
+    }
+    if (event->type == EV_KEY) {
+        return event->value != 0;
+    }
+    if (event->type == EV_ABS) {
+        return event->value != 0;
+    }
+    return false;
+}
+
+static bool pedal_event_matches_binding(const Linux_Pedal_Binding *binding, const struct input_event *event)
+{
+    if (binding == NULL || event == NULL || !binding->valid) {
+        return false;
+    }
+    if (binding->type != event->type || binding->code != event->code) {
+        return false;
+    }
+    if (binding->type == EV_KEY) {
+        return true;
+    }
+    return event->value == 0 || event->value == binding->value;
+}
+
+static void learn_pedal_binding(const Linux_Pedal_Device *device, const struct input_event *event)
+{
+    if (device == NULL
+        || event == NULL
+        || !pedal_role_is_bindable(g_linux.pedal_register_role)
+        || !pedal_event_is_press(event)) {
+        return;
+    }
+
+    Linux_Pedal_Binding binding;
+    memset(&binding, 0, sizeof(binding));
+    binding.path = copy_cstring(device->path);
+    if (binding.path == NULL) {
+        fputs("stoin: warning: failed to copy Linux pedal path\n", stderr);
+        return;
+    }
+
+    snprintf(binding.name, sizeof(binding.name), "%s", device->name);
+    binding.vendor_id = device->vendor_id;
+    binding.product_id = device->product_id;
+    binding.bustype = device->bustype;
+    binding.version = device->version;
+    binding.type = event->type;
+    binding.code = event->code;
+    binding.value = event->value;
+    binding.valid = true;
+
+    free_pedal_binding(&g_linux.pedal_bindings[g_linux.pedal_register_role]);
+    g_linux.pedal_bindings[g_linux.pedal_register_role] = binding;
+
+    printf("stoin: learned %s pedal from Linux evdev device\n",
+        pedal_role_label(g_linux.pedal_register_role));
+    print_pedal_binding(&binding, g_linux.pedal_register_role);
+    if (!save_pedal_config(g_linux.pedal_config_path)) {
+        fprintf(stderr, "stoin: warning: failed to save pedal config to %s\n", g_linux.pedal_config_path);
+    }
+    g_linux.pedal_registering = false;
+}
+
+static void process_pedal_event(Linux_Pedal_Device *device, const struct input_event *event)
+{
+    if (device == NULL || event == NULL || (event->type != EV_KEY && event->type != EV_ABS)) {
+        return;
+    }
+
+    if (g_linux.pedal_registering) {
+        learn_pedal_binding(device, event);
+        return;
+    }
+
+    for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_PHRASE_CORE;
+         role < PLATFORM_PEDAL_ROLE_COUNT;
+         ++role) {
+        Linux_Pedal_Binding *binding = &g_linux.pedal_bindings[role];
+        if (!binding_matches_pedal_device(binding, device)
+            || !pedal_event_matches_binding(binding, event)) {
+            continue;
+        }
+
+        const bool pressed = pedal_event_is_press(event);
+        if (binding->is_down == pressed) {
+            continue;
+        }
+        binding->is_down = pressed;
+        if (g_linux.pedal_handler != NULL) {
+            g_linux.pedal_handler(role, pressed, g_linux.pedal_userdata);
+        }
+    }
+}
+
+static void process_pedal_device(Linux_Pedal_Device *device)
+{
+    if (device == NULL || device->fd < 0) {
+        return;
+    }
+
+    while (true) {
+        struct input_event event = {0};
+        const ssize_t bytes_read = read(device->fd, &event, sizeof(event));
+        if (bytes_read == (ssize_t)sizeof(event)) {
+            process_pedal_event(device, &event);
+            continue;
+        }
+        if (bytes_read < 0 && errno == EINTR) {
+            continue;
+        }
+        if (bytes_read < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+            break;
+        }
+        break;
+    }
+}
+
+static bool add_pedal_device(const char *path, bool require_saved_binding)
+{
+    if (path == NULL) {
+        return false;
+    }
+
+    const int fd = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+    if (fd < 0) {
+        return false;
+    }
+
+    Linux_Pedal_Device device = {
+        .fd = fd,
+        .path = copy_cstring(path),
+    };
+    linux_device_identity(fd, &device);
+    if (device.path == NULL
+        || device_name_is_stoin_virtual_keyboard(device.name)
+        || !input_device_is_pedal_candidate(fd)) {
+        free(device.path);
+        close(fd);
+        return false;
+    }
+
+    bool has_saved_binding = false;
+    for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_PHRASE_CORE;
+         role < PLATFORM_PEDAL_ROLE_COUNT;
+         ++role) {
+        if (binding_matches_pedal_device(&g_linux.pedal_bindings[role], &device)) {
+            has_saved_binding = true;
+            break;
+        }
+    }
+    if (require_saved_binding && !has_saved_binding) {
+        free(device.path);
+        close(fd);
+        return false;
+    }
+
+    if (!g_linux.pedal_registering && ioctl(fd, EVIOCGRAB, 1) != 0) {
+        fprintf(stderr, "stoin: warning: failed to grab Linux pedal device %s", path);
+        if (errno != 0) {
+            fprintf(stderr, " (%s)", strerror(errno));
+        }
+        fputc('\n', stderr);
+    }
+
+    arrput(g_linux.pedals, device);
+    if (!g_linux.pedal_registering) {
+        printf("stoin: watching Linux pedal candidate %s path=%s vid=0x%04x pid=0x%04x\n",
+            device.name[0] != '\0' ? device.name : "(unknown device)",
+            device.path,
+            device.vendor_id,
+            device.product_id);
+    }
+    return true;
+}
+
+static void close_pedal_devices(void)
+{
+    for (size_t i = 0; i < arrlenu(g_linux.pedals); ++i) {
+        if (g_linux.pedals[i].fd >= 0) {
+            (void)ioctl(g_linux.pedals[i].fd, EVIOCGRAB, 0);
+            close(g_linux.pedals[i].fd);
+        }
+        free(g_linux.pedals[i].path);
+    }
+    arrfree(g_linux.pedals);
+    g_linux.pedals = NULL;
+}
+
+static bool open_pedal_devices(bool registering)
+{
+    glob_t matches = {0};
+    const int glob_result = glob("/dev/input/event*", 0, NULL, &matches);
+    if (glob_result != 0 || matches.gl_pathc == 0) {
+        globfree(&matches);
+        return false;
+    }
+
+    for (size_t i = 0; i < matches.gl_pathc; ++i) {
+        (void)add_pedal_device(matches.gl_pathv[i], !registering);
+    }
+
+    globfree(&matches);
+    return arrlenu(g_linux.pedals) > 0;
 }
 
 typedef enum Linux_Keyboard_Open_Result {
@@ -566,6 +1048,16 @@ void platform_run(void)
             }
         }
 
+        const size_t pedal_index = arrlenu(fds);
+        for (size_t i = 0; i < arrlenu(g_linux.pedals); ++i) {
+            if (g_linux.pedals[i].fd >= 0) {
+                arrput(fds, ((struct pollfd) {
+                    .fd = g_linux.pedals[i].fd,
+                    .events = POLLIN,
+                }));
+            }
+        }
+
         const int watcher_fd = linux_file_watcher_fd();
         const size_t watcher_index = arrlenu(fds);
         if (watcher_fd >= 0) {
@@ -597,6 +1089,17 @@ void platform_run(void)
             }
             if ((fds[fd_index].revents & POLLIN) != 0) {
                 process_keyboard_device(&g_linux.keyboards[i]);
+            }
+            ++fd_index;
+        }
+
+        fd_index = pedal_index;
+        for (size_t i = 0; i < arrlenu(g_linux.pedals); ++i) {
+            if (g_linux.pedals[i].fd < 0) {
+                continue;
+            }
+            if ((fds[fd_index].revents & POLLIN) != 0) {
+                process_pedal_device(&g_linux.pedals[i]);
             }
             ++fd_index;
         }
@@ -633,21 +1136,75 @@ bool platform_pedals_init(
     void *userdata
 )
 {
-    (void)config_path;
-    (void)handler;
-    (void)userdata;
+    platform_pedals_shutdown();
 
-    if (register_role != PLATFORM_PEDAL_ROLE_NONE) {
-        fputs("stoin: USB pedal registration is not implemented on Linux yet\n", stderr);
-        return false;
+    g_linux.pedal_config_path = config_path != NULL ? config_path : "stoin-pedals.json";
+    g_linux.pedal_handler = handler;
+    g_linux.pedal_userdata = userdata;
+    g_linux.pedal_register_role = register_role;
+    g_linux.pedal_registering = pedal_role_is_bindable(register_role);
+
+    const bool loaded = load_pedal_config(g_linux.pedal_config_path);
+    if (!loaded && !g_linux.pedal_registering) {
+        return true;
+    }
+
+    if (!open_pedal_devices(g_linux.pedal_registering)) {
+        if (g_linux.pedal_registering) {
+            fputs("stoin: warning: no readable Linux input devices found for pedal registration\n", stderr);
+            fputs("stoin: pedal registration needs read access to /dev/input/event* devices\n", stderr);
+        }
+        platform_pedals_shutdown();
+        return !pedal_role_is_bindable(register_role);
+    }
+
+    if (g_linux.pedal_registering) {
+        printf("stoin: pedal registration armed for %s mode\n", pedal_role_label(register_role));
+        printf("stoin: press the pedal to use as %s mode\n", pedal_role_label(register_role));
+        puts("stoin: avoid typing, clicking, or pressing other input devices until registration finishes");
+        while (g_linux.pedal_registering) {
+            platform_pedals_poll();
+            platform_sleep_ms(10);
+        }
+        platform_pedals_shutdown();
+        return platform_pedals_init(config_path, PLATFORM_PEDAL_ROLE_NONE, handler, userdata);
+    }
+
+    if (loaded) {
+        for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_PHRASE_CORE;
+             role < PLATFORM_PEDAL_ROLE_COUNT;
+             ++role) {
+            if (g_linux.pedal_bindings[role].valid) {
+                print_pedal_binding(&g_linux.pedal_bindings[role], role);
+            }
+        }
     }
     return true;
 }
 
 void platform_pedals_poll(void)
 {
+    for (size_t i = 0; i < arrlenu(g_linux.pedals); ++i) {
+        process_pedal_device(&g_linux.pedals[i]);
+    }
 }
 
 void platform_pedals_shutdown(void)
 {
+    for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_PHRASE_CORE;
+         role < PLATFORM_PEDAL_ROLE_COUNT;
+         ++role) {
+        Linux_Pedal_Binding *binding = &g_linux.pedal_bindings[role];
+        if (binding->valid && binding->is_down && g_linux.pedal_handler != NULL) {
+            g_linux.pedal_handler(role, false, g_linux.pedal_userdata);
+        }
+    }
+
+    close_pedal_devices();
+    clear_pedal_bindings();
+    g_linux.pedal_config_path = NULL;
+    g_linux.pedal_handler = NULL;
+    g_linux.pedal_userdata = NULL;
+    g_linux.pedal_register_role = PLATFORM_PEDAL_ROLE_NONE;
+    g_linux.pedal_registering = false;
 }

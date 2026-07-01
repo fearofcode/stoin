@@ -9,26 +9,27 @@ Implemented:
 - Core phrase namespace: `PHRASE_NAMESPACE_CORE`.
 - Core phrase grammar for subject, tense, auxiliary, negation, aspect, inversion, verb, and tail.
 - Mock-pedal tests using `steno_set_phrase_namespace()`.
-- macOS USB HID pedal registration for the core phrase namespace.
+- USB pedal registration for the core phrase namespace on macOS, Windows, and Linux.
 - Phrase output goes through normal Stoin translation history, spacing, undo, and tracing.
 
 Not implemented yet:
 
-- Runtime pedal input on Linux.
 - Non-verb phrase pedal.
 - Both-pedal modifier/operator namespace.
 - SRS/practice deck integration.
 
-So today, the phrase engine is reachable on macOS with a registered USB HID pedal. Holding the core phrase pedal during a stroke routes that outline through the phrase engine. For serial machines, tapping the pedal before the stroke also works: Stoin latches the phrase namespace for the next completed machine stroke, then clears it.
+So today, the phrase engine is reachable with a registered USB pedal. Holding the core phrase pedal during a stroke routes that outline through the phrase engine. For serial machines, tapping the pedal before the stroke also works: Stoin latches the phrase namespace for the next completed machine stroke, then clears it.
 
 ## Register The Core Pedal
 
-On macOS:
+On macOS or Linux:
 
 ```sh
 make
 ./build/macos/stoin --register-pedal core
 ```
+
+Use `./build/linux/stoin --register-pedal core` on Linux.
 
 When prompted, press the pedal you want to use for core phrase mode. Stoin saves the mapping in local `stoin-pedals.json`, which is ignored by git. After registration, the app continues normally. Future runs can just use:
 

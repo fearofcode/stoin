@@ -90,7 +90,7 @@ static bool pedal_role_is_bindable(Platform_Pedal_Role role)
 
 static bool usage_page_is_pedal_candidate(uint32_t usage_page)
 {
-    return usage_page == HID_PAGE_KEYBOARD || usage_page == HID_PAGE_BUTTON;
+    return usage_page != 0;
 }
 
 static bool keyboard_usage_is_safe_pedal_key(uint32_t usage)
@@ -851,7 +851,7 @@ bool platform_pedals_init(
     if (g_pedals.registering) {
         printf("stoin: pedal registration armed for %s mode\n", pedal_role_label(register_role));
         printf("stoin: press the pedal to use as %s mode\n", pedal_role_label(register_role));
-        puts("stoin: avoid typing or clicking until registration finishes");
+        puts("stoin: avoid typing, clicking, or pressing other HID controls until registration finishes");
     }
 
     g_pedals.manager = IOHIDManagerCreate(kCFAllocatorDefault, kIOHIDOptionsTypeNone);
