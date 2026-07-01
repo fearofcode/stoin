@@ -69,7 +69,7 @@ PLATFORM_SOURCES := \
 	src/platform_posix_serial.c
 else ifeq ($(PLATFORM),windows)
 PLATFORM_CFLAGS += -D_WIN32_WINNT=0x0601
-PLATFORM_LDFLAGS += -luser32 -lsetupapi
+PLATFORM_LDFLAGS += -luser32 -lsetupapi -ladvapi32
 PLATFORM_SOURCES := \
 	src/platform_windows.c
 EXE_EXT := .exe
