@@ -95,10 +95,11 @@ static const char *steno_spacing(const Steno *steno)
 
 static Steno_Case_State steno_case_state(const Steno *steno)
 {
-    return (Steno_Case_State) {
+    Steno_Case_State state = {
         .case_mode = steno != NULL ? steno->case_mode : CASE_MODE_NORMAL,
         .next_case = steno != NULL ? steno->next_case : CASE_MODE_NORMAL,
     };
+    return state;
 }
 
 static void steno_restore_case_state(Steno *steno, Steno_Case_State state)
@@ -135,10 +136,11 @@ static void translation_restore_previous_case_state(Steno *steno, const Translat
     if (steno == NULL || translation == NULL || !translation->has_case_state) {
         return;
     }
-    steno_restore_case_state(steno, (Steno_Case_State) {
+    Steno_Case_State state = {
         .case_mode = translation->previous_case_mode,
         .next_case = translation->previous_next_case,
-    });
+    };
+    steno_restore_case_state(steno, state);
 }
 
 static void reset_chord(Steno *steno)
@@ -519,7 +521,7 @@ static bool retro_translate_bits_callback(void *userdata, uint64_t bits)
 
 static Retro_Context make_retro_context(Steno *steno)
 {
-    return (Retro_Context) {
+    Retro_Context context = {
         .translations = &steno->translations,
         .spacing = &steno->spacing,
         .replace_output = replace_output_callback,
@@ -527,15 +529,17 @@ static Retro_Context make_retro_context(Steno *steno)
         .translate_bits = retro_translate_bits_callback,
         .userdata = steno,
     };
+    return context;
 }
 
 static Stitch_Context make_stitch_context(Steno *steno)
 {
-    return (Stitch_Context) {
+    Stitch_Context context = {
         .translations = &steno->translations,
         .replace_output = replace_output_callback,
         .userdata = steno,
     };
+    return context;
 }
 
 static bool repeat_last_translation(Steno *steno, const uint64_t *strokes, size_t stroke_count)
@@ -1294,10 +1298,11 @@ bool steno_handle_event(Steno *steno, const Input_Event *event)
         if (shift_only_chord) {
             arm_qwerty_core_phrase_shortcut(steno);
         } else {
-            (void)translate_completed_stroke_input(steno, (Stroke_Input) {
+            Stroke_Input stroke = {
                 .bits = steno->chord_bits,
                 .phrase_namespace = steno->chord_phrase_namespace,
-            });
+            };
+            (void)translate_completed_stroke_input(steno, stroke);
         }
         reset_chord(steno);
     }
@@ -1320,10 +1325,11 @@ bool steno_handle_stroke_bits(Steno *steno, uint64_t bits)
     if (steno == NULL) {
         return false;
     }
-    return steno_handle_stroke(steno, (Stroke_Input) {
+    Stroke_Input stroke = {
         .bits = bits,
         .phrase_namespace = steno_current_or_pending_phrase_namespace(steno),
-    });
+    };
+    return steno_handle_stroke(steno, stroke);
 }
 
 void steno_set_phrase_namespace(Steno *steno, Phrase_Namespace namespace, bool is_down)

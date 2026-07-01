@@ -124,10 +124,11 @@ static bool handle_mock_pedal_stroke(Steno *steno, Phrase_Namespace namespace, c
     }
 
     steno_set_phrase_namespace(steno, namespace, true);
-    const bool ok = steno_handle_stroke(steno, (Stroke_Input) {
+    Stroke_Input input = {
         .bits = bits,
         .phrase_namespace = namespace,
-    });
+    };
+    const bool ok = steno_handle_stroke(steno, input);
     steno_set_phrase_namespace(steno, namespace, false);
     return ok;
 }

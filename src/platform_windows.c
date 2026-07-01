@@ -1,5 +1,7 @@
 #include "platform.h"
 
+#include "util.h"
+
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
@@ -16,6 +18,9 @@
 
 #define STOIN_WINDOWS_EXTRA_INFO ((ULONG_PTR)0x73746f696eULL)
 #define WINDOWS_FILE_WATCH_POLL_MS 250
+#define WINDOWS_PEDAL_CLASS_NAME "StoinPedalRawInputWindow"
+#define WINDOWS_PEDAL_MAX_RAW_INPUT_SIZE 8192
+#define HID_PAGE_KEYBOARD 0x07
 
 typedef enum Windows_Combo_Modifier {
     WINDOWS_COMBO_SHIFT = 1 << 0,
@@ -36,14 +41,32 @@ typedef struct Windows_File_Watch_Target {
     Platform_File_Stamp stamp;
 } Windows_File_Watch_Target;
 
+typedef struct Windows_Pedal_Binding {
+    char *device_name;
+    uint32_t vendor_id;
+    uint32_t product_id;
+    uint32_t usage_page;
+    uint32_t usage;
+    uint32_t scan_code;
+    uint32_t vk;
+    bool valid;
+    bool is_down;
+} Windows_Pedal_Binding;
+
 typedef struct Windows_State {
     HHOOK keyboard_hook;
+    HWND pedal_window;
     UINT_PTR watcher_timer_id;
     Handle_Input_Fn handler;
     void *userdata;
     Platform_File_Watch_Fn file_watcher_callback;
     void *file_watcher_userdata;
     Windows_File_Watch_Target *file_watcher_targets;
+    Windows_Pedal_Binding pedal_bindings[PLATFORM_PEDAL_ROLE_COUNT];
+    const char *pedal_config_path;
+    Platform_Pedal_Event_Fn pedal_handler;
+    void *pedal_userdata;
+    Platform_Pedal_Role pedal_register_role;
     uint64_t performance_frequency;
     uint64_t translation_timing_start_ns;
     uint64_t translation_timing_sequence;
@@ -54,6 +77,9 @@ typedef struct Windows_State {
     bool option_down;
     bool command_down;
     bool file_watcher_active;
+    bool pedals_started;
+    bool pedal_registering;
+    bool pedal_window_class_registered;
     bool translation_timing_enabled;
     bool translation_timing_active;
 } Windows_State;
@@ -161,7 +187,7 @@ static bool key_name_equals(const char *a, const char *b)
     return *a == '\0' && *b == '\0';
 }
 
-static char *copy_range_cstring(const char *start, size_t length)
+static char *windows_copy_range_cstring(const char *start, size_t length)
 {
     char *copy = malloc(length + 1);
     if (copy == NULL) {
@@ -172,9 +198,9 @@ static char *copy_range_cstring(const char *start, size_t length)
     return copy;
 }
 
-static char *copy_cstring(const char *s)
+static char *windows_copy_cstring(const char *s)
 {
-    return s == NULL ? NULL : copy_range_cstring(s, strlen(s));
+    return s == NULL ? NULL : windows_copy_range_cstring(s, strlen(s));
 }
 
 static bool windows_vk_from_logical(uint16_t logical_keycode, UINT *out_vk)
@@ -885,7 +911,7 @@ bool platform_file_watcher_start(
     platform_file_watcher_stop();
 
     for (size_t i = 0; i < path_count; ++i) {
-        char *copy = copy_cstring(paths[i]);
+        char *copy = windows_copy_cstring(paths[i]);
         if (copy == NULL) {
             platform_file_watcher_stop();
             return false;
@@ -893,10 +919,11 @@ bool platform_file_watcher_start(
 
         Platform_File_Stamp stamp = {0};
         (void)platform_file_stamp(copy, &stamp);
-        arrput(g_windows.file_watcher_targets, ((Windows_File_Watch_Target) {
+        Windows_File_Watch_Target target = {
             .path = copy,
             .stamp = stamp,
-        }));
+        };
+        arrput(g_windows.file_watcher_targets, target);
     }
 
     g_windows.file_watcher_active = true;
@@ -977,6 +1004,631 @@ void platform_shutdown(void)
     g_windows.command_down = false;
 }
 
+static const char *pedal_role_name(Platform_Pedal_Role role)
+{
+    switch (role) {
+    case PLATFORM_PEDAL_ROLE_PHRASE_CORE:
+        return "phrase_core";
+    case PLATFORM_PEDAL_ROLE_PHRASE_NONVERB:
+        return "phrase_nonverb";
+    case PLATFORM_PEDAL_ROLE_NONE:
+    case PLATFORM_PEDAL_ROLE_COUNT:
+    default:
+        return "none";
+    }
+}
+
+static const char *pedal_role_label(Platform_Pedal_Role role)
+{
+    switch (role) {
+    case PLATFORM_PEDAL_ROLE_PHRASE_CORE:
+        return "core phrase";
+    case PLATFORM_PEDAL_ROLE_PHRASE_NONVERB:
+        return "non-verb phrase";
+    case PLATFORM_PEDAL_ROLE_NONE:
+    case PLATFORM_PEDAL_ROLE_COUNT:
+    default:
+        return "unassigned";
+    }
+}
+
+static bool pedal_role_is_bindable(Platform_Pedal_Role role)
+{
+    return role > PLATFORM_PEDAL_ROLE_NONE && role < PLATFORM_PEDAL_ROLE_COUNT;
+}
+
+static void free_pedal_binding(Windows_Pedal_Binding *binding)
+{
+    if (binding == NULL) {
+        return;
+    }
+    free(binding->device_name);
+    memset(binding, 0, sizeof(*binding));
+}
+
+static void clear_pedal_bindings(void)
+{
+    for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_PHRASE_CORE;
+         role < PLATFORM_PEDAL_ROLE_COUNT;
+         ++role) {
+        free_pedal_binding(&g_windows.pedal_bindings[role]);
+    }
+}
+
+static const char *find_matching_object(const char *json, const char *name, const char **out_end)
+{
+    char pattern[64] = {0};
+    snprintf(pattern, sizeof(pattern), "\"%s\"", name);
+
+    const char *name_pos = strstr(json, pattern);
+    if (name_pos == NULL) {
+        return NULL;
+    }
+
+    const char *start = strchr(name_pos, '{');
+    if (start == NULL) {
+        return NULL;
+    }
+
+    const char *end = strchr(start, '}');
+    if (end == NULL) {
+        return NULL;
+    }
+
+    if (out_end != NULL) {
+        *out_end = end;
+    }
+    return start;
+}
+
+static bool parse_uint_field(const char *start, const char *end, const char *name, uint32_t *out_value)
+{
+    char pattern[48] = {0};
+    snprintf(pattern, sizeof(pattern), "\"%s\"", name);
+
+    const char *field = strstr(start, pattern);
+    if (field == NULL || field >= end) {
+        return false;
+    }
+
+    const char *colon = strchr(field, ':');
+    if (colon == NULL || colon >= end) {
+        return false;
+    }
+
+    char *parse_end = NULL;
+    const unsigned long parsed = strtoul(colon + 1, &parse_end, 0);
+    if (parse_end == colon + 1 || parse_end > end || parsed > UINT32_MAX) {
+        return false;
+    }
+
+    *out_value = (uint32_t)parsed;
+    return true;
+}
+
+static bool parse_json_string_value(const char **cursor, const char *end, char **out_value)
+{
+    const char *p = *cursor;
+    while (p < end && isspace((unsigned char)*p)) {
+        ++p;
+    }
+    if (p >= end || *p != '"') {
+        return false;
+    }
+    ++p;
+
+    char *value = NULL;
+    while (p < end && *p != '"') {
+        unsigned char c = (unsigned char)*p++;
+        if (c == '\\') {
+            if (p >= end) {
+                arrfree(value);
+                return false;
+            }
+            c = (unsigned char)*p++;
+            switch (c) {
+            case '"': arrput(value, '"'); break;
+            case '\\': arrput(value, '\\'); break;
+            case '/': arrput(value, '/'); break;
+            case 'b': arrput(value, '\b'); break;
+            case 'f': arrput(value, '\f'); break;
+            case 'n': arrput(value, '\n'); break;
+            case 'r': arrput(value, '\r'); break;
+            case 't': arrput(value, '\t'); break;
+            default:
+                arrfree(value);
+                return false;
+            }
+        } else {
+            arrput(value, (char)c);
+        }
+    }
+
+    if (p >= end || *p != '"') {
+        arrfree(value);
+        return false;
+    }
+    arrput(value, '\0');
+    *cursor = p + 1;
+    *out_value = value;
+    return true;
+}
+
+static bool parse_string_field(const char *start, const char *end, const char *name, char **out_value)
+{
+    char pattern[48] = {0};
+    snprintf(pattern, sizeof(pattern), "\"%s\"", name);
+
+    const char *field = strstr(start, pattern);
+    if (field == NULL || field >= end) {
+        return false;
+    }
+
+    const char *colon = strchr(field, ':');
+    if (colon == NULL || colon >= end) {
+        return false;
+    }
+    ++colon;
+
+    return parse_json_string_value(&colon, end, out_value);
+}
+
+static bool load_pedal_binding_from_json(
+    const char *json,
+    Platform_Pedal_Role role,
+    Windows_Pedal_Binding *binding
+)
+{
+    const char *end = NULL;
+    const char *start = find_matching_object(json, pedal_role_name(role), &end);
+    if (start == NULL) {
+        return false;
+    }
+
+    Windows_Pedal_Binding loaded;
+    memset(&loaded, 0, sizeof(loaded));
+    if (!parse_uint_field(start, end, "usage_page", &loaded.usage_page)
+        || !parse_uint_field(start, end, "usage", &loaded.usage)
+        || !parse_uint_field(start, end, "scan_code", &loaded.scan_code)
+        || !parse_uint_field(start, end, "vk", &loaded.vk)
+        || !parse_string_field(start, end, "device_name", &loaded.device_name)) {
+        fprintf(stderr,
+            "stoin: warning: ignoring incomplete %s pedal binding in %s\n",
+            pedal_role_label(role),
+            g_windows.pedal_config_path);
+        free_pedal_binding(&loaded);
+        return false;
+    }
+
+    (void)parse_uint_field(start, end, "vendor_id", &loaded.vendor_id);
+    (void)parse_uint_field(start, end, "product_id", &loaded.product_id);
+    loaded.valid = true;
+    *binding = loaded;
+    return true;
+}
+
+static bool load_pedal_config(const char *path)
+{
+    size_t size = 0;
+    char *json = read_entire_file(path, &size);
+    (void)size;
+    if (json == NULL) {
+        return false;
+    }
+
+    bool loaded_any = false;
+    for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_PHRASE_CORE;
+         role < PLATFORM_PEDAL_ROLE_COUNT;
+         ++role) {
+        Windows_Pedal_Binding binding;
+        memset(&binding, 0, sizeof(binding));
+        if (load_pedal_binding_from_json(json, role, &binding)) {
+            free_pedal_binding(&g_windows.pedal_bindings[role]);
+            g_windows.pedal_bindings[role] = binding;
+            loaded_any = true;
+        }
+    }
+
+    free(json);
+    if (loaded_any) {
+        printf("stoin: loaded pedal config from %s\n", path);
+    }
+    return loaded_any;
+}
+
+static void write_json_string(FILE *file, const char *value)
+{
+    fputc('"', file);
+    for (const char *p = value != NULL ? value : ""; *p != '\0'; ++p) {
+        switch (*p) {
+        case '"': fputs("\\\"", file); break;
+        case '\\': fputs("\\\\", file); break;
+        case '\b': fputs("\\b", file); break;
+        case '\f': fputs("\\f", file); break;
+        case '\n': fputs("\\n", file); break;
+        case '\r': fputs("\\r", file); break;
+        case '\t': fputs("\\t", file); break;
+        default: fputc(*p, file); break;
+        }
+    }
+    fputc('"', file);
+}
+
+static bool save_pedal_config(const char *path)
+{
+    FILE *file = fopen(path, "wb");
+    if (file == NULL) {
+        return false;
+    }
+
+    fprintf(file, "{\n");
+    fprintf(file, "  \"version\": 1");
+    bool wrote_binding = false;
+    for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_PHRASE_CORE;
+         role < PLATFORM_PEDAL_ROLE_COUNT;
+         ++role) {
+        const Windows_Pedal_Binding *binding = &g_windows.pedal_bindings[role];
+        if (!binding->valid) {
+            continue;
+        }
+
+        fprintf(file, ",\n");
+        fprintf(file, "  \"%s\": {\n", pedal_role_name(role));
+        fprintf(file, "    \"backend\": \"windows_raw_input\",\n");
+        fprintf(file, "    \"device_name\": ");
+        write_json_string(file, binding->device_name);
+        fprintf(file, ",\n");
+        fprintf(file, "    \"vendor_id\": %u,\n", binding->vendor_id);
+        fprintf(file, "    \"product_id\": %u,\n", binding->product_id);
+        fprintf(file, "    \"usage_page\": %u,\n", binding->usage_page);
+        fprintf(file, "    \"usage\": %u,\n", binding->usage);
+        fprintf(file, "    \"scan_code\": %u,\n", binding->scan_code);
+        fprintf(file, "    \"vk\": %u\n", binding->vk);
+        fprintf(file, "  }");
+        wrote_binding = true;
+    }
+    fprintf(file, "\n}\n");
+
+    if (fclose(file) != 0) {
+        return false;
+    }
+
+    if (wrote_binding) {
+        printf("stoin: saved pedal config to %s\n", path);
+    }
+    return true;
+}
+
+static void print_pedal_binding(const Windows_Pedal_Binding *binding, Platform_Pedal_Role role)
+{
+    printf("stoin: pedal %s = vid=0x%04x pid=0x%04x page=0x%02x usage=0x%02x scan=0x%04x vk=0x%02x device=",
+        pedal_role_label(role),
+        binding->vendor_id,
+        binding->product_id,
+        binding->usage_page,
+        binding->usage,
+        binding->scan_code,
+        binding->vk);
+    write_json_string(stdout, binding->device_name);
+    fputc('\n', stdout);
+}
+
+static bool hex_u32_after_marker(const char *text, const char *marker, uint32_t *out_value)
+{
+    const char *found = strstr(text, marker);
+    if (found == NULL || out_value == NULL) {
+        return false;
+    }
+
+    found += strlen(marker);
+    char *end = NULL;
+    const unsigned long parsed = strtoul(found, &end, 16);
+    if (end == found || parsed > UINT32_MAX) {
+        return false;
+    }
+
+    *out_value = (uint32_t)parsed;
+    return true;
+}
+
+static void parse_vid_pid_from_device_name(
+    const char *device_name,
+    uint32_t *out_vendor_id,
+    uint32_t *out_product_id
+)
+{
+    if (out_vendor_id != NULL) {
+        *out_vendor_id = 0;
+    }
+    if (out_product_id != NULL) {
+        *out_product_id = 0;
+    }
+    if (device_name == NULL) {
+        return;
+    }
+
+    char *upper = windows_copy_cstring(device_name);
+    if (upper == NULL) {
+        return;
+    }
+    for (char *p = upper; *p != '\0'; ++p) {
+        *p = (char)toupper((unsigned char)*p);
+    }
+
+    if (out_vendor_id != NULL) {
+        (void)hex_u32_after_marker(upper, "VID_", out_vendor_id);
+    }
+    if (out_product_id != NULL) {
+        (void)hex_u32_after_marker(upper, "PID_", out_product_id);
+    }
+    free(upper);
+}
+
+static char *raw_input_device_name(HANDLE device)
+{
+    UINT size = 0;
+    if (GetRawInputDeviceInfoA(device, RIDI_DEVICENAME, NULL, &size) != 0 || size == 0) {
+        return NULL;
+    }
+
+    char *name = calloc((size_t)size + 1, sizeof(*name));
+    if (name == NULL) {
+        return NULL;
+    }
+
+    if (GetRawInputDeviceInfoA(device, RIDI_DEVICENAME, name, &size) == (UINT)-1) {
+        free(name);
+        return NULL;
+    }
+    return name;
+}
+
+static UINT normalize_raw_keyboard_vk(const RAWKEYBOARD *keyboard)
+{
+    if (keyboard == NULL) {
+        return 0;
+    }
+
+    switch (keyboard->VKey) {
+    case VK_SHIFT:
+    case VK_CONTROL:
+    case VK_MENU:
+    {
+        UINT scan_code = keyboard->MakeCode;
+        if ((keyboard->Flags & RI_KEY_E0) != 0) {
+            scan_code |= 0xE000;
+        }
+        return MapVirtualKeyA(scan_code, MAPVK_VSC_TO_VK_EX);
+    }
+    default:
+        return keyboard->VKey;
+    }
+}
+
+static uint32_t normalized_raw_scan_code(const RAWKEYBOARD *keyboard)
+{
+    if (keyboard == NULL) {
+        return 0;
+    }
+
+    uint32_t scan_code = keyboard->MakeCode;
+    if ((keyboard->Flags & RI_KEY_E0) != 0) {
+        scan_code |= 0xE000;
+    }
+    return scan_code;
+}
+
+static bool binding_matches_pedal_event(
+    const Windows_Pedal_Binding *binding,
+    const char *device_name,
+    uint32_t vendor_id,
+    uint32_t product_id,
+    uint32_t scan_code,
+    uint32_t vk
+)
+{
+    if (binding == NULL || !binding->valid || binding->scan_code != scan_code || binding->vk != vk) {
+        return false;
+    }
+    if (binding->device_name != NULL && device_name != NULL && strcmp(binding->device_name, device_name) == 0) {
+        return true;
+    }
+    return binding->vendor_id != 0
+        && binding->product_id != 0
+        && binding->vendor_id == vendor_id
+        && binding->product_id == product_id;
+}
+
+static Platform_Pedal_Role pedal_role_for_event(
+    const char *device_name,
+    uint32_t vendor_id,
+    uint32_t product_id,
+    uint32_t scan_code,
+    uint32_t vk
+)
+{
+    for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_PHRASE_CORE;
+         role < PLATFORM_PEDAL_ROLE_COUNT;
+         ++role) {
+        if (binding_matches_pedal_event(
+                &g_windows.pedal_bindings[role],
+                device_name,
+                vendor_id,
+                product_id,
+                scan_code,
+                vk)) {
+            return role;
+        }
+    }
+    return PLATFORM_PEDAL_ROLE_NONE;
+}
+
+static void learn_pedal_binding(
+    const char *device_name,
+    uint32_t vendor_id,
+    uint32_t product_id,
+    uint32_t scan_code,
+    uint32_t vk
+)
+{
+    if (!pedal_role_is_bindable(g_windows.pedal_register_role)) {
+        return;
+    }
+
+    Windows_Pedal_Binding binding;
+    memset(&binding, 0, sizeof(binding));
+    binding.device_name = windows_copy_cstring(device_name);
+    if (binding.device_name == NULL) {
+        fputs("stoin: warning: failed to copy Windows pedal device name\n", stderr);
+        return;
+    }
+    binding.vendor_id = vendor_id;
+    binding.product_id = product_id;
+    binding.usage_page = HID_PAGE_KEYBOARD;
+    binding.usage = vk;
+    binding.scan_code = scan_code;
+    binding.vk = vk;
+    binding.valid = true;
+
+    free_pedal_binding(&g_windows.pedal_bindings[g_windows.pedal_register_role]);
+    g_windows.pedal_bindings[g_windows.pedal_register_role] = binding;
+
+    printf("stoin: learned %s pedal from Windows Raw Input device\n",
+        pedal_role_label(g_windows.pedal_register_role));
+    print_pedal_binding(&binding, g_windows.pedal_register_role);
+    if (!save_pedal_config(g_windows.pedal_config_path)) {
+        fprintf(stderr, "stoin: warning: failed to save pedal config to %s\n", g_windows.pedal_config_path);
+    }
+
+    g_windows.pedal_registering = false;
+}
+
+static void handle_pedal_raw_keyboard(const RAWINPUT *raw)
+{
+    if (raw == NULL || raw->header.dwType != RIM_TYPEKEYBOARD) {
+        return;
+    }
+
+    const RAWKEYBOARD *keyboard = &raw->data.keyboard;
+    const uint32_t vk = normalize_raw_keyboard_vk(keyboard);
+    const uint32_t scan_code = normalized_raw_scan_code(keyboard);
+    if (vk == 0 || scan_code == 0) {
+        return;
+    }
+
+    const bool pressed = (keyboard->Flags & RI_KEY_BREAK) == 0;
+    char *device_name = raw_input_device_name(raw->header.hDevice);
+    if (device_name == NULL) {
+        return;
+    }
+
+    uint32_t vendor_id = 0;
+    uint32_t product_id = 0;
+    parse_vid_pid_from_device_name(device_name, &vendor_id, &product_id);
+
+    if (g_windows.pedal_registering) {
+        if (pressed) {
+            learn_pedal_binding(device_name, vendor_id, product_id, scan_code, vk);
+        }
+        free(device_name);
+        return;
+    }
+
+    const Platform_Pedal_Role role =
+        pedal_role_for_event(device_name, vendor_id, product_id, scan_code, vk);
+    free(device_name);
+
+    if (role == PLATFORM_PEDAL_ROLE_NONE || g_windows.pedal_handler == NULL) {
+        return;
+    }
+
+    Windows_Pedal_Binding *binding = &g_windows.pedal_bindings[role];
+    if (binding->is_down == pressed) {
+        return;
+    }
+    binding->is_down = pressed;
+    g_windows.pedal_handler(role, pressed, g_windows.pedal_userdata);
+}
+
+static LRESULT CALLBACK pedal_window_proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
+{
+    (void)hwnd;
+    (void)wparam;
+
+    if (message == WM_INPUT) {
+        UINT size = 0;
+        if (GetRawInputData((HRAWINPUT)lparam, RID_INPUT, NULL, &size, sizeof(RAWINPUTHEADER)) != 0
+            || size == 0
+            || size > WINDOWS_PEDAL_MAX_RAW_INPUT_SIZE) {
+            return 0;
+        }
+
+        BYTE *buffer = malloc(size);
+        if (buffer == NULL) {
+            return 0;
+        }
+
+        if (GetRawInputData((HRAWINPUT)lparam, RID_INPUT, buffer, &size, sizeof(RAWINPUTHEADER)) == size) {
+            handle_pedal_raw_keyboard((const RAWINPUT *)buffer);
+        }
+        free(buffer);
+        return 0;
+    }
+
+    return DefWindowProcA(hwnd, message, wparam, lparam);
+}
+
+static bool ensure_pedal_window(void)
+{
+    if (g_windows.pedal_window != NULL) {
+        return true;
+    }
+
+    HINSTANCE instance = GetModuleHandleA(NULL);
+    if (!g_windows.pedal_window_class_registered) {
+        WNDCLASSA window_class;
+        memset(&window_class, 0, sizeof(window_class));
+        window_class.lpfnWndProc = pedal_window_proc;
+        window_class.hInstance = instance;
+        window_class.lpszClassName = WINDOWS_PEDAL_CLASS_NAME;
+        if (RegisterClassA(&window_class) == 0 && GetLastError() != ERROR_CLASS_ALREADY_EXISTS) {
+            return false;
+        }
+        g_windows.pedal_window_class_registered = true;
+    }
+
+    g_windows.pedal_window = CreateWindowExA(
+        0,
+        WINDOWS_PEDAL_CLASS_NAME,
+        "stoin pedals",
+        0,
+        0,
+        0,
+        0,
+        0,
+        HWND_MESSAGE,
+        NULL,
+        instance,
+        NULL
+    );
+    return g_windows.pedal_window != NULL;
+}
+
+static bool register_pedal_raw_input(void)
+{
+    if (!ensure_pedal_window()) {
+        return false;
+    }
+
+    RAWINPUTDEVICE device;
+    memset(&device, 0, sizeof(device));
+    device.usUsagePage = 0x01;
+    device.usUsage = 0x06;
+    device.dwFlags = RIDEV_INPUTSINK | RIDEV_DEVNOTIFY;
+    device.hwndTarget = g_windows.pedal_window;
+    return RegisterRawInputDevices(&device, 1, sizeof(device)) != FALSE;
+}
+
 bool platform_pedals_init(
     const char *config_path,
     Platform_Pedal_Role register_role,
@@ -984,23 +1636,91 @@ bool platform_pedals_init(
     void *userdata
 )
 {
-    (void)config_path;
-    (void)handler;
-    (void)userdata;
+    platform_pedals_shutdown();
 
-    if (register_role != PLATFORM_PEDAL_ROLE_NONE) {
-        fputs("stoin: USB pedal registration is not implemented on Windows yet\n", stderr);
+    g_windows.pedal_config_path = config_path != NULL ? config_path : "stoin-pedals.json";
+    g_windows.pedal_handler = handler;
+    g_windows.pedal_userdata = userdata;
+    g_windows.pedal_register_role = register_role;
+    g_windows.pedal_registering = pedal_role_is_bindable(register_role);
+
+    const bool loaded = load_pedal_config(g_windows.pedal_config_path);
+    if (!loaded && !g_windows.pedal_registering) {
+        return true;
+    }
+
+    if (!register_pedal_raw_input()) {
+        fputs("stoin: warning: failed to register Windows Raw Input for USB pedals\n", stderr);
+        platform_pedals_shutdown();
         return false;
     }
+    g_windows.pedals_started = true;
+
+    if (g_windows.pedal_registering) {
+        printf("stoin: pedal registration armed for %s mode\n", pedal_role_label(register_role));
+        printf("stoin: press the pedal to use as %s mode\n", pedal_role_label(register_role));
+        puts("stoin: avoid typing or pressing other HID keyboard devices until registration finishes");
+        while (g_windows.pedal_registering) {
+            platform_pedals_poll();
+            platform_sleep_ms(10);
+        }
+        platform_pedals_shutdown();
+        return platform_pedals_init(config_path, PLATFORM_PEDAL_ROLE_NONE, handler, userdata);
+    }
+
+    if (loaded) {
+        for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_PHRASE_CORE;
+             role < PLATFORM_PEDAL_ROLE_COUNT;
+             ++role) {
+            if (g_windows.pedal_bindings[role].valid) {
+                print_pedal_binding(&g_windows.pedal_bindings[role], role);
+            }
+        }
+    }
+
     return true;
 }
 
 void platform_pedals_poll(void)
 {
+    if (!g_windows.pedals_started && g_windows.pedal_window == NULL) {
+        return;
+    }
+
+    MSG message;
+    while (PeekMessageA(&message, NULL, 0, 0, PM_REMOVE)) {
+        if (message.message == WM_QUIT) {
+            PostQuitMessage((int)message.wParam);
+            break;
+        }
+        TranslateMessage(&message);
+        DispatchMessageA(&message);
+    }
 }
 
 void platform_pedals_shutdown(void)
 {
+    for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_PHRASE_CORE;
+         role < PLATFORM_PEDAL_ROLE_COUNT;
+         ++role) {
+        Windows_Pedal_Binding *binding = &g_windows.pedal_bindings[role];
+        if (binding->valid && binding->is_down && g_windows.pedal_handler != NULL) {
+            g_windows.pedal_handler(role, false, g_windows.pedal_userdata);
+        }
+    }
+
+    if (g_windows.pedal_window != NULL) {
+        DestroyWindow(g_windows.pedal_window);
+        g_windows.pedal_window = NULL;
+    }
+
+    clear_pedal_bindings();
+    g_windows.pedals_started = false;
+    g_windows.pedal_registering = false;
+    g_windows.pedal_config_path = NULL;
+    g_windows.pedal_handler = NULL;
+    g_windows.pedal_userdata = NULL;
+    g_windows.pedal_register_role = PLATFORM_PEDAL_ROLE_NONE;
 }
 
 static bool add_serial_path(

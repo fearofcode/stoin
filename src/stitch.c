@@ -58,11 +58,12 @@ static bool collect_text_tokens(const char *text, Text_Token **out_tokens)
         while (index < length && isspace((unsigned char)text[index])) {
             ++index;
         }
-        arrput(*out_tokens, ((Text_Token) {
+        Text_Token token = {
             .start = start,
             .core_end = core_end,
             .end = index,
-        }));
+        };
+        arrput(*out_tokens, token);
     }
 
     return true;

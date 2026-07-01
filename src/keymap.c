@@ -68,10 +68,11 @@ bool keymap_load(Keymap *keymap, const char *path)
             return false;
         }
 
-        arrput(bindings, ((Key_Binding) {
+        Key_Binding binding = {
             .keycode = keycode,
             .bits = bits,
-        }));
+        };
+        arrput(bindings, binding);
         ++line_number;
     }
 

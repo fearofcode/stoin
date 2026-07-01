@@ -2,33 +2,41 @@
 
 The Windows port uses Win32 `SendInput` for keyboard output, a low-level keyboard hook for qwerty capture, and normal COM ports for serial steno machines.
 
-## Build
+## Build With MSVC
 
-Install MSYS2, open a **MinGW64** shell, then install the C toolchain:
-
-```sh
-pacman -S --needed mingw-w64-x86_64-gcc make
-```
+Open a **Visual Studio Developer Command Prompt** so `cl.exe` is on `PATH`.
 
 From the repo:
+
+```bat
+build.bat
+build.bat test
+build.bat release
+```
+
+The binaries are written under `build\windows\`, for example:
+
+```bat
+build\windows\stoin.exe --input stentura
+```
+
+`build.bat test` runs the C test binary. If `go.exe` is available, it also runs the Go tests.
+
+## Build With Make
 
 ```sh
 make PLATFORM=windows
 make PLATFORM=windows test
 ```
 
-The binaries are written under `build/windows/`, for example:
-
-```sh
-./build/windows/stoin.exe --input stentura
-```
+This path is intended for a make-capable Windows shell. `build.bat` is the simpler option for a plain MSVC setup.
 
 ## Serial devices
 
 Stoin scans `COM1` through `COM256` and opens Windows serial paths such as `\\.\COM3`. You can let it auto-scan or pass a port explicitly:
 
 ```sh
-./build/windows/stoin.exe --input stentura --serial-port COM3
+build\windows\stoin.exe --input stentura --serial-port COM3
 ```
 
 The same serial defaults are used as on macOS and Linux: 9600 baud, 8 data bits, no parity, 1 stop bit.
@@ -38,11 +46,31 @@ The same serial defaults are used as on macOS and Linux: 9600 baud, 8 data bits,
 Qwerty mode uses a low-level keyboard hook:
 
 ```sh
-./build/windows/stoin.exe --input qwerty
+build\windows\stoin.exe --input qwerty
 ```
 
 Windows may block simulated input into elevated applications when Stoin itself is not elevated. If translations work in normal apps but not in an administrator window, run Stoin with matching privileges.
 
-## Pedals
+## USB Pedals
 
-USB pedal registration is not implemented on Windows yet. Serial machine input and qwerty input do not require pedal support.
+Windows pedal support uses Raw Input for USB pedals that present as keyboard-style HID devices.
+
+To register a pedal:
+
+```bat
+build\windows\stoin.exe --register-pedal core
+```
+
+or:
+
+```bat
+build\windows\stoin.exe --register-pedal nonverb
+```
+
+Press the pedal when prompted. Stoin saves the Raw Input device binding to `stoin-pedals.json`. Later runs load that binding automatically:
+
+```bat
+build\windows\stoin.exe --input stentura
+```
+
+Pedals that report only as non-keyboard HID button devices are not parsed yet.
