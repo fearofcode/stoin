@@ -53,7 +53,7 @@ Windows may block simulated input into elevated applications when Stoin itself i
 
 ## USB Pedals
 
-Windows pedal support uses Raw Input for USB pedals that present as keyboard-style HID devices.
+Windows pedal support uses Raw Input for USB pedals. Keyboard-style pedals are learned from their key event. Some non-keyboard HID pedals, such as vendor/button devices, are learned from the first nonzero raw HID report they send during registration.
 
 To register a pedal:
 
@@ -73,4 +73,4 @@ Press the pedal when prompted. Stoin saves the Raw Input device binding to `stoi
 build\windows\stoin.exe --input stentura
 ```
 
-Pedals that report only as non-keyboard HID button devices are not parsed yet.
+If a programmable pedal has multiple buttons, register the specific button you want to use and avoid pressing the other buttons until registration finishes.

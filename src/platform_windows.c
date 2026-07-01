@@ -57,12 +57,14 @@ typedef struct Windows_Serial_Candidate {
 
 typedef struct Windows_Pedal_Binding {
     char *device_name;
+    uint8_t *report;
     uint32_t vendor_id;
     uint32_t product_id;
     uint32_t usage_page;
     uint32_t usage;
     uint32_t scan_code;
     uint32_t vk;
+    uint32_t report_size;
     bool valid;
     bool is_down;
 } Windows_Pedal_Binding;
@@ -1057,6 +1059,7 @@ static void free_pedal_binding(Windows_Pedal_Binding *binding)
         return;
     }
     free(binding->device_name);
+    free(binding->report);
     memset(binding, 0, sizeof(*binding));
 }
 
@@ -1067,6 +1070,62 @@ static void clear_pedal_bindings(void)
          ++role) {
         free_pedal_binding(&g_windows.pedal_bindings[role]);
     }
+}
+
+static int hex_digit_value(char c)
+{
+    if (c >= '0' && c <= '9') {
+        return c - '0';
+    }
+    if (c >= 'a' && c <= 'f') {
+        return c - 'a' + 10;
+    }
+    if (c >= 'A' && c <= 'F') {
+        return c - 'A' + 10;
+    }
+    return -1;
+}
+
+static bool decode_hex_bytes(const char *hex, uint8_t **out_bytes, uint32_t *out_size)
+{
+    if (hex == NULL || out_bytes == NULL || out_size == NULL) {
+        return false;
+    }
+
+    const size_t hex_length = strlen(hex);
+    if (hex_length == 0 || (hex_length % 2) != 0 || hex_length / 2 > UINT32_MAX) {
+        return false;
+    }
+
+    uint8_t *bytes = malloc(hex_length / 2);
+    if (bytes == NULL) {
+        return false;
+    }
+
+    for (size_t i = 0; i < hex_length; i += 2) {
+        const int high = hex_digit_value(hex[i]);
+        const int low = hex_digit_value(hex[i + 1]);
+        if (high < 0 || low < 0) {
+            free(bytes);
+            return false;
+        }
+        bytes[i / 2] = (uint8_t)((high << 4) | low);
+    }
+
+    *out_bytes = bytes;
+    *out_size = (uint32_t)(hex_length / 2);
+    return true;
+}
+
+static void write_hex_bytes(FILE *file, const uint8_t *bytes, uint32_t size)
+{
+    static const char HEX[] = "0123456789abcdef";
+    fputc('"', file);
+    for (uint32_t i = 0; i < size; ++i) {
+        fputc(HEX[(bytes[i] >> 4) & 0x0f], file);
+        fputc(HEX[bytes[i] & 0x0f], file);
+    }
+    fputc('"', file);
 }
 
 static bool load_pedal_binding_from_json(
@@ -1085,8 +1144,6 @@ static bool load_pedal_binding_from_json(
     memset(&loaded, 0, sizeof(loaded));
     if (!json_parse_uint_field(start, end, "usage_page", &loaded.usage_page)
         || !json_parse_uint_field(start, end, "usage", &loaded.usage)
-        || !json_parse_uint_field(start, end, "scan_code", &loaded.scan_code)
-        || !json_parse_uint_field(start, end, "vk", &loaded.vk)
         || !json_parse_string_field(start, end, "device_name", &loaded.device_name)) {
         fprintf(stderr,
             "stoin: warning: ignoring incomplete %s pedal binding in %s\n",
@@ -1098,6 +1155,30 @@ static bool load_pedal_binding_from_json(
 
     (void)json_parse_uint_field(start, end, "vendor_id", &loaded.vendor_id);
     (void)json_parse_uint_field(start, end, "product_id", &loaded.product_id);
+    (void)json_parse_uint_field(start, end, "scan_code", &loaded.scan_code);
+    (void)json_parse_uint_field(start, end, "vk", &loaded.vk);
+
+    char *report_hex = NULL;
+    if (json_parse_string_field(start, end, "raw_report", &report_hex)) {
+        if (!decode_hex_bytes(report_hex, &loaded.report, &loaded.report_size)) {
+            fprintf(stderr,
+                "stoin: warning: ignoring invalid %s pedal raw report in %s\n",
+                pedal_role_label(role),
+                g_windows.pedal_config_path);
+            free(report_hex);
+            free_pedal_binding(&loaded);
+            return false;
+        }
+        free(report_hex);
+    } else if (loaded.scan_code == 0 || loaded.vk == 0) {
+        fprintf(stderr,
+            "stoin: warning: ignoring incomplete %s pedal binding in %s\n",
+            pedal_role_label(role),
+            g_windows.pedal_config_path);
+        free_pedal_binding(&loaded);
+        return false;
+    }
+
     loaded.valid = true;
     *binding = loaded;
     return true;
@@ -1159,9 +1240,17 @@ static bool save_pedal_config(const char *path)
         fprintf(file, "    \"vendor_id\": %u,\n", binding->vendor_id);
         fprintf(file, "    \"product_id\": %u,\n", binding->product_id);
         fprintf(file, "    \"usage_page\": %u,\n", binding->usage_page);
-        fprintf(file, "    \"usage\": %u,\n", binding->usage);
-        fprintf(file, "    \"scan_code\": %u,\n", binding->scan_code);
-        fprintf(file, "    \"vk\": %u\n", binding->vk);
+        fprintf(file, "    \"usage\": %u", binding->usage);
+        if (binding->report != NULL && binding->report_size > 0) {
+            fprintf(file, ",\n");
+            fprintf(file, "    \"raw_report\": ");
+            write_hex_bytes(file, binding->report, binding->report_size);
+            fputc('\n', file);
+        } else {
+            fprintf(file, ",\n");
+            fprintf(file, "    \"scan_code\": %u,\n", binding->scan_code);
+            fprintf(file, "    \"vk\": %u\n", binding->vk);
+        }
         fprintf(file, "  }");
         wrote_binding = true;
     }
@@ -1179,14 +1268,18 @@ static bool save_pedal_config(const char *path)
 
 static void print_pedal_binding(const Windows_Pedal_Binding *binding, Platform_Pedal_Role role)
 {
-    printf("stoin: pedal %s = vid=0x%04x pid=0x%04x page=0x%02x usage=0x%02x scan=0x%04x vk=0x%02x device=",
+    printf("stoin: pedal %s = vid=0x%04x pid=0x%04x page=0x%02x usage=0x%02x",
         pedal_role_label(role),
         binding->vendor_id,
         binding->product_id,
         binding->usage_page,
-        binding->usage,
-        binding->scan_code,
-        binding->vk);
+        binding->usage);
+    if (binding->report != NULL && binding->report_size > 0) {
+        printf(" report_bytes=%u", binding->report_size);
+    } else {
+        printf(" scan=0x%04x vk=0x%02x", binding->scan_code, binding->vk);
+    }
+    printf(" device=");
     json_write_string(stdout, binding->device_name);
     fputc('\n', stdout);
 }
@@ -1261,6 +1354,25 @@ static char *raw_input_device_name(HANDLE device)
     return name;
 }
 
+static bool raw_input_hid_usage(HANDLE device, uint32_t *out_usage_page, uint32_t *out_usage)
+{
+    RID_DEVICE_INFO info;
+    memset(&info, 0, sizeof(info));
+    info.cbSize = sizeof(info);
+    UINT size = sizeof(info);
+    if (GetRawInputDeviceInfoA(device, RIDI_DEVICEINFO, &info, &size) == (UINT)-1
+        || info.dwType != RIM_TYPEHID) {
+        return false;
+    }
+    if (out_usage_page != NULL) {
+        *out_usage_page = info.hid.usUsagePage;
+    }
+    if (out_usage != NULL) {
+        *out_usage = info.hid.usUsage;
+    }
+    return true;
+}
+
 static UINT normalize_raw_keyboard_vk(const RAWKEYBOARD *keyboard)
 {
     if (keyboard == NULL) {
@@ -1296,16 +1408,14 @@ static uint32_t normalized_raw_scan_code(const RAWKEYBOARD *keyboard)
     return scan_code;
 }
 
-static bool binding_matches_pedal_event(
+static bool binding_matches_device(
     const Windows_Pedal_Binding *binding,
     const char *device_name,
     uint32_t vendor_id,
-    uint32_t product_id,
-    uint32_t scan_code,
-    uint32_t vk
+    uint32_t product_id
 )
 {
-    if (binding == NULL || !binding->valid || binding->scan_code != scan_code || binding->vk != vk) {
+    if (binding == NULL || !binding->valid) {
         return false;
     }
     if (binding->device_name != NULL && device_name != NULL && strcmp(binding->device_name, device_name) == 0) {
@@ -1315,6 +1425,25 @@ static bool binding_matches_pedal_event(
         && binding->product_id != 0
         && binding->vendor_id == vendor_id
         && binding->product_id == product_id;
+}
+
+static bool binding_matches_pedal_event(
+    const Windows_Pedal_Binding *binding,
+    const char *device_name,
+    uint32_t vendor_id,
+    uint32_t product_id,
+    uint32_t scan_code,
+    uint32_t vk
+)
+{
+    if (binding == NULL
+        || !binding->valid
+        || binding->report != NULL
+        || binding->scan_code != scan_code
+        || binding->vk != vk) {
+        return false;
+    }
+    return binding_matches_device(binding, device_name, vendor_id, product_id);
 }
 
 static Platform_Pedal_Role pedal_role_for_event(
@@ -1339,6 +1468,19 @@ static Platform_Pedal_Role pedal_role_for_event(
         }
     }
     return PLATFORM_PEDAL_ROLE_NONE;
+}
+
+static bool raw_hid_report_has_signal(const uint8_t *report, uint32_t report_size)
+{
+    if (report == NULL || report_size == 0) {
+        return false;
+    }
+    for (uint32_t i = 0; i < report_size; ++i) {
+        if (report[i] != 0) {
+            return true;
+        }
+    }
+    return false;
 }
 
 static void learn_pedal_binding(
@@ -1372,6 +1514,52 @@ static void learn_pedal_binding(
     g_windows.pedal_bindings[g_windows.pedal_register_role] = binding;
 
     printf("stoin: learned %s pedal from Windows Raw Input device\n",
+        pedal_role_label(g_windows.pedal_register_role));
+    print_pedal_binding(&binding, g_windows.pedal_register_role);
+    if (!save_pedal_config(g_windows.pedal_config_path)) {
+        fprintf(stderr, "stoin: warning: failed to save pedal config to %s\n", g_windows.pedal_config_path);
+    }
+
+    g_windows.pedal_registering = false;
+}
+
+static void learn_pedal_hid_binding(
+    const char *device_name,
+    uint32_t vendor_id,
+    uint32_t product_id,
+    uint32_t usage_page,
+    uint32_t usage,
+    const uint8_t *report,
+    uint32_t report_size
+)
+{
+    if (!pedal_role_is_bindable(g_windows.pedal_register_role)
+        || !raw_hid_report_has_signal(report, report_size)) {
+        return;
+    }
+
+    Windows_Pedal_Binding binding;
+    memset(&binding, 0, sizeof(binding));
+    binding.device_name = windows_copy_cstring(device_name);
+    binding.report = malloc(report_size);
+    if (binding.device_name == NULL || binding.report == NULL) {
+        free_pedal_binding(&binding);
+        fputs("stoin: warning: failed to copy Windows HID pedal binding\n", stderr);
+        return;
+    }
+
+    memcpy(binding.report, report, report_size);
+    binding.report_size = report_size;
+    binding.vendor_id = vendor_id;
+    binding.product_id = product_id;
+    binding.usage_page = usage_page;
+    binding.usage = usage;
+    binding.valid = true;
+
+    free_pedal_binding(&g_windows.pedal_bindings[g_windows.pedal_register_role]);
+    g_windows.pedal_bindings[g_windows.pedal_register_role] = binding;
+
+    printf("stoin: learned %s pedal from Windows Raw Input HID report\n",
         pedal_role_label(g_windows.pedal_register_role));
     print_pedal_binding(&binding, g_windows.pedal_register_role);
     if (!save_pedal_config(g_windows.pedal_config_path)) {
@@ -1428,6 +1616,78 @@ static void handle_pedal_raw_keyboard(const RAWINPUT *raw)
     g_windows.pedal_handler(role, pressed, g_windows.pedal_userdata);
 }
 
+static void handle_pedal_raw_hid(const RAWINPUT *raw)
+{
+    if (raw == NULL || raw->header.dwType != RIM_TYPEHID) {
+        return;
+    }
+
+    const RAWHID *hid = &raw->data.hid;
+    if (hid->dwSizeHid == 0 || hid->dwCount == 0) {
+        return;
+    }
+
+    char *device_name = raw_input_device_name(raw->header.hDevice);
+    if (device_name == NULL) {
+        return;
+    }
+
+    uint32_t vendor_id = 0;
+    uint32_t product_id = 0;
+    uint32_t usage_page = 0;
+    uint32_t usage = 0;
+    parse_vid_pid_from_device_name(device_name, &vendor_id, &product_id);
+    if (!raw_input_hid_usage(raw->header.hDevice, &usage_page, &usage)) {
+        free(device_name);
+        return;
+    }
+
+    const uint8_t *reports = hid->bRawData;
+    for (DWORD i = 0; i < hid->dwCount; ++i) {
+        const uint8_t *report = reports + (i * hid->dwSizeHid);
+        const uint32_t report_size = hid->dwSizeHid;
+
+        if (g_windows.pedal_registering) {
+            learn_pedal_hid_binding(
+                device_name,
+                vendor_id,
+                product_id,
+                usage_page,
+                usage,
+                report,
+                report_size);
+            if (!g_windows.pedal_registering) {
+                break;
+            }
+            continue;
+        }
+
+        for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_PHRASE_CORE;
+             role < PLATFORM_PEDAL_ROLE_COUNT;
+             ++role) {
+            Windows_Pedal_Binding *binding = &g_windows.pedal_bindings[role];
+            if (binding->report == NULL
+                || binding->report_size != report_size
+                || binding->usage_page != usage_page
+                || binding->usage != usage
+                || !binding_matches_device(binding, device_name, vendor_id, product_id)) {
+                continue;
+            }
+
+            const bool pressed = memcmp(binding->report, report, report_size) == 0;
+            if (binding->is_down == pressed) {
+                continue;
+            }
+            binding->is_down = pressed;
+            if (g_windows.pedal_handler != NULL) {
+                g_windows.pedal_handler(role, pressed, g_windows.pedal_userdata);
+            }
+        }
+    }
+
+    free(device_name);
+}
+
 static LRESULT CALLBACK pedal_window_proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
 {
     (void)hwnd;
@@ -1447,7 +1707,12 @@ static LRESULT CALLBACK pedal_window_proc(HWND hwnd, UINT message, WPARAM wparam
         }
 
         if (GetRawInputData((HRAWINPUT)lparam, RID_INPUT, buffer, &size, sizeof(RAWINPUTHEADER)) == size) {
-            handle_pedal_raw_keyboard((const RAWINPUT *)buffer);
+            const RAWINPUT *raw = (const RAWINPUT *)buffer;
+            if (raw->header.dwType == RIM_TYPEKEYBOARD) {
+                handle_pedal_raw_keyboard(raw);
+            } else if (raw->header.dwType == RIM_TYPEHID) {
+                handle_pedal_raw_hid(raw);
+            }
         }
         free(buffer);
         return 0;
@@ -1498,13 +1763,62 @@ static bool register_pedal_raw_input(void)
         return false;
     }
 
-    RAWINPUTDEVICE device;
-    memset(&device, 0, sizeof(device));
-    device.usUsagePage = 0x01;
-    device.usUsage = 0x06;
-    device.dwFlags = RIDEV_INPUTSINK | RIDEV_DEVNOTIFY;
-    device.hwndTarget = g_windows.pedal_window;
-    return RegisterRawInputDevices(&device, 1, sizeof(device)) != FALSE;
+    RAWINPUTDEVICE *devices = NULL;
+    RAWINPUTDEVICE keyboard;
+    memset(&keyboard, 0, sizeof(keyboard));
+    keyboard.usUsagePage = 0x01;
+    keyboard.usUsage = 0x06;
+    keyboard.dwFlags = RIDEV_INPUTSINK | RIDEV_DEVNOTIFY;
+    keyboard.hwndTarget = g_windows.pedal_window;
+    arrput(devices, keyboard);
+
+    UINT device_count = 0;
+    if (GetRawInputDeviceList(NULL, &device_count, sizeof(RAWINPUTDEVICELIST)) == 0 && device_count > 0) {
+        RAWINPUTDEVICELIST *device_list = calloc(device_count, sizeof(*device_list));
+        if (device_list != NULL
+            && GetRawInputDeviceList(device_list, &device_count, sizeof(RAWINPUTDEVICELIST)) != (UINT)-1) {
+            for (UINT i = 0; i < device_count; ++i) {
+                if (device_list[i].dwType != RIM_TYPEHID) {
+                    continue;
+                }
+
+                uint32_t usage_page = 0;
+                uint32_t usage = 0;
+                if (!raw_input_hid_usage(device_list[i].hDevice, &usage_page, &usage)
+                    || usage_page == 0
+                    || usage == 0
+                    || (usage_page == 0x01 && usage == 0x06)) {
+                    continue;
+                }
+
+                bool already_registered = false;
+                for (size_t j = 0; j < arrlenu(devices); ++j) {
+                    if (devices[j].usUsagePage == (USHORT)usage_page
+                        && devices[j].usUsage == (USHORT)usage) {
+                        already_registered = true;
+                        break;
+                    }
+                }
+                if (already_registered) {
+                    continue;
+                }
+
+                RAWINPUTDEVICE hid;
+                memset(&hid, 0, sizeof(hid));
+                hid.usUsagePage = (USHORT)usage_page;
+                hid.usUsage = (USHORT)usage;
+                hid.dwFlags = RIDEV_INPUTSINK | RIDEV_DEVNOTIFY;
+                hid.hwndTarget = g_windows.pedal_window;
+                arrput(devices, hid);
+            }
+        }
+        free(device_list);
+    }
+
+    const bool ok = arrlenu(devices) > 0
+        && RegisterRawInputDevices(devices, (UINT)arrlenu(devices), sizeof(devices[0])) != FALSE;
+    arrfree(devices);
+    return ok;
 }
 
 bool platform_pedals_init(
