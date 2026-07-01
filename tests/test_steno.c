@@ -1,4 +1,5 @@
 #include "gemini_pr.h"
+#include "json_util.h"
 #include "orthography.h"
 #include "platform.h"
 #include "stentura.h"
@@ -124,10 +125,11 @@ static bool handle_mock_pedal_stroke(Steno *steno, Phrase_Namespace namespace, c
     }
 
     steno_set_phrase_namespace(steno, namespace, true);
-    const bool ok = steno_handle_stroke(steno, (Stroke_Input) {
+    Stroke_Input input = {
         .bits = bits,
         .phrase_namespace = namespace,
-    });
+    };
+    const bool ok = steno_handle_stroke(steno, input);
     steno_set_phrase_namespace(steno, namespace, false);
     return ok;
 }
@@ -343,6 +345,40 @@ static bool expect_trace_contains(FILE *trace_file, const char *name, const char
     return false;
 }
 
+static bool expect_json_object_with_brace_in_string(void)
+{
+    const char *json =
+        "{\n"
+        "  \"phrase_core\": {\n"
+        "    \"device_name\": \"\\\\\\\\?\\\\HID#VID_3553#{884b96c3-56ef-11d1-bc8c-00a0c91405dd}\",\n"
+        "    \"usage_page\": 7,\n"
+        "    \"vk\": 65\n"
+        "  }\n"
+        "}\n";
+    const char *end = NULL;
+    const char *start = json_find_object(json, "phrase_core", &end);
+    if (start == NULL || end == NULL) {
+        fputs("test failed: json object with brace in string was not found\n", stderr);
+        return false;
+    }
+
+    uint32_t value = 0;
+    if (!json_parse_uint_field(start, end, "vk", &value) || value != 65) {
+        fprintf(stderr, "test failed: json field after brace in string parsed as %u\n", value);
+        return false;
+    }
+
+    char *device_name = NULL;
+    const bool parsed = json_parse_string_field(start, end, "device_name", &device_name);
+    const bool ok = parsed
+        && expect_string(
+            "json string with brace",
+            device_name,
+            "\\\\?\\HID#VID_3553#{884b96c3-56ef-11d1-bc8c-00a0c91405dd}");
+    free(device_name);
+    return ok;
+}
+
 int main(void)
 {
     Test_Output output = {0};
@@ -363,6 +399,7 @@ int main(void)
     }
 
     bool ok = true;
+    ok = ok && expect_json_object_with_brace_in_string();
 
     Orthography test_orthography = {0};
     ok = ok && orthography_load(&test_orthography, "tests/test-words.txt");

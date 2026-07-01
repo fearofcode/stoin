@@ -499,13 +499,14 @@ static bool grammar_decode(uint64_t bits, Phrase_Grammar *out)
     const uint64_t e = steno_bit(STENO_E);
     const uint64_t u = steno_bit(STENO_U);
 
-    *out = (Phrase_Grammar) {
+    Phrase_Grammar grammar = {
         .past = (bits & h) != 0,
         .negative = (bits & star) != 0,
         .inverted = (bits & u) != 0,
         .aux = 0,
         .aspect = 0,
     };
+    *out = grammar;
 
     if ((bits & a) != 0) {
         out->aux |= PHRASE_AUX_CAN;

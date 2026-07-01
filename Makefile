@@ -1,9 +1,14 @@
-UNAME_S := $(shell uname -s)
 HOST_PLATFORM := unsupported
+ifeq ($(OS),Windows_NT)
+UNAME_S := Windows_NT
+HOST_PLATFORM := windows
+else
+UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
 HOST_PLATFORM := macos
 else ifeq ($(UNAME_S),Linux)
 HOST_PLATFORM := linux
+endif
 endif
 
 PLATFORM ?= $(HOST_PLATFORM)
@@ -20,12 +25,14 @@ BASE_CFLAGS := -std=c11 -Wall -Wextra -Wpedantic -g
 BASE_RELEASE_CFLAGS := -std=c11 -Wall -Wextra -Wpedantic -O3 -DNDEBUG
 PLATFORM_CFLAGS :=
 PLATFORM_LDFLAGS :=
+EXE_EXT :=
 
 COMMON_SOURCES := \
 	src/dictionary.c \
 	src/dictionary_stack.c \
 	src/format.c \
 	src/gemini_pr.c \
+	src/json_util.c \
 	src/keymap.c \
 	src/orthography.c \
 	src/phrasing.c \
@@ -60,8 +67,14 @@ PLATFORM_SOURCES := \
 	src/platform_linux_file_watcher.c \
 	src/platform_linux_output.c \
 	src/platform_posix_serial.c
+else ifeq ($(PLATFORM),windows)
+PLATFORM_CFLAGS += -D_WIN32_WINNT=0x0601
+PLATFORM_LDFLAGS += -luser32 -lsetupapi -ladvapi32
+PLATFORM_SOURCES := \
+	src/platform_windows.c
+EXE_EXT := .exe
 else
-$(error Unsupported PLATFORM '$(PLATFORM)'; use PLATFORM=macos or PLATFORM=linux)
+$(error Unsupported PLATFORM '$(PLATFORM)'; use PLATFORM=macos, PLATFORM=linux, or PLATFORM=windows)
 endif
 
 CFLAGS := $(BASE_CFLAGS) $(PLATFORM_CFLAGS)
@@ -70,9 +83,9 @@ LDFLAGS := $(PLATFORM_LDFLAGS)
 
 BUILD_DIR := build/$(PLATFORM)
 RELEASE_DIR := $(BUILD_DIR)/release
-TARGET := $(BUILD_DIR)/stoin
-RELEASE_TARGET := $(RELEASE_DIR)/stoin
-TEST_TARGET := $(BUILD_DIR)/test_steno
+TARGET := $(BUILD_DIR)/stoin$(EXE_EXT)
+RELEASE_TARGET := $(RELEASE_DIR)/stoin$(EXE_EXT)
+TEST_TARGET := $(BUILD_DIR)/test_steno$(EXE_EXT)
 
 CORE_SOURCES := $(COMMON_SOURCES) $(PLATFORM_SOURCES)
 CORE_OBJECTS := $(patsubst src/%.c,$(BUILD_DIR)/%.o,$(CORE_SOURCES))
@@ -81,7 +94,7 @@ TEST_OBJECTS := $(BUILD_DIR)/test_steno.o $(CORE_OBJECTS)
 RELEASE_CORE_OBJECTS := $(patsubst src/%.c,$(RELEASE_DIR)/%.o,$(CORE_SOURCES))
 RELEASE_APP_OBJECTS := $(RELEASE_DIR)/main.o $(RELEASE_CORE_OBJECTS)
 
-.PHONY: all clean linux macos release run srs-web test
+.PHONY: all clean linux macos release run srs-web test windows
 
 all: $(TARGET)
 
@@ -90,6 +103,9 @@ macos:
 
 linux:
 	$(MAKE) PLATFORM=linux
+
+windows:
+	$(MAKE) PLATFORM=windows
 
 release: $(RELEASE_TARGET)
 
