@@ -145,6 +145,10 @@ GT      going to
 G       give
 BGT     why
 RPL     who
+BLG     what
+PBG     when
+RLG     where
+PLG     how
 PLT     them
 L       all
 PBT     one
@@ -187,6 +191,10 @@ PW-GT    is going to
 PW-G     is give
 PW-BGT   is why
 PW-RPL   is who
+PW-BLG   is what
+PW-PBG   is when
+PW-RLG   is where
+PW-PLG   is how
 PW-PLT   is them
 PW-L     is all
 PW-PBT   is one

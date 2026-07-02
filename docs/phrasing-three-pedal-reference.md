@@ -219,6 +219,10 @@ preserving an artificial `TSDZ` sub-bank.
 | `G` | give | first/final strong consonant |
 | `BGT` | why | geometric shape analogous to left-hand `KWH` for `Y` |
 | `RPL` | who | rising question-tone shape |
+| `BLG` | what | broad geometric question shape; distinct from `BGT` why |
+| `PBG` | when | final `n` shape plus hook; time-question cue |
+| `RLG` | where | curling/location-like shape |
+| `PLG` | how | rounded/open geometric question shape |
 | `PLT` | them | `th` plus final `m` shape |
 | `L` | all | `l` sound |
 | `PBT` | one | final `n` plus light variant |

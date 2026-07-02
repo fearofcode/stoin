@@ -58,6 +58,10 @@ static const char *iv_tail_lookup(uint64_t bits)
     if (bits == g) return "give";
     if (bits == (b | g | t)) return "why";
     if (bits == (r | p | l)) return "who";
+    if (bits == (b | l | g)) return "what";
+    if (bits == (p | b | g)) return "when";
+    if (bits == (r | l | g)) return "where";
+    if (bits == (p | l | g)) return "how";
     if (bits == (p | l | t)) return "them";
     if (bits == l) return "all";
     if (bits == (p | b | t)) return "one";
@@ -73,6 +77,7 @@ static Phrase_Lookup_Result lookup_initial_verb(uint64_t bits, char **out_utf8)
         | steno_bit(STENO_RIGHT_P)
         | steno_bit(STENO_RIGHT_B)
         | steno_bit(STENO_RIGHT_L)
+        | steno_bit(STENO_RIGHT_G)
         | steno_bit(STENO_RIGHT_T)
         | steno_bit(STENO_RIGHT_S)
         | steno_bit(STENO_RIGHT_Z);
