@@ -415,7 +415,7 @@ func TestStaticPhrasingTrainerScript(t *testing.T) {
 		t.Fatalf("expected static trainer script, got %d", rec.Code)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "const phraseStarters") || !strings.Contains(body, "1. Verb alone") {
+	if !strings.Contains(body, "const phraseTails") || !strings.Contains(body, "1. Present core tails") {
 		t.Fatalf("expected trainer script contents, got %q", rec.Body.String())
 	}
 }

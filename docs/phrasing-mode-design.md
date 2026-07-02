@@ -1,5 +1,10 @@
 # Phrasing Mode Design
 
+Status note: this is historical design material for a larger phrase grammar.
+The current implementation is intentionally narrower: initial-verb `be`
+phrases using `PW`, optional right-hand `D` for `was`, and the mnemonic
+right-hand tail bank documented in `docs/phrasing-tutorial.md`.
+
 This document sketches a Stoin phrasing system inspired by `~/code/jeff-phrasing` and the practice UI in `~/code/phrasing-trainer`.
 
 The core idea is to make phrasing a held pedal mode. When the phrase pedal is down during a stroke, Stoin routes that stroke through a phrase engine instead of the normal dictionary stack. That gives us a separate namespace for phrase grammar without fighting Lapwing or user dictionary conflicts.
@@ -343,7 +348,7 @@ If the app also treated pressing both phrase pedals as a third mode, the raw cou
 
 The stronger argument for two pedals is not raw capacity. One pedal already has more theoretical capacity than we can comfortably memorize. The stronger argument is **separation of mental models** and respecting the ergonomic cost of a pedal press.
 
-Do not spend a phrase-pedal stroke on a word that normal theory already writes well in one stroke. For example, `because` by itself is not a compelling second-pedal phrase if it is already easy in Phoenix, Lapwing, or Magnum. The second pedal should earn its keep by producing combinations that are awkward, multiword, or combinatorial.
+Do not spend a phrase-pedal stroke on a word that standard dictionaries already write well in one stroke. For example, `because` by itself is not a compelling second-pedal phrase if it is already easy in an existing standard dictionary. The second pedal should earn its keep by producing combinations that are awkward, multiword, or combinatorial.
 
 Recommended two-pedal split:
 

@@ -1,24 +1,34 @@
 # Core Phrasing Tutorial
 
-This is the practical tutorial for the phrasing code that exists today. For the broader plan, see `docs/phrasing-mode-design.md`.
+This is the practical tutorial for the phrasing code that exists today. For
+the broader design sketch, see `docs/phrasing-mode-design.md`; for the current
+three-pedal proposal, see `docs/phrasing-three-pedal-reference.md`.
 
 ## Current Status
 
 Implemented:
 
 - Core phrase namespace: `PHRASE_NAMESPACE_CORE`.
-- Core phrase grammar for subject, tense, auxiliary, negation, aspect, inversion, verb, and tail.
-- Mock-pedal tests using `steno_set_phrase_namespace()`.
-- USB pedal registration for the core phrase namespace on macOS, Windows, and Linux.
-- Phrase output goes through normal Stoin translation history, spacing, undo, and tracing.
+- Initial-verb `be` phrases only.
+- `PW` emits `is`; adding right-hand `D` emits `was`.
+- The right hand selects a mnemonic tail such as `the`, `a`, `it`, or `you`.
+- USB pedal registration for the core phrase namespace on macOS, Windows, and
+  Linux.
+- Phrase output goes through normal Stoin translation history, spacing, undo,
+  and tracing.
+- The `/phrasing` web trainer drills these implemented phrases.
 
 Not implemented yet:
 
+- Other initial verbs.
+- Final-verb phrases.
 - Non-verb phrase pedal.
 - Both-pedal modifier/operator namespace.
-- SRS/practice deck integration.
 
-So today, the phrase engine is reachable with a registered USB pedal. Holding the core phrase pedal during a stroke routes that outline through the phrase engine. For serial machines, tapping the pedal before the stroke also works: Stoin latches the phrase namespace for the next completed machine stroke, then clears it.
+Holding the core phrase pedal during a stroke routes that outline through the
+phrase engine. For serial machines, tapping the pedal before the stroke also
+works: Stoin latches the phrase namespace for the next completed machine
+stroke, then clears it.
 
 ## Register The Core Pedal
 
@@ -31,7 +41,9 @@ make
 
 Use `./build/linux/stoin --register-pedal core` on Linux.
 
-When prompted, press the pedal you want to use for core phrase mode. Stoin saves the mapping in local `stoin-pedals.json`, which is ignored by git. After registration, the app continues normally. Future runs can just use:
+When prompted, press the pedal you want to use for core phrase mode. Stoin saves
+the mapping in local `stoin-pedals.json`, which is ignored by git. After
+registration, the app continues normally. Future runs can just use:
 
 ```sh
 ./build/macos/stoin
@@ -43,189 +55,83 @@ For qwerty testing:
 ./build/macos/stoin --input qwerty
 ```
 
-Without a pedal, tap Shift by itself to route the next qwerty steno chord through core phrase mode. For example, tap Shift, release it, then chord `P-BS` to emit `it is a`. If Shift is chorded with other qwerty steno keys, it stays part of the steno chord instead of arming phrase mode.
+Without a pedal, tap Shift by itself to route the next qwerty steno chord
+through core phrase mode. For example, tap Shift, release it, then chord
+`PW-PB` to emit `is a`. If Shift is chorded with other qwerty steno keys, it
+stays part of the steno chord instead of arming phrase mode.
 
-If your pedal acts like a keyboard key, map it to F13-F24 before registering it. Do not map it to `a`, another ordinary letter, space, enter, or punctuation. Stoin ignores registered text-producing keyboard keys because macOS may still type them into the active app, and a downstream event tap cannot reliably tell the pedal's `a` apart from the `a` on your real keyboard.
+If your pedal acts like a keyboard key, map it to F13-F24 before registering
+it. Do not map it to `a`, another ordinary letter, space, enter, or
+punctuation. Stoin ignores registered text-producing keyboard keys because
+macOS may still type them into the active app, and a downstream event tap cannot
+reliably tell the pedal's `a` apart from the `a` on your real keyboard.
 
 ## Run The Current Smoke Test
 
 ```sh
 make test
+go test ./cmd/stoin-srs-web
 ```
 
-The relevant tests are in `tests/test_steno.c`; search for `core phrase`.
+The relevant C tests are in `tests/test_steno.c`; search for `core phrase`.
 
 ## Paper Tape
 
-When stroke tracing is enabled, phrase-mode rows are marked on the left side of the tape:
+When stroke tracing is enabled, phrase-mode rows are marked on the left side of
+the tape:
 
 ```text
-PBS [phrase] -> it is a
-TEFT [phrase fallback] -> test
+PW-PB [phrase] -> is a
+#KW [phrase fallback] -> test
 SAO [phrase fallback] -> [untranslated]
 ```
 
-`[phrase]` means the phrase engine generated the output. `[phrase fallback]` means a phrase pedal was active, but the phrase engine missed and Stoin used the regular dictionary/raw-steno path.
+`[phrase]` means the phrase engine generated the output. `[phrase fallback]`
+means a phrase pedal was active, but the phrase engine missed and Stoin used
+the regular dictionary/raw-steno path.
 
 ## Core Phrase Shape
 
-A core phrase stroke is interpreted as:
+A core phrase stroke is currently interpreted as:
 
 ```text
-starter + grammar/state + verb + tail
-```
-
-The fields are:
-
-```text
-left S T K P W        starter
-left H R + A O * E U  grammar/state
-right F R P B L G     verb
-right T S D Z         tail
-```
-
-## Implemented Starters
-
-```text
-empty  bare infinitive / empty starter
-S      I
-W      we
-K      he
-SK     she
-P      it
-T      they
-ST     that
-PW     you
-TP     this
-TK     there (singular)
-TKW    there (plural)
-SW     blank plural starter
-KW     who
-TW     what
-SP     someone
-SPW    something
-KP     everyone
-KPW    everything
-SKP    nobody
-SKPW   nothing
-```
-
-## Implemented Grammar Bits
-
-```text
-H      past / conditional
-A      can / could
-O      should, or with A: will / would
-A+O    will / would
-*      negative
-E      progressive: be + -ing
-R      perfect: have + past participle
-E+R    perfect progressive
-U      inverted/question order
+PW + optional right D + optional right-hand tail
 ```
 
 Examples:
 
 ```text
-K-G      he goes
-KH-G     he went
-K*G      he doesn't go
-KA-G     he can go
-KHA-G    he could go
-KAO-G    he will go
-KHAO-G   he would go
-KE-G     he is going
-KR-G     he has gone
-KRE-G    he has been going
-KU-G     does he go
-KAU-G    can he go
+PW       is
+PW-D     was
+PW-PB    is a
+PW-PBD   was a
+PW-T     is the
+PW-TD    was the
 ```
 
-## Implemented Verbs
+`D` is reserved for past tense in this bank, so it is not part of any tail
+assignment.
 
-```text
-F       have
-R       run
-P       want
-B       be
-L       look
-G       go
-FR      see
-FP      happen
-FB      say
-FL      feel
-FG      come
-RP      do
-RB      ask
-RL      recall
-RG      forget
-PB      know
-PL      move
-PG      get
-BL      believe
-BG      become
-LG      love
-FRP     read
-FRB     care
-FRPB    try
-FRL     change
-FRG     consider
-FPB     expect
-FPL     hope
-FPG     hear
-FBL     keep
-FBG     learn
-FLG     leave
-RPB     understand
-RPL     remember
-RPG     need
-RBL     take
-RBG     work
-RLG     realize
-PBL     mean
-PBG     think
-PLG     imagine
-BLG     like
-FRPL    wish
-FRPBL   use
-FRPG    give
-FRBL    let
-FRBG    tell
-FRLG    live
-FPBL    mind
-FPBG    put
-FPLG    set
-FBLG    seem
-RPBL    make
-RPBG    show
-RPLG    remain
-RBLG    call
-PBLG    find
-```
-
-The short mnemonic anchors should be considered stable. The longer verb chords
-fill out the Jeff-inspired verb inventory while keeping the right `T S D Z`
-field free for tails.
-
-## Implemented Tails
+## Implemented Tail Bank
 
 ```text
 empty   no tail
 T       the
-S       a
-D       it
-Z       that
+PB      a/an
+P       it
+RT      that
 TS      this
-TD      me
+SZ      these
 TZ      those
-SD      her
-SZ      us
-DZ      them
-TSD     you
-TSZ     these
-TDZ     him
-SDZ     one
-TSDZ    all
+PL      me
+RP      you
+R       your
+S       us
+FR      her
+FL      him
+PLT     them
+L       all
+PBT     one
 ```
 
 ## First Practice Set
@@ -233,122 +139,82 @@ TSDZ    all
 When the core phrase pedal exists, hold it and stroke:
 
 ```text
-P-BS          it is a
-TH*G          they didn't go
--B            to be
-S-B           I am
-K-G           he goes
-TH-B          they were
-SKH-BLSD      she believed her
-KA-G          he can go
-KHAO-G        he would go
-KE-G          he is going
-KR-G          he has gone
-KRE-G         he has been going
-KU-G          does he go
-K*U-G         doesn't he go
-KAU-G         can he go
-SKHRAO-BLSD   she would have believed her
-K-RPBT        he understands the
+PW       is
+PW-D     was
+PW-T     is the
+PW-TD    was the
+PW-PB    is a
+PW-PBD   was a
+PW-P     is it
+PW-PD    was it
+PW-RT    is that
+PW-RTD   was that
+PW-TS    is this
+PW-TSD   was this
+PW-SZ    is these
+PW-TZ    is those
+PW-PL    is me
+PW-RP    is you
+PW-R     is your
+PW-S     is us
+PW-FR    is her
+PW-FL    is him
+PW-PLT   is them
+PW-L     is all
+PW-PBT   is one
 ```
 
-Without the core phrase pedal, these are ordinary steno strokes. For example, `P-BS` currently stays in normal dictionary/raw-steno mode and emits `PBS` if it is untranslated. With the pedal held, a stroke that is not part of the phrase grammar falls back to the regular dictionary stack, so you can keep the pedal down while writing an ordinary word between phrases.
+Without the core phrase pedal, these are ordinary steno strokes. For example,
+`PW-PB` currently stays in normal dictionary/raw-steno mode and emits `PW-PB`
+if it is untranslated. With the pedal held, a stroke that is not part of the
+phrase grammar falls back to the regular dictionary stack, so you can keep the
+pedal down while writing an ordinary word between phrases.
 
 ## QWERTY Layout Hints
 
 These are based on the current `stoin.keymap`, not `tests/test.keymap`.
 
-Left hand:
-
 ```text
-S z
-T s
-K x
-P d
-W c
-H f
-R v
+left P   d
+left W   c
+right F  j
+right R  m
+right P  k
+right B  comma
+right L  l
+right T  semicolon
+right S  slash
+right D  apostrophe
+right Z  Right Shift
 ```
 
-Thumb/star:
+Example qwerty chords:
 
 ```text
-A Space
-O Backspace
-E Tab
-U Enter
-* g, b, h, or n
+PW-PB    d + c + k + comma
+PW-PBD   d + c + k + comma + apostrophe
+PW-T     d + c + semicolon
+PW-RT    d + c + m + semicolon
+PW-TS    d + c + semicolon + slash
+PW-TZ    d + c + semicolon + Right Shift
+PW-RP    d + c + m + k
 ```
 
-Right hand:
+## Web Trainer
+
+Run the trainer:
+
+```sh
+make srs-web
+```
+
+Then open:
 
 ```text
-F j
-R m
-P k
-B ,
-L l
-G .
-T ;
-S /
-D '
-Z Right Shift
+http://127.0.0.1:8080/phrasing
 ```
 
-Example qwerty chords for the first practice set:
-
-```text
-P-BS          d + , + /
-TH*G          s + f + g + .
--B            ,
-S-B           z + ,
-K-G           x + .
-TH-B          s + f + ,
-SKH-BLSD      z + x + f + , + l + / + '
-KA-G          x + Space + .
-KHAO-G        x + f + Space + Backspace + .
-KE-G          x + Tab + .
-KR-G          x + v + .
-KRE-G         x + v + Tab + .
-KU-G          x + Enter + .
-K*U-G         x + g + Enter + .
-KAU-G         x + Space + Enter + .
-SKHRAO-BLSD   z + x + f + v + Space + Backspace + , + l + / + '
-K-RPBT        x + m + k + , + ;
-```
-
-## What To Look For
-
-The first things to validate once pedal input is wired:
-
-- Holding or tapping the core pedal before the next serial stroke changes `P-BS` from raw `PBS` to `it is a`.
-- Releasing the core pedal returns the same stroke to normal dictionary behavior.
-- Phrase output gets normal leading spaces between phrases.
-- `=undo` can undo a phrase translation.
-- Modal inversion works: `KAU-G` should be `can he go`, not `can he goes`.
-
-## SRS Next Step
-
-If these outlines feel stable in practice, the SRS app can start with this table:
-
-```text
-P-BS          it is a
-TH*G          they didn't go
--B            to be
-S-B           I am
-K-G           he goes
-TH-B          they were
-SKH-BLSD      she believed her
-KA-G          he can go
-KHAO-G        he would go
-KE-G          he is going
-KR-G          he has gone
-KRE-G         he has been going
-KU-G          does he go
-K*U-G         doesn't he go
-KAU-G         can he go
-SKHRAO-BLSD   she would have believed her
-K-RPBT        he understands the
-```
-
-The SRS prompt should show the English phrase and ask for the phrase-mode outline. It should mark the answer as a phrase-mode stroke, because the same outline without the pedal may mean something else or fall through to raw steno.
+The trainer shows the target phrase, optionally shows the phrase-mode outline
+as a hint, and accepts the text produced by your steno output. Current-lesson
+mode walks one progression step at a time; cumulative-random mode draws from
+every lesson up to the selected one.
