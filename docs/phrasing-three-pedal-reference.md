@@ -81,11 +81,11 @@ Used by `IV` on the left hand and `FV` on the right hand.
 | Verb | `IV` left key | `FV` right key |
 | --- | --- | --- |
 | have | `H` | `F` |
-| see | `S` | `FR` |
+| see | `S` | `S` |
 | do | `TK` | `RP` |
 | go | `TKPW` | `G` |
 | be | `PW` | `B` |
-| want | `W` | `P` |
+| want | `W` | `PBT` |
 | say | `ST` | `FB` |
 | ask | `SK` | `RB` |
 | happen | `SP` | `FP` |
@@ -165,6 +165,8 @@ FV right-hand anchors:
 | `R` | run |
 | `G` | go |
 | `B` | be |
+| `S` | see |
+| `PBT` | want / final `nt` shape |
 | `PBG` | think / final `nk` shape |
 | `FPB` | find / `f` + `n` |
 | `BGS` | expect / x shape |
@@ -207,6 +209,16 @@ preserving an artificial `TSDZ` sub-bank.
 | `S` | us | final `s` |
 | `FR` | her | `r` object shape |
 | `FL` | him | object-family shape |
+| `RB` | she | compact pronoun shape |
+| `RBL` | she will | `she` plus `will` |
+| `RBLT` | she'll | contracted `she will` variant |
+| `RPB` | he | `P` marks the shorter pronoun branch |
+| `RPBL` | he will | `he` plus `will` |
+| `RPBLT` | he'll | contracted `he will` variant |
+| `GT` | going to | compact `go to` shape |
+| `G` | give | first/final strong consonant |
+| `BGT` | why | geometric shape analogous to left-hand `KWH` for `Y` |
+| `RPL` | who | rising question-tone shape |
 | `PLT` | them | `th` plus final `m` shape |
 | `L` | all | `l` sound |
 | `PBT` | one | final `n` plus light variant |
@@ -243,8 +255,8 @@ part of the tail code.
 | `FV[S-FPBD]` | I found |
 | `FV[H-PBG]` | you think |
 | `FV[SK-BLD]` | she believed |
-| `FV[KA-FR]` | he can see |
-| `FV[KA-FRD]` | he could see |
+| `FV[KA-S]` | he can see |
+| `FV[KA-SD]` | he could see |
 | `FV[KEU-G]` | he has been going |
 
 ## Right-Hand Ergonomic Guard

@@ -28,6 +28,7 @@ static const char *iv_tail_lookup(uint64_t bits)
     const uint64_t p = steno_bit(STENO_RIGHT_P);
     const uint64_t b = steno_bit(STENO_RIGHT_B);
     const uint64_t l = steno_bit(STENO_RIGHT_L);
+    const uint64_t g = steno_bit(STENO_RIGHT_G);
     const uint64_t t = steno_bit(STENO_RIGHT_T);
     const uint64_t s = steno_bit(STENO_RIGHT_S);
     const uint64_t z = steno_bit(STENO_RIGHT_Z);
@@ -47,6 +48,16 @@ static const char *iv_tail_lookup(uint64_t bits)
     if (bits == s) return "us";
     if (bits == (f | r)) return "her";
     if (bits == (f | l)) return "him";
+    if (bits == (r | b)) return "she";
+    if (bits == (r | b | l)) return "she will";
+    if (bits == (r | b | l | t)) return "she'll";
+    if (bits == (r | p | b)) return "he";
+    if (bits == (r | p | b | l)) return "he will";
+    if (bits == (r | p | b | l | t)) return "he'll";
+    if (bits == (g | t)) return "going to";
+    if (bits == g) return "give";
+    if (bits == (b | g | t)) return "why";
+    if (bits == (r | p | l)) return "who";
     if (bits == (p | l | t)) return "them";
     if (bits == l) return "all";
     if (bits == (p | b | t)) return "one";

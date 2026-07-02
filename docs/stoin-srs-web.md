@@ -72,5 +72,5 @@ The root page links to `/phrasing`, a non-SRS trainer for Stoin's initial-verb
 phrase mode. It currently drills the implemented initial-verb `be` bank: `PW` for
 `is`, right-hand `D` for `was`, and the mnemonic right-hand tail bank for
 phrases such as `is a`, `was an`, `was the`, and `is you`. Pick a bank, choose
-how many repetitions to practice, and the trainer shuffles each pass through
-that bank.
+how many repetitions to practice, select a full or partial phrase set, then
+practice shuffled passes, random prompts, or selected phrase blocks.

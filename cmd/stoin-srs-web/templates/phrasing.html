@@ -2,38 +2,55 @@
 {{template "layoutTop" .}}
 <p><a href="/">All decks</a></p>
 <h1>Phrasing Trainer</h1>
-<section class="panel">
-	<div class="trainer-controls">
-		<label>Progression
-			<select id="phrase-lesson"></select>
-		</label>
-		<label>Repetitions
-			<input type="number" id="phrase-count" min="1" max="100" value="7">
-		</label>
-		<label>Hints
-			<select id="phrase-hints">
-				<option value="after" selected>after mistake</option>
-				<option value="on">always on</option>
-				<option value="off">off</option>
-			</select>
-		</label>
+<div class="phrase-workspace">
+	<section class="panel phrase-setup">
+		<div class="trainer-controls">
+			<label>Progression
+				<select id="phrase-lesson"></select>
+			</label>
+			<label>Repetitions
+				<input type="number" id="phrase-count" min="1" max="100" value="7">
+			</label>
+			<label>Order
+				<select id="phrase-order">
+					<option value="shuffled" selected>shuffled bank</option>
+					<option value="random">random prompts</option>
+					<option value="selected">selected phrases</option>
+				</select>
+			</label>
+			<label>Hints
+				<select id="phrase-hints">
+					<option value="after" selected>after mistake</option>
+					<option value="on">always on</option>
+					<option value="off">off</option>
+				</select>
+			</label>
+		</div>
+		<div class="phrase-picker">
+			<div class="phrase-picker-header">
+				<span>Phrase</span>
+				<button type="button" id="phrase-select-all">Select all</button>
+				<button type="button" id="phrase-select-none">Select none</button>
+			</div>
+			<div class="phrase-focus-list" id="phrase-focus-list"></div>
+		</div>
+		<div class="actions">
+			<button type="button" id="phrase-restart" class="primary">Restart</button>
+			<button type="button" id="phrase-reroll">Shuffle</button>
+			<span class="small" id="phrase-set-summary"></span>
+		</div>
+	</section>
+	<section class="panel phrase-practice" id="phrase-trainer">
+		<div class="phrase-progress">
+			<span id="phrase-progress"></span>
+			<span id="phrase-lesson-name"></span>
+		</div>
+		<div class="phrase-prompt" id="phrase-prompt"></div>
+		<div class="phrase-hint hidden" id="phrase-hint"></div>
+		<input class="phrase-answer" id="phrase-answer" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off">
+		<p class="small" id="phrase-status" aria-live="polite"></p>
+	</section>
 	</div>
-	<div class="actions">
-		<button type="button" id="phrase-restart" class="primary">Restart</button>
-		<button type="button" id="phrase-reroll">Shuffle</button>
-		<span class="small" id="phrase-set-summary"></span>
-	</div>
-</section>
-<section class="panel" id="phrase-trainer">
-	<div class="phrase-progress">
-		<span id="phrase-progress"></span>
-		<span id="phrase-lesson-name"></span>
-	</div>
-	<div class="phrase-prompt" id="phrase-prompt"></div>
-	<div class="phrase-hint hidden" id="phrase-hint"></div>
-	<input class="phrase-answer" id="phrase-answer" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off">
-	<p class="small" id="phrase-status" aria-live="polite"></p>
-</section>
 <script src="/static/phrasing-trainer.js"></script>
 {{template "layoutBottom" .}}
 {{end}}

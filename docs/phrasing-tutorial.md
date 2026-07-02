@@ -135,6 +135,16 @@ R       your
 S       us
 FR      her
 FL      him
+RB      she
+RBL     she will
+RBLT    she'll
+RPB     he
+RPBL    he will
+RPBLT   he'll
+GT      going to
+G       give
+BGT     why
+RPL     who
 PLT     them
 L       all
 PBT     one
@@ -167,6 +177,16 @@ PW-R     is your
 PW-S     is us
 PW-FR    is her
 PW-FL    is him
+PW-RB    is she
+PW-RBL   is she will
+PW-RBLT  is she'll
+PW-RPB   is he
+PW-RPBL  is he will
+PW-RPBLT is he'll
+PW-GT    is going to
+PW-G     is give
+PW-BGT   is why
+PW-RPL   is who
 PW-PLT   is them
 PW-L     is all
 PW-PBT   is one
@@ -226,5 +246,5 @@ http://127.0.0.1:8080/phrasing
 
 The trainer shows the target phrase, optionally shows the phrase-mode outline
 as a hint, and accepts the text produced by your steno output. Pick a bank,
-choose how many repetitions to practice, and the trainer shuffles each pass
-through that bank.
+choose how many repetitions to practice, select a full or partial phrase set,
+then practice shuffled passes, random prompts, or selected phrase blocks.

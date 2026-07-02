@@ -13,7 +13,7 @@
 }
 
 html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font: 16px/1.45 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-main { max-width: 900px; margin: 0 auto; padding: 22px; }
+main { max-width: 1280px; margin: 0 auto; padding: 22px; }
 a { color: var(--accent); }
 h1, h2, h3 { line-height: 1.15; }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 16px; margin: 16px 0; }
@@ -56,6 +56,9 @@ button:disabled { opacity: 0.45; cursor: default; }
 .session-line-input { border: 0; height: 1px; left: -10000px; min-height: 1px; opacity: 0; padding: 0; pointer-events: none; position: fixed; top: 0; width: 1px; }
 .session-skip { flex: 0 0 auto; white-space: nowrap; }
 @media (max-width: 700px) { .session-input-row { align-items: stretch; display: grid; } .session-skip { justify-self: start; } }
+.phrase-workspace { align-items: start; display: grid; gap: 16px; grid-template-columns: minmax(340px, 0.95fr) minmax(360px, 1.25fr); }
+.phrase-setup, .phrase-practice { margin-top: 0; }
+.phrase-practice { position: sticky; top: 16px; }
 .trainer-controls { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .trainer-controls label { align-items: flex-start; display: grid; gap: 6px; }
 .segmented { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -68,5 +71,17 @@ button:disabled { opacity: 0.45; cursor: default; }
 .phrase-answer.wrong { border-color: #d08a8a; }
 .phrase-progress { color: var(--muted); display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; }
 .phrase-done { border-left: 4px solid var(--focus); padding: 8px 12px; background: #151b24; }
+.phrase-picker { display: grid; gap: 8px; margin-top: 12px; }
+.phrase-picker-header { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; }
+.phrase-picker-header span { color: var(--muted); margin-right: auto; }
+.phrase-focus-list { display: grid; gap: 6px; grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: min(68vh, 760px); overflow: auto; padding: 2px; }
+.phrase-focus-list label { background: #0e1013; border: 1px solid var(--line); border-radius: 4px; box-sizing: border-box; cursor: pointer; min-width: 0; padding: 7px 8px; }
+.phrase-focus-list input { flex: 0 0 auto; margin: 0; }
+.phrase-focus-list span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 900px) {
+	.phrase-workspace { grid-template-columns: 1fr; }
+	.phrase-practice { position: static; }
+}
 @media (max-width: 700px) { .trainer-controls { grid-template-columns: 1fr; } }
+@media (max-width: 700px) { .phrase-focus-list { grid-template-columns: 1fr; max-height: 360px; } }
 .small { font-size: 0.9em; color: var(--muted); }

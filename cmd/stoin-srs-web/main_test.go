@@ -396,6 +396,8 @@ func TestPhrasingTrainerPage(t *testing.T) {
 		"<h1>Phrasing Trainer</h1>",
 		`src="/static/phrasing-trainer.js"`,
 		"Repetitions",
+		"selected phrases",
+		"Select none",
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("expected body to contain %q, got %q", want, body)
@@ -415,7 +417,7 @@ func TestStaticPhrasingTrainerScript(t *testing.T) {
 		t.Fatalf("expected static trainer script, got %d", rec.Code)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "const phraseTails") || !strings.Contains(body, "repeatedShuffledPasses") {
+	if !strings.Contains(body, "const phraseTails") || !strings.Contains(body, "repeatedShuffledPasses") || !strings.Contains(body, "repeatedPromptBlocks") {
 		t.Fatalf("expected trainer script contents, got %q", rec.Body.String())
 	}
 }
