@@ -1023,8 +1023,8 @@ void platform_shutdown(void)
 static const char *pedal_role_name(Platform_Pedal_Role role)
 {
     switch (role) {
-    case PLATFORM_PEDAL_ROLE_PHRASE_CORE:
-        return "phrase_core";
+    case PLATFORM_PEDAL_ROLE_INITIAL_VERB:
+        return "initial_verb";
     case PLATFORM_PEDAL_ROLE_PHRASE_NONVERB:
         return "phrase_nonverb";
     case PLATFORM_PEDAL_ROLE_NONE:
@@ -1034,11 +1034,24 @@ static const char *pedal_role_name(Platform_Pedal_Role role)
     }
 }
 
+static const char *pedal_role_legacy_name(Platform_Pedal_Role role)
+{
+    switch (role) {
+    case PLATFORM_PEDAL_ROLE_INITIAL_VERB:
+        return "phrase_core";
+    case PLATFORM_PEDAL_ROLE_NONE:
+    case PLATFORM_PEDAL_ROLE_PHRASE_NONVERB:
+    case PLATFORM_PEDAL_ROLE_COUNT:
+    default:
+        return NULL;
+    }
+}
+
 static const char *pedal_role_label(Platform_Pedal_Role role)
 {
     switch (role) {
-    case PLATFORM_PEDAL_ROLE_PHRASE_CORE:
-        return "core phrase";
+    case PLATFORM_PEDAL_ROLE_INITIAL_VERB:
+        return "initial verb";
     case PLATFORM_PEDAL_ROLE_PHRASE_NONVERB:
         return "non-verb phrase";
     case PLATFORM_PEDAL_ROLE_NONE:
@@ -1065,7 +1078,7 @@ static void free_pedal_binding(Windows_Pedal_Binding *binding)
 
 static void clear_pedal_bindings(void)
 {
-    for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_PHRASE_CORE;
+    for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_INITIAL_VERB;
          role < PLATFORM_PEDAL_ROLE_COUNT;
          ++role) {
         free_pedal_binding(&g_windows.pedal_bindings[role]);
@@ -1137,6 +1150,12 @@ static bool load_pedal_binding_from_json(
     const char *end = NULL;
     const char *start = json_find_object(json, pedal_role_name(role), &end);
     if (start == NULL) {
+        const char *legacy_name = pedal_role_legacy_name(role);
+        if (legacy_name != NULL) {
+            start = json_find_object(json, legacy_name, &end);
+        }
+    }
+    if (start == NULL) {
         return false;
     }
 
@@ -1194,7 +1213,7 @@ static bool load_pedal_config(const char *path)
     }
 
     bool loaded_any = false;
-    for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_PHRASE_CORE;
+    for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_INITIAL_VERB;
          role < PLATFORM_PEDAL_ROLE_COUNT;
          ++role) {
         Windows_Pedal_Binding binding;
@@ -1223,7 +1242,7 @@ static bool save_pedal_config(const char *path)
     fprintf(file, "{\n");
     fprintf(file, "  \"version\": 1");
     bool wrote_binding = false;
-    for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_PHRASE_CORE;
+    for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_INITIAL_VERB;
          role < PLATFORM_PEDAL_ROLE_COUNT;
          ++role) {
         const Windows_Pedal_Binding *binding = &g_windows.pedal_bindings[role];
@@ -1454,7 +1473,7 @@ static Platform_Pedal_Role pedal_role_for_event(
     uint32_t vk
 )
 {
-    for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_PHRASE_CORE;
+    for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_INITIAL_VERB;
          role < PLATFORM_PEDAL_ROLE_COUNT;
          ++role) {
         if (binding_matches_pedal_event(
@@ -1662,7 +1681,7 @@ static void handle_pedal_raw_hid(const RAWINPUT *raw)
             continue;
         }
 
-        for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_PHRASE_CORE;
+        for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_INITIAL_VERB;
              role < PLATFORM_PEDAL_ROLE_COUNT;
              ++role) {
             Windows_Pedal_Binding *binding = &g_windows.pedal_bindings[role];
@@ -1861,7 +1880,7 @@ bool platform_pedals_init(
     }
 
     if (loaded) {
-        for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_PHRASE_CORE;
+        for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_INITIAL_VERB;
              role < PLATFORM_PEDAL_ROLE_COUNT;
              ++role) {
             if (g_windows.pedal_bindings[role].valid) {
@@ -1892,7 +1911,7 @@ void platform_pedals_poll(void)
 
 void platform_pedals_shutdown(void)
 {
-    for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_PHRASE_CORE;
+    for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_INITIAL_VERB;
          role < PLATFORM_PEDAL_ROLE_COUNT;
          ++role) {
         Windows_Pedal_Binding *binding = &g_windows.pedal_bindings[role];

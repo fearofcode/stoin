@@ -7,8 +7,8 @@
 		<label>Progression
 			<select id="phrase-lesson"></select>
 		</label>
-		<label>Random session length
-			<input type="number" id="phrase-count" min="1" max="500" value="40">
+		<label>Repetitions
+			<input type="number" id="phrase-count" min="1" max="100" value="7">
 		</label>
 		<label>Hints
 			<select id="phrase-hints">
@@ -17,10 +17,6 @@
 				<option value="off">off</option>
 			</select>
 		</label>
-	</div>
-	<div class="actions segmented" role="radiogroup" aria-label="Practice mode">
-		<label><input type="radio" name="phrase-mode" value="ordered" checked> Current lesson</label>
-		<label><input type="radio" name="phrase-mode" value="cumulative"> Cumulative random</label>
 	</div>
 	<div class="actions">
 		<button type="button" id="phrase-restart" class="primary">Restart</button>

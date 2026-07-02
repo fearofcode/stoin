@@ -164,7 +164,7 @@ static Phrase_Namespace steno_current_or_pending_phrase_namespace(const Steno *s
         return PHRASE_NAMESPACE_CORE_OPERATOR;
     }
     if (core) {
-        return PHRASE_NAMESPACE_CORE;
+        return PHRASE_NAMESPACE_INITIAL_VERB;
     }
     if (nonverb) {
         return PHRASE_NAMESPACE_NONVERB;
@@ -1339,7 +1339,7 @@ void steno_set_phrase_namespace(Steno *steno, Phrase_Namespace namespace, bool i
     }
 
     switch (namespace) {
-    case PHRASE_NAMESPACE_CORE:
+    case PHRASE_NAMESPACE_INITIAL_VERB:
         steno->core_phrase_down = is_down;
         if (is_down) {
             steno->core_phrase_pending = true;

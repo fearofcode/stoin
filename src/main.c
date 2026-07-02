@@ -177,8 +177,8 @@ static void handle_pedal_event(Platform_Pedal_Role role, bool is_down, void *use
     }
 
     switch (role) {
-    case PLATFORM_PEDAL_ROLE_PHRASE_CORE:
-        steno_set_phrase_namespace(app->steno, PHRASE_NAMESPACE_CORE, is_down);
+    case PLATFORM_PEDAL_ROLE_INITIAL_VERB:
+        steno_set_phrase_namespace(app->steno, PHRASE_NAMESPACE_INITIAL_VERB, is_down);
         break;
     case PLATFORM_PEDAL_ROLE_PHRASE_NONVERB:
         steno_set_phrase_namespace(app->steno, PHRASE_NAMESPACE_NONVERB, is_down);
@@ -202,7 +202,7 @@ static void print_usage(void)
     fputs("             [--input tx-bolt|gemini-pr|stentura|qwerty]\n", stderr);
     fputs("             [--serial-port PATH] [--serial-baud BAUD]\n", stderr);
     fputs("             [--multiple-inputs] [--multi-input-window-ms MS]\n", stderr);
-    fputs("             [--pedal-config PATH] [--register-pedal core|nonverb]\n", stderr);
+    fputs("             [--pedal-config PATH] [--register-pedal initial-verb|nonverb]\n", stderr);
     fputs("             [--time-translations]\n", stderr);
     fputs("             [--trace-strokes|--no-trace-strokes]\n", stderr);
     fputs("       stoin --raw-serial [--serial-port PATH] [--serial-baud BAUD]\n", stderr);
@@ -238,10 +238,15 @@ static bool parse_pedal_role(const char *value, Platform_Pedal_Role *out_role)
         return false;
     }
 
-    if (strcmp(value, "core") == 0
+    if (strcmp(value, "initial") == 0
+        || strcmp(value, "initial-verb") == 0
+        || strcmp(value, "initial_verb") == 0
+        || strcmp(value, "iv") == 0
+        || strcmp(value, "verb") == 0
+        || strcmp(value, "core") == 0
         || strcmp(value, "phrase-core") == 0
         || strcmp(value, "phrase_core") == 0) {
-        *out_role = PLATFORM_PEDAL_ROLE_PHRASE_CORE;
+        *out_role = PLATFORM_PEDAL_ROLE_INITIAL_VERB;
         return true;
     }
     if (strcmp(value, "nonverb") == 0
@@ -683,7 +688,7 @@ int main(int argc, char **argv)
         } else if (strcmp(argv[i], "--pedal-config") == 0 && i + 1 < argc) {
             pedal_config_path = argv[++i];
         } else if (strcmp(argv[i], "--register-pedals") == 0) {
-            register_pedal_role = PLATFORM_PEDAL_ROLE_PHRASE_CORE;
+            register_pedal_role = PLATFORM_PEDAL_ROLE_INITIAL_VERB;
         } else if (strcmp(argv[i], "--register-pedal") == 0 && i + 1 < argc) {
             if (!parse_pedal_role(argv[++i], &register_pedal_role)) {
                 fprintf(stderr, "stoin: unknown pedal role '%s'\n", argv[i]);

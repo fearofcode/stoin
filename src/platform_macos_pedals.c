@@ -58,8 +58,8 @@ static Mac_Pedal_State g_pedals;
 static const char *pedal_role_name(Platform_Pedal_Role role)
 {
     switch (role) {
-    case PLATFORM_PEDAL_ROLE_PHRASE_CORE:
-        return "phrase_core";
+    case PLATFORM_PEDAL_ROLE_INITIAL_VERB:
+        return "initial_verb";
     case PLATFORM_PEDAL_ROLE_PHRASE_NONVERB:
         return "phrase_nonverb";
     case PLATFORM_PEDAL_ROLE_NONE:
@@ -69,11 +69,24 @@ static const char *pedal_role_name(Platform_Pedal_Role role)
     }
 }
 
+static const char *pedal_role_legacy_name(Platform_Pedal_Role role)
+{
+    switch (role) {
+    case PLATFORM_PEDAL_ROLE_INITIAL_VERB:
+        return "phrase_core";
+    case PLATFORM_PEDAL_ROLE_NONE:
+    case PLATFORM_PEDAL_ROLE_PHRASE_NONVERB:
+    case PLATFORM_PEDAL_ROLE_COUNT:
+    default:
+        return NULL;
+    }
+}
+
 static const char *pedal_role_label(Platform_Pedal_Role role)
 {
     switch (role) {
-    case PLATFORM_PEDAL_ROLE_PHRASE_CORE:
-        return "core phrase";
+    case PLATFORM_PEDAL_ROLE_INITIAL_VERB:
+        return "initial verb";
     case PLATFORM_PEDAL_ROLE_PHRASE_NONVERB:
         return "non-verb phrase";
     case PLATFORM_PEDAL_ROLE_NONE:
@@ -225,7 +238,7 @@ static bool device_has_saved_binding(const Mac_Pedal_Device *device)
         return false;
     }
 
-    for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_PHRASE_CORE;
+    for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_INITIAL_VERB;
          role < PLATFORM_PEDAL_ROLE_COUNT;
          ++role) {
         const Mac_Pedal_Binding *binding = &g_pedals.bindings[role];
@@ -245,7 +258,7 @@ static bool binding_device_already_matched(const Mac_Pedal_Binding *binding, Pla
         return true;
     }
 
-    for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_PHRASE_CORE; role < stop_role; ++role) {
+    for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_INITIAL_VERB; role < stop_role; ++role) {
         const Mac_Pedal_Binding *other = &g_pedals.bindings[role];
         if (other->valid
             && other->vendor_id == binding->vendor_id
@@ -294,7 +307,7 @@ static bool set_runtime_device_matching(IOHIDManagerRef manager)
         return false;
     }
 
-    for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_PHRASE_CORE;
+    for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_INITIAL_VERB;
          role < PLATFORM_PEDAL_ROLE_COUNT;
          ++role) {
         const Mac_Pedal_Binding *binding = &g_pedals.bindings[role];
@@ -328,7 +341,7 @@ static const Mac_Pedal_Binding *find_unsafe_keyboard_binding(
         return NULL;
     }
 
-    for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_PHRASE_CORE;
+    for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_INITIAL_VERB;
          role < PLATFORM_PEDAL_ROLE_COUNT;
          ++role) {
         const Mac_Pedal_Binding *binding = &g_pedals.bindings[role];
@@ -364,6 +377,12 @@ static bool load_binding_from_json(const char *json, Platform_Pedal_Role role, M
     const char *end = NULL;
     const char *start = json_find_object(json, pedal_role_name(role), &end);
     if (start == NULL) {
+        const char *legacy_name = pedal_role_legacy_name(role);
+        if (legacy_name != NULL) {
+            start = json_find_object(json, legacy_name, &end);
+        }
+    }
+    if (start == NULL) {
         return false;
     }
 
@@ -398,7 +417,7 @@ static bool load_pedal_config(const char *path)
     }
 
     bool loaded_any = false;
-    for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_PHRASE_CORE;
+    for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_INITIAL_VERB;
          role < PLATFORM_PEDAL_ROLE_COUNT;
          ++role) {
         Mac_Pedal_Binding binding = {0};
@@ -425,7 +444,7 @@ static bool save_pedal_config(const char *path)
     fprintf(file, "{\n");
     fprintf(file, "  \"version\": 1");
     bool wrote_binding = false;
-    for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_PHRASE_CORE;
+    for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_INITIAL_VERB;
          role < PLATFORM_PEDAL_ROLE_COUNT;
          ++role) {
         const Mac_Pedal_Binding *binding = &g_pedals.bindings[role];
@@ -552,7 +571,7 @@ static Platform_Pedal_Role role_for_event(
     Mac_Pedal_Binding **out_binding
 )
 {
-    for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_PHRASE_CORE;
+    for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_INITIAL_VERB;
          role < PLATFORM_PEDAL_ROLE_COUNT;
          ++role) {
         Mac_Pedal_Binding *binding = &g_pedals.bindings[role];
@@ -740,7 +759,7 @@ static void release_bindings_for_device(const Mac_Pedal_Device *device)
         return;
     }
 
-    for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_PHRASE_CORE;
+    for (Platform_Pedal_Role role = PLATFORM_PEDAL_ROLE_INITIAL_VERB;
          role < PLATFORM_PEDAL_ROLE_COUNT;
          ++role) {
         Mac_Pedal_Binding *binding = &g_pedals.bindings[role];

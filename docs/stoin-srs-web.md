@@ -68,9 +68,9 @@ submit.
 
 ## Phrasing Trainer
 
-The root page links to `/phrasing`, a non-SRS trainer for Stoin's core phrase
-mode. It currently drills the implemented initial-verb `be` bank: `PW` for
+The root page links to `/phrasing`, a non-SRS trainer for Stoin's initial-verb
+phrase mode. It currently drills the implemented initial-verb `be` bank: `PW` for
 `is`, right-hand `D` for `was`, and the mnemonic right-hand tail bank for
-phrases such as `is a`, `was the`, and `is you`. Current-lesson mode walks one
-progression step at a time; cumulative-random mode draws a bounded session from
-every progression step up to the selected one.
+phrases such as `is a`, `was an`, `was the`, and `is you`. Pick a bank, choose
+how many repetitions to practice, and the trainer shuffles each pass through
+that bank.

@@ -1,4 +1,4 @@
-# Core Phrasing Tutorial
+# Initial Verb Phrasing Tutorial
 
 This is the practical tutorial for the phrasing code that exists today. For
 the broader design sketch, see `docs/phrasing-mode-design.md`; for the current
@@ -8,11 +8,11 @@ three-pedal proposal, see `docs/phrasing-three-pedal-reference.md`.
 
 Implemented:
 
-- Core phrase namespace: `PHRASE_NAMESPACE_CORE`.
+- Initial-verb phrase namespace: `PHRASE_NAMESPACE_INITIAL_VERB`.
 - Initial-verb `be` phrases only.
 - `PW` emits `is`; adding right-hand `D` emits `was`.
 - The right hand selects a mnemonic tail such as `the`, `a`, `it`, or `you`.
-- USB pedal registration for the core phrase namespace on macOS, Windows, and
+- USB pedal registration for the initial-verb phrase namespace on macOS, Windows, and
   Linux.
 - Phrase output goes through normal Stoin translation history, spacing, undo,
   and tracing.
@@ -22,28 +22,31 @@ Not implemented yet:
 
 - Other initial verbs.
 - Final-verb phrases.
+- Final-verb phrase pedal.
 - Non-verb phrase pedal.
 - Both-pedal modifier/operator namespace.
 
-Holding the core phrase pedal during a stroke routes that outline through the
+Holding the initial-verb phrase pedal during a stroke routes that outline through the
 phrase engine. For serial machines, tapping the pedal before the stroke also
 works: Stoin latches the phrase namespace for the next completed machine
 stroke, then clears it.
 
-## Register The Core Pedal
+## Register The Initial Verb Pedal
 
 On macOS or Linux:
 
 ```sh
 make
-./build/macos/stoin --register-pedal core
+./build/macos/stoin --register-pedal initial-verb
 ```
 
-Use `./build/linux/stoin --register-pedal core` on Linux.
+Use `./build/linux/stoin --register-pedal initial-verb` on Linux.
 
-When prompted, press the pedal you want to use for core phrase mode. Stoin saves
-the mapping in local `stoin-pedals.json`, which is ignored by git. After
-registration, the app continues normally. Future runs can just use:
+When prompted, press the pedal you want to use for initial-verb mode. Stoin
+saves the mapping in local `stoin-pedals.json`, which is ignored by git. The
+older `--register-pedal core` spelling and old `phrase_core` pedal config key
+still work as compatibility aliases. After registration, the app continues
+normally. Future runs can just use:
 
 ```sh
 ./build/macos/stoin
@@ -56,8 +59,8 @@ For qwerty testing:
 ```
 
 Without a pedal, tap Shift by itself to route the next qwerty steno chord
-through core phrase mode. For example, tap Shift, release it, then chord
-`PW-PB` to emit `is a`. If Shift is chorded with other qwerty steno keys, it
+through initial-verb phrase mode. For example, tap Shift, release it, then chord
+`PW-B` to emit `is a`. If Shift is chorded with other qwerty steno keys, it
 stays part of the steno chord instead of arming phrase mode.
 
 If your pedal acts like a keyboard key, map it to F13-F24 before registering
@@ -73,7 +76,7 @@ make test
 go test ./cmd/stoin-srs-web
 ```
 
-The relevant C tests are in `tests/test_steno.c`; search for `core phrase`.
+The relevant C tests are in `tests/test_steno.c`; search for `initial verb`.
 
 ## Paper Tape
 
@@ -81,7 +84,7 @@ When stroke tracing is enabled, phrase-mode rows are marked on the left side of
 the tape:
 
 ```text
-PW-PB [phrase] -> is a
+PW-B [phrase] -> is a
 #KW [phrase fallback] -> test
 SAO [phrase fallback] -> [untranslated]
 ```
@@ -90,9 +93,9 @@ SAO [phrase fallback] -> [untranslated]
 means a phrase pedal was active, but the phrase engine missed and Stoin used
 the regular dictionary/raw-steno path.
 
-## Core Phrase Shape
+## Initial Verb Shape
 
-A core phrase stroke is currently interpreted as:
+An initial-verb phrase stroke is currently interpreted as:
 
 ```text
 PW + optional right D + optional right-hand tail
@@ -103,8 +106,10 @@ Examples:
 ```text
 PW       is
 PW-D     was
-PW-PB    is a
-PW-PBD   was a
+PW-B     is a
+PW-BD    was a
+PW-PB    is an
+PW-PBD   was an
 PW-T     is the
 PW-TD    was the
 ```
@@ -117,7 +122,8 @@ assignment.
 ```text
 empty   no tail
 T       the
-PB      a/an
+B       a
+PB      an
 P       it
 RT      that
 TS      this
@@ -136,15 +142,17 @@ PBT     one
 
 ## First Practice Set
 
-When the core phrase pedal exists, hold it and stroke:
+When the initial-verb phrase pedal exists, hold it and stroke:
 
 ```text
 PW       is
 PW-D     was
 PW-T     is the
 PW-TD    was the
-PW-PB    is a
-PW-PBD   was a
+PW-B     is a
+PW-BD    was a
+PW-PB    is an
+PW-PBD   was an
 PW-P     is it
 PW-PD    was it
 PW-RT    is that
@@ -164,8 +172,8 @@ PW-L     is all
 PW-PBT   is one
 ```
 
-Without the core phrase pedal, these are ordinary steno strokes. For example,
-`PW-PB` currently stays in normal dictionary/raw-steno mode and emits `PW-PB`
+Without the initial-verb phrase pedal, these are ordinary steno strokes. For example,
+`PW-B` currently stays in normal dictionary/raw-steno mode and emits `PW-B`
 if it is untranslated. With the pedal held, a stroke that is not part of the
 phrase grammar falls back to the regular dictionary stack, so you can keep the
 pedal down while writing an ordinary word between phrases.
@@ -191,6 +199,8 @@ right Z  Right Shift
 Example qwerty chords:
 
 ```text
+PW-B     d + c + comma
+PW-BD    d + c + comma + apostrophe
 PW-PB    d + c + k + comma
 PW-PBD   d + c + k + comma + apostrophe
 PW-T     d + c + semicolon
@@ -215,6 +225,6 @@ http://127.0.0.1:8080/phrasing
 ```
 
 The trainer shows the target phrase, optionally shows the phrase-mode outline
-as a hint, and accepts the text produced by your steno output. Current-lesson
-mode walks one progression step at a time; cumulative-random mode draws from
-every lesson up to the selected one.
+as a hint, and accepts the text produced by your steno output. Pick a bank,
+choose how many repetitions to practice, and the trainer shuffles each pass
+through that bank.

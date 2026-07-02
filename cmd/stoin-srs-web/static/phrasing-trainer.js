@@ -1,7 +1,8 @@
 const phraseTails = [
 	{ id: 'none', stroke: '', text: '', name: 'none' },
 	{ id: 'the', stroke: 'T', text: 'the', name: 'the' },
-	{ id: 'a', stroke: 'PB', text: 'a', name: 'a/an' },
+	{ id: 'a', stroke: 'B', text: 'a', name: 'a' },
+	{ id: 'an', stroke: 'PB', text: 'an', name: 'an' },
 	{ id: 'it', stroke: 'P', text: 'it', name: 'it' },
 	{ id: 'that', stroke: 'RT', text: 'that', name: 'that' },
 	{ id: 'this', stroke: 'TS', text: 'this', name: 'this' },
@@ -19,11 +20,9 @@ const phraseTails = [
 ];
 
 const phraseLessons = [
-	{ name: '1. Present core tails', detail: 'is <tail>', tense: 'present', tailIDs: ['none', 'the', 'a', 'it', 'that'] },
-	{ name: '2. Past core tails', detail: 'was <tail>', tense: 'past', tailIDs: ['none', 'the', 'a', 'it', 'that'] },
-	{ name: '3. Present full tail bank', detail: 'is <tail>', tense: 'present', tailIDs: 'all' },
-	{ name: '4. Past full tail bank', detail: 'was <tail>', tense: 'past', tailIDs: 'all' },
-	{ name: '5. Mixed IV be', detail: 'is/was <tail>', tense: 'mixed', tailIDs: 'all' },
+	{ name: '1. Present IV tails', detail: 'is <tail>', tense: 'present', tailIDs: 'all' },
+	{ name: '2. Past IV tails', detail: 'was <tail>', tense: 'past', tailIDs: 'all' },
+	{ name: '3. Mixed IV be', detail: 'is/was <tail>', tense: 'mixed', tailIDs: 'all' },
 ];
 
 const phraseLessonSelect = document.getElementById('phrase-lesson');
@@ -122,20 +121,13 @@ function shuffle(items) {
 	return out;
 }
 
-function randomDraw(pool, count) {
-	if (!pool.length || count <= 0) return [];
+function repeatedShuffledPasses(pool, repetitions) {
+	if (!pool.length || repetitions <= 0) return [];
 	const out = [];
-	let shuffled = [];
-	while (out.length < count) {
-		if (shuffled.length === 0) shuffled = shuffle(pool);
-		out.push(shuffled.pop());
+	for (let i = 0; i < repetitions; i++) {
+		out.push.apply(out, shuffle(pool));
 	}
 	return out;
-}
-
-function currentMode() {
-	const checked = document.querySelector('input[name="phrase-mode"]:checked');
-	return checked ? checked.value : 'ordered';
 }
 
 function selectedLessonIndex() {
@@ -143,30 +135,20 @@ function selectedLessonIndex() {
 }
 
 function currentPool() {
-	const lessonIndex = selectedLessonIndex();
-	if (currentMode() === 'ordered') {
-		return uniquePrompts(promptsForLesson(lessonIndex));
-	}
-	let prompts = [];
-	for (let i = 0; i <= lessonIndex; i++) {
-		prompts = prompts.concat(promptsForLesson(i));
-	}
-	return uniquePrompts(prompts);
+	return uniquePrompts(promptsForLesson(selectedLessonIndex()));
 }
 
 function rebuildPhraseQueue() {
 	const pool = currentPool();
-	const mode = currentMode();
-	if (mode === 'cumulative') {
-		const count = Math.max(1, Math.min(500, Number(phraseCountInput.value || '40')));
-		phraseQueue = randomDraw(pool, count);
-	} else {
-		phraseQueue = pool;
-	}
+	const repetitions = Math.max(1, Math.min(100, Number(phraseCountInput.value || '7')));
+	phraseQueue = repeatedShuffledPasses(pool, repetitions);
 	phraseIndex = 0;
 	phraseMistake = false;
 	phraseAnswer.value = '';
-	phraseSetSummary.textContent = pool.length + ' available prompt' + (pool.length === 1 ? '' : 's');
+	phraseSetSummary.textContent = pool.length + ' prompt'
+		+ (pool.length === 1 ? '' : 's')
+		+ ' x ' + repetitions
+		+ ' = ' + phraseQueue.length + ' exercises';
 	renderPhraseTrainer();
 }
 
@@ -256,9 +238,6 @@ populatePhraseControls();
 phraseLessonSelect.addEventListener('change', rebuildPhraseQueue);
 phraseCountInput.addEventListener('change', rebuildPhraseQueue);
 phraseHintsSelect.addEventListener('change', renderPhraseTrainer);
-document.querySelectorAll('input[name="phrase-mode"]').forEach(function(input) {
-	input.addEventListener('change', rebuildPhraseQueue);
-});
 phraseRestart.addEventListener('click', rebuildPhraseQueue);
 phraseReroll.addEventListener('click', rebuildPhraseQueue);
 phraseAnswer.addEventListener('input', advancePhraseIfCorrect);

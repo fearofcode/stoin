@@ -11,6 +11,10 @@ Draft reference for evaluating the next Stoin phrasing layout.
 | `NV` | non-verb | left family + grammar/state + right head | standard-dictionary gap phrase chunks |
 | `FO` | no pedal | exact follow-on stroke | modify the previous phrase |
 
+Implementation note: the current Stoin runtime only wires the `IV` pedal path.
+Use `--register-pedal initial-verb` for that pedal. `FV`, `NV`, and follow-on
+behavior are reference targets, not complete runtime paths yet.
+
 ## Shared Grammar/State
 
 These keys are shared by `IV`, `FV`, and `NV`.
@@ -190,7 +194,8 @@ preserving an artificial `TSDZ` sub-bank.
 | --- | --- | --- |
 | empty | no tail | empty |
 | `T` | the | first letter |
-| `PB` | a/an | final `n` shape for `an` |
+| `B` | a | article shape |
+| `PB` | an | final `n` shape for `an` |
 | `P` | it | short object key |
 | `RT` | that | `the` plus deictic shape |
 | `TS` | this | `th-s` outline shape |
@@ -213,7 +218,8 @@ part of the tail code.
 
 | Stroke | Output |
 | --- | --- |
-| `IV[PW-PBD]` | was a |
+| `IV[PW-BD]` | was a |
+| `IV[PW-PBD]` | was an |
 | `IV[PWHR-TD]` | believed the |
 | `IV[PW-P]` | is it |
 | `IV[S-PD]` | saw it |

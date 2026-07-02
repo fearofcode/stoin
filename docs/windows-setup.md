@@ -58,10 +58,16 @@ Windows pedal support uses Raw Input for USB pedals. Keyboard-style pedals are l
 To register a pedal:
 
 ```bat
+build\windows\stoin.exe --register-pedal initial-verb
+```
+
+The old spelling still works as a compatibility alias:
+
+```bat
 build\windows\stoin.exe --register-pedal core
 ```
 
-or:
+To register the non-verb pedal for future phrase work:
 
 ```bat
 build\windows\stoin.exe --register-pedal nonverb

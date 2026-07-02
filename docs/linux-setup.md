@@ -46,10 +46,16 @@ TX Bolt and Gemini PR input only need serial access plus `/dev/uinput` output ac
 Linux pedal support uses evdev input devices under `/dev/input/event*`. To register a pedal:
 
 ```sh
+./build/linux/stoin --register-pedal initial-verb
+```
+
+The old spelling still works as a compatibility alias:
+
+```sh
 ./build/linux/stoin --register-pedal core
 ```
 
-or:
+To register the non-verb pedal for future phrase work:
 
 ```sh
 ./build/linux/stoin --register-pedal nonverb

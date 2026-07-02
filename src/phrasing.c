@@ -34,7 +34,8 @@ static const char *iv_tail_lookup(uint64_t bits)
 
     if (bits == 0) return "";
     if (bits == t) return "the";
-    if (bits == (p | b)) return "a";
+    if (bits == b) return "a";
+    if (bits == (p | b)) return "an";
     if (bits == p) return "it";
     if (bits == (t | r)) return "that";
     if (bits == (t | s)) return "this";
@@ -101,7 +102,7 @@ Phrase_Lookup_Result phrasing_lookup(
     *out_utf8 = NULL;
 
     switch (namespace) {
-    case PHRASE_NAMESPACE_CORE:
+    case PHRASE_NAMESPACE_INITIAL_VERB:
         return lookup_initial_verb(stroke_bits, out_utf8);
     case PHRASE_NAMESPACE_NONE:
     case PHRASE_NAMESPACE_NONVERB:
