@@ -23,6 +23,7 @@ let phraseQueue = [];
 let phraseIndex = 0;
 let phraseMistake = false;
 const phraseCheckedByKey = new Map();
+const phraseStorageKey = 'stoin.phrasingTrainer.v1';
 
 function promptsForLesson(index) {
 	const lesson = phraseLessons[index] || phraseLessons[0];
@@ -89,12 +90,94 @@ function selectedLessonIndex() {
 	return Number(phraseLessonSelect.value || '0');
 }
 
+function repetitionCount() {
+	const count = Number(phraseCountInput.value || '7');
+	if (!Number.isFinite(count)) return 7;
+	return Math.max(1, Math.min(100, Math.round(count)));
+}
+
 function currentPool() {
 	return uniquePrompts(promptsForLesson(selectedLessonIndex()));
 }
 
 function promptKey(prompt) {
 	return prompt ? prompt.stroke + '\n' + prompt.phrase : '';
+}
+
+function localStorageGet(key) {
+	try {
+		return window.localStorage.getItem(key);
+	} catch (error) {
+		return null;
+	}
+}
+
+function localStorageSet(key, value) {
+	try {
+		window.localStorage.setItem(key, value);
+	} catch (error) {
+		// Ignore storage failures; the trainer should still work without persistence.
+	}
+}
+
+function optionExists(select, value) {
+	for (let i = 0; i < select.options.length; i++) {
+		if (select.options[i].value === value) return true;
+	}
+	return false;
+}
+
+function loadSavedPhraseSettings() {
+	const raw = localStorageGet(phraseStorageKey);
+	if (!raw) return null;
+	try {
+		const parsed = JSON.parse(raw);
+		return parsed && typeof parsed === 'object' ? parsed : null;
+	} catch (error) {
+		return null;
+	}
+}
+
+function savePhraseSettings() {
+	syncFocusSelectionFromInputs();
+	const settings = {
+		lessonIndex: selectedLessonIndex(),
+		repetitions: repetitionCount(),
+		order: phraseOrderSelect.value,
+		hints: phraseHintsSelect.value,
+		showOutlines: phraseShowOutlines.checked,
+		checkedByKey: Array.from(phraseCheckedByKey.entries()),
+	};
+	localStorageSet(phraseStorageKey, JSON.stringify(settings));
+}
+
+function restorePhraseSettings() {
+	const settings = loadSavedPhraseSettings();
+	if (!settings) return;
+
+	if (Number.isInteger(settings.lessonIndex) && settings.lessonIndex >= 0 && settings.lessonIndex < phraseLessonSelect.options.length) {
+		phraseLessonSelect.value = String(settings.lessonIndex);
+	}
+	if (typeof settings.repetitions === 'number' && Number.isFinite(settings.repetitions)) {
+		phraseCountInput.value = String(Math.max(1, Math.min(100, Math.round(settings.repetitions))));
+	}
+	if (typeof settings.order === 'string' && optionExists(phraseOrderSelect, settings.order)) {
+		phraseOrderSelect.value = settings.order;
+	}
+	if (typeof settings.hints === 'string' && optionExists(phraseHintsSelect, settings.hints)) {
+		phraseHintsSelect.value = settings.hints;
+	}
+	if (typeof settings.showOutlines === 'boolean') {
+		phraseShowOutlines.checked = settings.showOutlines;
+	}
+	if (Array.isArray(settings.checkedByKey)) {
+		phraseCheckedByKey.clear();
+		settings.checkedByKey.forEach(function(entry) {
+			if (Array.isArray(entry) && entry.length === 2 && typeof entry[0] === 'string' && typeof entry[1] === 'boolean') {
+				phraseCheckedByKey.set(entry[0], entry[1]);
+			}
+		});
+	}
 }
 
 function normalizePromptFilter(text) {
@@ -152,7 +235,7 @@ function selectedPrompts(pool) {
 function rebuildPhraseQueue() {
 	syncFocusSelectionFromInputs();
 	const fullPool = currentPool();
-	const repetitions = Math.max(1, Math.min(100, Number(phraseCountInput.value || '7')));
+	const repetitions = repetitionCount();
 	populateFocusOptions(fullPool);
 	const pool = selectedPrompts(fullPool);
 	const order = phraseOrderSelect.value;
@@ -302,16 +385,29 @@ async function loadPhraseData() {
 		phraseAssignments = data.trainer.assignments.slice();
 		phraseLessons = data.trainer.lessons.slice();
 		populatePhraseControls();
+		restorePhraseSettings();
 		rebuildPhraseQueue();
 	} catch (error) {
 		showPhraseLoadError(error.message || String(error));
 	}
 }
 
-phraseLessonSelect.addEventListener('change', rebuildPhraseQueue);
-phraseCountInput.addEventListener('change', rebuildPhraseQueue);
-phraseOrderSelect.addEventListener('change', rebuildPhraseQueue);
-phraseFocusList.addEventListener('change', rebuildPhraseQueue);
+phraseLessonSelect.addEventListener('change', function() {
+	rebuildPhraseQueue();
+	savePhraseSettings();
+});
+phraseCountInput.addEventListener('change', function() {
+	rebuildPhraseQueue();
+	savePhraseSettings();
+});
+phraseOrderSelect.addEventListener('change', function() {
+	rebuildPhraseQueue();
+	savePhraseSettings();
+});
+phraseFocusList.addEventListener('change', function() {
+	rebuildPhraseQueue();
+	savePhraseSettings();
+});
 phraseFilterInput.addEventListener('input', function() {
 	syncFocusSelectionFromInputs();
 	populateFocusOptions(currentPool());
@@ -319,20 +415,26 @@ phraseFilterInput.addEventListener('input', function() {
 phraseShowOutlines.addEventListener('change', function() {
 	syncFocusSelectionFromInputs();
 	populateFocusOptions(currentPool());
+	savePhraseSettings();
 });
 phraseSelectAll.addEventListener('click', function() {
 	phraseFocusList.querySelectorAll('input[type="checkbox"]').forEach(function(input) {
 		input.checked = true;
 	});
 	rebuildPhraseQueue();
+	savePhraseSettings();
 });
 phraseSelectNone.addEventListener('click', function() {
 	phraseFocusList.querySelectorAll('input[type="checkbox"]').forEach(function(input) {
 		input.checked = false;
 	});
 	rebuildPhraseQueue();
+	savePhraseSettings();
 });
-phraseHintsSelect.addEventListener('change', renderPhraseTrainer);
+phraseHintsSelect.addEventListener('change', function() {
+	savePhraseSettings();
+	renderPhraseTrainer();
+});
 phraseRestart.addEventListener('click', rebuildPhraseQueue);
 phraseReroll.addEventListener('click', rebuildPhraseQueue);
 phraseAnswer.addEventListener('input', advancePhraseIfCorrect);

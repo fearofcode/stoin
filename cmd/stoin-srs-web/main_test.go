@@ -424,6 +424,10 @@ func TestStaticPhrasingTrainerScript(t *testing.T) {
 		!strings.Contains(body, "trainer.assignments") ||
 		!strings.Contains(body, "phraseFilterInput") ||
 		!strings.Contains(body, "phraseShowOutlines") ||
+		!strings.Contains(body, "phraseStorageKey") ||
+		!strings.Contains(body, "localStorage") ||
+		!strings.Contains(body, "restorePhraseSettings") ||
+		!strings.Contains(body, "savePhraseSettings") ||
 		!strings.Contains(body, "repeatedShuffledPasses") ||
 		!strings.Contains(body, "repeatedPromptBlocks") {
 		t.Fatalf("expected trainer script contents, got %q", rec.Body.String())
