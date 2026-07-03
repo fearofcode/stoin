@@ -27,6 +27,7 @@ typedef enum Input_Mode {
 #define DEFAULT_DICTIONARY_PATH "lapwing-base.json"
 #define DEFAULT_CONFIG_PATH "stoin-config.json"
 #define DEFAULT_WORD_LIST_PATH "american_english_words.txt"
+#define DEFAULT_PHRASING_PATH "phrasing.json"
 
 typedef struct App {
     Steno *steno;
@@ -174,15 +175,15 @@ static void request_stop(int signum)
 
 static void print_usage(void)
 {
-    fputs("usage: stoin [--config PATH] [--dictionary PATH ...] [--word-list PATH]\n", stderr);
+    fputs("usage: stoin [--config PATH] [--dictionary PATH ...] [--word-list PATH] [--phrasing PATH]\n", stderr);
     fputs("             [--input tx-bolt|gemini-pr|stentura|qwerty]\n", stderr);
     fputs("             [--serial-port PATH] [--serial-baud BAUD]\n", stderr);
     fputs("             [--multiple-inputs] [--multi-input-window-ms MS]\n", stderr);
     fputs("             [--time-translations]\n", stderr);
     fputs("             [--trace-strokes|--no-trace-strokes]\n", stderr);
     fputs("       stoin --raw-serial [--serial-port PATH] [--serial-baud BAUD]\n", stderr);
-    fputs("       stoin [--config PATH] [--dictionary PATH ...] [--word-list PATH] --lookup STROKE\n", stderr);
-    fputs("       stoin [--config PATH] [--dictionary PATH ...] [--word-list PATH] --dump-dictionary [OUTPUT_PATH]\n", stderr);
+    fputs("       stoin [--config PATH] [--dictionary PATH ...] [--word-list PATH] [--phrasing PATH] --lookup STROKE\n", stderr);
+    fputs("       stoin [--config PATH] [--dictionary PATH ...] [--word-list PATH] [--phrasing PATH] --dump-dictionary [OUTPUT_PATH]\n", stderr);
 }
 
 static bool parse_baud_rate(const char *value, int *out_baud_rate)
@@ -521,6 +522,7 @@ static Steno *create_steno(
     const bool *dictionary_enabled,
     size_t dictionary_path_count,
     const char *word_list_path,
+    const char *phrasing_path,
     const char *keymap_path,
     FILE *trace_file
 )
@@ -531,6 +533,7 @@ static Steno *create_steno(
         .dictionary_enabled = dictionary_enabled,
         .dictionary_path_count = dictionary_path_count,
         .word_list_path = word_list_path,
+        .phrasing_path = phrasing_path,
         .send_text = send_text,
         .delete_text = delete_text,
         .send_key_combination = send_key_combination,
@@ -569,6 +572,7 @@ int main(int argc, char **argv)
     Runtime_Config runtime_config = {0};
     if (!raw_serial_requested
         && (!runtime_config_set_word_list(&runtime_config, DEFAULT_WORD_LIST_PATH)
+            || !runtime_config_set_phrasing(&runtime_config, DEFAULT_PHRASING_PATH)
             || !runtime_config_load(&runtime_config, config_path, !config_path_explicit))) {
         runtime_config_destroy(&runtime_config);
         return 1;
@@ -589,6 +593,11 @@ int main(int argc, char **argv)
             }
         } else if (strcmp(argv[i], "--word-list") == 0 && i + 1 < argc) {
             if (!runtime_config_set_word_list(&runtime_config, argv[++i])) {
+                runtime_config_destroy(&runtime_config);
+                return 1;
+            }
+        } else if (strcmp(argv[i], "--phrasing") == 0 && i + 1 < argc) {
+            if (!runtime_config_set_phrasing(&runtime_config, argv[++i])) {
                 runtime_config_destroy(&runtime_config);
                 return 1;
             }
@@ -699,6 +708,7 @@ int main(int argc, char **argv)
             runtime_config.dictionary_enabled,
             arrlenu(runtime_config.dictionary_paths),
             runtime_config.word_list_path,
+            runtime_config.phrasing_path,
             NULL,
             NULL
         );
@@ -723,6 +733,7 @@ int main(int argc, char **argv)
             runtime_config.dictionary_enabled,
             arrlenu(runtime_config.dictionary_paths),
             runtime_config.word_list_path,
+            runtime_config.phrasing_path,
             NULL,
             NULL
         );
@@ -749,6 +760,7 @@ int main(int argc, char **argv)
             runtime_config.dictionary_enabled,
             arrlenu(runtime_config.dictionary_paths),
             runtime_config.word_list_path,
+            runtime_config.phrasing_path,
             input_mode == INPUT_MODE_QWERTY ? "stoin.keymap" : NULL,
             trace_strokes ? stderr : NULL
         ),

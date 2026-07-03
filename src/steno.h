@@ -35,6 +35,7 @@ typedef struct Steno_Config {
     const bool *dictionary_enabled;
     size_t dictionary_path_count;
     const char *word_list_path;
+    const char *phrasing_path;
     Send_Text_Fn send_text;
     Delete_Text_Fn delete_text;
     Send_Key_Combination_Fn send_key_combination;

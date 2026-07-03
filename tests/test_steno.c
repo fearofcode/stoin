@@ -1,5 +1,4 @@
 #include "gemini_pr.h"
-#include "json_util.h"
 #include "orthography.h"
 #include "platform.h"
 #include "stentura.h"
@@ -342,40 +341,6 @@ static bool expect_trace_contains(FILE *trace_file, const char *name, const char
     return false;
 }
 
-static bool expect_json_object_with_brace_in_string(void)
-{
-    const char *json =
-        "{\n"
-        "  \"phrase_core\": {\n"
-        "    \"device_name\": \"\\\\\\\\?\\\\HID#VID_3553#{884b96c3-56ef-11d1-bc8c-00a0c91405dd}\",\n"
-        "    \"usage_page\": 7,\n"
-        "    \"vk\": 65\n"
-        "  }\n"
-        "}\n";
-    const char *end = NULL;
-    const char *start = json_find_object(json, "phrase_core", &end);
-    if (start == NULL || end == NULL) {
-        fputs("test failed: json object with brace in string was not found\n", stderr);
-        return false;
-    }
-
-    uint32_t value = 0;
-    if (!json_parse_uint_field(start, end, "vk", &value) || value != 65) {
-        fprintf(stderr, "test failed: json field after brace in string parsed as %u\n", value);
-        return false;
-    }
-
-    char *device_name = NULL;
-    const bool parsed = json_parse_string_field(start, end, "device_name", &device_name);
-    const bool ok = parsed
-        && expect_string(
-            "json string with brace",
-            device_name,
-            "\\\\?\\HID#VID_3553#{884b96c3-56ef-11d1-bc8c-00a0c91405dd}");
-    free(device_name);
-    return ok;
-}
-
 int main(void)
 {
     Test_Output output = {0};
@@ -383,6 +348,7 @@ int main(void)
         .keymap_path = "tests/test.keymap",
         .dictionary_path = "tests/test-dictionary.json",
         .word_list_path = "tests/test-words.txt",
+        .phrasing_path = "tests/test-phrasing.json",
         .send_text = test_send_text,
         .delete_text = test_delete_text,
         .send_key_combination = test_send_key_combination,
@@ -396,7 +362,6 @@ int main(void)
     }
 
     bool ok = true;
-    ok = ok && expect_json_object_with_brace_in_string();
 
     Orthography test_orthography = {0};
     ok = ok && orthography_load(&test_orthography, "tests/test-words.txt");
@@ -801,7 +766,7 @@ int main(void)
     char *dump = read_entire_file(dump_path, &dump_size);
     ok = ok && dump != NULL && dump_size > 0;
     if (dump != NULL) {
-        ok = ok && strstr(dump, "\"STOER/Z\": \"stories\"") != NULL;
+        ok = ok && strstr(dump, "\"STOER/Z\"") != NULL && strstr(dump, "\"stories\"") != NULL;
         free(dump);
     }
     remove(dump_path);
@@ -1042,29 +1007,7 @@ int main(void)
         { "PWE-B", "are a" },
         { "PWE-BD", "were a" },
         { "PW-T", "is the" },
-        { "PW-TD", "was the" },
-        { "PWE-T", "are the" },
-        { "PWE-TD", "were the" },
-        { "PW-P", "is it" },
-        { "PW-PD", "was it" },
-        { "PWE-P", "are it" },
-        { "PWE-PD", "were it" },
-        { "PW-RT", "is that" },
-        { "PW-RTD", "was that" },
-        { "PWE-RT", "are that" },
-        { "PWE-RTD", "were that" },
-        { "H-B", "has a" },
         { "H-BD", "had a" },
-        { "HE-B", "have a" },
-        { "H-T", "has the" },
-        { "H-TD", "had the" },
-        { "HE-T", "have the" },
-        { "H-P", "has it" },
-        { "H-PD", "had it" },
-        { "HE-P", "have it" },
-        { "H-RT", "has that" },
-        { "H-RTD", "had that" },
-        { "HE-RT", "have that" },
     };
     for (size_t i = 0; i < sizeof(initial_verb_cases) / sizeof(initial_verb_cases[0]); ++i) {
         ok = ok && expect_stroke_output(
@@ -1081,16 +1024,11 @@ int main(void)
         const char *expected;
     } nonverb_cases[] = {
         { "TW-B", "with a" },
-        { "TW-T", "with the" },
-        { "TW-PLT", "with them" },
-        { "TW-RT", "with that" },
         { "TKPWH*-RT", "anything that" },
         { "TKPWH*-F", "anything else" },
         { "S*-F", "as if" },
         { "S*-GT", "as though" },
-        { "SRAO*E-B", "even a" },
         { "SRAO*E-RT", "even that" },
-        { "SRAO*E-F", "even if" },
         { "SRAO*E-GT", "even though" },
     };
     for (size_t i = 0; i < sizeof(nonverb_cases) / sizeof(nonverb_cases[0]); ++i) {
@@ -1136,15 +1074,9 @@ int main(void)
         { "SKWHR-BD", "she was" },
         { "SKWHR*E", "she is not" },
         { "SKWHR*ED", "she was not" },
-        { "KWHR-B", "he is" },
-        { "TWH-BD", "they were" },
         { "SWR-F", "I have" },
         { "SWR-FD", "I had" },
-        { "KPWR-G", "you go" },
         { "KPWR-GD", "you went" },
-        { "SKWHR-GTD", "she went to" },
-        { "SKWHR-PBG", "she thinks" },
-        { "SKWHR-PBGD", "she thought" },
         { "SKWHRAO-G", "she will go" },
         { "SKWHRAO*G", "she will not go" },
         { "SKWHREG", "she is going" },

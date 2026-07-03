@@ -16,6 +16,7 @@ import (
 const (
 	defaultDBPath       = "stoin-srs-web.sqlite3"
 	defaultAddr         = "127.0.0.1:8080"
+	defaultPhrasingPath = "phrasing.json"
 	introRepetitions    = 5
 	reviewAllDueLimit   = 100
 	sessionLineMaxRunes = 52
@@ -28,16 +29,18 @@ var scheduleDays = []int{1, 3, 7, 14, 30, 60, 120, 240}
 var assetFS embed.FS
 
 type App struct {
-	db        *sql.DB
-	templates *template.Template
+	db           *sql.DB
+	templates    *template.Template
+	phrasingPath string
 }
 
 func main() {
 	dbPath := flag.String("db", defaultDBPath, "SQLite database path")
 	addr := flag.String("addr", defaultAddr, "HTTP listen address")
+	phrasingPath := flag.String("phrasing", defaultPhrasingPath, "Phrasing JSON path")
 	flag.Parse()
 
-	app, err := NewApp(*dbPath)
+	app, err := NewAppWithPhrasing(*dbPath, *phrasingPath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -51,6 +54,10 @@ func main() {
 }
 
 func NewApp(dbPath string) (*App, error) {
+	return NewAppWithPhrasing(dbPath, defaultPhrasingPath)
+}
+
+func NewAppWithPhrasing(dbPath string, phrasingPath string) (*App, error) {
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, err
@@ -64,8 +71,9 @@ func NewApp(dbPath string) (*App, error) {
 	}
 
 	app := &App{
-		db:        db,
-		templates: templates,
+		db:           db,
+		templates:    templates,
+		phrasingPath: phrasingPath,
 	}
 	if err := app.initSchema(context.Background()); err != nil {
 		db.Close()
@@ -91,6 +99,7 @@ func (a *App) routes(mux *http.ServeMux) {
 	mux.HandleFunc("/deck", a.handleDeck)
 	mux.HandleFunc("/import", a.handleImport)
 	mux.HandleFunc("/phrasing", a.handlePhrasingTrainer)
+	mux.HandleFunc("/phrasing-data.json", a.handlePhrasingData)
 	mux.HandleFunc("/session/start", a.handleSessionStart)
 	mux.HandleFunc("/session/review-all-due", a.handleReviewAllDue)
 	mux.HandleFunc("/session/submit", a.handleSessionSubmit)

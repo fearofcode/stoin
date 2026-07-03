@@ -31,6 +31,7 @@ struct Steno {
     Translation *translations;
     Dictionary_Stack dictionary_stack;
     Orthography orthography;
+    Phrasing *phrasing;
     char *lookup_translation;
     uint64_t down_keycodes;
     uint64_t chord_bits;
@@ -977,7 +978,7 @@ static bool translate_phrase_bits(Steno *steno, uint64_t bits, bool *out_hit)
     }
 
     char *phrase_text = NULL;
-    const Phrase_Lookup_Result result = phrasing_lookup(bits, &phrase_text);
+    const Phrase_Lookup_Result result = phrasing_lookup(steno->phrasing, bits, &phrase_text);
     if (result == PHRASE_LOOKUP_ERROR) {
         free(phrase_text);
         return false;
@@ -1089,6 +1090,14 @@ Steno *steno_create(const Steno_Config *config)
         return NULL;
     }
 
+    if (config->phrasing_path != NULL) {
+        steno->phrasing = phrasing_load(config->phrasing_path);
+        if (steno->phrasing == NULL) {
+            steno_destroy(steno);
+            return NULL;
+        }
+    }
+
     if (!dictionary_stack_set_paths(
             &steno->dictionary_stack,
             config->dictionary_path,
@@ -1120,6 +1129,7 @@ void steno_destroy(Steno *steno)
     }
     arrfree(steno->translations);
     orthography_destroy(&steno->orthography);
+    phrasing_destroy(steno->phrasing);
     dictionary_stack_destroy(&steno->dictionary_stack);
     free(steno->lookup_translation);
     free(steno->spacing.spacing);
@@ -1248,7 +1258,7 @@ bool steno_lookup_stroke(Steno *steno, const char *stroke, const char **out_tran
     uint64_t bits = 0;
     if (stroke != NULL && strchr(stroke, '/') == NULL && stroke_string_to_bits(stroke, &bits)) {
         char *phrase = NULL;
-        const Phrase_Lookup_Result result = phrasing_lookup(bits, &phrase);
+        const Phrase_Lookup_Result result = phrasing_lookup(steno->phrasing, bits, &phrase);
         if (result == PHRASE_LOOKUP_ERROR) {
             free(phrase);
             return false;

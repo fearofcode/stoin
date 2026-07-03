@@ -32,7 +32,6 @@ COMMON_SOURCES := \
 	src/dictionary_stack.c \
 	src/format.c \
 	src/gemini_pr.c \
-	src/json_util.c \
 	src/keymap.c \
 	src/orthography.c \
 	src/phrasing.c \
@@ -51,6 +50,9 @@ COMMON_SOURCES := \
 	src/tx_bolt.c \
 	src/tx_bolt_multiple.c \
 	src/util.c
+
+VENDOR_SOURCES := \
+	third_party/cjson/cJSON.c
 
 ifeq ($(PLATFORM),macos)
 PLATFORM_LDFLAGS += -framework ApplicationServices -framework CoreFoundation -framework IOKit
@@ -87,10 +89,12 @@ RELEASE_TARGET := $(RELEASE_DIR)/stoin$(EXE_EXT)
 TEST_TARGET := $(BUILD_DIR)/test_steno$(EXE_EXT)
 
 CORE_SOURCES := $(COMMON_SOURCES) $(PLATFORM_SOURCES)
-CORE_OBJECTS := $(patsubst src/%.c,$(BUILD_DIR)/%.o,$(CORE_SOURCES))
+CORE_OBJECTS := $(patsubst src/%.c,$(BUILD_DIR)/%.o,$(CORE_SOURCES)) \
+	$(patsubst third_party/%.c,$(BUILD_DIR)/third_party/%.o,$(VENDOR_SOURCES))
 APP_OBJECTS := $(BUILD_DIR)/main.o $(CORE_OBJECTS)
 TEST_OBJECTS := $(BUILD_DIR)/test_steno.o $(CORE_OBJECTS)
-RELEASE_CORE_OBJECTS := $(patsubst src/%.c,$(RELEASE_DIR)/%.o,$(CORE_SOURCES))
+RELEASE_CORE_OBJECTS := $(patsubst src/%.c,$(RELEASE_DIR)/%.o,$(CORE_SOURCES)) \
+	$(patsubst third_party/%.c,$(RELEASE_DIR)/third_party/%.o,$(VENDOR_SOURCES))
 RELEASE_APP_OBJECTS := $(RELEASE_DIR)/main.o $(RELEASE_CORE_OBJECTS)
 
 .PHONY: all clean linux macos release run srs-web test windows
@@ -123,10 +127,22 @@ $(BUILD_DIR):
 $(RELEASE_DIR):
 	mkdir -p $@
 
+$(BUILD_DIR)/third_party/cjson:
+	mkdir -p $@
+
+$(RELEASE_DIR)/third_party/cjson:
+	mkdir -p $@
+
 $(BUILD_DIR)/%.o: src/%.c src/*.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(RELEASE_DIR)/%.o: src/%.c src/*.h | $(RELEASE_DIR)
+	$(CC) $(RELEASE_CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/third_party/cjson/%.o: third_party/cjson/%.c third_party/cjson/%.h | $(BUILD_DIR)/third_party/cjson
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(RELEASE_DIR)/third_party/cjson/%.o: third_party/cjson/%.c third_party/cjson/%.h | $(RELEASE_DIR)/third_party/cjson
 	$(CC) $(RELEASE_CFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/%.o: tests/%.c src/*.h | $(BUILD_DIR)

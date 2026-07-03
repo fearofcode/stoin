@@ -13,7 +13,7 @@ import (
 
 func testApp(t *testing.T) *App {
 	t.Helper()
-	app, err := NewApp(t.TempDir() + "/srs.sqlite3")
+	app, err := NewAppWithPhrasing(t.TempDir()+"/srs.sqlite3", "../../phrasing.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -419,20 +419,38 @@ func TestStaticPhrasingTrainerScript(t *testing.T) {
 		t.Fatalf("expected static trainer script, got %d", rec.Code)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "const phraseAssignments") ||
-		!strings.Contains(body, "FV contractions") ||
-		!strings.Contains(body, "PWE-B") ||
-		!strings.Contains(body, "H-BD") ||
-		!strings.Contains(body, "TW-B") ||
-		!strings.Contains(body, "TKPWH*-RT") ||
-		!strings.Contains(body, "SRAO*E-B") ||
-		!strings.Contains(body, "SRAO*E-GT") ||
+	if !strings.Contains(body, "fetch('/phrasing-data.json'") ||
+		!strings.Contains(body, "validatePhraseData") ||
+		!strings.Contains(body, "trainer.assignments") ||
 		!strings.Contains(body, "phraseFilterInput") ||
 		!strings.Contains(body, "phraseShowOutlines") ||
-		!strings.Contains(body, "#SKWHR-B") ||
 		!strings.Contains(body, "repeatedShuffledPasses") ||
 		!strings.Contains(body, "repeatedPromptBlocks") {
 		t.Fatalf("expected trainer script contents, got %q", rec.Body.String())
+	}
+}
+
+func TestPhrasingDataRoute(t *testing.T) {
+	app := testApp(t)
+	mux := http.NewServeMux()
+	app.routes(mux)
+	req := httptest.NewRequest(http.MethodGet, "/phrasing-data.json", nil)
+	rec := httptest.NewRecorder()
+
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected phrasing data, got %d with body %q", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	for _, want := range []string{
+		`"trainer"`,
+		`"assignments"`,
+		`"PW-B"`,
+		`"SRAO*E-GT"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("expected phrasing data to contain %q, got %q", want, body)
+		}
 	}
 }
 

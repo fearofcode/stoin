@@ -2,9 +2,11 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -58,6 +60,24 @@ func (a *App) handlePhrasingTrainer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.render(w, "phrasingTrainer", nil)
+}
+
+func (a *App) handlePhrasingData(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		methodNotAllowed(w)
+		return
+	}
+	data, err := os.ReadFile(a.phrasingPath)
+	if err != nil {
+		http.Error(w, "could not read phrasing data", http.StatusInternalServerError)
+		return
+	}
+	if !json.Valid(data) {
+		http.Error(w, "phrasing data is not valid JSON", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_, _ = w.Write(data)
 }
 
 func (a *App) handleImport(w http.ResponseWriter, r *http.Request) {

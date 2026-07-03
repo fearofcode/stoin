@@ -3,13 +3,19 @@
 
 #include <stdint.h>
 
+typedef struct Phrasing Phrasing;
+
 typedef enum Phrase_Lookup_Result {
     PHRASE_LOOKUP_MISS,
     PHRASE_LOOKUP_HIT,
     PHRASE_LOOKUP_ERROR,
 } Phrase_Lookup_Result;
 
+Phrasing *phrasing_load(const char *path);
+void phrasing_destroy(Phrasing *phrasing);
+
 Phrase_Lookup_Result phrasing_lookup(
+    const Phrasing *phrasing,
     uint64_t stroke_bits,
     char **out_utf8
 );

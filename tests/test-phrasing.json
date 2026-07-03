@@ -1,0 +1,78 @@
+{
+  "initial_verbs": {
+    "tails": [
+      { "id": "a", "stroke": "-B", "text": "a" },
+      { "id": "the", "stroke": "-T", "text": "the" }
+    ],
+    "stems": [
+      {
+        "stroke": "PW",
+        "forms": [
+          { "stroke": "", "text": "is" },
+          { "stroke": "-D", "text": "was" },
+          { "stroke": "E", "text": "are" },
+          { "stroke": "E-D", "text": "were" }
+        ]
+      },
+      {
+        "stroke": "H",
+        "forms": [
+          { "stroke": "-D", "text": "had" }
+        ]
+      }
+    ]
+  },
+  "nonverbs": {
+    "tails": [
+      { "id": "a", "stroke": "-B", "text": "a" },
+      { "id": "that", "stroke": "-RT", "text": "that" },
+      { "id": "if", "stroke": "-F", "text": "if" },
+      { "id": "though", "stroke": "-GT", "text": "though" },
+      { "id": "else", "stroke": "-F", "text": "else" }
+    ],
+    "prefixes": [
+      { "stroke": "TW", "text": "with", "tails": ["a"] },
+      { "stroke": "TKPWH*", "text": "anything", "tails": ["that", "else"] },
+      { "stroke": "S*", "text": "as", "tails": ["if", "though"] },
+      { "stroke": "SRAO*E", "text": "even", "tails": ["that", "though"] }
+    ]
+  },
+  "final_verbs": {
+    "contraction_stroke": "#",
+    "starters": [
+      { "stroke": "SWR", "text": "I", "agreement": "first_singular", "be_contraction": "I'm", "have_contraction": "I've", "will_contraction": "I'll" },
+      { "stroke": "KPWR", "text": "you", "agreement": "plural", "be_contraction": "you're", "have_contraction": "you've", "will_contraction": "you'll" },
+      { "stroke": "KWHR", "text": "he", "agreement": "third_singular", "be_contraction": "he's", "have_contraction": "he's", "will_contraction": "he'll" },
+      { "stroke": "SKWHR", "text": "she", "agreement": "third_singular", "be_contraction": "she's", "have_contraction": "she's", "will_contraction": "she'll" },
+      { "stroke": "TWH", "text": "they", "agreement": "plural", "be_contraction": "they're", "have_contraction": "they've", "will_contraction": "they'll" }
+    ],
+    "operators": [
+      { "stroke": "", "modal": "none", "negative": false },
+      { "stroke": "*", "modal": "none", "negative": true },
+      { "stroke": "AO", "modal": "will", "negative": false },
+      { "stroke": "AO*", "modal": "will", "negative": true }
+    ],
+    "structures": [
+      { "stroke": "", "kind": "simple" },
+      { "stroke": "E", "kind": "progressive" },
+      { "stroke": "-F", "kind": "perfect" }
+    ],
+    "verbs": [
+      { "id": "be", "base": "be", "third": "is", "past": "was", "present_participle": "being", "past_participle": "been" },
+      { "id": "have", "base": "have", "third": "has", "past": "had", "present_participle": "having", "past_participle": "had" },
+      { "id": "go", "base": "go", "third": "goes", "past": "went", "present_participle": "going", "past_participle": "gone" },
+      { "id": "know", "base": "know", "third": "knows", "past": "knew", "present_participle": "knowing", "past_participle": "known" }
+    ],
+    "enders": [
+      { "stroke": "", "past": false },
+      { "stroke": "-D", "past": true },
+      { "stroke": "-B", "verb": "be", "past": false },
+      { "stroke": "-BD", "verb": "be", "past": true },
+      { "stroke": "-G", "verb": "go", "past": false },
+      { "stroke": "-GD", "verb": "go", "past": true },
+      { "stroke": "-PBT", "verb": "know", "suffix": "that", "past": false },
+      { "stroke": "-T", "verb": "have", "past": false },
+      { "stroke": "-TS", "verb": "have", "suffix": "to", "past": false }
+    ]
+  }
+}

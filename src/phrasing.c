@@ -8,8 +8,110 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "../stb_ds.h"
+#include "../third_party/cjson/cJSON.h"
+
+typedef enum Fv_Agreement {
+    FV_AGREEMENT_FIRST_SINGULAR,
+    FV_AGREEMENT_THIRD_SINGULAR,
+    FV_AGREEMENT_PLURAL,
+} Fv_Agreement;
+
+typedef enum Fv_Modal {
+    FV_MODAL_NONE,
+    FV_MODAL_CAN,
+    FV_MODAL_SHOULD,
+    FV_MODAL_WILL,
+} Fv_Modal;
+
+typedef enum Fv_Structure {
+    FV_STRUCTURE_SIMPLE,
+    FV_STRUCTURE_PROGRESSIVE,
+    FV_STRUCTURE_PERFECT,
+    FV_STRUCTURE_PERFECT_PROGRESSIVE,
+} Fv_Structure;
+
+typedef enum Fv_Verb_Kind {
+    FV_VERB_OTHER,
+    FV_VERB_BE,
+    FV_VERB_HAVE,
+    FV_VERB_DO,
+} Fv_Verb_Kind;
+
+typedef struct Phrase_Form {
+    uint64_t bits;
+    char *text;
+} Phrase_Form;
+
+typedef struct Iv_Stem {
+    uint64_t bits;
+    Phrase_Form *forms;
+} Iv_Stem;
+
+typedef struct Phrase_Tail {
+    char *id;
+    uint64_t bits;
+    char *text;
+} Phrase_Tail;
+
+typedef struct Nv_Prefix {
+    uint64_t bits;
+    char *text;
+    char **tail_ids;
+} Nv_Prefix;
+
+typedef struct Fv_Starter {
+    uint64_t bits;
+    Fv_Agreement agreement;
+    char *text;
+    char *be_contraction;
+    char *have_contraction;
+    char *will_contraction;
+} Fv_Starter;
+
+typedef struct Fv_Operator {
+    uint64_t bits;
+    Fv_Modal modal;
+    bool negative;
+} Fv_Operator;
+
+typedef struct Fv_Structure_Row {
+    uint64_t bits;
+    Fv_Structure structure;
+} Fv_Structure_Row;
+
+typedef struct Fv_Verb {
+    char *id;
+    Fv_Verb_Kind kind;
+    char *base;
+    char *third;
+    char *past;
+    char *present_participle;
+    char *past_participle;
+} Fv_Verb;
+
+typedef struct Fv_Ender {
+    uint64_t bits;
+    char *verb_id;
+    const Fv_Verb *verb;
+    char *suffix;
+    bool past;
+} Fv_Ender;
+
+struct Phrasing {
+    Iv_Stem *iv_stems;
+    Phrase_Tail *iv_tails;
+    Nv_Prefix *nv_prefixes;
+    Phrase_Tail *nv_tails;
+    Fv_Starter *fv_starters;
+    Fv_Operator *fv_operators;
+    Fv_Structure_Row *fv_structures;
+    Fv_Verb *fv_verbs;
+    Fv_Ender *fv_enders;
+    uint64_t contraction_bits;
+};
 
 static bool append_word(char **out, const char *word)
 {
@@ -30,7 +132,7 @@ static Phrase_Lookup_Result copy_phrase_words(const char *first, const char *sec
         arrfree(result);
         return PHRASE_LOOKUP_ERROR;
     }
-    *out_utf8 = copy_cstring(result);
+    *out_utf8 = copy_cstring(result != NULL ? result : "");
     arrfree(result);
     if (*out_utf8 == NULL) {
         return PHRASE_LOOKUP_ERROR;
@@ -38,474 +140,711 @@ static Phrase_Lookup_Result copy_phrase_words(const char *first, const char *sec
     return PHRASE_LOOKUP_HIT;
 }
 
-static const char *iv_object_for_bits(uint64_t bits)
+static bool parse_stroke_string(const char *stroke, uint64_t *out_bits)
 {
-    const uint64_t r = steno_bit(STENO_RIGHT_R);
-    const uint64_t p = steno_bit(STENO_RIGHT_P);
-    const uint64_t b = steno_bit(STENO_RIGHT_B);
-    const uint64_t t = steno_bit(STENO_RIGHT_T);
+    if (stroke == NULL || out_bits == NULL) {
+        return false;
+    }
+    if (stroke[0] == '\0') {
+        *out_bits = 0;
+        return true;
+    }
+    return stroke_string_to_bits(stroke, out_bits);
+}
 
-    if (bits == b) {
-        return "a";
+static void print_json_parse_error(const char *path, const char *file, const char *parse_end)
+{
+    size_t line = 1;
+    size_t column = 1;
+    if (file != NULL && parse_end != NULL) {
+        for (const char *p = file; p < parse_end && *p != '\0'; ++p) {
+            if (*p == '\n') {
+                ++line;
+                column = 1;
+            } else {
+                ++column;
+            }
+        }
     }
-    if (bits == t) {
-        return "the";
+    fprintf(stderr, "stoin: phrasing '%s' has invalid JSON near line %zu, column %zu\n", path, line, column);
+}
+
+static void print_field_error(const char *path, const char *context, const char *field, const char *message)
+{
+    fprintf(stderr, "stoin: phrasing '%s' %s.%s %s\n", path, context, field, message);
+}
+
+static const cJSON *required_object(const cJSON *parent, const char *field, const char *path, const char *context)
+{
+    const cJSON *item = cJSON_GetObjectItemCaseSensitive(parent, field);
+    if (!cJSON_IsObject(item)) {
+        print_field_error(path, context, field, "must be an object");
+        return NULL;
     }
-    if (bits == p) {
-        return "it";
+    return item;
+}
+
+static const cJSON *required_array(const cJSON *parent, const char *field, const char *path, const char *context)
+{
+    const cJSON *item = cJSON_GetObjectItemCaseSensitive(parent, field);
+    if (!cJSON_IsArray(item)) {
+        print_field_error(path, context, field, "must be an array");
+        return NULL;
     }
-    if (bits == (r | t)) {
-        return "that";
+    return item;
+}
+
+static bool copy_optional_string(const cJSON *parent, const char *field, char **out)
+{
+    const cJSON *item = cJSON_GetObjectItemCaseSensitive(parent, field);
+    if (item == NULL || cJSON_IsNull(item)) {
+        *out = NULL;
+        return true;
+    }
+    if (!cJSON_IsString(item) || item->valuestring == NULL) {
+        return false;
+    }
+    *out = copy_cstring(item->valuestring);
+    return *out != NULL;
+}
+
+static bool copy_required_string(const cJSON *parent, const char *field, char **out)
+{
+    const cJSON *item = cJSON_GetObjectItemCaseSensitive(parent, field);
+    if (!cJSON_IsString(item) || item->valuestring == NULL) {
+        return false;
+    }
+    *out = copy_cstring(item->valuestring);
+    return *out != NULL;
+}
+
+static bool parse_required_stroke(
+    const cJSON *parent,
+    const char *field,
+    uint64_t *out_bits,
+    const char *path,
+    const char *context
+)
+{
+    const cJSON *item = cJSON_GetObjectItemCaseSensitive(parent, field);
+    if (!cJSON_IsString(item) || item->valuestring == NULL) {
+        print_field_error(path, context, field, "must be a stroke string");
+        return false;
+    }
+    if (!parse_stroke_string(item->valuestring, out_bits)) {
+        fprintf(stderr, "stoin: phrasing '%s' %s.%s has invalid outline '%s'\n",
+            path, context, field, item->valuestring);
+        return false;
+    }
+    return true;
+}
+
+static bool parse_optional_bool(const cJSON *parent, const char *field, bool default_value, bool *out_value)
+{
+    const cJSON *item = cJSON_GetObjectItemCaseSensitive(parent, field);
+    if (item == NULL) {
+        *out_value = default_value;
+        return true;
+    }
+    if (!cJSON_IsBool(item)) {
+        return false;
+    }
+    *out_value = cJSON_IsTrue(item);
+    return true;
+}
+
+static bool parse_agreement(const char *s, Fv_Agreement *out)
+{
+    if (strcmp(s, "first_singular") == 0) {
+        *out = FV_AGREEMENT_FIRST_SINGULAR;
+        return true;
+    }
+    if (strcmp(s, "third_singular") == 0) {
+        *out = FV_AGREEMENT_THIRD_SINGULAR;
+        return true;
+    }
+    if (strcmp(s, "plural") == 0) {
+        *out = FV_AGREEMENT_PLURAL;
+        return true;
+    }
+    return false;
+}
+
+static bool parse_modal(const char *s, Fv_Modal *out)
+{
+    if (strcmp(s, "none") == 0) {
+        *out = FV_MODAL_NONE;
+        return true;
+    }
+    if (strcmp(s, "can") == 0) {
+        *out = FV_MODAL_CAN;
+        return true;
+    }
+    if (strcmp(s, "should") == 0) {
+        *out = FV_MODAL_SHOULD;
+        return true;
+    }
+    if (strcmp(s, "will") == 0) {
+        *out = FV_MODAL_WILL;
+        return true;
+    }
+    return false;
+}
+
+static bool parse_structure(const char *s, Fv_Structure *out)
+{
+    if (strcmp(s, "simple") == 0) {
+        *out = FV_STRUCTURE_SIMPLE;
+        return true;
+    }
+    if (strcmp(s, "progressive") == 0) {
+        *out = FV_STRUCTURE_PROGRESSIVE;
+        return true;
+    }
+    if (strcmp(s, "perfect") == 0) {
+        *out = FV_STRUCTURE_PERFECT;
+        return true;
+    }
+    if (strcmp(s, "perfect_progressive") == 0) {
+        *out = FV_STRUCTURE_PERFECT_PROGRESSIVE;
+        return true;
+    }
+    return false;
+}
+
+static Fv_Verb_Kind verb_kind_for_id(const char *id)
+{
+    if (strcmp(id, "be") == 0) return FV_VERB_BE;
+    if (strcmp(id, "have") == 0) return FV_VERB_HAVE;
+    if (strcmp(id, "do") == 0) return FV_VERB_DO;
+    return FV_VERB_OTHER;
+}
+
+static const Fv_Verb *find_verb(const Phrasing *phrasing, const char *id)
+{
+    if (id == NULL) {
+        return NULL;
+    }
+    for (size_t i = 0; i < arrlenu(phrasing->fv_verbs); ++i) {
+        if (strcmp(phrasing->fv_verbs[i].id, id) == 0) {
+            return &phrasing->fv_verbs[i];
+        }
     }
     return NULL;
 }
 
-static Phrase_Lookup_Result lookup_initial_verb(uint64_t bits, char **out_utf8)
+static const Phrase_Tail *find_tail(const Phrase_Tail *tails, const char *id)
 {
-    const uint64_t left_mask = steno_bit(STENO_LEFT_S)
-        | steno_bit(STENO_LEFT_T)
-        | steno_bit(STENO_LEFT_K)
-        | steno_bit(STENO_LEFT_P)
-        | steno_bit(STENO_LEFT_W)
-        | steno_bit(STENO_LEFT_H)
-        | steno_bit(STENO_LEFT_R);
-    const uint64_t be_stem = steno_bit(STENO_LEFT_P) | steno_bit(STENO_LEFT_W);
-    const uint64_t have_stem = steno_bit(STENO_LEFT_H);
-    const uint64_t base_flag = steno_bit(STENO_E);
-    const uint64_t past_flag = steno_bit(STENO_RIGHT_D);
-
-    const uint64_t stem_bits = bits & left_mask;
-    const uint64_t right_bits = bits & ~left_mask;
-    const uint64_t flags = right_bits & (base_flag | past_flag);
-    const uint64_t object_bits = right_bits & ~(base_flag | past_flag);
-    const char *object = iv_object_for_bits(object_bits);
-    if (object == NULL) {
-        return PHRASE_LOOKUP_MISS;
-    }
-
-    const char *verb = NULL;
-    if (stem_bits == be_stem) {
-        if (flags == 0) {
-            verb = "is";
-        } else if (flags == past_flag) {
-            verb = "was";
-        } else if (flags == base_flag) {
-            verb = "are";
-        } else if (flags == (base_flag | past_flag)) {
-            verb = "were";
+    for (size_t i = 0; i < arrlenu(tails); ++i) {
+        if (strcmp(tails[i].id, id) == 0) {
+            return &tails[i];
         }
-    } else if (stem_bits == have_stem) {
-        if (flags == 0) {
-            verb = "has";
-        } else if (flags == past_flag) {
-            verb = "had";
-        } else if (flags == base_flag) {
-            verb = "have";
-        }
-    }
-    if (verb == NULL) {
-        return PHRASE_LOOKUP_MISS;
-    }
-
-    return copy_phrase_words(verb, object, out_utf8);
-}
-
-static const char *nv_tail_for_bits(uint64_t bits, uint32_t allowed)
-{
-    enum {
-        NV_TAIL_A = 1u << 0,
-        NV_TAIL_THE = 1u << 1,
-        NV_TAIL_THEM = 1u << 2,
-        NV_TAIL_THAT = 1u << 3,
-        NV_TAIL_IF = 1u << 4,
-        NV_TAIL_THOUGH = 1u << 5,
-        NV_TAIL_ELSE = 1u << 6,
-    };
-
-    const uint64_t f = steno_bit(STENO_RIGHT_F);
-    const uint64_t r = steno_bit(STENO_RIGHT_R);
-    const uint64_t p = steno_bit(STENO_RIGHT_P);
-    const uint64_t b = steno_bit(STENO_RIGHT_B);
-    const uint64_t l = steno_bit(STENO_RIGHT_L);
-    const uint64_t g = steno_bit(STENO_RIGHT_G);
-    const uint64_t t = steno_bit(STENO_RIGHT_T);
-
-    if ((allowed & NV_TAIL_A) != 0 && bits == b) {
-        return "a";
-    }
-    if ((allowed & NV_TAIL_THE) != 0 && bits == t) {
-        return "the";
-    }
-    if ((allowed & NV_TAIL_THEM) != 0 && bits == (p | l | t)) {
-        return "them";
-    }
-    if ((allowed & NV_TAIL_THAT) != 0 && bits == (r | t)) {
-        return "that";
-    }
-    if ((allowed & NV_TAIL_IF) != 0 && bits == f) {
-        return "if";
-    }
-    if ((allowed & NV_TAIL_THOUGH) != 0 && bits == (g | t)) {
-        return "though";
-    }
-    if ((allowed & NV_TAIL_ELSE) != 0 && bits == f) {
-        return "else";
     }
     return NULL;
 }
 
-static Phrase_Lookup_Result lookup_nonverb(uint64_t bits, char **out_utf8)
+static bool parse_phrase_form_array(
+    Phrase_Form **out_forms,
+    const cJSON *array,
+    const char *path,
+    const char *context
+)
 {
-    enum {
-        NV_TAIL_A = 1u << 0,
-        NV_TAIL_THE = 1u << 1,
-        NV_TAIL_THEM = 1u << 2,
-        NV_TAIL_THAT = 1u << 3,
-        NV_TAIL_IF = 1u << 4,
-        NV_TAIL_THOUGH = 1u << 5,
-        NV_TAIL_ELSE = 1u << 6,
-    };
-
-    const uint64_t prefix_mask = steno_bit(STENO_LEFT_S)
-        | steno_bit(STENO_LEFT_T)
-        | steno_bit(STENO_LEFT_K)
-        | steno_bit(STENO_LEFT_P)
-        | steno_bit(STENO_LEFT_W)
-        | steno_bit(STENO_LEFT_H)
-        | steno_bit(STENO_LEFT_R)
-        | steno_bit(STENO_A)
-        | steno_bit(STENO_O)
-        | steno_bit(STENO_STAR)
-        | steno_bit(STENO_E)
-        | steno_bit(STENO_U);
-    const uint64_t s = steno_bit(STENO_LEFT_S);
-    const uint64_t t = steno_bit(STENO_LEFT_T);
-    const uint64_t k = steno_bit(STENO_LEFT_K);
-    const uint64_t p = steno_bit(STENO_LEFT_P);
-    const uint64_t w = steno_bit(STENO_LEFT_W);
-    const uint64_t h = steno_bit(STENO_LEFT_H);
-    const uint64_t r = steno_bit(STENO_LEFT_R);
-    const uint64_t a = steno_bit(STENO_A);
-    const uint64_t o = steno_bit(STENO_O);
-    const uint64_t star = steno_bit(STENO_STAR);
-    const uint64_t e = steno_bit(STENO_E);
-
-    const struct {
-        uint64_t bits;
-        const char *word;
-        uint32_t allowed_tails;
-    } prefixes[] = {
-        { t | w, "with", NV_TAIL_A | NV_TAIL_THE | NV_TAIL_THEM | NV_TAIL_THAT },
-        { t | k | p | w | h | star, "anything", NV_TAIL_THAT | NV_TAIL_ELSE },
-        { s | star, "as", NV_TAIL_IF | NV_TAIL_THOUGH },
-        { s | r | a | o | star | e, "even", NV_TAIL_A | NV_TAIL_THAT | NV_TAIL_IF | NV_TAIL_THOUGH },
-    };
-
-    const uint64_t prefix_bits = bits & prefix_mask;
-    const uint64_t tail_bits = bits & ~prefix_mask;
-    for (size_t i = 0; i < sizeof(prefixes) / sizeof(prefixes[0]); ++i) {
-        if (prefix_bits != prefixes[i].bits) {
-            continue;
+    const cJSON *item = NULL;
+    size_t index = 0;
+    cJSON_ArrayForEach(item, array) {
+        char item_context[128] = {0};
+        snprintf(item_context, sizeof(item_context), "%s[%zu]", context, index);
+        if (!cJSON_IsObject(item)) {
+            fprintf(stderr, "stoin: phrasing '%s' %s must be an object\n", path, item_context);
+            return false;
         }
-        const char *tail = nv_tail_for_bits(tail_bits, prefixes[i].allowed_tails);
-        if (tail == NULL) {
-            return PHRASE_LOOKUP_MISS;
+
+        Phrase_Form form = {0};
+        if (!parse_required_stroke(item, "stroke", &form.bits, path, item_context)) {
+            return false;
         }
-        return copy_phrase_words(prefixes[i].word, tail, out_utf8);
+        if (!copy_required_string(item, "text", &form.text)) {
+            print_field_error(path, item_context, "text", "must be a string");
+            return false;
+        }
+        arrput(*out_forms, form);
+        ++index;
+    }
+    return true;
+}
+
+static bool parse_tail_array(Phrase_Tail **out_tails, const cJSON *array, const char *path, const char *context)
+{
+    const cJSON *item = NULL;
+    size_t index = 0;
+    cJSON_ArrayForEach(item, array) {
+        char item_context[128] = {0};
+        snprintf(item_context, sizeof(item_context), "%s[%zu]", context, index);
+        if (!cJSON_IsObject(item)) {
+            fprintf(stderr, "stoin: phrasing '%s' %s must be an object\n", path, item_context);
+            return false;
+        }
+
+        Phrase_Tail tail = {0};
+        if (!copy_required_string(item, "id", &tail.id)) {
+            print_field_error(path, item_context, "id", "must be a string");
+            return false;
+        }
+        if (!parse_required_stroke(item, "stroke", &tail.bits, path, item_context)) {
+            free(tail.id);
+            return false;
+        }
+        if (!copy_required_string(item, "text", &tail.text)) {
+            print_field_error(path, item_context, "text", "must be a string");
+            free(tail.id);
+            return false;
+        }
+        arrput(*out_tails, tail);
+        ++index;
+    }
+    return true;
+}
+
+static bool parse_initial_verbs(Phrasing *phrasing, const cJSON *root, const char *path)
+{
+    const cJSON *section = required_object(root, "initial_verbs", path, "root");
+    if (section == NULL) {
+        return false;
+    }
+
+    const cJSON *tails = required_array(section, "tails", path, "initial_verbs");
+    const cJSON *stems = required_array(section, "stems", path, "initial_verbs");
+    if (tails == NULL || stems == NULL || !parse_tail_array(&phrasing->iv_tails, tails, path, "initial_verbs.tails")) {
+        return false;
+    }
+
+    const cJSON *item = NULL;
+    size_t index = 0;
+    cJSON_ArrayForEach(item, stems) {
+        char context[128] = {0};
+        snprintf(context, sizeof(context), "initial_verbs.stems[%zu]", index);
+        if (!cJSON_IsObject(item)) {
+            fprintf(stderr, "stoin: phrasing '%s' %s must be an object\n", path, context);
+            return false;
+        }
+
+        Iv_Stem stem = {0};
+        if (!parse_required_stroke(item, "stroke", &stem.bits, path, context)) {
+            return false;
+        }
+
+        const cJSON *forms = required_array(item, "forms", path, context);
+        if (forms == NULL || !parse_phrase_form_array(&stem.forms, forms, path, "initial_verbs.forms")) {
+            return false;
+        }
+        arrput(phrasing->iv_stems, stem);
+        ++index;
+    }
+
+    return true;
+}
+
+static bool parse_nonverbs(Phrasing *phrasing, const cJSON *root, const char *path)
+{
+    const cJSON *section = required_object(root, "nonverbs", path, "root");
+    if (section == NULL) {
+        return false;
+    }
+
+    const cJSON *tails = required_array(section, "tails", path, "nonverbs");
+    const cJSON *prefixes = required_array(section, "prefixes", path, "nonverbs");
+    if (tails == NULL || prefixes == NULL || !parse_tail_array(&phrasing->nv_tails, tails, path, "nonverbs.tails")) {
+        return false;
+    }
+
+    const cJSON *item = NULL;
+    size_t index = 0;
+    cJSON_ArrayForEach(item, prefixes) {
+        char context[128] = {0};
+        snprintf(context, sizeof(context), "nonverbs.prefixes[%zu]", index);
+        if (!cJSON_IsObject(item)) {
+            fprintf(stderr, "stoin: phrasing '%s' %s must be an object\n", path, context);
+            return false;
+        }
+
+        Nv_Prefix prefix = {0};
+        if (!parse_required_stroke(item, "stroke", &prefix.bits, path, context)) {
+            return false;
+        }
+        if (!copy_required_string(item, "text", &prefix.text)) {
+            print_field_error(path, context, "text", "must be a string");
+            return false;
+        }
+        const cJSON *tail_ids = required_array(item, "tails", path, context);
+        if (tail_ids == NULL) {
+            free(prefix.text);
+            return false;
+        }
+        const cJSON *tail_id = NULL;
+        cJSON_ArrayForEach(tail_id, tail_ids) {
+            if (!cJSON_IsString(tail_id) || tail_id->valuestring == NULL) {
+                fprintf(stderr, "stoin: phrasing '%s' %s.tails values must be strings\n", path, context);
+                free(prefix.text);
+                return false;
+            }
+            if (find_tail(phrasing->nv_tails, tail_id->valuestring) == NULL) {
+                fprintf(stderr, "stoin: phrasing '%s' %s.tails references unknown tail '%s'\n",
+                    path, context, tail_id->valuestring);
+                free(prefix.text);
+                return false;
+            }
+            char *copy = copy_cstring(tail_id->valuestring);
+            if (copy == NULL) {
+                free(prefix.text);
+                return false;
+            }
+            arrput(prefix.tail_ids, copy);
+        }
+        arrput(phrasing->nv_prefixes, prefix);
+        ++index;
+    }
+
+    return true;
+}
+
+static bool parse_fv_starters(Phrasing *phrasing, const cJSON *array, const char *path)
+{
+    const cJSON *item = NULL;
+    size_t index = 0;
+    cJSON_ArrayForEach(item, array) {
+        char context[128] = {0};
+        snprintf(context, sizeof(context), "final_verbs.starters[%zu]", index);
+        if (!cJSON_IsObject(item)) {
+            fprintf(stderr, "stoin: phrasing '%s' %s must be an object\n", path, context);
+            return false;
+        }
+
+        Fv_Starter starter = {0};
+        if (!parse_required_stroke(item, "stroke", &starter.bits, path, context)) {
+            return false;
+        }
+        if (!copy_required_string(item, "text", &starter.text)) {
+            print_field_error(path, context, "text", "must be a string");
+            return false;
+        }
+        char *agreement = NULL;
+        if (!copy_required_string(item, "agreement", &agreement) || !parse_agreement(agreement, &starter.agreement)) {
+            print_field_error(path, context, "agreement", "must be first_singular, third_singular, or plural");
+            free(agreement);
+            free(starter.text);
+            return false;
+        }
+        free(agreement);
+
+        if (!copy_optional_string(item, "be_contraction", &starter.be_contraction)
+            || !copy_optional_string(item, "have_contraction", &starter.have_contraction)
+            || !copy_optional_string(item, "will_contraction", &starter.will_contraction)) {
+            fprintf(stderr, "stoin: phrasing '%s' %s contraction fields must be strings\n", path, context);
+            free(starter.text);
+            free(starter.be_contraction);
+            free(starter.have_contraction);
+            free(starter.will_contraction);
+            return false;
+        }
+
+        arrput(phrasing->fv_starters, starter);
+        ++index;
+    }
+    return true;
+}
+
+static bool parse_fv_operators(Phrasing *phrasing, const cJSON *array, const char *path)
+{
+    const cJSON *item = NULL;
+    size_t index = 0;
+    cJSON_ArrayForEach(item, array) {
+        char context[128] = {0};
+        snprintf(context, sizeof(context), "final_verbs.operators[%zu]", index);
+        if (!cJSON_IsObject(item)) {
+            fprintf(stderr, "stoin: phrasing '%s' %s must be an object\n", path, context);
+            return false;
+        }
+
+        Fv_Operator operator = {0};
+        if (!parse_required_stroke(item, "stroke", &operator.bits, path, context)) {
+            return false;
+        }
+        char *modal = NULL;
+        if (!copy_required_string(item, "modal", &modal) || !parse_modal(modal, &operator.modal)) {
+            print_field_error(path, context, "modal", "must be none, can, should, or will");
+            free(modal);
+            return false;
+        }
+        free(modal);
+        if (!parse_optional_bool(item, "negative", false, &operator.negative)) {
+            print_field_error(path, context, "negative", "must be true or false");
+            return false;
+        }
+        arrput(phrasing->fv_operators, operator);
+        ++index;
+    }
+    return true;
+}
+
+static bool parse_fv_structures(Phrasing *phrasing, const cJSON *array, const char *path)
+{
+    const cJSON *item = NULL;
+    size_t index = 0;
+    cJSON_ArrayForEach(item, array) {
+        char context[128] = {0};
+        snprintf(context, sizeof(context), "final_verbs.structures[%zu]", index);
+        if (!cJSON_IsObject(item)) {
+            fprintf(stderr, "stoin: phrasing '%s' %s must be an object\n", path, context);
+            return false;
+        }
+
+        Fv_Structure_Row row = {0};
+        if (!parse_required_stroke(item, "stroke", &row.bits, path, context)) {
+            return false;
+        }
+        char *kind = NULL;
+        if (!copy_required_string(item, "kind", &kind) || !parse_structure(kind, &row.structure)) {
+            print_field_error(path, context, "kind", "must be simple, progressive, perfect, or perfect_progressive");
+            free(kind);
+            return false;
+        }
+        free(kind);
+        arrput(phrasing->fv_structures, row);
+        ++index;
+    }
+    return true;
+}
+
+static bool parse_fv_verbs(Phrasing *phrasing, const cJSON *array, const char *path)
+{
+    const cJSON *item = NULL;
+    size_t index = 0;
+    cJSON_ArrayForEach(item, array) {
+        char context[128] = {0};
+        snprintf(context, sizeof(context), "final_verbs.verbs[%zu]", index);
+        if (!cJSON_IsObject(item)) {
+            fprintf(stderr, "stoin: phrasing '%s' %s must be an object\n", path, context);
+            return false;
+        }
+
+        Fv_Verb verb = {0};
+        if (!copy_required_string(item, "id", &verb.id)
+            || !copy_required_string(item, "base", &verb.base)
+            || !copy_required_string(item, "third", &verb.third)
+            || !copy_required_string(item, "past", &verb.past)
+            || !copy_required_string(item, "present_participle", &verb.present_participle)
+            || !copy_required_string(item, "past_participle", &verb.past_participle)) {
+            fprintf(stderr, "stoin: phrasing '%s' %s verb fields must be strings\n", path, context);
+            free(verb.id);
+            free(verb.base);
+            free(verb.third);
+            free(verb.past);
+            free(verb.present_participle);
+            free(verb.past_participle);
+            return false;
+        }
+        verb.kind = verb_kind_for_id(verb.id);
+        arrput(phrasing->fv_verbs, verb);
+        ++index;
+    }
+    return true;
+}
+
+static bool parse_fv_enders(Phrasing *phrasing, const cJSON *array, const char *path)
+{
+    const cJSON *item = NULL;
+    size_t index = 0;
+    cJSON_ArrayForEach(item, array) {
+        char context[128] = {0};
+        snprintf(context, sizeof(context), "final_verbs.enders[%zu]", index);
+        if (!cJSON_IsObject(item)) {
+            fprintf(stderr, "stoin: phrasing '%s' %s must be an object\n", path, context);
+            return false;
+        }
+
+        Fv_Ender ender = {0};
+        if (!parse_required_stroke(item, "stroke", &ender.bits, path, context)) {
+            return false;
+        }
+        if (!copy_optional_string(item, "verb", &ender.verb_id)
+            || !copy_optional_string(item, "suffix", &ender.suffix)) {
+            fprintf(stderr, "stoin: phrasing '%s' %s verb and suffix must be strings or null\n", path, context);
+            free(ender.verb_id);
+            free(ender.suffix);
+            return false;
+        }
+        if (!parse_optional_bool(item, "past", false, &ender.past)) {
+            print_field_error(path, context, "past", "must be true or false");
+            free(ender.verb_id);
+            free(ender.suffix);
+            return false;
+        }
+        ender.verb = find_verb(phrasing, ender.verb_id);
+        if (ender.verb_id != NULL && ender.verb == NULL) {
+            fprintf(stderr, "stoin: phrasing '%s' %s references unknown verb '%s'\n", path, context, ender.verb_id);
+            free(ender.verb_id);
+            free(ender.suffix);
+            return false;
+        }
+
+        arrput(phrasing->fv_enders, ender);
+        ++index;
+    }
+    return true;
+}
+
+static bool parse_final_verbs(Phrasing *phrasing, const cJSON *root, const char *path)
+{
+    const cJSON *section = required_object(root, "final_verbs", path, "root");
+    if (section == NULL) {
+        return false;
+    }
+
+    if (!parse_required_stroke(section, "contraction_stroke", &phrasing->contraction_bits, path, "final_verbs")) {
+        return false;
+    }
+
+    const cJSON *starters = required_array(section, "starters", path, "final_verbs");
+    const cJSON *operators = required_array(section, "operators", path, "final_verbs");
+    const cJSON *structures = required_array(section, "structures", path, "final_verbs");
+    const cJSON *verbs = required_array(section, "verbs", path, "final_verbs");
+    const cJSON *enders = required_array(section, "enders", path, "final_verbs");
+    return starters != NULL && operators != NULL && structures != NULL && verbs != NULL && enders != NULL
+        && parse_fv_starters(phrasing, starters, path)
+        && parse_fv_operators(phrasing, operators, path)
+        && parse_fv_structures(phrasing, structures, path)
+        && parse_fv_verbs(phrasing, verbs, path)
+        && parse_fv_enders(phrasing, enders, path);
+}
+
+Phrasing *phrasing_load(const char *path)
+{
+    size_t size = 0;
+    char *file = read_entire_file(path, &size);
+    if (file == NULL) {
+        fprintf(stderr, "stoin: failed to read phrasing '%s'\n", path);
+        return NULL;
+    }
+
+    const char *parse_end = NULL;
+    cJSON *root = cJSON_ParseWithLengthOpts(file, size, &parse_end, 0);
+    if (root == NULL) {
+        print_json_parse_error(path, file, parse_end);
+        free(file);
+        return NULL;
+    }
+    if (!cJSON_IsObject(root)) {
+        fprintf(stderr, "stoin: phrasing '%s' is not a JSON object\n", path);
+        cJSON_Delete(root);
+        free(file);
+        return NULL;
+    }
+
+    Phrasing *phrasing = calloc(1, sizeof(*phrasing));
+    if (phrasing == NULL) {
+        cJSON_Delete(root);
+        free(file);
+        return NULL;
+    }
+
+    const bool ok = parse_initial_verbs(phrasing, root, path)
+        && parse_nonverbs(phrasing, root, path)
+        && parse_final_verbs(phrasing, root, path);
+    cJSON_Delete(root);
+    free(file);
+    if (!ok) {
+        phrasing_destroy(phrasing);
+        return NULL;
+    }
+    return phrasing;
+}
+
+void phrasing_destroy(Phrasing *phrasing)
+{
+    if (phrasing == NULL) {
+        return;
+    }
+    for (size_t i = 0; i < arrlenu(phrasing->iv_stems); ++i) {
+        for (size_t j = 0; j < arrlenu(phrasing->iv_stems[i].forms); ++j) {
+            free(phrasing->iv_stems[i].forms[j].text);
+        }
+        arrfree(phrasing->iv_stems[i].forms);
+    }
+    arrfree(phrasing->iv_stems);
+    for (size_t i = 0; i < arrlenu(phrasing->iv_tails); ++i) {
+        free(phrasing->iv_tails[i].id);
+        free(phrasing->iv_tails[i].text);
+    }
+    arrfree(phrasing->iv_tails);
+    for (size_t i = 0; i < arrlenu(phrasing->nv_prefixes); ++i) {
+        free(phrasing->nv_prefixes[i].text);
+        for (size_t j = 0; j < arrlenu(phrasing->nv_prefixes[i].tail_ids); ++j) {
+            free(phrasing->nv_prefixes[i].tail_ids[j]);
+        }
+        arrfree(phrasing->nv_prefixes[i].tail_ids);
+    }
+    arrfree(phrasing->nv_prefixes);
+    for (size_t i = 0; i < arrlenu(phrasing->nv_tails); ++i) {
+        free(phrasing->nv_tails[i].id);
+        free(phrasing->nv_tails[i].text);
+    }
+    arrfree(phrasing->nv_tails);
+    for (size_t i = 0; i < arrlenu(phrasing->fv_starters); ++i) {
+        free(phrasing->fv_starters[i].text);
+        free(phrasing->fv_starters[i].be_contraction);
+        free(phrasing->fv_starters[i].have_contraction);
+        free(phrasing->fv_starters[i].will_contraction);
+    }
+    arrfree(phrasing->fv_starters);
+    arrfree(phrasing->fv_operators);
+    arrfree(phrasing->fv_structures);
+    for (size_t i = 0; i < arrlenu(phrasing->fv_verbs); ++i) {
+        free(phrasing->fv_verbs[i].id);
+        free(phrasing->fv_verbs[i].base);
+        free(phrasing->fv_verbs[i].third);
+        free(phrasing->fv_verbs[i].past);
+        free(phrasing->fv_verbs[i].present_participle);
+        free(phrasing->fv_verbs[i].past_participle);
+    }
+    arrfree(phrasing->fv_verbs);
+    for (size_t i = 0; i < arrlenu(phrasing->fv_enders); ++i) {
+        free(phrasing->fv_enders[i].verb_id);
+        free(phrasing->fv_enders[i].suffix);
+    }
+    arrfree(phrasing->fv_enders);
+    free(phrasing);
+}
+
+static Phrase_Lookup_Result lookup_initial_verb(const Phrasing *phrasing, uint64_t bits, char **out_utf8)
+{
+    for (size_t i = 0; i < arrlenu(phrasing->iv_stems); ++i) {
+        const Iv_Stem *stem = &phrasing->iv_stems[i];
+        for (size_t j = 0; j < arrlenu(stem->forms); ++j) {
+            const Phrase_Form *form = &stem->forms[j];
+            for (size_t k = 0; k < arrlenu(phrasing->iv_tails); ++k) {
+                const Phrase_Tail *tail = &phrasing->iv_tails[k];
+                if (bits == (stem->bits | form->bits | tail->bits)) {
+                    return copy_phrase_words(form->text, tail->text, out_utf8);
+                }
+            }
+        }
     }
     return PHRASE_LOOKUP_MISS;
 }
 
-typedef enum Fv_Starter_Id {
-    FV_STARTER_I,
-    FV_STARTER_YOU,
-    FV_STARTER_HE,
-    FV_STARTER_SHE,
-    FV_STARTER_IT,
-    FV_STARTER_WE,
-    FV_STARTER_THEY,
-} Fv_Starter_Id;
-
-typedef enum Fv_Agreement {
-    FV_AGREEMENT_FIRST_SINGULAR,
-    FV_AGREEMENT_THIRD_SINGULAR,
-    FV_AGREEMENT_PLURAL,
-} Fv_Agreement;
-
-typedef struct Fv_Starter {
-    Fv_Starter_Id id;
-    Fv_Agreement agreement;
-    const char *text;
-} Fv_Starter;
-
-typedef enum Fv_Modal {
-    FV_MODAL_NONE,
-    FV_MODAL_CAN,
-    FV_MODAL_SHOULD,
-    FV_MODAL_WILL,
-} Fv_Modal;
-
-typedef struct Fv_Operator {
-    Fv_Modal modal;
-    bool negative;
-} Fv_Operator;
-
-typedef enum Fv_Structure {
-    FV_STRUCTURE_SIMPLE,
-    FV_STRUCTURE_PROGRESSIVE,
-    FV_STRUCTURE_PERFECT,
-    FV_STRUCTURE_PERFECT_PROGRESSIVE,
-} Fv_Structure;
-
-typedef enum Fv_Verb_Id {
-    FV_VERB_NONE,
-    FV_VERB_BE,
-    FV_VERB_HAVE,
-    FV_VERB_DO,
-    FV_VERB_GO,
-    FV_VERB_KNOW,
-    FV_VERB_THINK,
-    FV_VERB_WANT,
-    FV_VERB_NEED,
-    FV_VERB_SEE,
-    FV_VERB_SAY,
-    FV_VERB_GET,
-    FV_VERB_FIND,
-    FV_VERB_TRY,
-} Fv_Verb_Id;
-
-typedef struct Fv_Verb {
-    Fv_Verb_Id id;
-    const char *base;
-    const char *third;
-    const char *past;
-    const char *present_participle;
-    const char *past_participle;
-} Fv_Verb;
-
-typedef struct Fv_Ender {
-    const Fv_Verb *verb;
-    const char *suffix;
-    bool past;
-} Fv_Ender;
-
-static const Fv_Verb FV_VERBS[] = {
-    { FV_VERB_NONE, NULL, NULL, NULL, NULL, NULL },
-    { FV_VERB_BE, "be", "is", "was", "being", "been" },
-    { FV_VERB_HAVE, "have", "has", "had", "having", "had" },
-    { FV_VERB_DO, "do", "does", "did", "doing", "done" },
-    { FV_VERB_GO, "go", "goes", "went", "going", "gone" },
-    { FV_VERB_KNOW, "know", "knows", "knew", "knowing", "known" },
-    { FV_VERB_THINK, "think", "thinks", "thought", "thinking", "thought" },
-    { FV_VERB_WANT, "want", "wants", "wanted", "wanting", "wanted" },
-    { FV_VERB_NEED, "need", "needs", "needed", "needing", "needed" },
-    { FV_VERB_SEE, "see", "sees", "saw", "seeing", "seen" },
-    { FV_VERB_SAY, "say", "says", "said", "saying", "said" },
-    { FV_VERB_GET, "get", "gets", "got", "getting", "gotten" },
-    { FV_VERB_FIND, "find", "finds", "found", "finding", "found" },
-    { FV_VERB_TRY, "try", "tries", "tried", "trying", "tried" },
-};
-
-static const Fv_Verb *fv_verb(Fv_Verb_Id id)
+static Phrase_Lookup_Result lookup_nonverb(const Phrasing *phrasing, uint64_t bits, char **out_utf8)
 {
-    for (size_t i = 0; i < sizeof(FV_VERBS) / sizeof(FV_VERBS[0]); ++i) {
-        if (FV_VERBS[i].id == id) {
-            return &FV_VERBS[i];
-        }
-    }
-    return &FV_VERBS[0];
-}
-
-static bool fv_starter_lookup(uint64_t bits, Fv_Starter *out_starter)
-{
-    const uint64_t s = steno_bit(STENO_LEFT_S);
-    const uint64_t t = steno_bit(STENO_LEFT_T);
-    const uint64_t k = steno_bit(STENO_LEFT_K);
-    const uint64_t p = steno_bit(STENO_LEFT_P);
-    const uint64_t w = steno_bit(STENO_LEFT_W);
-    const uint64_t h = steno_bit(STENO_LEFT_H);
-    const uint64_t r = steno_bit(STENO_LEFT_R);
-
-    if (bits == (s | w | r)) {
-        *out_starter = (Fv_Starter){ FV_STARTER_I, FV_AGREEMENT_FIRST_SINGULAR, "I" };
-        return true;
-    }
-    if (bits == (k | p | w | r)) {
-        *out_starter = (Fv_Starter){ FV_STARTER_YOU, FV_AGREEMENT_PLURAL, "you" };
-        return true;
-    }
-    if (bits == (k | w | h | r)) {
-        *out_starter = (Fv_Starter){ FV_STARTER_HE, FV_AGREEMENT_THIRD_SINGULAR, "he" };
-        return true;
-    }
-    if (bits == (s | k | w | h | r)) {
-        *out_starter = (Fv_Starter){ FV_STARTER_SHE, FV_AGREEMENT_THIRD_SINGULAR, "she" };
-        return true;
-    }
-    if (bits == (k | p | w | h)) {
-        *out_starter = (Fv_Starter){ FV_STARTER_IT, FV_AGREEMENT_THIRD_SINGULAR, "it" };
-        return true;
-    }
-    if (bits == (t | w | r)) {
-        *out_starter = (Fv_Starter){ FV_STARTER_WE, FV_AGREEMENT_PLURAL, "we" };
-        return true;
-    }
-    if (bits == (t | w | h)) {
-        *out_starter = (Fv_Starter){ FV_STARTER_THEY, FV_AGREEMENT_PLURAL, "they" };
-        return true;
-    }
-    return false;
-}
-
-static bool fv_operator_lookup(uint64_t bits, Fv_Operator *out_operator)
-{
-    const uint64_t a = steno_bit(STENO_A);
-    const uint64_t o = steno_bit(STENO_O);
-    const uint64_t star = steno_bit(STENO_STAR);
-
-    if (bits == 0) {
-        *out_operator = (Fv_Operator){ FV_MODAL_NONE, false };
-        return true;
-    }
-    if (bits == star) {
-        *out_operator = (Fv_Operator){ FV_MODAL_NONE, true };
-        return true;
-    }
-    if (bits == a) {
-        *out_operator = (Fv_Operator){ FV_MODAL_CAN, false };
-        return true;
-    }
-    if (bits == (a | star)) {
-        *out_operator = (Fv_Operator){ FV_MODAL_CAN, true };
-        return true;
-    }
-    if (bits == o) {
-        *out_operator = (Fv_Operator){ FV_MODAL_SHOULD, false };
-        return true;
-    }
-    if (bits == (o | star)) {
-        *out_operator = (Fv_Operator){ FV_MODAL_SHOULD, true };
-        return true;
-    }
-    if (bits == (a | o)) {
-        *out_operator = (Fv_Operator){ FV_MODAL_WILL, false };
-        return true;
-    }
-    if (bits == (a | o | star)) {
-        *out_operator = (Fv_Operator){ FV_MODAL_WILL, true };
-        return true;
-    }
-    return false;
-}
-
-static bool fv_structure_lookup(uint64_t bits, Fv_Structure *out_structure)
-{
-    const uint64_t e = steno_bit(STENO_E);
-    const uint64_t f = steno_bit(STENO_RIGHT_F);
-
-    if (bits == 0) {
-        *out_structure = FV_STRUCTURE_SIMPLE;
-        return true;
-    }
-    if (bits == e) {
-        *out_structure = FV_STRUCTURE_PROGRESSIVE;
-        return true;
-    }
-    if (bits == f) {
-        *out_structure = FV_STRUCTURE_PERFECT;
-        return true;
-    }
-    if (bits == (e | f)) {
-        *out_structure = FV_STRUCTURE_PERFECT_PROGRESSIVE;
-        return true;
-    }
-    return false;
-}
-
-typedef struct Fv_Ender_Row {
-    const char *stroke;
-    Fv_Verb_Id verb_id;
-    const char *suffix;
-    bool past;
-} Fv_Ender_Row;
-
-static bool fv_ender_lookup(uint64_t bits, Fv_Ender *out_ender)
-{
-    static const Fv_Ender_Row rows[] = {
-        { "", FV_VERB_NONE, NULL, false },
-        { "D", FV_VERB_NONE, NULL, true },
-        { "B", FV_VERB_BE, NULL, false },
-        { "BD", FV_VERB_BE, NULL, true },
-        { "BT", FV_VERB_BE, "a", false },
-        { "BTD", FV_VERB_BE, "a", true },
-        { "T", FV_VERB_HAVE, NULL, false },
-        { "TD", FV_VERB_HAVE, NULL, true },
-        { "TS", FV_VERB_HAVE, "to", false },
-        { "TSDZ", FV_VERB_HAVE, "to", true },
-        { "RP", FV_VERB_DO, NULL, false },
-        { "RPD", FV_VERB_DO, NULL, true },
-        { "RPT", FV_VERB_DO, "it", false },
-        { "RPTD", FV_VERB_DO, "it", true },
-        { "G", FV_VERB_GO, NULL, false },
-        { "GD", FV_VERB_GO, NULL, true },
-        { "GT", FV_VERB_GO, "to", false },
-        { "GTD", FV_VERB_GO, "to", true },
-        { "PB", FV_VERB_KNOW, NULL, false },
-        { "PBD", FV_VERB_KNOW, NULL, true },
-        { "PBT", FV_VERB_KNOW, "that", false },
-        { "PBTD", FV_VERB_KNOW, "that", true },
-        { "PBG", FV_VERB_THINK, NULL, false },
-        { "PBGD", FV_VERB_THINK, NULL, true },
-        { "PBGT", FV_VERB_THINK, "that", false },
-        { "PBGTD", FV_VERB_THINK, "that", true },
-        { "P", FV_VERB_WANT, NULL, false },
-        { "PD", FV_VERB_WANT, NULL, true },
-        { "PT", FV_VERB_WANT, "to", false },
-        { "PTD", FV_VERB_WANT, "to", true },
-        { "RPG", FV_VERB_NEED, NULL, false },
-        { "RPGD", FV_VERB_NEED, NULL, true },
-        { "RPGT", FV_VERB_NEED, "to", false },
-        { "RPGTD", FV_VERB_NEED, "to", true },
-        { "S", FV_VERB_SEE, NULL, false },
-        { "SZ", FV_VERB_SEE, NULL, true },
-        { "BS", FV_VERB_SAY, NULL, false },
-        { "BSZ", FV_VERB_SAY, NULL, true },
-        { "BTS", FV_VERB_SAY, "that", false },
-        { "BTSDZ", FV_VERB_SAY, "that", true },
-        { "GS", FV_VERB_GET, NULL, false },
-        { "GSZ", FV_VERB_GET, NULL, true },
-        { "GTS", FV_VERB_GET, "to", false },
-        { "GTSDZ", FV_VERB_GET, "to", true },
-        { "PBLG", FV_VERB_FIND, NULL, false },
-        { "PBLGD", FV_VERB_FIND, NULL, true },
-        { "PBLGT", FV_VERB_FIND, "that", false },
-        { "PBLGTD", FV_VERB_FIND, "that", true },
-        { "RT", FV_VERB_TRY, NULL, false },
-        { "RTD", FV_VERB_TRY, NULL, true },
-        { "RTS", FV_VERB_TRY, "to", false },
-        { "RTSDZ", FV_VERB_TRY, "to", true },
-    };
-
-    for (size_t i = 0; i < sizeof(rows) / sizeof(rows[0]); ++i) {
-        uint64_t row_bits = 0;
-        if (rows[i].stroke[0] != '\0') {
-            char outline[16] = {0};
-            if (snprintf(outline, sizeof(outline), "-%s", rows[i].stroke) <= 0
-                || !stroke_string_to_bits(outline, &row_bits)) {
-                return false;
+    for (size_t i = 0; i < arrlenu(phrasing->nv_prefixes); ++i) {
+        const Nv_Prefix *prefix = &phrasing->nv_prefixes[i];
+        for (size_t j = 0; j < arrlenu(prefix->tail_ids); ++j) {
+            const Phrase_Tail *tail = find_tail(phrasing->nv_tails, prefix->tail_ids[j]);
+            if (tail != NULL && bits == (prefix->bits | tail->bits)) {
+                return copy_phrase_words(prefix->text, tail->text, out_utf8);
             }
         }
-
-        if (bits == row_bits) {
-            *out_ender = (Fv_Ender){
-                .verb = fv_verb(rows[i].verb_id),
-                .suffix = rows[i].suffix,
-                .past = rows[i].past,
-            };
-            return true;
-        }
     }
-    return false;
+    return PHRASE_LOOKUP_MISS;
 }
 
 static const char *fv_be_word(const Fv_Starter *starter, bool past)
@@ -537,13 +876,13 @@ static const char *fv_do_word(const Fv_Starter *starter, bool past)
 
 static const char *fv_finite_verb_word(const Fv_Starter *starter, const Fv_Verb *verb, bool past)
 {
-    if (verb->id == FV_VERB_BE) {
+    if (verb->kind == FV_VERB_BE) {
         return fv_be_word(starter, past);
     }
-    if (verb->id == FV_VERB_HAVE) {
+    if (verb->kind == FV_VERB_HAVE) {
         return fv_have_word(starter, past);
     }
-    if (verb->id == FV_VERB_DO) {
+    if (verb->kind == FV_VERB_DO) {
         return fv_do_word(starter, past);
     }
     if (past) {
@@ -588,48 +927,6 @@ static const char *fv_modal_negative_contraction(Fv_Modal modal, bool past)
     }
 }
 
-static const char *fv_will_contraction(const Fv_Starter *starter)
-{
-    switch (starter->id) {
-    case FV_STARTER_I: return "I'll";
-    case FV_STARTER_YOU: return "you'll";
-    case FV_STARTER_HE: return "he'll";
-    case FV_STARTER_SHE: return "she'll";
-    case FV_STARTER_IT: return "it'll";
-    case FV_STARTER_WE: return "we'll";
-    case FV_STARTER_THEY: return "they'll";
-    default: return NULL;
-    }
-}
-
-static const char *fv_be_contraction(const Fv_Starter *starter)
-{
-    switch (starter->id) {
-    case FV_STARTER_I: return "I'm";
-    case FV_STARTER_YOU: return "you're";
-    case FV_STARTER_HE: return "he's";
-    case FV_STARTER_SHE: return "she's";
-    case FV_STARTER_IT: return "it's";
-    case FV_STARTER_WE: return "we're";
-    case FV_STARTER_THEY: return "they're";
-    default: return NULL;
-    }
-}
-
-static const char *fv_have_contraction(const Fv_Starter *starter)
-{
-    switch (starter->id) {
-    case FV_STARTER_I: return "I've";
-    case FV_STARTER_YOU: return "you've";
-    case FV_STARTER_HE: return "he's";
-    case FV_STARTER_SHE: return "she's";
-    case FV_STARTER_IT: return "it's";
-    case FV_STARTER_WE: return "we've";
-    case FV_STARTER_THEY: return "they've";
-    default: return NULL;
-    }
-}
-
 static const char *fv_be_negative_contraction(const Fv_Starter *starter, bool past)
 {
     if (past) {
@@ -656,7 +953,7 @@ static bool append_verb_and_suffix(char **text, const char *verb, const char *su
 
 static bool append_modal_complement(char **text, Fv_Structure structure, const Fv_Ender *ender)
 {
-    const bool has_verb = ender->verb->id != FV_VERB_NONE;
+    const bool has_verb = ender->verb != NULL;
     switch (structure) {
     case FV_STRUCTURE_SIMPLE:
         return !has_verb || append_verb_and_suffix(text, ender->verb->base, ender->suffix);
@@ -683,7 +980,7 @@ static bool build_fv_long(
     char **out
 )
 {
-    const bool has_verb = ender->verb->id != FV_VERB_NONE;
+    const bool has_verb = ender->verb != NULL;
     if (operator.modal == FV_MODAL_NONE && structure == FV_STRUCTURE_SIMPLE && !has_verb) {
         return false;
     }
@@ -699,7 +996,7 @@ static bool build_fv_long(
 
     switch (structure) {
     case FV_STRUCTURE_SIMPLE:
-        if (operator.negative && ender->verb->id != FV_VERB_BE) {
+        if (operator.negative && ender->verb->kind != FV_VERB_BE) {
             return append_word(out, fv_do_word(starter, ender->past))
                 && append_word(out, "not")
                 && append_verb_and_suffix(out, ender->verb->base, ender->suffix);
@@ -731,8 +1028,8 @@ static bool append_be_contraction_complement(
     const Fv_Ender *ender
 )
 {
-    const bool has_verb = ender->verb->id != FV_VERB_NONE;
-    if (structure == FV_STRUCTURE_SIMPLE && ender->verb->id == FV_VERB_BE) {
+    const bool has_verb = ender->verb != NULL;
+    if (structure == FV_STRUCTURE_SIMPLE && ender->verb != NULL && ender->verb->kind == FV_VERB_BE) {
         return append_word(text, ender->suffix);
     }
     if (structure == FV_STRUCTURE_PROGRESSIVE) {
@@ -747,7 +1044,7 @@ static bool append_have_contraction_complement(
     const Fv_Ender *ender
 )
 {
-    const bool has_verb = ender->verb->id != FV_VERB_NONE;
+    const bool has_verb = ender->verb != NULL;
     if (structure == FV_STRUCTURE_PERFECT) {
         return !has_verb || append_verb_and_suffix(text, ender->verb->past_participle, ender->suffix);
     }
@@ -775,9 +1072,8 @@ static bool build_fv_contraction(
                 && append_modal_complement(out, structure, ender);
         }
         if (operator.modal == FV_MODAL_WILL && !ender->past) {
-            const char *contracted = fv_will_contraction(starter);
-            return contracted != NULL
-                && append_word(out, contracted)
+            return starter->will_contraction != NULL
+                && append_word(out, starter->will_contraction)
                 && append_modal_complement(out, structure, ender);
         }
         return false;
@@ -785,9 +1081,10 @@ static bool build_fv_contraction(
 
     if (operator.negative
         && (structure == FV_STRUCTURE_PROGRESSIVE
-            || (structure == FV_STRUCTURE_SIMPLE && ender->verb->id == FV_VERB_BE))) {
+            || (structure == FV_STRUCTURE_SIMPLE && ender->verb != NULL && ender->verb->kind == FV_VERB_BE))) {
         if (starter->agreement == FV_AGREEMENT_FIRST_SINGULAR && !ender->past) {
-            return append_word(out, fv_be_contraction(starter))
+            return starter->be_contraction != NULL
+                && append_word(out, starter->be_contraction)
                 && append_word(out, "not")
                 && append_be_contraction_complement(out, structure, ender);
         }
@@ -801,14 +1098,13 @@ static bool build_fv_contraction(
     if (!operator.negative
         && !ender->past
         && (structure == FV_STRUCTURE_PROGRESSIVE
-            || (structure == FV_STRUCTURE_SIMPLE && ender->verb->id == FV_VERB_BE))) {
-        const char *contracted = fv_be_contraction(starter);
-        return contracted != NULL
-            && append_word(out, contracted)
+            || (structure == FV_STRUCTURE_SIMPLE && ender->verb != NULL && ender->verb->kind == FV_VERB_BE))) {
+        return starter->be_contraction != NULL
+            && append_word(out, starter->be_contraction)
             && append_be_contraction_complement(out, structure, ender);
     }
 
-    if ((structure == FV_STRUCTURE_PERFECT || structure == FV_STRUCTURE_PERFECT_PROGRESSIVE)) {
+    if (structure == FV_STRUCTURE_PERFECT || structure == FV_STRUCTURE_PERFECT_PROGRESSIVE) {
         if (operator.negative) {
             const char *negative = fv_have_negative_contraction(starter, ender->past);
             return negative != NULL
@@ -817,9 +1113,8 @@ static bool build_fv_contraction(
                 && append_have_contraction_complement(out, structure, ender);
         }
         if (!ender->past) {
-            const char *contracted = fv_have_contraction(starter);
-            return contracted != NULL
-                && append_word(out, contracted)
+            return starter->have_contraction != NULL
+                && append_word(out, starter->have_contraction)
                 && append_have_contraction_complement(out, structure, ender);
         }
     }
@@ -827,78 +1122,60 @@ static bool build_fv_contraction(
     return false;
 }
 
-static Phrase_Lookup_Result lookup_final_verb(uint64_t bits, char **out_utf8)
+static Phrase_Lookup_Result lookup_final_verb(const Phrasing *phrasing, uint64_t bits, char **out_utf8)
 {
-    const uint64_t number = steno_bit(STENO_NUM);
-    const uint64_t left_mask = steno_bit(STENO_LEFT_S)
-        | steno_bit(STENO_LEFT_T)
-        | steno_bit(STENO_LEFT_K)
-        | steno_bit(STENO_LEFT_P)
-        | steno_bit(STENO_LEFT_W)
-        | steno_bit(STENO_LEFT_H)
-        | steno_bit(STENO_LEFT_R);
-    const uint64_t operator_mask = steno_bit(STENO_A)
-        | steno_bit(STENO_O)
-        | steno_bit(STENO_STAR);
-    const uint64_t structure_mask = steno_bit(STENO_E)
-        | steno_bit(STENO_RIGHT_F);
-    const uint64_t ender_mask = steno_bit(STENO_RIGHT_R)
-        | steno_bit(STENO_RIGHT_P)
-        | steno_bit(STENO_RIGHT_B)
-        | steno_bit(STENO_RIGHT_L)
-        | steno_bit(STENO_RIGHT_G)
-        | steno_bit(STENO_RIGHT_T)
-        | steno_bit(STENO_RIGHT_S)
-        | steno_bit(STENO_RIGHT_D)
-        | steno_bit(STENO_RIGHT_Z);
-    const uint64_t allowed = number | left_mask | operator_mask | structure_mask | ender_mask;
-    if ((bits & ~allowed) != 0) {
-        return PHRASE_LOOKUP_MISS;
+    for (size_t i = 0; i < arrlenu(phrasing->fv_starters); ++i) {
+        const Fv_Starter *starter = &phrasing->fv_starters[i];
+        for (size_t j = 0; j < arrlenu(phrasing->fv_operators); ++j) {
+            Fv_Operator operator = phrasing->fv_operators[j];
+            for (size_t k = 0; k < arrlenu(phrasing->fv_structures); ++k) {
+                const Fv_Structure_Row *structure = &phrasing->fv_structures[k];
+                for (size_t m = 0; m < arrlenu(phrasing->fv_enders); ++m) {
+                    const Fv_Ender *ender = &phrasing->fv_enders[m];
+                    const uint64_t long_bits = starter->bits | operator.bits | structure->bits | ender->bits;
+                    const bool contraction = bits == (long_bits | phrasing->contraction_bits);
+                    if (bits != long_bits && !contraction) {
+                        continue;
+                    }
+
+                    char *text = NULL;
+                    const bool ok = contraction
+                        ? build_fv_contraction(starter, operator, structure->structure, ender, &text)
+                        : build_fv_long(starter, operator, structure->structure, ender, &text);
+                    if (!ok || text == NULL || text[0] == '\0') {
+                        arrfree(text);
+                        continue;
+                    }
+
+                    *out_utf8 = copy_cstring(text);
+                    arrfree(text);
+                    return *out_utf8 == NULL ? PHRASE_LOOKUP_ERROR : PHRASE_LOOKUP_HIT;
+                }
+            }
+        }
     }
-
-    const bool contraction = (bits & number) != 0;
-    Fv_Starter starter = {0};
-    Fv_Operator operator = {0};
-    Fv_Structure structure = FV_STRUCTURE_SIMPLE;
-    Fv_Ender ender = {0};
-
-    if (!fv_starter_lookup(bits & left_mask, &starter)
-        || !fv_operator_lookup(bits & operator_mask, &operator)
-        || !fv_structure_lookup(bits & structure_mask, &structure)
-        || !fv_ender_lookup(bits & ender_mask, &ender)) {
-        return PHRASE_LOOKUP_MISS;
-    }
-
-    char *text = NULL;
-    const bool ok = contraction
-        ? build_fv_contraction(&starter, operator, structure, &ender, &text)
-        : build_fv_long(&starter, operator, structure, &ender, &text);
-    if (!ok || text == NULL || text[0] == '\0') {
-        arrfree(text);
-        return PHRASE_LOOKUP_MISS;
-    }
-
-    *out_utf8 = copy_cstring(text);
-    arrfree(text);
-    return *out_utf8 == NULL ? PHRASE_LOOKUP_ERROR : PHRASE_LOOKUP_HIT;
+    return PHRASE_LOOKUP_MISS;
 }
 
-Phrase_Lookup_Result phrasing_lookup(uint64_t stroke_bits, char **out_utf8)
+Phrase_Lookup_Result phrasing_lookup(const Phrasing *phrasing, uint64_t stroke_bits, char **out_utf8)
 {
     if (out_utf8 == NULL) {
         return PHRASE_LOOKUP_ERROR;
     }
     *out_utf8 = NULL;
+    if (phrasing == NULL) {
+        return PHRASE_LOOKUP_MISS;
+    }
 
-    Phrase_Lookup_Result result = lookup_initial_verb(stroke_bits, out_utf8);
+    Phrase_Lookup_Result result = lookup_initial_verb(phrasing, stroke_bits, out_utf8);
     if (result != PHRASE_LOOKUP_MISS) {
         return result;
     }
 
-    result = lookup_nonverb(stroke_bits, out_utf8);
+    result = lookup_nonverb(phrasing, stroke_bits, out_utf8);
     if (result != PHRASE_LOOKUP_MISS) {
         return result;
     }
 
-    return lookup_final_verb(stroke_bits, out_utf8);
+    return lookup_final_verb(phrasing, stroke_bits, out_utf8);
 }

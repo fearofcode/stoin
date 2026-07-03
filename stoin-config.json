@@ -1,5 +1,6 @@
 {
   "word_list": "american_english_words.txt",
+  "phrasing": "phrasing.json",
   "dictionaries": [
     "lapwing-base.json",
     "lapwing-commands.json",
