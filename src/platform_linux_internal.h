@@ -19,44 +19,14 @@ typedef struct Linux_File_Watch_Target {
     char *path;
 } Linux_File_Watch_Target;
 
-typedef struct Linux_Pedal_Binding {
-    char *path;
-    char name[256];
-    uint16_t vendor_id;
-    uint16_t product_id;
-    uint16_t bustype;
-    uint16_t version;
-    uint16_t type;
-    uint16_t code;
-    int value;
-    bool valid;
-    bool is_down;
-} Linux_Pedal_Binding;
-
-typedef struct Linux_Pedal_Device {
-    int fd;
-    char *path;
-    char name[256];
-    uint16_t vendor_id;
-    uint16_t product_id;
-    uint16_t bustype;
-    uint16_t version;
-} Linux_Pedal_Device;
-
 typedef struct Linux_State {
     Handle_Input_Fn handler;
     void *userdata;
     Platform_File_Watch_Fn file_watcher_callback;
     void *file_watcher_userdata;
     Linux_Keyboard_Device *keyboards;
-    Linux_Pedal_Device *pedals;
     char **file_watcher_paths;
     Linux_File_Watch_Target *file_watcher_targets;
-    Linux_Pedal_Binding pedal_bindings[PLATFORM_PEDAL_ROLE_COUNT];
-    const char *pedal_config_path;
-    Platform_Pedal_Event_Fn pedal_handler;
-    void *pedal_userdata;
-    Platform_Pedal_Role pedal_register_role;
     int uinput_fd;
     int file_watcher_fd;
     uint64_t translation_timing_start_ns;
@@ -67,7 +37,6 @@ typedef struct Linux_State {
     bool option_down;
     bool command_down;
     bool file_watcher_active;
-    bool pedal_registering;
     bool translation_timing_enabled;
     bool translation_timing_active;
 } Linux_State;

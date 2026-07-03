@@ -1,242 +1,38 @@
-# Initial Verb Phrasing Tutorial
+# Keyboard-Only Phrasing Tutorial
 
-This is the practical tutorial for the phrasing code that exists today. For
-the broader design sketch, see `docs/phrasing-mode-design.md`; for the current
-three-pedal proposal, see `docs/phrasing-three-pedal-reference.md`.
+Phrasing is now ordinary steno strokes only. There is no external activation,
+no alternate stroke mode, and no follow-on modifier strokes.
 
-## Current Status
+The phrase matcher runs before loaded dictionaries. If a stroke is assigned in
+the phrasing reference, the phrase wins. If a stroke is not assigned, Stoin uses
+the normal dictionary/raw-steno path.
 
-Implemented:
+Use `docs/phrasing-keyboard-only-design.md` as the reference table for every
+implemented assignment.
 
-- Initial-verb phrase namespace: `PHRASE_NAMESPACE_INITIAL_VERB`.
-- Initial-verb `be` phrases only.
-- `PW` emits `is`; adding right-hand `D` emits `was`.
-- The right hand selects a mnemonic tail such as `the`, `a`, `it`, or `you`.
-- USB pedal registration for the initial-verb phrase namespace on macOS, Windows, and
-  Linux.
-- Phrase output goes through normal Stoin translation history, spacing, undo,
-  and tracing.
-- The `/phrasing` web trainer drills these implemented phrases.
+## Practice Path
 
-Not implemented yet:
-
-- Other initial verbs.
-- Final-verb phrases.
-- Final-verb phrase pedal.
-- Non-verb phrase pedal.
-- Both-pedal modifier/operator namespace.
-
-Holding the initial-verb phrase pedal during a stroke routes that outline through the
-phrase engine. For serial machines, tapping the pedal before the stroke also
-works: Stoin latches the phrase namespace for the next completed machine
-stroke, then clears it.
-
-## Register The Initial Verb Pedal
-
-On macOS or Linux:
-
-```sh
-make
-./build/macos/stoin --register-pedal initial-verb
-```
-
-Use `./build/linux/stoin --register-pedal initial-verb` on Linux.
-
-When prompted, press the pedal you want to use for initial-verb mode. Stoin
-saves the mapping in local `stoin-pedals.json`, which is ignored by git. The
-older `--register-pedal core` spelling and old `phrase_core` pedal config key
-still work as compatibility aliases. After registration, the app continues
-normally. Future runs can just use:
-
-```sh
-./build/macos/stoin
-```
-
-For qwerty testing:
-
-```sh
-./build/macos/stoin --input qwerty
-```
-
-Without a pedal, tap Shift by itself to route the next qwerty steno chord
-through initial-verb phrase mode. For example, tap Shift, release it, then chord
-`PW-B` to emit `is a`. If Shift is chorded with other qwerty steno keys, it
-stays part of the steno chord instead of arming phrase mode.
-
-If your pedal acts like a keyboard key, map it to F13-F24 before registering
-it. Do not map it to `a`, another ordinary letter, space, enter, or
-punctuation. Stoin ignores registered text-producing keyboard keys because
-macOS may still type them into the active app, and a downstream event tap cannot
-reliably tell the pedal's `a` apart from the `a` on your real keyboard.
-
-## Run The Current Smoke Test
-
-```sh
-make test
-go test ./cmd/stoin-srs-web
-```
-
-The relevant C tests are in `tests/test_steno.c`; search for `initial verb`.
+1. Learn `IV Set 1`: `PW-B`, `PW-T`, `PW-P`, and `PW-RT`, plus right `D` for
+   `was`.
+2. Learn the `FV` starter table, then practice common long forms such as
+   `SKWHR-B`, `SKWHR-PBG`, `SKWHRAO-G`, `SKWHREG`, and `SKWHR-FG`.
+3. Add `#` only for contraction forms, such as `#SKWHR-B`, `#SKWHR*E`, and
+   `#SKWHRAO-G`.
+4. Learn the immediate `NV` rows first: `WHR*-T`, `WHR*-PLT`, `WHR*-RT`,
+   `PHR*-RT`, and `KPHR*-RT`.
 
 ## Paper Tape
 
-When stroke tracing is enabled, phrase-mode rows are marked on the left side of
-the tape:
+Assigned phrase strokes are marked as phrase hits:
 
 ```text
-PW-B [phrase] -> is a
-#KW [phrase fallback] -> test
-SAO [phrase fallback] -> [untranslated]
+PWB [phrase] -> is a
+SKWHRB [phrase] -> she is
+WHR*RT [phrase] -> with that
 ```
 
-`[phrase]` means the phrase engine generated the output. `[phrase fallback]`
-means a phrase pedal was active, but the phrase engine missed and Stoin used
-the regular dictionary/raw-steno path.
-
-## Initial Verb Shape
-
-An initial-verb phrase stroke is currently interpreted as:
-
-```text
-PW + optional right D + optional right-hand tail
-```
-
-Examples:
-
-```text
-PW       is
-PW-D     was
-PW-B     is a
-PW-BD    was a
-PW-PB    is an
-PW-PBD   was an
-PW-T     is the
-PW-TD    was the
-```
-
-`D` is reserved for past tense in this bank, so it is not part of any tail
-assignment.
-
-## Implemented Tail Bank
-
-```text
-empty   no tail
-T       the
-B       a
-PB      an
-P       it
-RT      that
-TS      this
-SZ      these
-TZ      those
-PL      me
-RP      you
-R       your
-S       us
-FR      her
-FL      him
-RB      she
-RBL     she will
-RBLT    she'll
-RPB     he
-RPBL    he will
-RPBLT   he'll
-GT      going to
-G       give
-BGT     why
-RPL     who
-BLG     what
-PBG     when
-RLG     where
-PLG     how
-PLT     them
-L       all
-PBT     one
-```
-
-## First Practice Set
-
-When the initial-verb phrase pedal exists, hold it and stroke:
-
-```text
-PW       is
-PW-D     was
-PW-T     is the
-PW-TD    was the
-PW-B     is a
-PW-BD    was a
-PW-PB    is an
-PW-PBD   was an
-PW-P     is it
-PW-PD    was it
-PW-RT    is that
-PW-RTD   was that
-PW-TS    is this
-PW-TSD   was this
-PW-SZ    is these
-PW-TZ    is those
-PW-PL    is me
-PW-RP    is you
-PW-R     is your
-PW-S     is us
-PW-FR    is her
-PW-FL    is him
-PW-RB    is she
-PW-RBL   is she will
-PW-RBLT  is she'll
-PW-RPB   is he
-PW-RPBL  is he will
-PW-RPBLT is he'll
-PW-GT    is going to
-PW-G     is give
-PW-BGT   is why
-PW-RPL   is who
-PW-BLG   is what
-PW-PBG   is when
-PW-RLG   is where
-PW-PLG   is how
-PW-PLT   is them
-PW-L     is all
-PW-PBT   is one
-```
-
-Without the initial-verb phrase pedal, these are ordinary steno strokes. For example,
-`PW-B` currently stays in normal dictionary/raw-steno mode and emits `PW-B`
-if it is untranslated. With the pedal held, a stroke that is not part of the
-phrase grammar falls back to the regular dictionary stack, so you can keep the
-pedal down while writing an ordinary word between phrases.
-
-## QWERTY Layout Hints
-
-These are based on the current `stoin.keymap`, not `tests/test.keymap`.
-
-```text
-left P   d
-left W   c
-right F  j
-right R  m
-right P  k
-right B  comma
-right L  l
-right T  semicolon
-right S  slash
-right D  apostrophe
-right Z  Right Shift
-```
-
-Example qwerty chords:
-
-```text
-PW-B     d + c + comma
-PW-BD    d + c + comma + apostrophe
-PW-PB    d + c + k + comma
-PW-PBD   d + c + k + comma + apostrophe
-PW-T     d + c + semicolon
-PW-RT    d + c + m + semicolon
-PW-TS    d + c + semicolon + slash
-PW-TZ    d + c + semicolon + Right Shift
-PW-RP    d + c + m + k
-```
+Unassigned strokes are ordinary dictionary/raw strokes and have no phrase
+fallback label.
 
 ## Web Trainer
 
@@ -252,7 +48,5 @@ Then open:
 http://127.0.0.1:8080/phrasing
 ```
 
-The trainer shows the target phrase, optionally shows the phrase-mode outline
-as a hint, and accepts the text produced by your steno output. Pick a bank,
-choose how many repetitions to practice, select a full or partial phrase set,
-then practice shuffled passes, random prompts, or selected phrase blocks.
+The trainer drills the implemented `IV`, `FV`, and `NV` assignment sets. The
+target phrase is shown as the prompt; the stroke appears as the hint.

@@ -116,33 +116,26 @@ static bool reset_test_steno(Steno **steno, const Steno_Config *config)
     return *steno != NULL;
 }
 
-static bool handle_mock_pedal_stroke(Steno *steno, Phrase_Namespace namespace, const char *stroke)
+static bool handle_test_stroke(Steno *steno, const char *stroke)
 {
     uint64_t bits = 0;
     if (!stroke_string_to_bits(stroke, &bits)) {
-        fprintf(stderr, "test failed: could not parse mock pedal stroke '%s'\n", stroke);
+        fprintf(stderr, "test failed: could not parse stroke '%s'\n", stroke);
         return false;
     }
 
-    steno_set_phrase_namespace(steno, namespace, true);
-    Stroke_Input input = {
-        .bits = bits,
-        .phrase_namespace = namespace,
-    };
-    const bool ok = steno_handle_stroke(steno, input);
+    const bool ok = steno_handle_stroke_bits(steno, bits);
     if (!ok) {
-        fprintf(stderr, "test failed: mock pedal stroke '%s' in namespace %d was not handled\n", stroke, (int)namespace);
+        fprintf(stderr, "test failed: stroke '%s' was not handled\n", stroke);
     }
-    steno_set_phrase_namespace(steno, namespace, false);
     return ok;
 }
 
-static bool expect_mock_pedal_phrase(
+static bool expect_stroke_output(
     Steno **steno,
     const Steno_Config *config,
     Test_Output *output,
     const char *name,
-    Phrase_Namespace namespace,
     const char *stroke,
     const char *expected
 )
@@ -152,7 +145,7 @@ static bool expect_mock_pedal_phrase(
     }
     clear_test_output(output);
     reset_output_log(output);
-    return handle_mock_pedal_stroke(*steno, namespace, stroke)
+    return handle_test_stroke(*steno, stroke)
         && expect_string(name, output->text, expected);
 }
 
@@ -703,6 +696,10 @@ int main(void)
     ok = ok && steno_lookup_stroke(steno, "P*P", &glue_p);
     ok = ok && expect_string("dictionary lookup P*P", glue_p, "{&P}");
 
+    const char *phrase_lookup = NULL;
+    ok = ok && steno_lookup_stroke(steno, "PW-B", &phrase_lookup);
+    ok = ok && expect_string("phrase lookup wins over dictionary", phrase_lookup, "is a");
+
     const char *ampersand = NULL;
     ok = ok && steno_lookup_stroke(steno, "PH", &ampersand);
     ok = ok && expect_string("dictionary lookup unicode escaped key and value", ampersand, "&");
@@ -817,22 +814,22 @@ int main(void)
             clear_test_output(&output);
             ok = ok && stroke_string_to_bits("-T", &trace_bits);
             ok = ok && steno_handle_stroke_bits(trace_steno, trace_bits);
-            ok = ok && handle_mock_pedal_stroke(trace_steno, PHRASE_NAMESPACE_INITIAL_VERB, "PW-B");
-            ok = ok && handle_mock_pedal_stroke(trace_steno, PHRASE_NAMESPACE_INITIAL_VERB, "#KW");
-            ok = ok && handle_mock_pedal_stroke(trace_steno, PHRASE_NAMESPACE_INITIAL_VERB, "SAO");
+            ok = ok && handle_test_stroke(trace_steno, "PW-B");
+            ok = ok && handle_test_stroke(trace_steno, "#KW");
+            ok = ok && handle_test_stroke(trace_steno, "SAO");
             ok = ok && expect_trace_contains(trace_file, "trace translated stroke", "-T -> the\n");
             ok = ok && expect_trace_contains(
                 trace_file,
                 "trace phrase stroke",
-                "PW-B [phrase] -> is a\n");
+                "PWB [phrase] -> is a\n");
             ok = ok && expect_trace_contains(
                 trace_file,
-                "trace phrase fallback dictionary stroke",
-                "#KW [phrase fallback] -> test\n");
+                "trace dictionary stroke",
+                "#KW -> test\n");
             ok = ok && expect_trace_contains(
                 trace_file,
-                "trace phrase fallback raw stroke",
-                "SAO [phrase fallback] -> [untranslated]\n");
+                "trace raw stroke",
+                "SAO -> [untranslated]\n");
             steno_destroy(trace_steno);
         }
         fclose(trace_file);
@@ -1020,14 +1017,14 @@ int main(void)
     clear_test_output(&output);
     reset_output_log(&output);
     ok = ok && steno_handle_stroke_bits(steno, phrase_is_a_bits);
-    ok = ok && expect_string("phrase outline without namespace stays normal steno", output.text, "PW-B");
+    ok = ok && expect_string("phrase wins over dictionary conflict", output.text, "is a");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
     reset_output_log(&output);
-    ok = ok && handle_mock_pedal_stroke(steno, PHRASE_NAMESPACE_INITIAL_VERB, "PW-B");
+    ok = ok && handle_test_stroke(steno, "PW-B");
     ok = ok && expect_string("initial verb is a", output.text, "is a");
-    ok = ok && handle_mock_pedal_stroke(steno, PHRASE_NAMESPACE_INITIAL_VERB, "PW-T");
+    ok = ok && handle_test_stroke(steno, "PW-T");
     ok = ok && expect_string("initial verb spacing", output.text, "is a is the");
     ok = ok && steno_handle_stroke_bits(steno, undo_bits);
     ok = ok && expect_string("initial verb undo", output.text, "is a");
@@ -1035,103 +1032,60 @@ int main(void)
     const struct {
         const char *stroke;
         const char *expected;
-    } phrase_be_cases[] = {
-        { "PW", "is" },
-        { "PW-D", "was" },
-        { "PW-T", "is the" },
-        { "PW-TD", "was the" },
+    } initial_verb_cases[] = {
         { "PW-B", "is a" },
         { "PW-BD", "was a" },
-        { "PW-PB", "is an" },
-        { "PW-PBD", "was an" },
+        { "PW-T", "is the" },
+        { "PW-TD", "was the" },
         { "PW-P", "is it" },
         { "PW-PD", "was it" },
         { "PW-RT", "is that" },
         { "PW-RTD", "was that" },
-        { "PW-TS", "is this" },
-        { "PW-TSD", "was this" },
-        { "PW-SZ", "is these" },
-        { "PW-SDZ", "was these" },
-        { "PW-TZ", "is those" },
-        { "PW-TDZ", "was those" },
-        { "PW-PL", "is me" },
-        { "PW-PLD", "was me" },
-        { "PW-RP", "is you" },
-        { "PW-RPD", "was you" },
-        { "PW-R", "is your" },
-        { "PW-RD", "was your" },
-        { "PW-S", "is us" },
-        { "PW-SD", "was us" },
-        { "PW-FR", "is her" },
-        { "PW-FRD", "was her" },
-        { "PW-FL", "is him" },
-        { "PW-FLD", "was him" },
-        { "PW-RB", "is she" },
-        { "PW-RBD", "was she" },
-        { "PW-RBL", "is she will" },
-        { "PW-RBLD", "was she will" },
-        { "PW-RBLT", "is she'll" },
-        { "PW-RBLTD", "was she'll" },
-        { "PW-RPB", "is he" },
-        { "PW-RPBD", "was he" },
-        { "PW-RPBL", "is he will" },
-        { "PW-RPBLD", "was he will" },
-        { "PW-RPBLT", "is he'll" },
-        { "PW-RPBLTD", "was he'll" },
-        { "PW-GT", "is going to" },
-        { "PW-GTD", "was going to" },
-        { "PW-G", "is give" },
-        { "PW-GD", "was give" },
-        { "PW-BGT", "is why" },
-        { "PW-BGTD", "was why" },
-        { "PW-RPL", "is who" },
-        { "PW-RPLD", "was who" },
-        { "PW-BLG", "is what" },
-        { "PW-BLGD", "was what" },
-        { "PW-PBG", "is when" },
-        { "PW-PBGD", "was when" },
-        { "PW-RLG", "is where" },
-        { "PW-RLGD", "was where" },
-        { "PW-PLG", "is how" },
-        { "PW-PLGD", "was how" },
-        { "PW-PLT", "is them" },
-        { "PW-PLTD", "was them" },
-        { "PW-L", "is all" },
-        { "PW-LD", "was all" },
-        { "PW-PBT", "is one" },
-        { "PW-PBTD", "was one" },
     };
-    for (size_t i = 0; i < sizeof(phrase_be_cases) / sizeof(phrase_be_cases[0]); ++i) {
-        ok = ok && expect_mock_pedal_phrase(
+    for (size_t i = 0; i < sizeof(initial_verb_cases) / sizeof(initial_verb_cases[0]); ++i) {
+        ok = ok && expect_stroke_output(
             &steno,
             &config,
             &output,
-            "initial verb be tail inventory",
-            PHRASE_NAMESPACE_INITIAL_VERB,
-            phrase_be_cases[i].stroke,
-            phrase_be_cases[i].expected);
+            "initial verb set 1",
+            initial_verb_cases[i].stroke,
+            initial_verb_cases[i].expected);
     }
 
     const struct {
         const char *stroke;
         const char *expected;
     } nonverb_cases[] = {
-        { "W-RT", "with that" },
-        { "TPHR-RPB", "unless he" },
-        { "TPH-F", "even if" },
-        { "TPH-PBG", "even when" },
-        { "S-F", "as if" },
-        { "K-L", "even though" },
-        { "T-P", "one of them" },
-        { "-F", "anything else" },
+        { "WHR*-T", "with the" },
+        { "WHR*-PLT", "with them" },
+        { "WHR*-RT", "with that" },
+        { "PHR*-RT", "anything that" },
+        { "KPHR*-RT", "even that" },
+        { "PHR*-F", "anything else" },
+        { "PHR*-R", "something else" },
+        { "PHR*-P", "everybody else" },
+        { "PHR*-L", "everything else" },
+        { "TPHRA*-F", "each of the" },
+        { "TPHRA*-R", "both of the" },
+        { "TPHRA*-P", "one of them" },
+        { "TPHRA*-B", "some of them" },
+        { "TPHRA*-L", "any of them" },
+        { "TPHRA*-G", "all of them" },
+        { "KPHR*-F", "as if" },
+        { "KPHR*-R", "as though" },
+        { "KPHR*-P", "even if" },
+        { "KPHR*-L", "even though" },
+        { "STPHR*-R", "in order to" },
+        { "STPHR*-B", "instead of" },
+        { "STPHR*-L", "not only" },
+        { "STPHR*-G", "not yet" },
     };
     for (size_t i = 0; i < sizeof(nonverb_cases) / sizeof(nonverb_cases[0]); ++i) {
-        ok = ok && expect_mock_pedal_phrase(
+        ok = ok && expect_stroke_output(
             &steno,
             &config,
             &output,
-            "nonverb phrase inventory",
-            PHRASE_NAMESPACE_NONVERB,
+            "nonverb set 1",
             nonverb_cases[i].stroke,
             nonverb_cases[i].expected);
     }
@@ -1139,121 +1093,104 @@ int main(void)
     const struct {
         const char *stroke;
         const char *expected;
-    } final_verb_be_cases[] = {
-        { "P-B", "it is" },
-        { "P-BD", "it was" },
-        { "S-B", "I am" },
-        { "S-BD", "I was" },
-        { "T-B", "they are" },
-        { "T-BD", "they were" },
-        { "PW-B", "are" },
-        { "PW-BD", "were" },
-        { "-B", "is" },
-        { "-BD", "was" },
+    } final_verb_long_cases[] = {
+        { "SKWHR-B", "she is" },
+        { "SKWHR-BD", "she was" },
+        { "SKWHR*E", "she is not" },
+        { "SKWHR*ED", "she was not" },
+        { "KWHR-B", "he is" },
+        { "TWH-BD", "they were" },
+        { "SWR-F", "I have" },
+        { "SWR-FD", "I had" },
+        { "KPWR-G", "you go" },
+        { "KPWR-GD", "you went" },
+        { "SKWHR-GTD", "she went to" },
+        { "SKWHR-PBG", "she thinks" },
+        { "SKWHR-PBGD", "she thought" },
+        { "SKWHRAO-G", "she will go" },
+        { "SKWHRAO*G", "she will not go" },
+        { "SKWHREG", "she is going" },
+        { "SKWHR-FG", "she has gone" },
+        { "KPWR-PBT", "you know that" },
+        { "TWH-TS", "they have to" },
     };
-    for (size_t i = 0; i < sizeof(final_verb_be_cases) / sizeof(final_verb_be_cases[0]); ++i) {
-        ok = ok && expect_mock_pedal_phrase(
+    for (size_t i = 0; i < sizeof(final_verb_long_cases) / sizeof(final_verb_long_cases[0]); ++i) {
+        ok = ok && expect_stroke_output(
             &steno,
             &config,
             &output,
-            "final verb be inventory",
-            PHRASE_NAMESPACE_FINAL_VERB,
-            final_verb_be_cases[i].stroke,
-            final_verb_be_cases[i].expected);
+            "final verb long forms",
+            final_verb_long_cases[i].stroke,
+            final_verb_long_cases[i].expected);
+    }
+
+    const struct {
+        const char *stroke;
+        const char *expected;
+    } final_verb_contraction_cases[] = {
+        { "#SKWHR-B", "she's" },
+        { "#SKWHR*E", "she isn't" },
+        { "#SKWHR*ED", "she wasn't" },
+        { "#SKWHRAO-G", "she'll go" },
+        { "#SKWHRAO*G", "she won't go" },
+        { "#SWR-F", "I've" },
+        { "#KWHR-FG", "he's gone" },
+        { "#TWHAO-G", "they'll go" },
+    };
+    for (size_t i = 0; i < sizeof(final_verb_contraction_cases) / sizeof(final_verb_contraction_cases[0]); ++i) {
+        ok = ok && expect_stroke_output(
+            &steno,
+            &config,
+            &output,
+            "final verb contractions",
+            final_verb_contraction_cases[i].stroke,
+            final_verb_contraction_cases[i].expected);
     }
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    ok = ok && handle_mock_pedal_stroke(steno, PHRASE_NAMESPACE_INITIAL_VERB, "SAO");
-    ok = ok && expect_string("initial verb miss falls back to raw outline", output.text, "SAO");
+    ok = ok && handle_test_stroke(steno, "PW-PB");
+    ok = ok && expect_string("unassigned IV stroke falls back to raw outline", output.text, "PW-PB");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    ok = ok && handle_mock_pedal_stroke(steno, PHRASE_NAMESPACE_INITIAL_VERB, "#KW");
-    ok = ok && expect_string("initial verb miss falls back to dictionary", output.text, "test");
+    ok = ok && handle_test_stroke(steno, "#SKWHR-BD");
+    ok = ok && expect_string("unnatural contraction form stays unassigned", output.text, "#SKWHRBD");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, true);
+    ok = ok && handle_test_stroke(steno, "SAO");
+    ok = ok && expect_string("phrase miss falls back to raw outline", output.text, "SAO");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    ok = ok && steno_handle_stroke_bits(steno, phrase_fallback_test_bits);
+    ok = ok && expect_string("phrase miss falls back to dictionary", output.text, "test");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
     ok = ok && steno_handle_stroke_bits(steno, phrase_is_a_bits);
     ok = ok && steno_handle_stroke_bits(steno, phrase_fallback_test_bits);
-    ok = ok && steno_handle_stroke_bits(steno, phrase_is_a_bits);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, false);
-    ok = ok && expect_string("held phrase pedal allows dictionary word between phrases", output.text, "is a test is a");
-
-    ok = ok && reset_test_steno(&steno, &config);
-    clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, true);
-    ok = ok && send_key_event(steno, "e", true);
-    ok = ok && send_key_event(steno, "d", true);
-    ok = ok && send_key_event(steno, "comma", true);
-    ok = ok && send_key_event(steno, "e", false);
-    ok = ok && send_key_event(steno, "d", false);
-    ok = ok && send_key_event(steno, "comma", false);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, false);
-    ok = ok && expect_string("qwerty phrase namespace routes gathered chord", output.text, "is a");
+    ok = ok && handle_test_stroke(steno, "PW-T");
+    ok = ok && expect_string("phrases and dictionary words interleave normally", output.text, "is a test is the");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
     ok = ok && send_key_event(steno, "e", true);
     ok = ok && send_key_event(steno, "d", true);
-    ok = ok && send_key_event(steno, "comma", true);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, true);
+    ok = ok && send_key_event(steno, "k", true);
     ok = ok && send_key_event(steno, "e", false);
     ok = ok && send_key_event(steno, "d", false);
-    ok = ok && send_key_event(steno, "comma", false);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, false);
-    ok = ok && expect_string("qwerty phrase namespace can begin mid-chord", output.text, "is a");
+    ok = ok && send_key_event(steno, "k", false);
+    ok = ok && expect_string("qwerty gathered chord uses keyboard phrase lookup", output.text, "is a");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
     ok = ok && !send_key_event(steno, "left_shift", true);
     ok = ok && !send_key_event(steno, "left_shift", false);
-    ok = ok && send_key_event(steno, "e", true);
-    ok = ok && send_key_event(steno, "d", true);
-    ok = ok && send_key_event(steno, "comma", true);
-    ok = ok && send_key_event(steno, "e", false);
-    ok = ok && send_key_event(steno, "d", false);
-    ok = ok && send_key_event(steno, "comma", false);
-    ok = ok && expect_string("qwerty shift tap routes next chord through phrase namespace", output.text, "is a");
-
-    ok = ok && reset_test_steno(&steno, &config);
-    clear_test_output(&output);
-    ok = ok && send_key_event(steno, "right_shift", true);
-    ok = ok && send_key_event(steno, "right_shift", false);
-    ok = ok && expect_string("qwerty mapped shift tap emits nothing", output.text, "");
-    ok = ok && send_key_event(steno, "e", true);
-    ok = ok && send_key_event(steno, "d", true);
-    ok = ok && send_key_event(steno, "comma", true);
-    ok = ok && send_key_event(steno, "e", false);
-    ok = ok && send_key_event(steno, "d", false);
-    ok = ok && send_key_event(steno, "comma", false);
-    ok = ok && expect_string("qwerty mapped shift tap routes next chord through phrase namespace", output.text, "is a");
-
-    ok = ok && reset_test_steno(&steno, &config);
-    clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, true);
-    ok = ok && steno_handle_stroke_bits(steno, phrase_is_a_bits);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, false);
-    ok = ok && expect_string("serial phrase namespace routes direct stroke", output.text, "is a");
-
-    ok = ok && reset_test_steno(&steno, &config);
-    clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, true);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, false);
-    ok = ok && steno_handle_stroke_bits(steno, phrase_is_a_bits);
-    ok = ok && expect_string("serial phrase namespace latches tapped pedal", output.text, "is a");
-    ok = ok && steno_handle_stroke_bits(steno, phrase_is_a_bits);
-    ok = ok && expect_string("serial phrase namespace latch clears after stroke", output.text, "is a PW-B");
-
-    ok = ok && reset_test_steno(&steno, &config);
-    clear_test_output(&output);
-    uint64_t final_verb_it_was_bits = 0;
-    ok = ok && stroke_string_to_bits("P-BD", &final_verb_it_was_bits);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, true);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, false);
-    ok = ok && steno_handle_stroke_bits(steno, final_verb_it_was_bits);
-    ok = ok && expect_string("serial final verb namespace latches tapped pedal", output.text, "it was");
+    ok = ok && send_key_event(steno, "u", true);
+    ok = ok && send_key_event(steno, "u", false);
+    ok = ok && expect_string("qwerty shift tap has no phrasing side effect", output.text, "fee");
 
     ok = ok && reset_test_steno(&steno, &config);
 

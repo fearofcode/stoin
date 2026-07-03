@@ -417,10 +417,10 @@ func TestStaticPhrasingTrainerScript(t *testing.T) {
 		t.Fatalf("expected static trainer script, got %d", rec.Code)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "const phraseTails") ||
-		!strings.Contains(body, "const nonVerbFamilies") ||
-		!strings.Contains(body, "NV unless heads") ||
-		!strings.Contains(body, "{ id: 'if', stroke: 'F'") ||
+	if !strings.Contains(body, "const phraseAssignments") ||
+		!strings.Contains(body, "FV contractions") ||
+		!strings.Contains(body, "WHR*-T") ||
+		!strings.Contains(body, "#SKWHR-B") ||
 		!strings.Contains(body, "repeatedShuffledPasses") ||
 		!strings.Contains(body, "repeatedPromptBlocks") {
 		t.Fatalf("expected trainer script contents, got %q", rec.Body.String())

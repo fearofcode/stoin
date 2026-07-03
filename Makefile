@@ -58,7 +58,6 @@ PLATFORM_SOURCES := \
 	src/platform_macos.c \
 	src/platform_macos_file_watcher.c \
 	src/platform_macos_output.c \
-	src/platform_macos_pedals.c \
 	src/platform_posix_serial.c
 else ifeq ($(PLATFORM),linux)
 PLATFORM_CFLAGS += -D_DEFAULT_SOURCE

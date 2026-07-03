@@ -68,9 +68,11 @@ submit.
 
 ## Phrasing Trainer
 
-The root page links to `/phrasing`, a non-SRS trainer for Stoin's initial-verb
-phrase mode. It currently drills the implemented initial-verb `be` bank: `PW` for
-`is`, right-hand `D` for `was`, and the mnemonic right-hand tail bank for
-phrases such as `is a`, `was an`, `was the`, and `is you`. Pick a bank, choose
-how many repetitions to practice, select a full or partial phrase set, then
-practice shuffled passes, random prompts, or selected phrase blocks.
+The root page links to `/phrasing`, a non-SRS trainer for Stoin's keyboard-only
+phrasing assignments. It drills the implemented `IV`, `FV`, and `NV` sets from
+`docs/phrasing-keyboard-only-design.md`, including `#` contraction forms and the
+immediate `NV` rows for `with *` and `* that`.
+
+Pick a lesson, choose how many repetitions to practice, select a full or partial
+phrase set, then practice shuffled passes, random prompts, or selected phrase
+blocks.

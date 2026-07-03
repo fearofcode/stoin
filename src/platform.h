@@ -37,17 +37,6 @@ typedef void (*Platform_File_Watch_Fn)(void *userdata);
 
 typedef struct Platform_Serial_Port Platform_Serial_Port;
 
-typedef enum Platform_Pedal_Role {
-    PLATFORM_PEDAL_ROLE_NONE,
-    PLATFORM_PEDAL_ROLE_INITIAL_VERB,
-    PLATFORM_PEDAL_ROLE_PHRASE_CORE = PLATFORM_PEDAL_ROLE_INITIAL_VERB,
-    PLATFORM_PEDAL_ROLE_FINAL_VERB,
-    PLATFORM_PEDAL_ROLE_PHRASE_NONVERB,
-    PLATFORM_PEDAL_ROLE_COUNT,
-} Platform_Pedal_Role;
-
-typedef void (*Platform_Pedal_Event_Fn)(Platform_Pedal_Role role, bool is_down, void *userdata);
-
 bool platform_output_init(void);
 bool platform_init(Handle_Input_Fn handler, void *userdata);
 void platform_run(void);
@@ -86,13 +75,5 @@ void platform_translation_timing_cancel(void);
 uint64_t platform_monotonic_ns(void);
 uint64_t platform_monotonic_ms(void);
 void platform_sleep_ms(unsigned int milliseconds);
-bool platform_pedals_init(
-    const char *config_path,
-    Platform_Pedal_Role register_role,
-    Platform_Pedal_Event_Fn handler,
-    void *userdata
-);
-void platform_pedals_poll(void);
-void platform_pedals_shutdown(void);
 
 #endif

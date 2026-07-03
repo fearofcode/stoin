@@ -50,39 +50,3 @@ build\windows\stoin.exe --input qwerty
 ```
 
 Windows may block simulated input into elevated applications when Stoin itself is not elevated. If translations work in normal apps but not in an administrator window, run Stoin with matching privileges.
-
-## USB Pedals
-
-Windows pedal support uses Raw Input for USB pedals. Keyboard-style pedals are learned from their key event. Some non-keyboard HID pedals, such as vendor/button devices, are learned from the first nonzero raw HID report they send during registration.
-
-To register a pedal:
-
-```bat
-build\windows\stoin.exe --register-pedal initial-verb
-```
-
-To register the final-verb pedal:
-
-```bat
-build\windows\stoin.exe --register-pedal final-verb
-```
-
-The old spelling still works as a compatibility alias:
-
-```bat
-build\windows\stoin.exe --register-pedal core
-```
-
-To register the non-verb pedal:
-
-```bat
-build\windows\stoin.exe --register-pedal nonverb
-```
-
-Press the pedal when prompted. Stoin saves the Raw Input device binding to `stoin-pedals.json`. Later runs load that binding automatically:
-
-```bat
-build\windows\stoin.exe --input stentura
-```
-
-If a programmable pedal has multiple buttons, register the specific button you want to use and avoid pressing the other buttons until registration finishes.

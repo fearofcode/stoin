@@ -1,66 +1,79 @@
-const phraseTails = [
-	{ id: 'none', stroke: '', text: '', name: 'none' },
-	{ id: 'the', stroke: 'T', text: 'the', name: 'the' },
-	{ id: 'a', stroke: 'B', text: 'a', name: 'a' },
-	{ id: 'an', stroke: 'PB', text: 'an', name: 'an' },
-	{ id: 'it', stroke: 'P', text: 'it', name: 'it' },
-	{ id: 'that', stroke: 'RT', text: 'that', name: 'that' },
-	{ id: 'this', stroke: 'TS', text: 'this', name: 'this' },
-	{ id: 'these', stroke: 'SZ', text: 'these', name: 'these' },
-	{ id: 'those', stroke: 'TZ', text: 'those', name: 'those' },
-	{ id: 'me', stroke: 'PL', text: 'me', name: 'me' },
-	{ id: 'you', stroke: 'RP', text: 'you', name: 'you' },
-	{ id: 'your', stroke: 'R', text: 'your', name: 'your' },
-	{ id: 'us', stroke: 'S', text: 'us', name: 'us' },
-	{ id: 'her', stroke: 'FR', text: 'her', name: 'her' },
-	{ id: 'him', stroke: 'FL', text: 'him', name: 'him' },
-	{ id: 'she', stroke: 'RB', text: 'she', name: 'she' },
-	{ id: 'she-will', stroke: 'RBL', text: 'she will', name: 'she will' },
-	{ id: 'shell', stroke: 'RBLT', text: "she'll", name: "she'll" },
-	{ id: 'he', stroke: 'RPB', text: 'he', name: 'he' },
-	{ id: 'he-will', stroke: 'RPBL', text: 'he will', name: 'he will' },
-	{ id: 'hell', stroke: 'RPBLT', text: "he'll", name: "he'll" },
-	{ id: 'going-to', stroke: 'GT', text: 'going to', name: 'going to' },
-	{ id: 'give', stroke: 'G', text: 'give', name: 'give' },
-	{ id: 'why', stroke: 'BGT', text: 'why', name: 'why' },
-	{ id: 'who', stroke: 'RPL', text: 'who', name: 'who' },
-	{ id: 'what', stroke: 'BLG', text: 'what', name: 'what' },
-	{ id: 'when', stroke: 'PBG', text: 'when', name: 'when' },
-	{ id: 'where', stroke: 'RLG', text: 'where', name: 'where' },
-	{ id: 'how', stroke: 'PLG', text: 'how', name: 'how' },
-	{ id: 'them', stroke: 'PLT', text: 'them', name: 'them' },
-	{ id: 'all', stroke: 'L', text: 'all', name: 'all' },
-	{ id: 'one', stroke: 'PBT', text: 'one', name: 'one' },
+const phraseAssignments = [
+	{ lesson: 'iv', stroke: 'PW-B', phrase: 'is a' },
+	{ lesson: 'iv', stroke: 'PW-BD', phrase: 'was a' },
+	{ lesson: 'iv', stroke: 'PW-T', phrase: 'is the' },
+	{ lesson: 'iv', stroke: 'PW-TD', phrase: 'was the' },
+	{ lesson: 'iv', stroke: 'PW-P', phrase: 'is it' },
+	{ lesson: 'iv', stroke: 'PW-PD', phrase: 'was it' },
+	{ lesson: 'iv', stroke: 'PW-RT', phrase: 'is that' },
+	{ lesson: 'iv', stroke: 'PW-RTD', phrase: 'was that' },
+
+	{ lesson: 'fv-core', stroke: 'SKWHR-B', phrase: 'she is' },
+	{ lesson: 'fv-core', stroke: 'SKWHR-BD', phrase: 'she was' },
+	{ lesson: 'fv-core', stroke: 'KWHR-B', phrase: 'he is' },
+	{ lesson: 'fv-core', stroke: 'TWH-BD', phrase: 'they were' },
+	{ lesson: 'fv-core', stroke: 'SWR-F', phrase: 'I have' },
+	{ lesson: 'fv-core', stroke: 'SWR-FD', phrase: 'I had' },
+	{ lesson: 'fv-core', stroke: 'KPWR-G', phrase: 'you go' },
+	{ lesson: 'fv-core', stroke: 'KPWR-GD', phrase: 'you went' },
+	{ lesson: 'fv-core', stroke: 'SKWHR-PBG', phrase: 'she thinks' },
+	{ lesson: 'fv-core', stroke: 'SKWHR-PBGD', phrase: 'she thought' },
+
+	{ lesson: 'fv-operators', stroke: 'SKWHR*E', phrase: 'she is not' },
+	{ lesson: 'fv-operators', stroke: 'SKWHR*ED', phrase: 'she was not' },
+	{ lesson: 'fv-operators', stroke: 'SKWHRAO-G', phrase: 'she will go' },
+	{ lesson: 'fv-operators', stroke: 'SKWHRAO*G', phrase: 'she will not go' },
+	{ lesson: 'fv-operators', stroke: 'SKWHREG', phrase: 'she is going' },
+	{ lesson: 'fv-operators', stroke: 'SKWHR-FG', phrase: 'she has gone' },
+	{ lesson: 'fv-operators', stroke: 'SKWHR-GTD', phrase: 'she went to' },
+	{ lesson: 'fv-operators', stroke: 'KPWR-PBT', phrase: 'you know that' },
+	{ lesson: 'fv-operators', stroke: 'TWH-TS', phrase: 'they have to' },
+
+	{ lesson: 'fv-contractions', stroke: '#SKWHR-B', phrase: "she's" },
+	{ lesson: 'fv-contractions', stroke: '#SKWHR*E', phrase: "she isn't" },
+	{ lesson: 'fv-contractions', stroke: '#SKWHR*ED', phrase: "she wasn't" },
+	{ lesson: 'fv-contractions', stroke: '#SKWHRAO-G', phrase: "she'll go" },
+	{ lesson: 'fv-contractions', stroke: '#SKWHRAO*G', phrase: "she won't go" },
+	{ lesson: 'fv-contractions', stroke: '#SWR-F', phrase: "I've" },
+	{ lesson: 'fv-contractions', stroke: '#KWHR-FG', phrase: "he's gone" },
+	{ lesson: 'fv-contractions', stroke: '#TWHAO-G', phrase: "they'll go" },
+
+	{ lesson: 'nv-immediate', stroke: 'WHR*-T', phrase: 'with the' },
+	{ lesson: 'nv-immediate', stroke: 'WHR*-PLT', phrase: 'with them' },
+	{ lesson: 'nv-immediate', stroke: 'WHR*-RT', phrase: 'with that' },
+	{ lesson: 'nv-immediate', stroke: 'PHR*-RT', phrase: 'anything that' },
+	{ lesson: 'nv-immediate', stroke: 'KPHR*-RT', phrase: 'even that' },
+
+	{ lesson: 'nv-else', stroke: 'PHR*-F', phrase: 'anything else' },
+	{ lesson: 'nv-else', stroke: 'PHR*-R', phrase: 'something else' },
+	{ lesson: 'nv-else', stroke: 'PHR*-P', phrase: 'everybody else' },
+	{ lesson: 'nv-else', stroke: 'PHR*-L', phrase: 'everything else' },
+	{ lesson: 'nv-else', stroke: 'TPHRA*-F', phrase: 'each of the' },
+	{ lesson: 'nv-else', stroke: 'TPHRA*-R', phrase: 'both of the' },
+	{ lesson: 'nv-else', stroke: 'TPHRA*-P', phrase: 'one of them' },
+	{ lesson: 'nv-else', stroke: 'TPHRA*-B', phrase: 'some of them' },
+	{ lesson: 'nv-else', stroke: 'TPHRA*-L', phrase: 'any of them' },
+	{ lesson: 'nv-else', stroke: 'TPHRA*-G', phrase: 'all of them' },
+
+	{ lesson: 'nv-functions', stroke: 'KPHR*-F', phrase: 'as if' },
+	{ lesson: 'nv-functions', stroke: 'KPHR*-R', phrase: 'as though' },
+	{ lesson: 'nv-functions', stroke: 'KPHR*-P', phrase: 'even if' },
+	{ lesson: 'nv-functions', stroke: 'KPHR*-L', phrase: 'even though' },
+	{ lesson: 'nv-functions', stroke: 'STPHR*-R', phrase: 'in order to' },
+	{ lesson: 'nv-functions', stroke: 'STPHR*-B', phrase: 'instead of' },
+	{ lesson: 'nv-functions', stroke: 'STPHR*-L', phrase: 'not only' },
+	{ lesson: 'nv-functions', stroke: 'STPHR*-G', phrase: 'not yet' },
 ];
 
 const phraseLessons = [
-	{ name: '1. Present IV tails', detail: 'is <tail>', tense: 'present', tailIDs: 'all' },
-	{ name: '2. Past IV tails', detail: 'was <tail>', tense: 'past', tailIDs: 'all' },
-	{ name: '3. Mixed IV be', detail: 'is/was <tail>', tense: 'mixed', tailIDs: 'all' },
-	{ name: '4. NV unless heads', detail: 'unless <head>', kind: 'nonverb', familyIDs: ['unless'], headIDs: 'nonverb' },
-	{ name: '5. NV even heads', detail: 'even <head>', kind: 'nonverb', familyIDs: ['even'], headIDs: 'nonverb' },
-	{ name: '6. NV with/as heads', detail: 'with/as <head>', kind: 'nonverb', familyIDs: ['with', 'as'], headIDs: 'nonverb' },
-	{ name: '7. Mixed NV heads', detail: 'unless/even/with/as <head>', kind: 'nonverb', familyIDs: 'all', headIDs: 'nonverb' },
-];
-
-const nonVerbFamilies = [
-	{ id: 'unless', stroke: 'TPHR', text: 'unless' },
-	{ id: 'even', stroke: 'TPH', text: 'even' },
-	{ id: 'with', stroke: 'W', text: 'with' },
-	{ id: 'as', stroke: 'S', text: 'as' },
-];
-
-const nonVerbExtraHeads = [
-	{ id: 'if', stroke: 'F', text: 'if', name: 'if' },
-];
-
-const nonVerbHeadIDs = [
-	'the', 'a', 'an',
-	'if',
-	'it', 'that', 'this', 'these', 'those',
-	'he', 'she', 'me', 'you', 'your', 'us', 'her', 'him', 'them',
-	'all', 'one',
-	'who', 'what', 'when', 'where', 'why', 'how',
+	{ name: '1. IV Set 1', detail: 'is/was + a/the/it/that', lessonIDs: ['iv'] },
+	{ name: '2. FV core', detail: 'common long final-verb phrases', lessonIDs: ['fv-core'] },
+	{ name: '3. FV operators', detail: 'not, will, progressive, perfect, suffixes', lessonIDs: ['fv-operators'] },
+	{ name: '4. FV contractions', detail: '# contraction forms only', lessonIDs: ['fv-contractions'] },
+	{ name: '5. NV immediate', detail: 'with * and * that', lessonIDs: ['nv-immediate'] },
+	{ name: '6. NV else/partitives', detail: 'else and of them/of the chunks', lessonIDs: ['nv-else'] },
+	{ name: '7. NV functions', detail: 'subordinators and function chunks', lessonIDs: ['nv-functions'] },
+	{ name: '8. All implemented', detail: 'IV, FV, and NV Set 1', lessonIDs: 'all' },
 ];
 
 const phraseLessonSelect = document.getElementById('phrase-lesson');
@@ -83,88 +96,11 @@ let phraseQueue = [];
 let phraseIndex = 0;
 let phraseMistake = false;
 
-function appendWords() {
-	const words = [];
-	for (let i = 0; i < arguments.length; i++) {
-		if (arguments[i]) words.push(arguments[i]);
-	}
-	return words.join(' ');
-}
-
-function byID(list, id) {
-	return list.find(function(item) { return item.id === id; });
-}
-
-function tailsForLesson(lesson) {
-	if (lesson.tailIDs === 'all') return phraseTails.slice();
-	return lesson.tailIDs.map(function(id) { return byID(phraseTails, id); }).filter(Boolean);
-}
-
-function nonVerbHeadsForLesson(lesson) {
-	const ids = lesson.headIDs === 'nonverb' ? nonVerbHeadIDs : lesson.headIDs;
-	return ids.map(function(id) { return byID(phraseTails, id) || byID(nonVerbExtraHeads, id); }).filter(Boolean);
-}
-
-function nonVerbFamiliesForLesson(lesson) {
-	if (lesson.familyIDs === 'all') return nonVerbFamilies.slice();
-	return lesson.familyIDs.map(function(id) { return byID(nonVerbFamilies, id); }).filter(Boolean);
-}
-
-function canonicalRightStroke(stroke) {
-	const order = 'FRPBLGTSDZ';
-	let out = '';
-	for (let i = 0; i < order.length; i++) {
-		if (stroke.indexOf(order[i]) !== -1) out += order[i];
-	}
-	return out;
-}
-
-function phraseStroke(tense, tail) {
-	const right = canonicalRightStroke(tail.stroke + (tense === 'past' ? 'D' : ''));
-	return right ? 'PW-' + right : 'PW';
-}
-
-function makePhrase(tense, tail, lessonName) {
-	const be = tense === 'past' ? 'was' : 'is';
-	return {
-		stroke: phraseStroke(tense, tail),
-		phrase: appendWords(be, tail.text),
-		lesson: lessonName,
-	};
-}
-
-function makeNonVerbPhrase(family, head, lessonName) {
-	const right = canonicalRightStroke(head.stroke);
-	return {
-		stroke: right ? family.stroke + '-' + right : family.stroke,
-		phrase: appendWords(family.text, head.text),
-		lesson: lessonName,
-	};
-}
-
 function promptsForLesson(index) {
 	const lesson = phraseLessons[index] || phraseLessons[0];
-	if (lesson.kind === 'nonverb') {
-		const families = nonVerbFamiliesForLesson(lesson);
-		const heads = nonVerbHeadsForLesson(lesson);
-		return families.flatMap(function(family) {
-			return heads.map(function(head) {
-				return makeNonVerbPhrase(family, head, lesson.name);
-			});
-		});
-	}
-	const tails = tailsForLesson(lesson);
-	if (lesson.tense === 'mixed') {
-		return tails.flatMap(function(tail) {
-			return [
-				makePhrase('present', tail, lesson.name),
-				makePhrase('past', tail, lesson.name),
-			];
-		});
-	}
-	return tails.map(function(tail) {
-		return makePhrase(lesson.tense, tail, lesson.name);
-	});
+	if (lesson.lessonIDs === 'all') return phraseAssignments.slice();
+	const ids = new Set(lesson.lessonIDs);
+	return phraseAssignments.filter(function(prompt) { return ids.has(prompt.lesson); });
 }
 
 function uniquePrompts(prompts) {
@@ -247,7 +183,7 @@ function populateFocusOptions(pool) {
 		input.checked = !hasPrevious || (previousChecked.size > 0 && !hasMatchingPrevious) || previousChecked.has(key);
 
 		const text = document.createElement('span');
-		text.textContent = prompt.phrase;
+		text.textContent = prompt.phrase + ' - ' + prompt.stroke;
 
 		const label = document.createElement('label');
 		label.appendChild(input);

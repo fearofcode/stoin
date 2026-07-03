@@ -41,36 +41,6 @@ sudo chmod 660 /dev/uinput
 
 TX Bolt and Gemini PR input only need serial access plus `/dev/uinput` output access.
 
-## USB Pedals
-
-Linux pedal support uses evdev input devices under `/dev/input/event*`. To register a pedal:
-
-```sh
-./build/linux/stoin --register-pedal initial-verb
-```
-
-To register the final-verb pedal:
-
-```sh
-./build/linux/stoin --register-pedal final-verb
-```
-
-The old spelling still works as a compatibility alias:
-
-```sh
-./build/linux/stoin --register-pedal core
-```
-
-To register the non-verb pedal:
-
-```sh
-./build/linux/stoin --register-pedal nonverb
-```
-
-Press the pedal when prompted. Stoin saves the evdev binding to `stoin-pedals.json`. Later runs load that binding automatically.
-
-Pedal registration needs read access to the relevant input event device. Runtime use tries to grab the registered pedal device so its key/button event does not also leak into other applications. The qwerty capture udev rule below is also suitable for many pedal devices; if your pedal is not tagged as a keyboard, use a broader trusted-device rule or your distribution's `input` group.
-
 ## Qwerty keyboard capture
 
 The `--input qwerty` mode also needs read/grab access to physical keyboard event devices under `/dev/input/event*`. This is separate from `/dev/uinput`.
