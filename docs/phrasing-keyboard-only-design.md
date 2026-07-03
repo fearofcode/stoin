@@ -10,21 +10,71 @@
 | Contractions | only when `#` is pressed |
 | Default output | long forms, never contractions |
 | Follow-ons | none |
+| Custom chunks | default config loads `stoin-custom.json`; when overriding config, include it after base dictionaries with `--dictionary` |
 
 ## IV Set 1
 
-Initial-verb phrases are exact assignments.
+Initial-verb phrases are generated assignments.
+
+### IV Verb Stems
+
+| Stem | Verb |
+| --- | --- |
+| `PW` | to be |
+| `H` | to have |
+
+### IV Flags
+
+| Flag | Meaning |
+| --- | --- |
+| empty | third-person present: `is`, `has` |
+| `D` | past: `was`, `had` |
+| `E` | base/non-third present: `are`, `have` |
+| `ED` | plural past for `PW`: `were` |
+
+`F` is not used by `IV Set 1`.
+
+### IV Tails
+
+| Present Tail | Past Tail | Object |
+| --- | --- | --- |
+| `B` | `BD` | a |
+| `T` | `TD` | the |
+| `P` | `PD` | it |
+| `RT` | `RTD` | that |
+
+### IV Exact Rows
 
 | Stroke | Output |
 | --- | --- |
 | `PW-B` | is a |
 | `PW-BD` | was a |
+| `PWE-B` | are a |
+| `PWE-BD` | were a |
 | `PW-T` | is the |
 | `PW-TD` | was the |
+| `PWE-T` | are the |
+| `PWE-TD` | were the |
 | `PW-P` | is it |
 | `PW-PD` | was it |
+| `PWE-P` | are it |
+| `PWE-PD` | were it |
 | `PW-RT` | is that |
 | `PW-RTD` | was that |
+| `PWE-RT` | are that |
+| `PWE-RTD` | were that |
+| `H-B` | has a |
+| `H-BD` | had a |
+| `HE-B` | have a |
+| `H-T` | has the |
+| `H-TD` | had the |
+| `HE-T` | have the |
+| `H-P` | has it |
+| `H-PD` | had it |
+| `HE-P` | have it |
+| `H-RT` | has that |
+| `H-RTD` | had that |
+| `HE-RT` | have that |
 
 ## FV Set 1
 
@@ -116,19 +166,24 @@ Past affirmative be/have/will contractions are unassigned.
 
 ## NV Set 1
 
-Non-verb phrases are exact assignments.
+Non-verb phrase rows are split between generated phrase rows and custom
+dictionary rows.
 
-### NV Immediate Rows
+### NV Generated Rows
 
 | Stroke | Output |
 | --- | --- |
+| `WHR*-B` | with a |
 | `WHR*-T` | with the |
 | `WHR*-PLT` | with them |
 | `WHR*-RT` | with that |
 | `PHR*-RT` | anything that |
+| `KPHR*-B` | even a |
 | `KPHR*-RT` | even that |
 
-### NV Else Rows
+### NV Custom Else Rows
+
+These rows live in `stoin-custom.json`.
 
 | Stroke | Output |
 | --- | --- |
@@ -137,7 +192,9 @@ Non-verb phrases are exact assignments.
 | `PHR*-P` | everybody else |
 | `PHR*-L` | everything else |
 
-### NV Partitive Rows
+### NV Custom Partitive Rows
+
+These rows live in `stoin-custom.json`.
 
 | Stroke | Output |
 | --- | --- |
@@ -148,7 +205,9 @@ Non-verb phrases are exact assignments.
 | `TPHRA*-L` | any of them |
 | `TPHRA*-G` | all of them |
 
-### NV Function Rows
+### NV Custom Function Rows
+
+These rows live in `stoin-custom.json`.
 
 | Stroke | Output |
 | --- | --- |
@@ -169,7 +228,13 @@ Non-verb phrases are exact assignments.
 | --- | --- |
 | `PW-B` | is a |
 | `PW-T` | is the |
+| `PWE-B` | are a |
+| `PWE-BD` | were a |
 | `PW-RTD` | was that |
+| `H-B` | has a |
+| `H-BD` | had a |
+| `HE-B` | have a |
+| `H-RTD` | had that |
 
 ### FV Long-Form Samples
 
@@ -210,10 +275,12 @@ Non-verb phrases are exact assignments.
 
 | Stroke | Output |
 | --- | --- |
+| `WHR*-B` | with a |
 | `WHR*-T` | with the |
 | `WHR*-PLT` | with them |
 | `WHR*-RT` | with that |
 | `PHR*-RT` | anything that |
+| `KPHR*-B` | even a |
 | `KPHR*-RT` | even that |
 | `TPHRA*-P` | one of them |
 | `KPHR*-P` | even if |

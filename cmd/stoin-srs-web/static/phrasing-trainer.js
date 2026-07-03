@@ -1,12 +1,32 @@
 const phraseAssignments = [
 	{ lesson: 'iv', stroke: 'PW-B', phrase: 'is a' },
 	{ lesson: 'iv', stroke: 'PW-BD', phrase: 'was a' },
+	{ lesson: 'iv', stroke: 'PWE-B', phrase: 'are a' },
+	{ lesson: 'iv', stroke: 'PWE-BD', phrase: 'were a' },
 	{ lesson: 'iv', stroke: 'PW-T', phrase: 'is the' },
 	{ lesson: 'iv', stroke: 'PW-TD', phrase: 'was the' },
+	{ lesson: 'iv', stroke: 'PWE-T', phrase: 'are the' },
+	{ lesson: 'iv', stroke: 'PWE-TD', phrase: 'were the' },
 	{ lesson: 'iv', stroke: 'PW-P', phrase: 'is it' },
 	{ lesson: 'iv', stroke: 'PW-PD', phrase: 'was it' },
+	{ lesson: 'iv', stroke: 'PWE-P', phrase: 'are it' },
+	{ lesson: 'iv', stroke: 'PWE-PD', phrase: 'were it' },
 	{ lesson: 'iv', stroke: 'PW-RT', phrase: 'is that' },
 	{ lesson: 'iv', stroke: 'PW-RTD', phrase: 'was that' },
+	{ lesson: 'iv', stroke: 'PWE-RT', phrase: 'are that' },
+	{ lesson: 'iv', stroke: 'PWE-RTD', phrase: 'were that' },
+	{ lesson: 'iv', stroke: 'H-B', phrase: 'has a' },
+	{ lesson: 'iv', stroke: 'H-BD', phrase: 'had a' },
+	{ lesson: 'iv', stroke: 'HE-B', phrase: 'have a' },
+	{ lesson: 'iv', stroke: 'H-T', phrase: 'has the' },
+	{ lesson: 'iv', stroke: 'H-TD', phrase: 'had the' },
+	{ lesson: 'iv', stroke: 'HE-T', phrase: 'have the' },
+	{ lesson: 'iv', stroke: 'H-P', phrase: 'has it' },
+	{ lesson: 'iv', stroke: 'H-PD', phrase: 'had it' },
+	{ lesson: 'iv', stroke: 'HE-P', phrase: 'have it' },
+	{ lesson: 'iv', stroke: 'H-RT', phrase: 'has that' },
+	{ lesson: 'iv', stroke: 'H-RTD', phrase: 'had that' },
+	{ lesson: 'iv', stroke: 'HE-RT', phrase: 'have that' },
 
 	{ lesson: 'fv-core', stroke: 'SKWHR-B', phrase: 'she is' },
 	{ lesson: 'fv-core', stroke: 'SKWHR-BD', phrase: 'she was' },
@@ -38,10 +58,12 @@ const phraseAssignments = [
 	{ lesson: 'fv-contractions', stroke: '#KWHR-FG', phrase: "he's gone" },
 	{ lesson: 'fv-contractions', stroke: '#TWHAO-G', phrase: "they'll go" },
 
+	{ lesson: 'nv-immediate', stroke: 'WHR*-B', phrase: 'with a' },
 	{ lesson: 'nv-immediate', stroke: 'WHR*-T', phrase: 'with the' },
 	{ lesson: 'nv-immediate', stroke: 'WHR*-PLT', phrase: 'with them' },
 	{ lesson: 'nv-immediate', stroke: 'WHR*-RT', phrase: 'with that' },
 	{ lesson: 'nv-immediate', stroke: 'PHR*-RT', phrase: 'anything that' },
+	{ lesson: 'nv-immediate', stroke: 'KPHR*-B', phrase: 'even a' },
 	{ lesson: 'nv-immediate', stroke: 'KPHR*-RT', phrase: 'even that' },
 
 	{ lesson: 'nv-else', stroke: 'PHR*-F', phrase: 'anything else' },
@@ -66,13 +88,13 @@ const phraseAssignments = [
 ];
 
 const phraseLessons = [
-	{ name: '1. IV Set 1', detail: 'is/was + a/the/it/that', lessonIDs: ['iv'] },
+	{ name: '1. IV Set 1', detail: 'is/was/are/were and has/had/have rows', lessonIDs: ['iv'] },
 	{ name: '2. FV core', detail: 'common long final-verb phrases', lessonIDs: ['fv-core'] },
 	{ name: '3. FV operators', detail: 'not, will, progressive, perfect, suffixes', lessonIDs: ['fv-operators'] },
 	{ name: '4. FV contractions', detail: '# contraction forms only', lessonIDs: ['fv-contractions'] },
-	{ name: '5. NV immediate', detail: 'with * and * that', lessonIDs: ['nv-immediate'] },
-	{ name: '6. NV else/partitives', detail: 'else and of them/of the chunks', lessonIDs: ['nv-else'] },
-	{ name: '7. NV functions', detail: 'subordinators and function chunks', lessonIDs: ['nv-functions'] },
+	{ name: '5. NV immediate', detail: 'with * and * that rows', lessonIDs: ['nv-immediate'] },
+	{ name: '6. NV custom else/partitives', detail: 'stoin-custom else and of them/of the chunks', lessonIDs: ['nv-else'] },
+	{ name: '7. NV custom functions', detail: 'stoin-custom subordinators and function chunks', lessonIDs: ['nv-functions'] },
 	{ name: '8. All implemented', detail: 'IV, FV, and NV Set 1', lessonIDs: 'all' },
 ];
 

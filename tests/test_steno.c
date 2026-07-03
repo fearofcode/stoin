@@ -700,6 +700,10 @@ int main(void)
     ok = ok && steno_lookup_stroke(steno, "PW-B", &phrase_lookup);
     ok = ok && expect_string("phrase lookup wins over dictionary", phrase_lookup, "is a");
 
+    const char *have_phrase_lookup = NULL;
+    ok = ok && steno_lookup_stroke(steno, "H-BD", &have_phrase_lookup);
+    ok = ok && expect_string("initial have phrase lookup", have_phrase_lookup, "had a");
+
     const char *ampersand = NULL;
     ok = ok && steno_lookup_stroke(steno, "PH", &ampersand);
     ok = ok && expect_string("dictionary lookup unicode escaped key and value", ampersand, "&");
@@ -1035,12 +1039,32 @@ int main(void)
     } initial_verb_cases[] = {
         { "PW-B", "is a" },
         { "PW-BD", "was a" },
+        { "PWE-B", "are a" },
+        { "PWE-BD", "were a" },
         { "PW-T", "is the" },
         { "PW-TD", "was the" },
+        { "PWE-T", "are the" },
+        { "PWE-TD", "were the" },
         { "PW-P", "is it" },
         { "PW-PD", "was it" },
+        { "PWE-P", "are it" },
+        { "PWE-PD", "were it" },
         { "PW-RT", "is that" },
         { "PW-RTD", "was that" },
+        { "PWE-RT", "are that" },
+        { "PWE-RTD", "were that" },
+        { "H-B", "has a" },
+        { "H-BD", "had a" },
+        { "HE-B", "have a" },
+        { "H-T", "has the" },
+        { "H-TD", "had the" },
+        { "HE-T", "have the" },
+        { "H-P", "has it" },
+        { "H-PD", "had it" },
+        { "HE-P", "have it" },
+        { "H-RT", "has that" },
+        { "H-RTD", "had that" },
+        { "HE-RT", "have that" },
     };
     for (size_t i = 0; i < sizeof(initial_verb_cases) / sizeof(initial_verb_cases[0]); ++i) {
         ok = ok && expect_stroke_output(
@@ -1056,11 +1080,36 @@ int main(void)
         const char *stroke;
         const char *expected;
     } nonverb_cases[] = {
+        { "WHR*-B", "with a" },
         { "WHR*-T", "with the" },
         { "WHR*-PLT", "with them" },
         { "WHR*-RT", "with that" },
         { "PHR*-RT", "anything that" },
+        { "KPHR*-B", "even a" },
         { "KPHR*-RT", "even that" },
+    };
+    for (size_t i = 0; i < sizeof(nonverb_cases) / sizeof(nonverb_cases[0]); ++i) {
+        ok = ok && expect_stroke_output(
+            &steno,
+            &config,
+            &output,
+            "nonverb set 1",
+            nonverb_cases[i].stroke,
+            nonverb_cases[i].expected);
+    }
+
+    const char *custom_nv_paths[] = {
+        "tests/test-dictionary.json",
+        "stoin-custom.json",
+    };
+    Steno_Config custom_nv_config = config;
+    custom_nv_config.dictionary_path = NULL;
+    custom_nv_config.dictionary_paths = custom_nv_paths;
+    custom_nv_config.dictionary_path_count = sizeof(custom_nv_paths) / sizeof(custom_nv_paths[0]);
+    const struct {
+        const char *stroke;
+        const char *expected;
+    } custom_nonverb_cases[] = {
         { "PHR*-F", "anything else" },
         { "PHR*-R", "something else" },
         { "PHR*-P", "everybody else" },
@@ -1080,14 +1129,14 @@ int main(void)
         { "STPHR*-L", "not only" },
         { "STPHR*-G", "not yet" },
     };
-    for (size_t i = 0; i < sizeof(nonverb_cases) / sizeof(nonverb_cases[0]); ++i) {
+    for (size_t i = 0; i < sizeof(custom_nonverb_cases) / sizeof(custom_nonverb_cases[0]); ++i) {
         ok = ok && expect_stroke_output(
             &steno,
-            &config,
+            &custom_nv_config,
             &output,
-            "nonverb set 1",
-            nonverb_cases[i].stroke,
-            nonverb_cases[i].expected);
+            "custom nonverb entries",
+            custom_nonverb_cases[i].stroke,
+            custom_nonverb_cases[i].expected);
     }
 
     const struct {

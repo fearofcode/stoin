@@ -12,14 +12,15 @@ implemented assignment.
 
 ## Practice Path
 
-1. Learn `IV Set 1`: `PW-B`, `PW-T`, `PW-P`, and `PW-RT`, plus right `D` for
-   `was`.
+1. Learn `IV Set 1`: `PW` for `is/was/are/were`, `H` for `has/had/have`,
+   `E` for base/non-third forms, and the shared right-hand tails `B`, `T`,
+   `P`, and `RT`.
 2. Learn the `FV` starter table, then practice common long forms such as
    `SKWHR-B`, `SKWHR-PBG`, `SKWHRAO-G`, `SKWHREG`, and `SKWHR-FG`.
 3. Add `#` only for contraction forms, such as `#SKWHR-B`, `#SKWHR*E`, and
    `#SKWHRAO-G`.
-4. Learn the immediate `NV` rows first: `WHR*-T`, `WHR*-PLT`, `WHR*-RT`,
-   `PHR*-RT`, and `KPHR*-RT`.
+4. Learn the immediate `NV` rows first: `WHR*-B`, `WHR*-T`, `WHR*-PLT`,
+   `WHR*-RT`, `PHR*-RT`, `KPHR*-B`, and `KPHR*-RT`.
 
 ## Paper Tape
 
@@ -27,12 +28,22 @@ Assigned phrase strokes are marked as phrase hits:
 
 ```text
 PWB [phrase] -> is a
+HBD [phrase] -> had a
+PWEB [phrase] -> are a
+HEB [phrase] -> have a
 SKWHRB [phrase] -> she is
 WHR*RT [phrase] -> with that
+WHR*B [phrase] -> with a
+KPHR*B [phrase] -> even a
 ```
 
 Unassigned strokes are ordinary dictionary/raw strokes and have no phrase
 fallback label.
+
+One-off `NV` chunks such as `anything else`, `one of them`, and `instead of`
+live in `stoin-custom.json`. The default config already loads it; if you
+override dictionaries on the command line, include that file with another
+`--dictionary` argument.
 
 ## Web Trainer
 

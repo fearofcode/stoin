@@ -419,6 +419,10 @@ func TestStaticPhrasingTrainerScript(t *testing.T) {
 	body := rec.Body.String()
 	if !strings.Contains(body, "const phraseAssignments") ||
 		!strings.Contains(body, "FV contractions") ||
+		!strings.Contains(body, "PWE-B") ||
+		!strings.Contains(body, "H-BD") ||
+		!strings.Contains(body, "WHR*-B") ||
+		!strings.Contains(body, "KPHR*-B") ||
 		!strings.Contains(body, "WHR*-T") ||
 		!strings.Contains(body, "#SKWHR-B") ||
 		!strings.Contains(body, "repeatedShuffledPasses") ||

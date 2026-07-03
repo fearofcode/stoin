@@ -11,11 +11,6 @@
 
 #include "../stb_ds.h"
 
-typedef struct Exact_Phrase {
-    const char *stroke;
-    const char *text;
-} Exact_Phrase;
-
 static bool append_word(char **out, const char *word)
 {
     if (out == NULL || word == NULL || word[0] == '\0') {
@@ -28,76 +23,170 @@ static bool append_word(char **out, const char *word)
     return text_append_cstring(out, word);
 }
 
-static bool copy_result(const char *text, char **out_utf8)
+static Phrase_Lookup_Result copy_phrase_words(const char *first, const char *second, char **out_utf8)
 {
-    *out_utf8 = copy_cstring(text);
-    return *out_utf8 != NULL;
-}
-
-static bool exact_stroke_matches(uint64_t bits, const char *stroke)
-{
-    uint64_t stroke_bits = 0;
-    return stroke_string_to_bits(stroke, &stroke_bits) && bits == stroke_bits;
-}
-
-static Phrase_Lookup_Result lookup_exact_table(
-    uint64_t bits,
-    const Exact_Phrase *phrases,
-    size_t phrase_count,
-    char **out_utf8
-)
-{
-    for (size_t i = 0; i < phrase_count; ++i) {
-        if (exact_stroke_matches(bits, phrases[i].stroke)) {
-            return copy_result(phrases[i].text, out_utf8) ? PHRASE_LOOKUP_HIT : PHRASE_LOOKUP_ERROR;
-        }
+    char *result = NULL;
+    if (!append_word(&result, first) || !append_word(&result, second)) {
+        arrfree(result);
+        return PHRASE_LOOKUP_ERROR;
     }
-    return PHRASE_LOOKUP_MISS;
+    *out_utf8 = copy_cstring(result);
+    arrfree(result);
+    if (*out_utf8 == NULL) {
+        return PHRASE_LOOKUP_ERROR;
+    }
+    return PHRASE_LOOKUP_HIT;
+}
+
+static const char *iv_object_for_bits(uint64_t bits)
+{
+    const uint64_t r = steno_bit(STENO_RIGHT_R);
+    const uint64_t p = steno_bit(STENO_RIGHT_P);
+    const uint64_t b = steno_bit(STENO_RIGHT_B);
+    const uint64_t t = steno_bit(STENO_RIGHT_T);
+
+    if (bits == b) {
+        return "a";
+    }
+    if (bits == t) {
+        return "the";
+    }
+    if (bits == p) {
+        return "it";
+    }
+    if (bits == (r | t)) {
+        return "that";
+    }
+    return NULL;
 }
 
 static Phrase_Lookup_Result lookup_initial_verb(uint64_t bits, char **out_utf8)
 {
-    static const Exact_Phrase phrases[] = {
-        { "PW-B", "is a" },
-        { "PW-BD", "was a" },
-        { "PW-T", "is the" },
-        { "PW-TD", "was the" },
-        { "PW-P", "is it" },
-        { "PW-PD", "was it" },
-        { "PW-RT", "is that" },
-        { "PW-RTD", "was that" },
+    const uint64_t left_mask = steno_bit(STENO_LEFT_S)
+        | steno_bit(STENO_LEFT_T)
+        | steno_bit(STENO_LEFT_K)
+        | steno_bit(STENO_LEFT_P)
+        | steno_bit(STENO_LEFT_W)
+        | steno_bit(STENO_LEFT_H)
+        | steno_bit(STENO_LEFT_R);
+    const uint64_t be_stem = steno_bit(STENO_LEFT_P) | steno_bit(STENO_LEFT_W);
+    const uint64_t have_stem = steno_bit(STENO_LEFT_H);
+    const uint64_t base_flag = steno_bit(STENO_E);
+    const uint64_t past_flag = steno_bit(STENO_RIGHT_D);
+
+    const uint64_t stem_bits = bits & left_mask;
+    const uint64_t right_bits = bits & ~left_mask;
+    const uint64_t flags = right_bits & (base_flag | past_flag);
+    const uint64_t object_bits = right_bits & ~(base_flag | past_flag);
+    const char *object = iv_object_for_bits(object_bits);
+    if (object == NULL) {
+        return PHRASE_LOOKUP_MISS;
+    }
+
+    const char *verb = NULL;
+    if (stem_bits == be_stem) {
+        if (flags == 0) {
+            verb = "is";
+        } else if (flags == past_flag) {
+            verb = "was";
+        } else if (flags == base_flag) {
+            verb = "are";
+        } else if (flags == (base_flag | past_flag)) {
+            verb = "were";
+        }
+    } else if (stem_bits == have_stem) {
+        if (flags == 0) {
+            verb = "has";
+        } else if (flags == past_flag) {
+            verb = "had";
+        } else if (flags == base_flag) {
+            verb = "have";
+        }
+    }
+    if (verb == NULL) {
+        return PHRASE_LOOKUP_MISS;
+    }
+
+    return copy_phrase_words(verb, object, out_utf8);
+}
+
+static const char *nv_tail_for_bits(uint64_t bits, uint32_t allowed)
+{
+    enum {
+        NV_TAIL_A = 1u << 0,
+        NV_TAIL_THE = 1u << 1,
+        NV_TAIL_THEM = 1u << 2,
+        NV_TAIL_THAT = 1u << 3,
     };
-    return lookup_exact_table(bits, phrases, sizeof(phrases) / sizeof(phrases[0]), out_utf8);
+
+    const uint64_t r = steno_bit(STENO_RIGHT_R);
+    const uint64_t p = steno_bit(STENO_RIGHT_P);
+    const uint64_t b = steno_bit(STENO_RIGHT_B);
+    const uint64_t l = steno_bit(STENO_RIGHT_L);
+    const uint64_t t = steno_bit(STENO_RIGHT_T);
+
+    if ((allowed & NV_TAIL_A) != 0 && bits == b) {
+        return "a";
+    }
+    if ((allowed & NV_TAIL_THE) != 0 && bits == t) {
+        return "the";
+    }
+    if ((allowed & NV_TAIL_THEM) != 0 && bits == (p | l | t)) {
+        return "them";
+    }
+    if ((allowed & NV_TAIL_THAT) != 0 && bits == (r | t)) {
+        return "that";
+    }
+    return NULL;
 }
 
 static Phrase_Lookup_Result lookup_nonverb(uint64_t bits, char **out_utf8)
 {
-    static const Exact_Phrase phrases[] = {
-        { "WHR*-T", "with the" },
-        { "WHR*-PLT", "with them" },
-        { "WHR*-RT", "with that" },
-        { "PHR*-RT", "anything that" },
-        { "KPHR*-RT", "even that" },
-        { "PHR*-F", "anything else" },
-        { "PHR*-R", "something else" },
-        { "PHR*-P", "everybody else" },
-        { "PHR*-L", "everything else" },
-        { "TPHRA*-F", "each of the" },
-        { "TPHRA*-R", "both of the" },
-        { "TPHRA*-P", "one of them" },
-        { "TPHRA*-B", "some of them" },
-        { "TPHRA*-L", "any of them" },
-        { "TPHRA*-G", "all of them" },
-        { "KPHR*-F", "as if" },
-        { "KPHR*-R", "as though" },
-        { "KPHR*-P", "even if" },
-        { "KPHR*-L", "even though" },
-        { "STPHR*-R", "in order to" },
-        { "STPHR*-B", "instead of" },
-        { "STPHR*-L", "not only" },
-        { "STPHR*-G", "not yet" },
+    enum {
+        NV_TAIL_A = 1u << 0,
+        NV_TAIL_THE = 1u << 1,
+        NV_TAIL_THEM = 1u << 2,
+        NV_TAIL_THAT = 1u << 3,
     };
-    return lookup_exact_table(bits, phrases, sizeof(phrases) / sizeof(phrases[0]), out_utf8);
+
+    const uint64_t left_star_mask = steno_bit(STENO_LEFT_S)
+        | steno_bit(STENO_LEFT_T)
+        | steno_bit(STENO_LEFT_K)
+        | steno_bit(STENO_LEFT_P)
+        | steno_bit(STENO_LEFT_W)
+        | steno_bit(STENO_LEFT_H)
+        | steno_bit(STENO_LEFT_R)
+        | steno_bit(STENO_STAR);
+    const uint64_t k = steno_bit(STENO_LEFT_K);
+    const uint64_t p = steno_bit(STENO_LEFT_P);
+    const uint64_t w = steno_bit(STENO_LEFT_W);
+    const uint64_t h = steno_bit(STENO_LEFT_H);
+    const uint64_t r = steno_bit(STENO_LEFT_R);
+    const uint64_t star = steno_bit(STENO_STAR);
+
+    const struct {
+        uint64_t bits;
+        const char *word;
+        uint32_t allowed_tails;
+    } prefixes[] = {
+        { w | h | r | star, "with", NV_TAIL_A | NV_TAIL_THE | NV_TAIL_THEM | NV_TAIL_THAT },
+        { p | h | r | star, "anything", NV_TAIL_THAT },
+        { k | p | h | r | star, "even", NV_TAIL_A | NV_TAIL_THAT },
+    };
+
+    const uint64_t prefix_bits = bits & left_star_mask;
+    const uint64_t tail_bits = bits & ~left_star_mask;
+    for (size_t i = 0; i < sizeof(prefixes) / sizeof(prefixes[0]); ++i) {
+        if (prefix_bits != prefixes[i].bits) {
+            continue;
+        }
+        const char *tail = nv_tail_for_bits(tail_bits, prefixes[i].allowed_tails);
+        if (tail == NULL) {
+            return PHRASE_LOOKUP_MISS;
+        }
+        return copy_phrase_words(prefixes[i].word, tail, out_utf8);
+    }
+    return PHRASE_LOOKUP_MISS;
 }
 
 typedef enum Fv_Starter_Id {
