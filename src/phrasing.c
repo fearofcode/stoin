@@ -117,12 +117,17 @@ static const char *nv_tail_for_bits(uint64_t bits, uint32_t allowed)
         NV_TAIL_THE = 1u << 1,
         NV_TAIL_THEM = 1u << 2,
         NV_TAIL_THAT = 1u << 3,
+        NV_TAIL_IF = 1u << 4,
+        NV_TAIL_THOUGH = 1u << 5,
+        NV_TAIL_ELSE = 1u << 6,
     };
 
+    const uint64_t f = steno_bit(STENO_RIGHT_F);
     const uint64_t r = steno_bit(STENO_RIGHT_R);
     const uint64_t p = steno_bit(STENO_RIGHT_P);
     const uint64_t b = steno_bit(STENO_RIGHT_B);
     const uint64_t l = steno_bit(STENO_RIGHT_L);
+    const uint64_t g = steno_bit(STENO_RIGHT_G);
     const uint64_t t = steno_bit(STENO_RIGHT_T);
 
     if ((allowed & NV_TAIL_A) != 0 && bits == b) {
@@ -137,6 +142,15 @@ static const char *nv_tail_for_bits(uint64_t bits, uint32_t allowed)
     if ((allowed & NV_TAIL_THAT) != 0 && bits == (r | t)) {
         return "that";
     }
+    if ((allowed & NV_TAIL_IF) != 0 && bits == f) {
+        return "if";
+    }
+    if ((allowed & NV_TAIL_THOUGH) != 0 && bits == (g | t)) {
+        return "though";
+    }
+    if ((allowed & NV_TAIL_ELSE) != 0 && bits == f) {
+        return "else";
+    }
     return NULL;
 }
 
@@ -147,35 +161,48 @@ static Phrase_Lookup_Result lookup_nonverb(uint64_t bits, char **out_utf8)
         NV_TAIL_THE = 1u << 1,
         NV_TAIL_THEM = 1u << 2,
         NV_TAIL_THAT = 1u << 3,
+        NV_TAIL_IF = 1u << 4,
+        NV_TAIL_THOUGH = 1u << 5,
+        NV_TAIL_ELSE = 1u << 6,
     };
 
-    const uint64_t left_star_mask = steno_bit(STENO_LEFT_S)
+    const uint64_t prefix_mask = steno_bit(STENO_LEFT_S)
         | steno_bit(STENO_LEFT_T)
         | steno_bit(STENO_LEFT_K)
         | steno_bit(STENO_LEFT_P)
         | steno_bit(STENO_LEFT_W)
         | steno_bit(STENO_LEFT_H)
         | steno_bit(STENO_LEFT_R)
-        | steno_bit(STENO_STAR);
+        | steno_bit(STENO_A)
+        | steno_bit(STENO_O)
+        | steno_bit(STENO_STAR)
+        | steno_bit(STENO_E)
+        | steno_bit(STENO_U);
+    const uint64_t s = steno_bit(STENO_LEFT_S);
+    const uint64_t t = steno_bit(STENO_LEFT_T);
     const uint64_t k = steno_bit(STENO_LEFT_K);
     const uint64_t p = steno_bit(STENO_LEFT_P);
     const uint64_t w = steno_bit(STENO_LEFT_W);
     const uint64_t h = steno_bit(STENO_LEFT_H);
     const uint64_t r = steno_bit(STENO_LEFT_R);
+    const uint64_t a = steno_bit(STENO_A);
+    const uint64_t o = steno_bit(STENO_O);
     const uint64_t star = steno_bit(STENO_STAR);
+    const uint64_t e = steno_bit(STENO_E);
 
     const struct {
         uint64_t bits;
         const char *word;
         uint32_t allowed_tails;
     } prefixes[] = {
-        { w | h | r | star, "with", NV_TAIL_A | NV_TAIL_THE | NV_TAIL_THEM | NV_TAIL_THAT },
-        { p | h | r | star, "anything", NV_TAIL_THAT },
-        { k | p | h | r | star, "even", NV_TAIL_A | NV_TAIL_THAT },
+        { t | w, "with", NV_TAIL_A | NV_TAIL_THE | NV_TAIL_THEM | NV_TAIL_THAT },
+        { t | k | p | w | h | star, "anything", NV_TAIL_THAT | NV_TAIL_ELSE },
+        { s | star, "as", NV_TAIL_IF | NV_TAIL_THOUGH },
+        { s | r | a | o | star | e, "even", NV_TAIL_A | NV_TAIL_THAT | NV_TAIL_IF | NV_TAIL_THOUGH },
     };
 
-    const uint64_t prefix_bits = bits & left_star_mask;
-    const uint64_t tail_bits = bits & ~left_star_mask;
+    const uint64_t prefix_bits = bits & prefix_mask;
+    const uint64_t tail_bits = bits & ~prefix_mask;
     for (size_t i = 0; i < sizeof(prefixes) / sizeof(prefixes[0]); ++i) {
         if (prefix_bits != prefixes[i].bits) {
             continue;

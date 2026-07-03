@@ -58,33 +58,21 @@ const phraseAssignments = [
 	{ lesson: 'fv-contractions', stroke: '#KWHR-FG', phrase: "he's gone" },
 	{ lesson: 'fv-contractions', stroke: '#TWHAO-G', phrase: "they'll go" },
 
-	{ lesson: 'nv-immediate', stroke: 'WHR*-B', phrase: 'with a' },
-	{ lesson: 'nv-immediate', stroke: 'WHR*-T', phrase: 'with the' },
-	{ lesson: 'nv-immediate', stroke: 'WHR*-PLT', phrase: 'with them' },
-	{ lesson: 'nv-immediate', stroke: 'WHR*-RT', phrase: 'with that' },
-	{ lesson: 'nv-immediate', stroke: 'PHR*-RT', phrase: 'anything that' },
-	{ lesson: 'nv-immediate', stroke: 'KPHR*-B', phrase: 'even a' },
-	{ lesson: 'nv-immediate', stroke: 'KPHR*-RT', phrase: 'even that' },
+	{ lesson: 'nv-immediate', stroke: 'TW-B', phrase: 'with a' },
+	{ lesson: 'nv-immediate', stroke: 'TW-T', phrase: 'with the' },
+	{ lesson: 'nv-immediate', stroke: 'TW-PLT', phrase: 'with them' },
+	{ lesson: 'nv-immediate', stroke: 'TW-RT', phrase: 'with that' },
+	{ lesson: 'nv-immediate', stroke: 'TKPWH*-RT', phrase: 'anything that' },
+	{ lesson: 'nv-immediate', stroke: 'TKPWH*-F', phrase: 'anything else' },
+	{ lesson: 'nv-immediate', stroke: 'SRAO*E-B', phrase: 'even a' },
+	{ lesson: 'nv-immediate', stroke: 'SRAO*E-RT', phrase: 'even that' },
 
-	{ lesson: 'nv-else', stroke: 'PHR*-F', phrase: 'anything else' },
-	{ lesson: 'nv-else', stroke: 'PHR*-R', phrase: 'something else' },
-	{ lesson: 'nv-else', stroke: 'PHR*-P', phrase: 'everybody else' },
-	{ lesson: 'nv-else', stroke: 'PHR*-L', phrase: 'everything else' },
-	{ lesson: 'nv-else', stroke: 'TPHRA*-F', phrase: 'each of the' },
-	{ lesson: 'nv-else', stroke: 'TPHRA*-R', phrase: 'both of the' },
-	{ lesson: 'nv-else', stroke: 'TPHRA*-P', phrase: 'one of them' },
-	{ lesson: 'nv-else', stroke: 'TPHRA*-B', phrase: 'some of them' },
-	{ lesson: 'nv-else', stroke: 'TPHRA*-L', phrase: 'any of them' },
-	{ lesson: 'nv-else', stroke: 'TPHRA*-G', phrase: 'all of them' },
-
-	{ lesson: 'nv-functions', stroke: 'KPHR*-F', phrase: 'as if' },
-	{ lesson: 'nv-functions', stroke: 'KPHR*-R', phrase: 'as though' },
-	{ lesson: 'nv-functions', stroke: 'KPHR*-P', phrase: 'even if' },
-	{ lesson: 'nv-functions', stroke: 'KPHR*-L', phrase: 'even though' },
-	{ lesson: 'nv-functions', stroke: 'STPHR*-R', phrase: 'in order to' },
-	{ lesson: 'nv-functions', stroke: 'STPHR*-B', phrase: 'instead of' },
-	{ lesson: 'nv-functions', stroke: 'STPHR*-L', phrase: 'not only' },
-	{ lesson: 'nv-functions', stroke: 'STPHR*-G', phrase: 'not yet' },
+	{ lesson: 'nv-functions', stroke: 'S*-F', phrase: 'as if' },
+	{ lesson: 'nv-functions', stroke: 'S*-GT', phrase: 'as though' },
+	{ lesson: 'nv-functions', stroke: 'SRAO*E-F', phrase: 'even if' },
+	{ lesson: 'nv-functions', stroke: 'SRAO*E-GT', phrase: 'even though' },
+	{ lesson: 'nv-functions', stroke: 'TPHORTD', phrase: 'in order to' },
+	{ lesson: 'nv-functions', stroke: 'STPHEFD', phrase: 'instead of' },
 ];
 
 const phraseLessons = [
@@ -92,16 +80,16 @@ const phraseLessons = [
 	{ name: '2. FV core', detail: 'common long final-verb phrases', lessonIDs: ['fv-core'] },
 	{ name: '3. FV operators', detail: 'not, will, progressive, perfect, suffixes', lessonIDs: ['fv-operators'] },
 	{ name: '4. FV contractions', detail: '# contraction forms only', lessonIDs: ['fv-contractions'] },
-	{ name: '5. NV immediate', detail: 'with * and * that rows', lessonIDs: ['nv-immediate'] },
-	{ name: '6. NV custom else/partitives', detail: 'stoin-custom else and of them/of the chunks', lessonIDs: ['nv-else'] },
-	{ name: '7. NV custom functions', detail: 'stoin-custom subordinators and function chunks', lessonIDs: ['nv-functions'] },
-	{ name: '8. All implemented', detail: 'IV, FV, and NV Set 1', lessonIDs: 'all' },
+	{ name: '5. NV immediate', detail: 'TW with, TKPWH* anything, SRAO*E even', lessonIDs: ['nv-immediate'] },
+	{ name: '6. NV functions', detail: 'S* as, SRAO*E even, and two custom chunks', lessonIDs: ['nv-functions'] },
+	{ name: '7. All implemented', detail: 'IV, FV, and NV Set 1', lessonIDs: 'all' },
 ];
 
 const phraseLessonSelect = document.getElementById('phrase-lesson');
 const phraseCountInput = document.getElementById('phrase-count');
 const phraseOrderSelect = document.getElementById('phrase-order');
 const phraseFocusList = document.getElementById('phrase-focus-list');
+const phraseFilterInput = document.getElementById('phrase-filter');
 const phraseSelectAll = document.getElementById('phrase-select-all');
 const phraseSelectNone = document.getElementById('phrase-select-none');
 const phraseHintsSelect = document.getElementById('phrase-hints');
@@ -117,6 +105,7 @@ const phraseStatus = document.getElementById('phrase-status');
 let phraseQueue = [];
 let phraseIndex = 0;
 let phraseMistake = false;
+const phraseCheckedByKey = new Map();
 
 function promptsForLesson(index) {
 	const lesson = phraseLessons[index] || phraseLessons[0];
@@ -191,18 +180,33 @@ function promptKey(prompt) {
 	return prompt ? prompt.stroke + '\n' + prompt.phrase : '';
 }
 
+function normalizePromptFilter(text) {
+	return text.trim().toLowerCase();
+}
+
+function promptMatchesFilter(prompt, filter) {
+	if (!filter) return true;
+	return prompt.phrase.toLowerCase().includes(filter)
+		|| prompt.stroke.toLowerCase().includes(filter)
+		|| prompt.lesson.toLowerCase().includes(filter);
+}
+
+function syncFocusSelectionFromInputs() {
+	phraseFocusList.querySelectorAll('input[type="checkbox"]').forEach(function(input) {
+		phraseCheckedByKey.set(input.value, input.checked);
+	});
+}
+
 function populateFocusOptions(pool) {
-	const previousInputs = Array.from(phraseFocusList.querySelectorAll('input[type="checkbox"]'));
-	const previousChecked = new Set(previousInputs.filter(function(input) { return input.checked; }).map(function(input) { return input.value; }));
-	const hasPrevious = previousInputs.length > 0;
-	const hasMatchingPrevious = pool.some(function(prompt) { return previousChecked.has(promptKey(prompt)); });
+	const filter = normalizePromptFilter(phraseFilterInput.value || '');
+	const visiblePool = pool.filter(function(prompt) { return promptMatchesFilter(prompt, filter); });
 	phraseFocusList.textContent = '';
-	pool.forEach(function(prompt) {
+	visiblePool.forEach(function(prompt) {
 		const key = promptKey(prompt);
 		const input = document.createElement('input');
 		input.type = 'checkbox';
 		input.value = key;
-		input.checked = !hasPrevious || (previousChecked.size > 0 && !hasMatchingPrevious) || previousChecked.has(key);
+		input.checked = !phraseCheckedByKey.has(key) || phraseCheckedByKey.get(key);
 
 		const text = document.createElement('span');
 		text.textContent = prompt.phrase + ' - ' + prompt.stroke;
@@ -212,16 +216,23 @@ function populateFocusOptions(pool) {
 		label.appendChild(text);
 		phraseFocusList.appendChild(label);
 	});
+	if (!visiblePool.length) {
+		const empty = document.createElement('div');
+		empty.className = 'small';
+		empty.textContent = 'No phrases match.';
+		phraseFocusList.appendChild(empty);
+	}
 }
 
 function selectedPrompts(pool) {
-	const selected = new Set(Array.from(phraseFocusList.querySelectorAll('input[type="checkbox"]'))
-		.filter(function(input) { return input.checked; })
-		.map(function(input) { return input.value; }));
-	return pool.filter(function(prompt) { return selected.has(promptKey(prompt)); });
+	return pool.filter(function(prompt) {
+		const key = promptKey(prompt);
+		return !phraseCheckedByKey.has(key) || phraseCheckedByKey.get(key);
+	});
 }
 
 function rebuildPhraseQueue() {
+	syncFocusSelectionFromInputs();
 	const fullPool = currentPool();
 	const repetitions = Math.max(1, Math.min(100, Number(phraseCountInput.value || '7')));
 	populateFocusOptions(fullPool);
@@ -337,6 +348,10 @@ phraseLessonSelect.addEventListener('change', rebuildPhraseQueue);
 phraseCountInput.addEventListener('change', rebuildPhraseQueue);
 phraseOrderSelect.addEventListener('change', rebuildPhraseQueue);
 phraseFocusList.addEventListener('change', rebuildPhraseQueue);
+phraseFilterInput.addEventListener('input', function() {
+	syncFocusSelectionFromInputs();
+	populateFocusOptions(currentPool());
+});
 phraseSelectAll.addEventListener('click', function() {
 	phraseFocusList.querySelectorAll('input[type="checkbox"]').forEach(function(input) {
 		input.checked = true;

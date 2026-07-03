@@ -167,58 +167,39 @@ Past affirmative be/have/will contractions are unassigned.
 ## NV Set 1
 
 Non-verb phrase rows are split between generated phrase rows and custom
-dictionary rows.
+dictionary rows. The `anything` stem is written in canonical steno order as
+`TKPWH*`; it is the same chord as the mnemonic `TPKWH*` idea.
 
-### NV Generated Rows
+### NV Left-Side Assignments
 
-| Stroke | Output |
+| Keys | Output Pattern |
 | --- | --- |
-| `WHR*-B` | with a |
-| `WHR*-T` | with the |
-| `WHR*-PLT` | with them |
-| `WHR*-RT` | with that |
-| `PHR*-RT` | anything that |
-| `KPHR*-B` | even a |
-| `KPHR*-RT` | even that |
+| `TW` | with `*` |
+| `TKPWH*` | anything `*` |
+| `S*` | as `*` |
+| `SRAO*E` | even `*` |
 
-### NV Custom Else Rows
+### NV Right-Hand Assignments
 
-These rows live in `stoin-custom.json`.
+| Keys | Output Pattern | Used With |
+| --- | --- | --- |
+| `-B` | `*` a | `TW`, `SRAO*E` |
+| `-F` | `*` else | `TKPWH*` |
+| `-F` | `*` if | `S*`, `SRAO*E` |
+| `-GT` | `*` though | `S*`, `SRAO*E` |
+| `-PLT` | `*` them | `TW` |
+| `-RT` | `*` that | `TW`, `TKPWH*`, `SRAO*E` |
+| `-T` | `*` the | `TW` |
 
-| Stroke | Output |
-| --- | --- |
-| `PHR*-F` | anything else |
-| `PHR*-R` | something else |
-| `PHR*-P` | everybody else |
-| `PHR*-L` | everything else |
+### NV Custom Rows
 
-### NV Custom Partitive Rows
+These rows live in `stoin-custom.json`. `TPHORTD` and `STPHEFD` are copied
+from the open-source Lapwing dictionary.
 
-These rows live in `stoin-custom.json`.
-
-| Stroke | Output |
-| --- | --- |
-| `TPHRA*-F` | each of the |
-| `TPHRA*-R` | both of the |
-| `TPHRA*-P` | one of them |
-| `TPHRA*-B` | some of them |
-| `TPHRA*-L` | any of them |
-| `TPHRA*-G` | all of them |
-
-### NV Custom Function Rows
-
-These rows live in `stoin-custom.json`.
-
-| Stroke | Output |
-| --- | --- |
-| `KPHR*-F` | as if |
-| `KPHR*-R` | as though |
-| `KPHR*-P` | even if |
-| `KPHR*-L` | even though |
-| `STPHR*-R` | in order to |
-| `STPHR*-B` | instead of |
-| `STPHR*-L` | not only |
-| `STPHR*-G` | not yet |
+| Type | Stroke | Output |
+| --- | --- | --- |
+| function | `TPHORTD` | in order to |
+| function | `STPHEFD` | instead of |
 
 ## Samples
 
@@ -275,13 +256,15 @@ These rows live in `stoin-custom.json`.
 
 | Stroke | Output |
 | --- | --- |
-| `WHR*-B` | with a |
-| `WHR*-T` | with the |
-| `WHR*-PLT` | with them |
-| `WHR*-RT` | with that |
-| `PHR*-RT` | anything that |
-| `KPHR*-B` | even a |
-| `KPHR*-RT` | even that |
-| `TPHRA*-P` | one of them |
-| `KPHR*-P` | even if |
-| `STPHR*-B` | instead of |
+| `TW-B` | with a |
+| `TW-T` | with the |
+| `TW-PLT` | with them |
+| `TW-RT` | with that |
+| `TKPWH*-RT` | anything that |
+| `TKPWH*-F` | anything else |
+| `S*-F` | as if |
+| `S*-GT` | as though |
+| `SRAO*E-B` | even a |
+| `SRAO*E-F` | even if |
+| `SRAO*E-GT` | even though |
+| `STPHEFD` | instead of |

@@ -1080,13 +1080,18 @@ int main(void)
         const char *stroke;
         const char *expected;
     } nonverb_cases[] = {
-        { "WHR*-B", "with a" },
-        { "WHR*-T", "with the" },
-        { "WHR*-PLT", "with them" },
-        { "WHR*-RT", "with that" },
-        { "PHR*-RT", "anything that" },
-        { "KPHR*-B", "even a" },
-        { "KPHR*-RT", "even that" },
+        { "TW-B", "with a" },
+        { "TW-T", "with the" },
+        { "TW-PLT", "with them" },
+        { "TW-RT", "with that" },
+        { "TKPWH*-RT", "anything that" },
+        { "TKPWH*-F", "anything else" },
+        { "S*-F", "as if" },
+        { "S*-GT", "as though" },
+        { "SRAO*E-B", "even a" },
+        { "SRAO*E-RT", "even that" },
+        { "SRAO*E-F", "even if" },
+        { "SRAO*E-GT", "even though" },
     };
     for (size_t i = 0; i < sizeof(nonverb_cases) / sizeof(nonverb_cases[0]); ++i) {
         ok = ok && expect_stroke_output(
@@ -1110,24 +1115,8 @@ int main(void)
         const char *stroke;
         const char *expected;
     } custom_nonverb_cases[] = {
-        { "PHR*-F", "anything else" },
-        { "PHR*-R", "something else" },
-        { "PHR*-P", "everybody else" },
-        { "PHR*-L", "everything else" },
-        { "TPHRA*-F", "each of the" },
-        { "TPHRA*-R", "both of the" },
-        { "TPHRA*-P", "one of them" },
-        { "TPHRA*-B", "some of them" },
-        { "TPHRA*-L", "any of them" },
-        { "TPHRA*-G", "all of them" },
-        { "KPHR*-F", "as if" },
-        { "KPHR*-R", "as though" },
-        { "KPHR*-P", "even if" },
-        { "KPHR*-L", "even though" },
-        { "STPHR*-R", "in order to" },
-        { "STPHR*-B", "instead of" },
-        { "STPHR*-L", "not only" },
-        { "STPHR*-G", "not yet" },
+        { "TPHORTD", "in order to" },
+        { "STPHEFD", "instead of" },
     };
     for (size_t i = 0; i < sizeof(custom_nonverb_cases) / sizeof(custom_nonverb_cases[0]); ++i) {
         ok = ok && expect_stroke_output(

@@ -397,6 +397,7 @@ func TestPhrasingTrainerPage(t *testing.T) {
 		`src="/static/phrasing-trainer.js"`,
 		"Repetitions",
 		"selected phrases",
+		"Search bank",
 		"Select none",
 	} {
 		if !strings.Contains(body, want) {
@@ -421,9 +422,11 @@ func TestStaticPhrasingTrainerScript(t *testing.T) {
 		!strings.Contains(body, "FV contractions") ||
 		!strings.Contains(body, "PWE-B") ||
 		!strings.Contains(body, "H-BD") ||
-		!strings.Contains(body, "WHR*-B") ||
-		!strings.Contains(body, "KPHR*-B") ||
-		!strings.Contains(body, "WHR*-T") ||
+		!strings.Contains(body, "TW-B") ||
+		!strings.Contains(body, "TKPWH*-RT") ||
+		!strings.Contains(body, "SRAO*E-B") ||
+		!strings.Contains(body, "SRAO*E-GT") ||
+		!strings.Contains(body, "phraseFilterInput") ||
 		!strings.Contains(body, "#SKWHR-B") ||
 		!strings.Contains(body, "repeatedShuffledPasses") ||
 		!strings.Contains(body, "repeatedPromptBlocks") {

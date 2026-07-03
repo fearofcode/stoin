@@ -1,22 +1,6 @@
 {
   "#STPH": "{plover:toggle_dict:!semi-modal-movement.json}",
   "#*-678": "the questioningly",
-  "PHR*-F": "anything else",
-  "PHR*-R": "something else",
-  "PHR*-P": "everybody else",
-  "PHR*-L": "everything else",
-  "TPHRA*-F": "each of the",
-  "TPHRA*-R": "both of the",
-  "TPHRA*-P": "one of them",
-  "TPHRA*-B": "some of them",
-  "TPHRA*-L": "any of them",
-  "TPHRA*-G": "all of them",
-  "KPHR*-F": "as if",
-  "KPHR*-R": "as though",
-  "KPHR*-P": "even if",
-  "KPHR*-L": "even though",
-  "STPHR*-R": "in order to",
-  "STPHR*-B": "instead of",
-  "STPHR*-L": "not only",
-  "STPHR*-G": "not yet"
+  "TPHORTD": "in order to",
+  "STPHEFD": "instead of"
 }
