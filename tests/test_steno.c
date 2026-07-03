@@ -139,6 +139,7 @@ static bool expect_mock_pedal_phrase(
     const Steno_Config *config,
     Test_Output *output,
     const char *name,
+    Phrase_Namespace namespace,
     const char *stroke,
     const char *expected
 )
@@ -148,7 +149,7 @@ static bool expect_mock_pedal_phrase(
     }
     clear_test_output(output);
     reset_output_log(output);
-    return handle_mock_pedal_stroke(*steno, PHRASE_NAMESPACE_INITIAL_VERB, stroke)
+    return handle_mock_pedal_stroke(*steno, namespace, stroke)
         && expect_string(name, output->text, expected);
 }
 
@@ -1103,8 +1104,33 @@ int main(void)
             &config,
             &output,
             "initial verb be tail inventory",
+            PHRASE_NAMESPACE_INITIAL_VERB,
             phrase_be_cases[i].stroke,
             phrase_be_cases[i].expected);
+    }
+
+    const struct {
+        const char *stroke;
+        const char *expected;
+    } nonverb_cases[] = {
+        { "W-RT", "with that" },
+        { "TPHR-RPB", "unless he" },
+        { "TPH-F", "even if" },
+        { "TPH-PBG", "even when" },
+        { "S-F", "as if" },
+        { "K-L", "even though" },
+        { "T-P", "one of them" },
+        { "-F", "anything else" },
+    };
+    for (size_t i = 0; i < sizeof(nonverb_cases) / sizeof(nonverb_cases[0]); ++i) {
+        ok = ok && expect_mock_pedal_phrase(
+            &steno,
+            &config,
+            &output,
+            "nonverb phrase inventory",
+            PHRASE_NAMESPACE_NONVERB,
+            nonverb_cases[i].stroke,
+            nonverb_cases[i].expected);
     }
 
     ok = ok && reset_test_steno(&steno, &config);

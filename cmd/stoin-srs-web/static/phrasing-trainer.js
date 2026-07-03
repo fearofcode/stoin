@@ -37,6 +37,30 @@ const phraseLessons = [
 	{ name: '1. Present IV tails', detail: 'is <tail>', tense: 'present', tailIDs: 'all' },
 	{ name: '2. Past IV tails', detail: 'was <tail>', tense: 'past', tailIDs: 'all' },
 	{ name: '3. Mixed IV be', detail: 'is/was <tail>', tense: 'mixed', tailIDs: 'all' },
+	{ name: '4. NV unless heads', detail: 'unless <head>', kind: 'nonverb', familyIDs: ['unless'], headIDs: 'nonverb' },
+	{ name: '5. NV even heads', detail: 'even <head>', kind: 'nonverb', familyIDs: ['even'], headIDs: 'nonverb' },
+	{ name: '6. NV with/as heads', detail: 'with/as <head>', kind: 'nonverb', familyIDs: ['with', 'as'], headIDs: 'nonverb' },
+	{ name: '7. Mixed NV heads', detail: 'unless/even/with/as <head>', kind: 'nonverb', familyIDs: 'all', headIDs: 'nonverb' },
+];
+
+const nonVerbFamilies = [
+	{ id: 'unless', stroke: 'TPHR', text: 'unless' },
+	{ id: 'even', stroke: 'TPH', text: 'even' },
+	{ id: 'with', stroke: 'W', text: 'with' },
+	{ id: 'as', stroke: 'S', text: 'as' },
+];
+
+const nonVerbExtraHeads = [
+	{ id: 'if', stroke: 'F', text: 'if', name: 'if' },
+];
+
+const nonVerbHeadIDs = [
+	'the', 'a', 'an',
+	'if',
+	'it', 'that', 'this', 'these', 'those',
+	'he', 'she', 'me', 'you', 'your', 'us', 'her', 'him', 'them',
+	'all', 'one',
+	'who', 'what', 'when', 'where', 'why', 'how',
 ];
 
 const phraseLessonSelect = document.getElementById('phrase-lesson');
@@ -76,6 +100,16 @@ function tailsForLesson(lesson) {
 	return lesson.tailIDs.map(function(id) { return byID(phraseTails, id); }).filter(Boolean);
 }
 
+function nonVerbHeadsForLesson(lesson) {
+	const ids = lesson.headIDs === 'nonverb' ? nonVerbHeadIDs : lesson.headIDs;
+	return ids.map(function(id) { return byID(phraseTails, id) || byID(nonVerbExtraHeads, id); }).filter(Boolean);
+}
+
+function nonVerbFamiliesForLesson(lesson) {
+	if (lesson.familyIDs === 'all') return nonVerbFamilies.slice();
+	return lesson.familyIDs.map(function(id) { return byID(nonVerbFamilies, id); }).filter(Boolean);
+}
+
 function canonicalRightStroke(stroke) {
 	const order = 'FRPBLGTSDZ';
 	let out = '';
@@ -99,8 +133,26 @@ function makePhrase(tense, tail, lessonName) {
 	};
 }
 
+function makeNonVerbPhrase(family, head, lessonName) {
+	const right = canonicalRightStroke(head.stroke);
+	return {
+		stroke: right ? family.stroke + '-' + right : family.stroke,
+		phrase: appendWords(family.text, head.text),
+		lesson: lessonName,
+	};
+}
+
 function promptsForLesson(index) {
 	const lesson = phraseLessons[index] || phraseLessons[0];
+	if (lesson.kind === 'nonverb') {
+		const families = nonVerbFamiliesForLesson(lesson);
+		const heads = nonVerbHeadsForLesson(lesson);
+		return families.flatMap(function(family) {
+			return heads.map(function(head) {
+				return makeNonVerbPhrase(family, head, lesson.name);
+			});
+		});
+	}
 	const tails = tailsForLesson(lesson);
 	if (lesson.tense === 'mixed') {
 		return tails.flatMap(function(tail) {

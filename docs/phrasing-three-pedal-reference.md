@@ -321,14 +321,65 @@ Used by `NV`. First-tier targets are briefs not covered by standard dictionaries
 | `T-L` | any of them |
 | `T-G` | all of them |
 
-### `NV` Subordinator Gaps
+### `NV` Family + Reusable Head Model
+
+For compositional non-verb phrases, the left side names the phrase family and
+the right side reuses the IV tail/head bank. This keeps `unless he`, `even he`,
+and `with him` on reusable right-hand heads instead of assigning unrelated
+fixed phrases.
+
+Draft family keys:
+
+| Left key | Family | Cue |
+| --- | --- | --- |
+| `TPHR` | unless | `n-l` / unless shape |
+| `TPH` | even | final `n` anchor |
+| `W` | with | first letter |
+| `S` | as | final `s` sound |
+
+Draft reusable heads:
+
+| Right key | Head |
+| --- | --- |
+| `T` | the |
+| `B` | a |
+| `PB` | an |
+| `F` | if |
+| `P` | it |
+| `RT` | that |
+| `TS` | this |
+| `SZ` | these |
+| `TZ` | those |
+| `RPB` | he |
+| `RB` | she |
+| `PL` | me |
+| `RP` | you |
+| `R` | your |
+| `S` | us |
+| `FR` | her |
+| `FL` | him |
+| `PLT` | them |
+| `L` | all |
+| `PBT` | one |
+| `RPL` | who |
+| `BLG` | what |
+| `PBG` | when |
+| `RLG` | where |
+| `BGT` | why |
+| `PLG` | how |
+
+This makes `NV[TPHR-RPB]` = `unless he`, `NV[TPH-RPB]` = `even he`,
+`NV[TPH-F]` = `even if`, `NV[TPH-PBG]` = `even when`, and `NV[W-RT]` =
+`with that`.
+
+### `NV` Fixed Subordinator Gaps
+
+Keep only genuinely fixed chunks here, not combinations that fall out of the
+family + reusable head model.
 
 | Key | Phrase |
 | --- | --- |
-| `K-F` | as if |
 | `K-R` | as though |
-| `K-P` | even if |
-| `K-B` | even when |
 | `K-L` | even though |
 | `K-G` | assuming that |
 | `K-FR` | provided that |
@@ -355,6 +406,13 @@ Used by `NV`. First-tier targets are briefs not covered by standard dictionaries
 | --- | --- |
 | `NV[T-F]` | each of the |
 | `NV[T-P]` | one of them |
+| `NV[TPHR-RPB]` | unless he |
+| `NV[TPH-RPB]` | even he |
+| `NV[TPH-F]` | even if |
+| `NV[TPH-PBG]` | even when |
+| `NV[W-RT]` | with that |
+| `NV[S-F]` | as if |
+| `NV[S-P]` | as it |
 | `NV[K-L]` | even though |
 | `NV[K-FL]` | because of that |
 | `NV[P-R]` | in order to |
