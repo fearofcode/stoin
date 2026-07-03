@@ -398,6 +398,7 @@ func TestPhrasingTrainerPage(t *testing.T) {
 		"Repetitions",
 		"selected phrases",
 		"Search bank",
+		"phrase-show-outlines",
 		"Select none",
 	} {
 		if !strings.Contains(body, want) {
@@ -427,6 +428,7 @@ func TestStaticPhrasingTrainerScript(t *testing.T) {
 		!strings.Contains(body, "SRAO*E-B") ||
 		!strings.Contains(body, "SRAO*E-GT") ||
 		!strings.Contains(body, "phraseFilterInput") ||
+		!strings.Contains(body, "phraseShowOutlines") ||
 		!strings.Contains(body, "#SKWHR-B") ||
 		!strings.Contains(body, "repeatedShuffledPasses") ||
 		!strings.Contains(body, "repeatedPromptBlocks") {

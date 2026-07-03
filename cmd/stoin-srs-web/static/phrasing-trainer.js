@@ -90,6 +90,7 @@ const phraseCountInput = document.getElementById('phrase-count');
 const phraseOrderSelect = document.getElementById('phrase-order');
 const phraseFocusList = document.getElementById('phrase-focus-list');
 const phraseFilterInput = document.getElementById('phrase-filter');
+const phraseShowOutlines = document.getElementById('phrase-show-outlines');
 const phraseSelectAll = document.getElementById('phrase-select-all');
 const phraseSelectNone = document.getElementById('phrase-select-none');
 const phraseHintsSelect = document.getElementById('phrase-hints');
@@ -199,6 +200,7 @@ function syncFocusSelectionFromInputs() {
 
 function populateFocusOptions(pool) {
 	const filter = normalizePromptFilter(phraseFilterInput.value || '');
+	const showOutlines = phraseShowOutlines.checked;
 	const visiblePool = pool.filter(function(prompt) { return promptMatchesFilter(prompt, filter); });
 	phraseFocusList.textContent = '';
 	visiblePool.forEach(function(prompt) {
@@ -209,7 +211,7 @@ function populateFocusOptions(pool) {
 		input.checked = !phraseCheckedByKey.has(key) || phraseCheckedByKey.get(key);
 
 		const text = document.createElement('span');
-		text.textContent = prompt.phrase + ' - ' + prompt.stroke;
+		text.textContent = showOutlines ? prompt.phrase + ' - ' + prompt.stroke : prompt.phrase;
 
 		const label = document.createElement('label');
 		label.appendChild(input);
@@ -349,6 +351,10 @@ phraseCountInput.addEventListener('change', rebuildPhraseQueue);
 phraseOrderSelect.addEventListener('change', rebuildPhraseQueue);
 phraseFocusList.addEventListener('change', rebuildPhraseQueue);
 phraseFilterInput.addEventListener('input', function() {
+	syncFocusSelectionFromInputs();
+	populateFocusOptions(currentPool());
+});
+phraseShowOutlines.addEventListener('change', function() {
 	syncFocusSelectionFromInputs();
 	populateFocusOptions(currentPool());
 });

@@ -414,9 +414,22 @@ button:disabled {
 }
 
 .phrase-picker-actions {
+	align-items: center;
 	display: flex;
 	flex-wrap: wrap;
 	gap: 8px;
+}
+
+.phrase-outline-toggle {
+	background: #0e1013;
+	border: 1px solid var(--line);
+	border-radius: 4px;
+	cursor: pointer;
+	padding: 8px 10px;
+}
+
+.phrase-outline-toggle input {
+	margin: 0;
 }
 
 .phrase-filter {
