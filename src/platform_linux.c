@@ -242,6 +242,8 @@ static const char *pedal_role_name(Platform_Pedal_Role role)
     switch (role) {
     case PLATFORM_PEDAL_ROLE_INITIAL_VERB:
         return "initial_verb";
+    case PLATFORM_PEDAL_ROLE_FINAL_VERB:
+        return "final_verb";
     case PLATFORM_PEDAL_ROLE_PHRASE_NONVERB:
         return "phrase_nonverb";
     case PLATFORM_PEDAL_ROLE_NONE:
@@ -257,6 +259,7 @@ static const char *pedal_role_legacy_name(Platform_Pedal_Role role)
     case PLATFORM_PEDAL_ROLE_INITIAL_VERB:
         return "phrase_core";
     case PLATFORM_PEDAL_ROLE_NONE:
+    case PLATFORM_PEDAL_ROLE_FINAL_VERB:
     case PLATFORM_PEDAL_ROLE_PHRASE_NONVERB:
     case PLATFORM_PEDAL_ROLE_COUNT:
     default:
@@ -269,6 +272,8 @@ static const char *pedal_role_label(Platform_Pedal_Role role)
     switch (role) {
     case PLATFORM_PEDAL_ROLE_INITIAL_VERB:
         return "initial verb";
+    case PLATFORM_PEDAL_ROLE_FINAL_VERB:
+        return "final verb";
     case PLATFORM_PEDAL_ROLE_PHRASE_NONVERB:
         return "non-verb phrase";
     case PLATFORM_PEDAL_ROLE_NONE:

@@ -180,6 +180,9 @@ static void handle_pedal_event(Platform_Pedal_Role role, bool is_down, void *use
     case PLATFORM_PEDAL_ROLE_INITIAL_VERB:
         steno_set_phrase_namespace(app->steno, PHRASE_NAMESPACE_INITIAL_VERB, is_down);
         break;
+    case PLATFORM_PEDAL_ROLE_FINAL_VERB:
+        steno_set_phrase_namespace(app->steno, PHRASE_NAMESPACE_FINAL_VERB, is_down);
+        break;
     case PLATFORM_PEDAL_ROLE_PHRASE_NONVERB:
         steno_set_phrase_namespace(app->steno, PHRASE_NAMESPACE_NONVERB, is_down);
         break;
@@ -202,7 +205,7 @@ static void print_usage(void)
     fputs("             [--input tx-bolt|gemini-pr|stentura|qwerty]\n", stderr);
     fputs("             [--serial-port PATH] [--serial-baud BAUD]\n", stderr);
     fputs("             [--multiple-inputs] [--multi-input-window-ms MS]\n", stderr);
-    fputs("             [--pedal-config PATH] [--register-pedal initial-verb|nonverb]\n", stderr);
+    fputs("             [--pedal-config PATH] [--register-pedal initial-verb|final-verb|nonverb]\n", stderr);
     fputs("             [--time-translations]\n", stderr);
     fputs("             [--trace-strokes|--no-trace-strokes]\n", stderr);
     fputs("       stoin --raw-serial [--serial-port PATH] [--serial-baud BAUD]\n", stderr);
@@ -254,6 +257,13 @@ static bool parse_pedal_role(const char *value, Platform_Pedal_Role *out_role)
         || strcmp(value, "phrase-nonverb") == 0
         || strcmp(value, "phrase_nonverb") == 0) {
         *out_role = PLATFORM_PEDAL_ROLE_PHRASE_NONVERB;
+        return true;
+    }
+    if (strcmp(value, "final") == 0
+        || strcmp(value, "final-verb") == 0
+        || strcmp(value, "final_verb") == 0
+        || strcmp(value, "fv") == 0) {
+        *out_role = PLATFORM_PEDAL_ROLE_FINAL_VERB;
         return true;
     }
     return false;

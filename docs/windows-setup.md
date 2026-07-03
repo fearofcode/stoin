@@ -61,13 +61,19 @@ To register a pedal:
 build\windows\stoin.exe --register-pedal initial-verb
 ```
 
+To register the final-verb pedal:
+
+```bat
+build\windows\stoin.exe --register-pedal final-verb
+```
+
 The old spelling still works as a compatibility alias:
 
 ```bat
 build\windows\stoin.exe --register-pedal core
 ```
 
-To register the non-verb pedal for future phrase work:
+To register the non-verb pedal:
 
 ```bat
 build\windows\stoin.exe --register-pedal nonverb

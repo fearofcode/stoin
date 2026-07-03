@@ -37,8 +37,10 @@ struct Steno {
     bool enabled;
     bool session_active;
     bool core_phrase_down;
+    bool finalverb_phrase_down;
     bool nonverb_phrase_down;
     bool core_phrase_pending;
+    bool finalverb_phrase_pending;
     bool nonverb_phrase_pending;
     uint64_t qwerty_phrase_shift_down_keycodes;
     bool qwerty_phrase_shift_chorded;
@@ -159,12 +161,17 @@ static Phrase_Namespace steno_current_or_pending_phrase_namespace(const Steno *s
     }
 
     const bool core = steno->core_phrase_down || steno->core_phrase_pending;
+    const bool finalverb = steno->finalverb_phrase_down || steno->finalverb_phrase_pending;
     const bool nonverb = steno->nonverb_phrase_down || steno->nonverb_phrase_pending;
-    if (core && nonverb) {
+    const int active_count = (core ? 1 : 0) + (finalverb ? 1 : 0) + (nonverb ? 1 : 0);
+    if (active_count > 1) {
         return PHRASE_NAMESPACE_CORE_OPERATOR;
     }
     if (core) {
         return PHRASE_NAMESPACE_INITIAL_VERB;
+    }
+    if (finalverb) {
+        return PHRASE_NAMESPACE_FINAL_VERB;
     }
     if (nonverb) {
         return PHRASE_NAMESPACE_NONVERB;
@@ -178,6 +185,7 @@ static void steno_clear_pending_phrase_namespace(Steno *steno)
         return;
     }
     steno->core_phrase_pending = false;
+    steno->finalverb_phrase_pending = false;
     steno->nonverb_phrase_pending = false;
 }
 
@@ -1345,6 +1353,12 @@ void steno_set_phrase_namespace(Steno *steno, Phrase_Namespace namespace, bool i
             steno->core_phrase_pending = true;
         }
         break;
+    case PHRASE_NAMESPACE_FINAL_VERB:
+        steno->finalverb_phrase_down = is_down;
+        if (is_down) {
+            steno->finalverb_phrase_pending = true;
+        }
+        break;
     case PHRASE_NAMESPACE_NONVERB:
         steno->nonverb_phrase_down = is_down;
         if (is_down) {
@@ -1353,9 +1367,11 @@ void steno_set_phrase_namespace(Steno *steno, Phrase_Namespace namespace, bool i
         break;
     case PHRASE_NAMESPACE_CORE_OPERATOR:
         steno->core_phrase_down = is_down;
+        steno->finalverb_phrase_down = is_down;
         steno->nonverb_phrase_down = is_down;
         if (is_down) {
             steno->core_phrase_pending = true;
+            steno->finalverb_phrase_pending = true;
             steno->nonverb_phrase_pending = true;
         }
         break;
@@ -1382,6 +1398,7 @@ void steno_set_session_active(Steno *steno, bool active)
     steno->option_down = false;
     steno->command_down = false;
     steno->core_phrase_down = false;
+    steno->finalverb_phrase_down = false;
     steno->nonverb_phrase_down = false;
     steno_clear_pending_phrase_namespace(steno);
 }

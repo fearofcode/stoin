@@ -49,13 +49,19 @@ Linux pedal support uses evdev input devices under `/dev/input/event*`. To regis
 ./build/linux/stoin --register-pedal initial-verb
 ```
 
+To register the final-verb pedal:
+
+```sh
+./build/linux/stoin --register-pedal final-verb
+```
+
 The old spelling still works as a compatibility alias:
 
 ```sh
 ./build/linux/stoin --register-pedal core
 ```
 
-To register the non-verb pedal for future phrase work:
+To register the non-verb pedal:
 
 ```sh
 ./build/linux/stoin --register-pedal nonverb

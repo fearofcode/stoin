@@ -130,6 +130,9 @@ static bool handle_mock_pedal_stroke(Steno *steno, Phrase_Namespace namespace, c
         .phrase_namespace = namespace,
     };
     const bool ok = steno_handle_stroke(steno, input);
+    if (!ok) {
+        fprintf(stderr, "test failed: mock pedal stroke '%s' in namespace %d was not handled\n", stroke, (int)namespace);
+    }
     steno_set_phrase_namespace(steno, namespace, false);
     return ok;
 }
@@ -1133,6 +1136,32 @@ int main(void)
             nonverb_cases[i].expected);
     }
 
+    const struct {
+        const char *stroke;
+        const char *expected;
+    } final_verb_be_cases[] = {
+        { "P-B", "it is" },
+        { "P-BD", "it was" },
+        { "S-B", "I am" },
+        { "S-BD", "I was" },
+        { "T-B", "they are" },
+        { "T-BD", "they were" },
+        { "PW-B", "are" },
+        { "PW-BD", "were" },
+        { "-B", "is" },
+        { "-BD", "was" },
+    };
+    for (size_t i = 0; i < sizeof(final_verb_be_cases) / sizeof(final_verb_be_cases[0]); ++i) {
+        ok = ok && expect_mock_pedal_phrase(
+            &steno,
+            &config,
+            &output,
+            "final verb be inventory",
+            PHRASE_NAMESPACE_FINAL_VERB,
+            final_verb_be_cases[i].stroke,
+            final_verb_be_cases[i].expected);
+    }
+
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
     ok = ok && handle_mock_pedal_stroke(steno, PHRASE_NAMESPACE_INITIAL_VERB, "SAO");
@@ -1216,6 +1245,15 @@ int main(void)
     ok = ok && expect_string("serial phrase namespace latches tapped pedal", output.text, "is a");
     ok = ok && steno_handle_stroke_bits(steno, phrase_is_a_bits);
     ok = ok && expect_string("serial phrase namespace latch clears after stroke", output.text, "is a PW-B");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    uint64_t final_verb_it_was_bits = 0;
+    ok = ok && stroke_string_to_bits("P-BD", &final_verb_it_was_bits);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, true);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, false);
+    ok = ok && steno_handle_stroke_bits(steno, final_verb_it_was_bits);
+    ok = ok && expect_string("serial final verb namespace latches tapped pedal", output.text, "it was");
 
     ok = ok && reset_test_steno(&steno, &config);
 

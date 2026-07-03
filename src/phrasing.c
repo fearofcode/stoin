@@ -281,6 +281,163 @@ static Phrase_Lookup_Result lookup_nonverb(uint64_t bits, char **out_utf8)
     return *out_utf8 == NULL ? PHRASE_LOOKUP_ERROR : PHRASE_LOOKUP_HIT;
 }
 
+typedef enum Fv_Agreement {
+    FV_AGREEMENT_THIRD_SINGULAR,
+    FV_AGREEMENT_FIRST_SINGULAR,
+    FV_AGREEMENT_PLURAL,
+} Fv_Agreement;
+
+typedef struct Fv_Starter {
+    const char *text;
+    Fv_Agreement agreement;
+} Fv_Starter;
+
+static bool fv_starter_lookup(uint64_t bits, Fv_Starter *out_starter)
+{
+    if (out_starter == NULL) {
+        return false;
+    }
+
+    const uint64_t s = steno_bit(STENO_LEFT_S);
+    const uint64_t t = steno_bit(STENO_LEFT_T);
+    const uint64_t k = steno_bit(STENO_LEFT_K);
+    const uint64_t p = steno_bit(STENO_LEFT_P);
+    const uint64_t w = steno_bit(STENO_LEFT_W);
+    const uint64_t h = steno_bit(STENO_LEFT_H);
+
+    if (bits == 0) {
+        *out_starter = (Fv_Starter){ .text = "", .agreement = FV_AGREEMENT_THIRD_SINGULAR };
+        return true;
+    }
+    if (bits == s) {
+        *out_starter = (Fv_Starter){ .text = "I", .agreement = FV_AGREEMENT_FIRST_SINGULAR };
+        return true;
+    }
+    if (bits == t) {
+        *out_starter = (Fv_Starter){ .text = "they", .agreement = FV_AGREEMENT_PLURAL };
+        return true;
+    }
+    if (bits == k) {
+        *out_starter = (Fv_Starter){ .text = "he", .agreement = FV_AGREEMENT_THIRD_SINGULAR };
+        return true;
+    }
+    if (bits == p) {
+        *out_starter = (Fv_Starter){ .text = "it", .agreement = FV_AGREEMENT_THIRD_SINGULAR };
+        return true;
+    }
+    if (bits == w) {
+        *out_starter = (Fv_Starter){ .text = "we", .agreement = FV_AGREEMENT_PLURAL };
+        return true;
+    }
+    if (bits == h) {
+        *out_starter = (Fv_Starter){ .text = "you", .agreement = FV_AGREEMENT_PLURAL };
+        return true;
+    }
+    if (bits == (s | k)) {
+        *out_starter = (Fv_Starter){ .text = "she", .agreement = FV_AGREEMENT_THIRD_SINGULAR };
+        return true;
+    }
+    if (bits == (s | t)) {
+        *out_starter = (Fv_Starter){ .text = "that", .agreement = FV_AGREEMENT_THIRD_SINGULAR };
+        return true;
+    }
+    if (bits == (t | p)) {
+        *out_starter = (Fv_Starter){ .text = "this", .agreement = FV_AGREEMENT_THIRD_SINGULAR };
+        return true;
+    }
+    if (bits == (t | k)) {
+        *out_starter = (Fv_Starter){ .text = "there", .agreement = FV_AGREEMENT_THIRD_SINGULAR };
+        return true;
+    }
+    if (bits == (t | k | w)) {
+        *out_starter = (Fv_Starter){ .text = "there", .agreement = FV_AGREEMENT_PLURAL };
+        return true;
+    }
+    if (bits == (p | w)) {
+        *out_starter = (Fv_Starter){ .text = "", .agreement = FV_AGREEMENT_PLURAL };
+        return true;
+    }
+    if (bits == (k | w)) {
+        *out_starter = (Fv_Starter){ .text = "who", .agreement = FV_AGREEMENT_THIRD_SINGULAR };
+        return true;
+    }
+    if (bits == (t | w)) {
+        *out_starter = (Fv_Starter){ .text = "what", .agreement = FV_AGREEMENT_THIRD_SINGULAR };
+        return true;
+    }
+    if (bits == (s | p)) {
+        *out_starter = (Fv_Starter){ .text = "someone", .agreement = FV_AGREEMENT_THIRD_SINGULAR };
+        return true;
+    }
+    if (bits == (s | p | w)) {
+        *out_starter = (Fv_Starter){ .text = "something", .agreement = FV_AGREEMENT_THIRD_SINGULAR };
+        return true;
+    }
+    if (bits == (k | p)) {
+        *out_starter = (Fv_Starter){ .text = "everyone", .agreement = FV_AGREEMENT_THIRD_SINGULAR };
+        return true;
+    }
+    if (bits == (k | p | w)) {
+        *out_starter = (Fv_Starter){ .text = "everything", .agreement = FV_AGREEMENT_THIRD_SINGULAR };
+        return true;
+    }
+    if (bits == (s | k | p)) {
+        *out_starter = (Fv_Starter){ .text = "nobody", .agreement = FV_AGREEMENT_THIRD_SINGULAR };
+        return true;
+    }
+    if (bits == (s | k | p | w)) {
+        *out_starter = (Fv_Starter){ .text = "nothing", .agreement = FV_AGREEMENT_THIRD_SINGULAR };
+        return true;
+    }
+
+    return false;
+}
+
+static Phrase_Lookup_Result lookup_final_verb(uint64_t bits, char **out_utf8)
+{
+    const uint64_t left_mask = steno_bit(STENO_LEFT_S)
+        | steno_bit(STENO_LEFT_T)
+        | steno_bit(STENO_LEFT_K)
+        | steno_bit(STENO_LEFT_P)
+        | steno_bit(STENO_LEFT_W)
+        | steno_bit(STENO_LEFT_H)
+        | steno_bit(STENO_LEFT_R);
+    const uint64_t be_bit = steno_bit(STENO_RIGHT_B);
+    const uint64_t past_bit = steno_bit(STENO_RIGHT_D);
+    const uint64_t allowed = left_mask | be_bit | past_bit;
+
+    if ((bits & ~allowed) != 0 || (bits & be_bit) == 0) {
+        return PHRASE_LOOKUP_MISS;
+    }
+
+    const uint64_t left_bits = bits & left_mask;
+    Fv_Starter starter = {0};
+    if (!fv_starter_lookup(left_bits, &starter)) {
+        return PHRASE_LOOKUP_MISS;
+    }
+
+    const bool past = (bits & past_bit) != 0;
+    const char *be = NULL;
+    if (past) {
+        be = starter.agreement == FV_AGREEMENT_PLURAL ? "were" : "was";
+    } else if (starter.agreement == FV_AGREEMENT_FIRST_SINGULAR) {
+        be = "am";
+    } else {
+        be = starter.agreement == FV_AGREEMENT_PLURAL ? "are" : "is";
+    }
+
+    char *text = NULL;
+    const bool ok = append_word(&text, starter.text) && append_word(&text, be);
+    if (!ok || text == NULL) {
+        arrfree(text);
+        return PHRASE_LOOKUP_ERROR;
+    }
+
+    *out_utf8 = copy_cstring(text);
+    arrfree(text);
+    return *out_utf8 == NULL ? PHRASE_LOOKUP_ERROR : PHRASE_LOOKUP_HIT;
+}
+
 Phrase_Lookup_Result phrasing_lookup(
     Phrase_Namespace namespace,
     uint64_t stroke_bits,
@@ -295,6 +452,8 @@ Phrase_Lookup_Result phrasing_lookup(
     switch (namespace) {
     case PHRASE_NAMESPACE_INITIAL_VERB:
         return lookup_initial_verb(stroke_bits, out_utf8);
+    case PHRASE_NAMESPACE_FINAL_VERB:
+        return lookup_final_verb(stroke_bits, out_utf8);
     case PHRASE_NAMESPACE_NONVERB:
         return lookup_nonverb(stroke_bits, out_utf8);
     case PHRASE_NAMESPACE_NONE:

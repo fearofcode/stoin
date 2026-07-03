@@ -11,9 +11,9 @@ Draft reference for evaluating the next Stoin phrasing layout.
 | `NV` | non-verb | left family + grammar/state + right head | standard-dictionary gap phrase chunks |
 | `FO` | no pedal | exact follow-on stroke | modify the previous phrase |
 
-Implementation note: the current Stoin runtime only wires the `IV` pedal path.
-Use `--register-pedal initial-verb` for that pedal. `FV`, `NV`, and follow-on
-behavior are reference targets, not complete runtime paths yet.
+Implementation note: the current Stoin runtime wires `IV`, `FV`, and `NV`
+pedal paths. `FV` currently implements the starter bank plus final `be` only;
+broader final verbs and follow-on behavior are reference targets.
 
 ## Shared Grammar/State
 
@@ -36,6 +36,11 @@ Examples:
 | Stroke | Output |
 | --- | --- |
 | `FV[K-G]` | he goes |
+| `FV[S-B]` | I am |
+| `FV[P-B]` | it is |
+| `FV[P-BD]` | it was |
+| `FV[PW-B]` | are |
+| `FV[PW-BD]` | were |
 | `FV[K-GD]` | he went |
 | `FV[K*-G]` | he doesn't go |
 | `FV[KA-G]` | he can go |
