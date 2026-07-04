@@ -16,14 +16,23 @@
 
 `--phrase-toggle KEY` enables a separate phrase namespace while keeping the
 same phrasing data. The key is intended for a pedal remapped to something like
-`F13`.
+`F13`. When used alone, this pedal selects all phrase families for backward
+compatibility.
 
-When this option is not used, phrase matching keeps the keyboard-only behavior:
-phrases are checked before loaded dictionaries. When this option is used,
-ordinary strokes skip phrase matching and use the dictionaries. Pressing the
-toggle key flips phrase mode; strokes written while phrase mode is on use the
-phrase namespace and print the usual `[phrase]` trace marker. A phrase-mode miss
-emits raw steno instead of falling through to a dictionary word.
+`--nonverb-phrase-toggle KEY` adds a second phrase pedal for the `NV` family.
+When both pedals are configured, `--phrase-toggle` selects only verb families
+(`IV` and `FV`) and `--nonverb-phrase-toggle` selects only `NV`. Startup rejects
+duplicate keycodes so the two pedals cannot silently collapse into one
+namespace.
+
+When no phrase toggle is used, phrase matching keeps the keyboard-only behavior:
+phrases are checked before loaded dictionaries. When a phrase toggle is used,
+ordinary strokes skip phrase matching and use the dictionaries. A stroke is a
+phrase stroke if the pedal is down during any part of chord gathering; the pedal
+does not need to remain held through release. Phrase strokes print the usual
+`[phrase]` trace marker. A phrase-mode miss emits raw steno instead of falling
+through to a dictionary word, except star-only strokes, which use the dictionary
+fallback path and trace as `[phase fallback]`.
 
 ## IV Set 1
 
@@ -48,11 +57,12 @@ tail, ender, or flag should not require listing every drill prompt by hand.
 | `E` | base/non-third present or imperative: `are`, `have`, `call` |
 | `ED` | plural past for `PW`: `were` |
 | `G` | present participle/gerund for stems that define one: `calling` |
+| `U` | infinitive with `to`: `to be`, `to have`, `to call` |
 
 `E` names the base-form slot, not the word `are`; `PW` happens to surface
-that slot as `are`. `F` is reserved for `have` / perfect work outside IV, and
-`U` is intentionally left unused because it collides easily with ordinary word
-outlines.
+that slot as `are`. `U` names the infinitive-with-`to` slot for IV only; the FV
+grammar does not generate forms like `he to be`. `F` is reserved for `have` /
+perfect work outside IV.
 
 ### IV Tails
 
@@ -62,55 +72,6 @@ outlines.
 | `T` | `TD` | the |
 | `P` | `PD` | it |
 | `RT` | `RTD` | that |
-
-### IV Exact Rows
-
-| Stroke | Output |
-| --- | --- |
-| `PW-B` | is a |
-| `PW-BD` | was a |
-| `PWE-B` | are a |
-| `PWE-BD` | were a |
-| `PW-T` | is the |
-| `PW-TD` | was the |
-| `PWE-T` | are the |
-| `PWE-TD` | were the |
-| `PW-P` | is it |
-| `PW-PD` | was it |
-| `PWE-P` | are it |
-| `PWE-PD` | were it |
-| `PW-RT` | is that |
-| `PW-RTD` | was that |
-| `PWE-RT` | are that |
-| `PWE-RTD` | were that |
-| `H-B` | has a |
-| `H-BD` | had a |
-| `HE-B` | have a |
-| `H-T` | has the |
-| `H-TD` | had the |
-| `HE-T` | have the |
-| `H-P` | has it |
-| `H-PD` | had it |
-| `HE-P` | have it |
-| `H-RT` | has that |
-| `H-RTD` | had that |
-| `HE-RT` | have that |
-| `KHR-B` | calls a |
-| `KHR-BD` | called a |
-| `KHRE-B` | call a |
-| `KHR-BG` | calling a |
-| `KHR-T` | calls the |
-| `KHR-TD` | called the |
-| `KHRE-T` | call the |
-| `KHR-GT` | calling the |
-| `KHR-P` | calls it |
-| `KHR-PD` | called it |
-| `KHRE-P` | call it |
-| `KHR-PG` | calling it |
-| `KHR-RT` | calls that |
-| `KHR-RTD` | called that |
-| `KHRE-RT` | call that |
-| `KHR-RGT` | calling that |
 
 ## FV Set 1
 
@@ -246,14 +207,17 @@ from the open-source Lapwing dictionary.
 | `PW-B` | is a |
 | `PW-T` | is the |
 | `PWE-B` | are a |
+| `PWU-B` | to be a |
 | `PWE-BD` | were a |
 | `PW-RTD` | was that |
 | `H-B` | has a |
 | `H-BD` | had a |
 | `HE-B` | have a |
+| `HU-B` | to have a |
 | `H-RTD` | had that |
 | `KHR-B` | calls a |
 | `KHRE-B` | call a |
+| `KHRU-B` | to call a |
 | `KHR-PG` | calling it |
 | `KHR-RTD` | called that |
 

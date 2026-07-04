@@ -41,6 +41,10 @@
           {
             "stroke": "E-D",
             "text": "were"
+          },
+          {
+            "stroke": "U",
+            "text": "to be"
           }
         ]
       },
@@ -58,6 +62,10 @@
           {
             "stroke": "E",
             "text": "have"
+          },
+          {
+            "stroke": "U",
+            "text": "to have"
           }
         ]
       },
@@ -79,6 +87,10 @@
           {
             "stroke": "-G",
             "text": "calling"
+          },
+          {
+            "stroke": "U",
+            "text": "to call"
           }
         ]
       }

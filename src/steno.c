@@ -36,9 +36,9 @@ struct Steno {
     uint64_t down_keycodes;
     uint64_t chord_bits;
     size_t strokes_since_compaction;
-    bool chord_phrase;
+    Steno_Phrase_Mode chord_phrase_mode;
     bool phrase_namespace_enabled;
-    bool phrase_mode;
+    Steno_Phrase_Mode phrase_mode;
     bool enabled;
     bool session_active;
     bool toggle_esc_down;
@@ -146,7 +146,7 @@ static void reset_chord(Steno *steno)
 {
     steno->down_keycodes = 0;
     steno->chord_bits = 0;
-    steno->chord_phrase = false;
+    steno->chord_phrase_mode = STENO_PHRASE_MODE_NONE;
 }
 
 enum {
@@ -970,7 +970,32 @@ bool steno_get_dictionary_paths(const Steno *steno, const char *const **out_path
     );
 }
 
-static bool translate_phrase_bits(Steno *steno, uint64_t bits, bool *out_hit)
+static Phrase_Lookup_Mode phrase_lookup_mode_from_steno_mode(Steno_Phrase_Mode mode)
+{
+    switch (mode) {
+    case STENO_PHRASE_MODE_VERBS:
+        return PHRASE_LOOKUP_VERBS;
+    case STENO_PHRASE_MODE_NONVERBS:
+        return PHRASE_LOOKUP_NONVERBS;
+    case STENO_PHRASE_MODE_ALL:
+    case STENO_PHRASE_MODE_NONE:
+    default:
+        return PHRASE_LOOKUP_ALL;
+    }
+}
+
+static Steno_Phrase_Mode normalize_stroke_phrase_mode(Stroke_Input stroke, Steno_Phrase_Mode current_mode)
+{
+    if (stroke.phrase_mode != STENO_PHRASE_MODE_NONE) {
+        return stroke.phrase_mode;
+    }
+    if (stroke.phrase) {
+        return STENO_PHRASE_MODE_ALL;
+    }
+    return current_mode;
+}
+
+static bool translate_phrase_bits(Steno *steno, uint64_t bits, Steno_Phrase_Mode phrase_mode, bool *out_hit)
 {
     if (out_hit != NULL) {
         *out_hit = false;
@@ -985,7 +1010,12 @@ static bool translate_phrase_bits(Steno *steno, uint64_t bits, bool *out_hit)
     }
 
     char *phrase_text = NULL;
-    const Phrase_Lookup_Result result = phrasing_lookup(steno->phrasing, bits, &phrase_text);
+    const Phrase_Lookup_Result result = phrasing_lookup_mode(
+        steno->phrasing,
+        bits,
+        phrase_lookup_mode_from_steno_mode(phrase_mode),
+        &phrase_text
+    );
     if (result == PHRASE_LOOKUP_ERROR) {
         free(phrase_text);
         return false;
@@ -1086,14 +1116,14 @@ static bool phrase_namespace_should_fallback_to_dictionary(uint64_t bits)
     return (bits & star_bits) != 0 && (bits & ~allowed_bits) == 0;
 }
 
-static bool translate_phrase_namespace_bits(Steno *steno, uint64_t bits)
+static bool translate_phrase_namespace_bits(Steno *steno, uint64_t bits, Steno_Phrase_Mode phrase_mode)
 {
     if (bits == 0) {
         return true;
     }
 
     bool phrase_hit = false;
-    if (!translate_phrase_bits(steno, bits, &phrase_hit)) {
+    if (!translate_phrase_bits(steno, bits, phrase_mode, &phrase_hit)) {
         return false;
     }
     if (phrase_hit) {
@@ -1119,7 +1149,7 @@ static bool translate_chord_bits_with_trace(Steno *steno, uint64_t bits, Trace_S
     }
 
     bool phrase_hit = false;
-    if (!translate_phrase_bits(steno, bits, &phrase_hit)) {
+    if (!translate_phrase_bits(steno, bits, STENO_PHRASE_MODE_ALL, &phrase_hit)) {
         return false;
     }
     if (phrase_hit) {
@@ -1136,9 +1166,9 @@ static bool translate_stroke_input(Steno *steno, Stroke_Input stroke)
         return translate_chord_bits(steno, stroke.bits);
     }
 
-    const bool phrase = stroke.phrase || steno->phrase_mode;
-    if (phrase) {
-        return translate_phrase_namespace_bits(steno, stroke.bits);
+    const Steno_Phrase_Mode phrase_mode = normalize_stroke_phrase_mode(stroke, steno->phrase_mode);
+    if (phrase_mode != STENO_PHRASE_MODE_NONE) {
+        return translate_phrase_namespace_bits(steno, stroke.bits, phrase_mode);
     }
     return translate_dictionary_bits_with_trace(steno, stroke.bits, TRACE_STROKE_NORMAL);
 }
@@ -1267,8 +1297,8 @@ bool steno_handle_event(Steno *steno, const Input_Event *event)
         if ((steno->down_keycodes & physical_bit) == 0 && !event->is_repeat) {
             steno->down_keycodes |= physical_bit;
             steno->chord_bits |= binding->bits;
-            if (steno->phrase_mode) {
-                steno->chord_phrase = true;
+            if (steno->phrase_mode != STENO_PHRASE_MODE_NONE) {
+                steno->chord_phrase_mode = steno->phrase_mode;
             }
         }
         return true;
@@ -1278,7 +1308,7 @@ bool steno_handle_event(Steno *steno, const Input_Event *event)
     if (steno->down_keycodes == 0) {
         Stroke_Input stroke = {
             .bits = steno->chord_bits,
-            .phrase = steno->chord_phrase,
+            .phrase_mode = steno->chord_phrase_mode,
             .phrase_namespace = steno->phrase_namespace_enabled,
         };
         (void)translate_completed_stroke_input(steno, stroke);
@@ -1294,19 +1324,24 @@ void steno_set_phrase_namespace_enabled(Steno *steno, bool enabled)
     }
     steno->phrase_namespace_enabled = enabled;
     if (!enabled) {
-        steno->phrase_mode = false;
-        steno->chord_phrase = false;
+        steno->phrase_mode = STENO_PHRASE_MODE_NONE;
+        steno->chord_phrase_mode = STENO_PHRASE_MODE_NONE;
     }
 }
 
 void steno_set_phrase_mode(Steno *steno, bool active)
 {
+    steno_set_phrase_mode_family(steno, active ? STENO_PHRASE_MODE_ALL : STENO_PHRASE_MODE_NONE);
+}
+
+void steno_set_phrase_mode_family(Steno *steno, Steno_Phrase_Mode mode)
+{
     if (steno == NULL) {
         return;
     }
-    steno->phrase_mode = active;
-    if (active && steno->down_keycodes != 0) {
-        steno->chord_phrase = true;
+    steno->phrase_mode = mode;
+    if (mode != STENO_PHRASE_MODE_NONE && steno->down_keycodes != 0) {
+        steno->chord_phrase_mode = mode;
     }
 }
 
@@ -1344,8 +1379,8 @@ void steno_set_session_active(Steno *steno, bool active)
     steno->control_down = false;
     steno->option_down = false;
     steno->command_down = false;
-    steno->phrase_mode = false;
-    steno->chord_phrase = false;
+    steno->phrase_mode = STENO_PHRASE_MODE_NONE;
+    steno->chord_phrase_mode = STENO_PHRASE_MODE_NONE;
 }
 
 size_t steno_key_binding_count(const Steno *steno)

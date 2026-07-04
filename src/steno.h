@@ -23,11 +23,19 @@ typedef struct Spacing_State {
     char *spacing;
 } Spacing_State;
 
+typedef enum Steno_Phrase_Mode {
+    STENO_PHRASE_MODE_NONE,
+    STENO_PHRASE_MODE_ALL,
+    STENO_PHRASE_MODE_VERBS,
+    STENO_PHRASE_MODE_NONVERBS,
+} Steno_Phrase_Mode;
+
 typedef struct Stroke_Input {
     uint64_t bits;
     uint64_t received_ns;
     bool phrase;
     bool phrase_namespace;
+    Steno_Phrase_Mode phrase_mode;
 } Stroke_Input;
 
 typedef struct Steno_Config {
@@ -53,6 +61,7 @@ bool steno_handle_stroke(Steno *steno, Stroke_Input stroke);
 bool steno_handle_stroke_bits(Steno *steno, uint64_t bits);
 void steno_set_phrase_namespace_enabled(Steno *steno, bool enabled);
 void steno_set_phrase_mode(Steno *steno, bool active);
+void steno_set_phrase_mode_family(Steno *steno, Steno_Phrase_Mode mode);
 void steno_set_session_active(Steno *steno, bool active);
 bool steno_reload_dictionary(Steno *steno);
 bool steno_reload_dictionary_if_changed(Steno *steno);

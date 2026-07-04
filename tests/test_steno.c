@@ -1031,11 +1031,14 @@ int main(void)
         { "PW-BD", "was a" },
         { "PWE-B", "are a" },
         { "PWE-BD", "were a" },
+        { "PWU-B", "to be a" },
         { "PW-T", "is the" },
         { "H-BD", "had a" },
+        { "HU-B", "to have a" },
         { "KHR-B", "calls a" },
         { "KHR-BD", "called a" },
         { "KHRE-P", "call it" },
+        { "KHRU-P", "to call it" },
         { "KHR-PG", "calling it" },
     };
     for (size_t i = 0; i < sizeof(initial_verb_cases) / sizeof(initial_verb_cases[0]); ++i) {
@@ -1205,6 +1208,24 @@ int main(void)
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
     ok = ok && steno_handle_stroke(steno, ((Stroke_Input) {
+        .bits = phrase_is_a_bits,
+        .phrase_mode = STENO_PHRASE_MODE_VERBS,
+        .phrase_namespace = true,
+    }));
+    ok = ok && expect_string("phrase namespace verb pedal uses verb lookup", output.text, "is a");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    ok = ok && steno_handle_stroke(steno, ((Stroke_Input) {
+        .bits = phrase_is_a_bits,
+        .phrase_mode = STENO_PHRASE_MODE_NONVERBS,
+        .phrase_namespace = true,
+    }));
+    ok = ok && expect_string("phrase namespace nonverb pedal uses nonverb lookup", output.text, "near a");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    ok = ok && steno_handle_stroke(steno, ((Stroke_Input) {
         .bits = phrase_fallback_test_bits,
         .phrase = true,
         .phrase_namespace = true,
@@ -1254,6 +1275,19 @@ int main(void)
     ok = ok && send_key_event(steno, "d", false);
     ok = ok && send_key_event(steno, "k", false);
     ok = ok && expect_string("qwerty phrase namespace latches phrase during chord", output.text, "is a");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    steno_set_phrase_namespace_enabled(steno, true);
+    clear_test_output(&output);
+    ok = ok && send_key_event(steno, "e", true);
+    steno_set_phrase_mode_family(steno, STENO_PHRASE_MODE_NONVERBS);
+    steno_set_phrase_mode_family(steno, STENO_PHRASE_MODE_NONE);
+    ok = ok && send_key_event(steno, "d", true);
+    ok = ok && send_key_event(steno, "k", true);
+    ok = ok && send_key_event(steno, "e", false);
+    ok = ok && send_key_event(steno, "d", false);
+    ok = ok && send_key_event(steno, "k", false);
+    ok = ok && expect_string("qwerty phrase namespace latches nonverb family during chord", output.text, "near a");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);

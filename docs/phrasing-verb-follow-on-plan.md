@@ -37,27 +37,9 @@ Jeff's regular final-verb suffix and past-tense variants are not listed here.
 | to understand | `SKH` | `RPB` |
 | to try | `TR` | `RT` |
 | to expect | `KP` | `PGS` |
-| to hope | `SWH` | `RPS` |
-| to hear | `TKP` | `PG` |
-| to leave | `TKW` | `LGZ` |
-| to keep | `TKH` | `PBGS` |
-| to learn | `TPW` | `RPBS` |
-| to call | `STKHR` | `RBLG` |
-| to change | `TWH` | `PBGZ` |
-| to consider | `KPW` | `RBGZ` |
-| to love | `HR` | `LG` |
-| to like | `KWH` | `BLG` |
-| to seem | `PWH` | `PLS` |
-| to imagine | `STKP` | `PLG` |
-| to care | `STKW` | `RZ` |
-| to read | `STKH` | `RS` |
-| to wish | `STPW` | `RBS` |
-| to put | `STPH` | `PS` |
-| to set | `STWH` | `BLS` |
-| to move | `SKPW` | `PLZ` |
-| to live | `SKPH` | `LZ` |
-| to remain | `SKWH` | `RPLS` |
-| to mean | `SPWH` | `PBL` |
-| to realize | `SR` | `RLS` |
-| to forget | `TPR` | `RG` |
-| to mind | `TKPH` | `PBLS` |
+| to call | `KHR` | deferred |
+
+Rows from `to hope` downward in the old reference were removed for now because
+they were speculative and did not have a clear mnemonic rationale. `to call` is
+kept because its IV stem is implemented as `KHR`; the FV ender is still
+uncommitted.
