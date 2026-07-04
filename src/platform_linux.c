@@ -113,6 +113,14 @@ static const Linux_Key_Map LINUX_KEY_MAP[] = {
     {"right_alt", 61, KEY_RIGHTALT, '\0'},
     {"right_control", 62, KEY_RIGHTCTRL, '\0'},
     {"right_ctrl", 62, KEY_RIGHTCTRL, '\0'},
+    {"f13", 105, KEY_F13, '\0'},
+    {"f14", 107, KEY_F14, '\0'},
+    {"f15", 113, KEY_F15, '\0'},
+    {"f16", 106, KEY_F16, '\0'},
+    {"f17", 64, KEY_F17, '\0'},
+    {"f18", 79, KEY_F18, '\0'},
+    {"f19", 80, KEY_F19, '\0'},
+    {"f20", 90, KEY_F20, '\0'},
 };
 
 static bool test_bit(unsigned int bit, const unsigned long *array, size_t array_length)
@@ -552,11 +560,80 @@ bool platform_init(Handle_Input_Fn handler, void *userdata)
     return true;
 }
 
+bool platform_init_listen_only(Handle_Input_Fn handler, void *userdata)
+{
+    return platform_init(handler, userdata);
+}
+
+static void poll_keyboard_and_watcher_events(int timeout_ms, bool include_watcher)
+{
+    struct pollfd *fds = NULL;
+
+    for (size_t i = 0; i < arrlenu(g_linux.keyboards); ++i) {
+        if (g_linux.keyboards[i].fd >= 0) {
+            arrput(fds, ((struct pollfd) {
+                .fd = g_linux.keyboards[i].fd,
+                .events = POLLIN,
+            }));
+        }
+    }
+
+    const int watcher_fd = include_watcher ? linux_file_watcher_fd() : -1;
+    const size_t watcher_index = arrlenu(fds);
+    if (watcher_fd >= 0) {
+        arrput(fds, ((struct pollfd) {
+            .fd = watcher_fd,
+            .events = POLLIN,
+        }));
+    }
+
+    if (arrlenu(fds) == 0) {
+        arrfree(fds);
+        if (timeout_ms != 0) {
+            platform_sleep_ms(250);
+        }
+        return;
+    }
+
+    const int ready = poll(fds, (nfds_t)arrlenu(fds), timeout_ms);
+    if (ready <= 0) {
+        arrfree(fds);
+        return;
+    }
+
+    size_t fd_index = 0;
+    for (size_t i = 0; i < arrlenu(g_linux.keyboards); ++i) {
+        if (g_linux.keyboards[i].fd < 0) {
+            continue;
+        }
+        if ((fds[fd_index].revents & POLLIN) != 0) {
+            process_keyboard_device(&g_linux.keyboards[i]);
+        }
+        ++fd_index;
+    }
+
+    if (watcher_fd >= 0
+        && watcher_index < arrlenu(fds)
+        && (fds[watcher_index].revents & POLLIN) != 0) {
+        platform_file_watcher_poll();
+    }
+
+    arrfree(fds);
+}
+
 void platform_run(void)
 {
     g_linux.running = true;
     while (g_linux.running) {
+        poll_keyboard_and_watcher_events(-1, true);
+    }
+}
+
+void platform_poll_input_events(void)
+{
+    while (g_linux.running) {
         struct pollfd *fds = NULL;
+        bool any_keyboard_ready = false;
 
         for (size_t i = 0; i < arrlenu(g_linux.keyboards); ++i) {
             if (g_linux.keyboards[i].fd >= 0) {
@@ -567,28 +644,15 @@ void platform_run(void)
             }
         }
 
-        const int watcher_fd = linux_file_watcher_fd();
-        const size_t watcher_index = arrlenu(fds);
-        if (watcher_fd >= 0) {
-            arrput(fds, ((struct pollfd) {
-                .fd = watcher_fd,
-                .events = POLLIN,
-            }));
-        }
-
         if (arrlenu(fds) == 0) {
             arrfree(fds);
-            platform_sleep_ms(250);
-            continue;
+            return;
         }
 
-        const int ready = poll(fds, (nfds_t)arrlenu(fds), -1);
-        if (ready < 0) {
+        const int ready = poll(fds, (nfds_t)arrlenu(fds), 0);
+        if (ready <= 0) {
             arrfree(fds);
-            if (errno == EINTR) {
-                continue;
-            }
-            break;
+            return;
         }
 
         size_t fd_index = 0;
@@ -598,17 +662,15 @@ void platform_run(void)
             }
             if ((fds[fd_index].revents & POLLIN) != 0) {
                 process_keyboard_device(&g_linux.keyboards[i]);
+                any_keyboard_ready = true;
             }
             ++fd_index;
         }
 
-        if (watcher_fd >= 0
-            && watcher_index < arrlenu(fds)
-            && (fds[watcher_index].revents & POLLIN) != 0) {
-            platform_file_watcher_poll();
-        }
-
         arrfree(fds);
+        if (!any_keyboard_ready) {
+            return;
+        }
     }
 }
 

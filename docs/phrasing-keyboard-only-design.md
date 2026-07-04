@@ -12,6 +12,19 @@
 | Follow-ons | none |
 | Custom chunks | default config loads `stoin-custom.json`; when overriding config, include it after base dictionaries with `--dictionary` |
 
+## Optional Pedal Namespace
+
+`--phrase-toggle KEY` enables a separate phrase namespace while keeping the
+same phrasing data. The key is intended for a pedal remapped to something like
+`F13`.
+
+When this option is not used, phrase matching keeps the keyboard-only behavior:
+phrases are checked before loaded dictionaries. When this option is used,
+ordinary strokes skip phrase matching and use the dictionaries. Pressing the
+toggle key flips phrase mode; strokes written while phrase mode is on use the
+phrase namespace and print the usual `[phrase]` trace marker. A phrase-mode miss
+emits raw steno instead of falling through to a dictionary word.
+
 ## IV Set 1
 
 Initial-verb phrases are generated assignments. The trainer reads the phrasing
@@ -24,7 +37,7 @@ tail, ender, or flag should not require listing every drill prompt by hand.
 | --- | --- |
 | `PW` | to be |
 | `H` | to have |
-| `STKHR` | to call |
+| `KHR` | to call |
 
 ### IV Flags
 
@@ -82,22 +95,22 @@ outlines.
 | `H-RT` | has that |
 | `H-RTD` | had that |
 | `HE-RT` | have that |
-| `STKHR-B` | calls a |
-| `STKHR-BD` | called a |
-| `STKHRE-B` | call a |
-| `STKHR-BG` | calling a |
-| `STKHR-T` | calls the |
-| `STKHR-TD` | called the |
-| `STKHRE-T` | call the |
-| `STKHR-GT` | calling the |
-| `STKHR-P` | calls it |
-| `STKHR-PD` | called it |
-| `STKHRE-P` | call it |
-| `STKHR-PG` | calling it |
-| `STKHR-RT` | calls that |
-| `STKHR-RTD` | called that |
-| `STKHRE-RT` | call that |
-| `STKHR-RGT` | calling that |
+| `KHR-B` | calls a |
+| `KHR-BD` | called a |
+| `KHRE-B` | call a |
+| `KHR-BG` | calling a |
+| `KHR-T` | calls the |
+| `KHR-TD` | called the |
+| `KHRE-T` | call the |
+| `KHR-GT` | calling the |
+| `KHR-P` | calls it |
+| `KHR-PD` | called it |
+| `KHRE-P` | call it |
+| `KHR-PG` | calling it |
+| `KHR-RT` | calls that |
+| `KHR-RTD` | called that |
+| `KHRE-RT` | call that |
+| `KHR-RGT` | calling that |
 
 ## FV Set 1
 
@@ -239,10 +252,10 @@ from the open-source Lapwing dictionary.
 | `H-BD` | had a |
 | `HE-B` | have a |
 | `H-RTD` | had that |
-| `STKHR-B` | calls a |
-| `STKHRE-B` | call a |
-| `STKHR-PG` | calling it |
-| `STKHR-RTD` | called that |
+| `KHR-B` | calls a |
+| `KHRE-B` | call a |
+| `KHR-PG` | calling it |
+| `KHR-RTD` | called that |
 
 ### FV Long-Form Samples
 

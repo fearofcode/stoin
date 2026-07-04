@@ -9,6 +9,7 @@
 
 #include <errno.h>
 #include <signal.h>
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -28,12 +29,21 @@ typedef enum Input_Mode {
 #define DEFAULT_CONFIG_PATH "stoin-config.json"
 #define DEFAULT_WORD_LIST_PATH "american_english_words.txt"
 #define DEFAULT_PHRASING_PATH "phrasing.json"
+#define INPUT_EVENT_POLL_SLEEP_MS 10
+#define TX_BOLT_STROKE_IDLE_FLUSH_MS 100
 
 typedef struct App {
     Steno *steno;
     bool session_active;
     bool session_state_known;
     bool time_translations;
+    bool trace_key_events;
+    bool qwerty_input;
+    bool phrase_toggle_enabled;
+    atomic_bool phrase_toggle_down;
+    atomic_bool phrase_stroke_latched;
+    uint16_t phrase_toggle_keycode;
+    const char *phrase_toggle_name;
 } App;
 
 static volatile sig_atomic_t g_stop_requested;
@@ -137,7 +147,18 @@ static bool handle_stroke_bits(App *app, uint64_t bits, uint64_t received_ns)
     if (app->time_translations) {
         platform_translation_timing_begin(received_ns);
     }
-    const bool handled = steno_handle_stroke_bits(app->steno, bits);
+    const bool phrase_toggle_down = atomic_load_explicit(&app->phrase_toggle_down, memory_order_relaxed);
+    const bool phrase_stroke_latched =
+        atomic_exchange_explicit(&app->phrase_stroke_latched, false, memory_order_relaxed);
+    const bool phrase = app->phrase_toggle_enabled
+        && (phrase_toggle_down || phrase_stroke_latched);
+    Stroke_Input stroke = {
+        .bits = bits,
+        .received_ns = received_ns,
+        .phrase = phrase,
+        .phrase_namespace = app->phrase_toggle_enabled,
+    };
+    const bool handled = steno_handle_stroke(app->steno, stroke);
     if (app->time_translations) {
         platform_translation_timing_cancel();
     }
@@ -150,10 +171,76 @@ static bool handle_stroke_bits_callback(uint64_t bits, uint64_t received_ns, voi
     return handle_stroke_bits(app, bits, received_ns);
 }
 
+static void print_key_event(const Input_Event *event)
+{
+    if (event == NULL) {
+        return;
+    }
+
+    printf("stoin: key event keycode=%u %s",
+        (unsigned int)event->keycode,
+        event->is_down ? "down" : "up");
+    if (event->printable != '\0') {
+        printf(" printable='%c'", event->printable);
+    }
+    printf(" shift=%u control=%u option=%u command=%u",
+        event->shift ? 1u : 0u,
+        event->control ? 1u : 0u,
+        event->option ? 1u : 0u,
+        event->command ? 1u : 0u);
+    putchar('\n');
+    fflush(stdout);
+}
+
+static bool update_phrase_toggle_from_event(App *app, const Input_Event *event, bool update_steno)
+{
+    if (app == NULL
+        || event == NULL
+        || !app->phrase_toggle_enabled
+        || event->keycode != app->phrase_toggle_keycode) {
+        return false;
+    }
+
+    if (!event->is_repeat) {
+        atomic_store_explicit(&app->phrase_toggle_down, event->is_down, memory_order_relaxed);
+        if (event->is_down) {
+            atomic_store_explicit(&app->phrase_stroke_latched, true, memory_order_relaxed);
+        }
+        if (update_steno) {
+            steno_set_phrase_mode(app->steno, event->is_down);
+        }
+    }
+
+    return true;
+}
+
+static bool handle_phrase_toggle_input(const Input_Event *event, void *userdata)
+{
+    App *app = userdata;
+
+    if (app != NULL && event != NULL && app->trace_key_events && !event->is_repeat) {
+        print_key_event(event);
+    }
+
+    return update_phrase_toggle_from_event(app, event, false);
+}
+
 static bool handle_input(const Input_Event *event, void *userdata)
 {
     App *app = userdata;
     if (!update_session_active(app)) {
+        return false;
+    }
+
+    if (app != NULL && event != NULL && app->trace_key_events && !event->is_repeat) {
+        print_key_event(event);
+    }
+
+    if (update_phrase_toggle_from_event(app, event, true)) {
+        return true;
+    }
+
+    if (app == NULL || !app->qwerty_input) {
         return false;
     }
 
@@ -165,6 +252,35 @@ static bool handle_input(const Input_Event *event, void *userdata)
         platform_translation_timing_cancel();
     }
     return handled;
+}
+
+static bool app_wants_keyboard_events(const App *app)
+{
+    return app != NULL && (app->phrase_toggle_enabled || app->trace_key_events);
+}
+
+static void print_phrase_toggle_status(const App *app)
+{
+    if (app != NULL && app->phrase_toggle_enabled) {
+        printf("stoin: phrase toggle %s enabled (keycode %u)\n",
+            app->phrase_toggle_name,
+            (unsigned int)app->phrase_toggle_keycode);
+    }
+}
+
+static void sleep_with_input_events(const App *app, unsigned int milliseconds)
+{
+    if (!app_wants_keyboard_events(app)) {
+        platform_sleep_ms(milliseconds);
+        return;
+    }
+
+    const uint64_t start_ms = platform_monotonic_ms();
+    while (platform_monotonic_ms() - start_ms < milliseconds) {
+        platform_poll_input_events();
+        platform_sleep_ms(INPUT_EVENT_POLL_SLEEP_MS);
+    }
+    platform_poll_input_events();
 }
 
 static void request_stop(int signum)
@@ -179,6 +295,8 @@ static void print_usage(void)
     fputs("             [--input tx-bolt|gemini-pr|stentura|qwerty]\n", stderr);
     fputs("             [--serial-port PATH] [--serial-baud BAUD]\n", stderr);
     fputs("             [--multiple-inputs] [--multi-input-window-ms MS]\n", stderr);
+    fputs("             [--phrase-toggle KEY]\n", stderr);
+    fputs("             [--trace-key-events]\n", stderr);
     fputs("             [--time-translations]\n", stderr);
     fputs("             [--trace-strokes|--no-trace-strokes]\n", stderr);
     fputs("       stoin --raw-serial [--serial-port PATH] [--serial-baud BAUD]\n", stderr);
@@ -236,6 +354,7 @@ static int run_qwerty(App *app)
     printf("stoin: loaded %zu key bindings and %zu dictionary entries\n",
         steno_key_binding_count(app->steno),
         steno_dictionary_count(app->steno));
+    print_phrase_toggle_status(app);
     puts("stoin: steno capture starts enabled; press Ctrl+Esc to toggle it");
     puts("stoin: shortcut-modified keys pass through; press Ctrl+C in this terminal to quit");
 
@@ -258,10 +377,12 @@ static int run_tx_bolt(App *app, const char *port_path, int baud_rate)
     bool connected = false;
     bool output_ready = false;
     bool announced_disconnected = false;
+    uint64_t last_byte_ms = 0;
     start_dictionary_watcher(app);
 
     while (!g_stop_requested) {
         run_app_maintenance(app);
+        platform_poll_input_events();
         const bool session_active = app->session_state_known && app->session_active;
 
         if (!connected) {
@@ -275,7 +396,7 @@ static int run_tx_bolt(App *app, const char *port_path, int baud_rate)
                     }
                     announced_disconnected = true;
                 }
-                platform_sleep_ms(1000);
+                sleep_with_input_events(app, 1000);
                 continue;
             }
 
@@ -293,7 +414,7 @@ static int run_tx_bolt(App *app, const char *port_path, int baud_rate)
                     fputc('\n', stderr);
                     announced_disconnected = true;
                 }
-                platform_sleep_ms(1000);
+                sleep_with_input_events(app, 1000);
                 continue;
             }
 
@@ -305,19 +426,58 @@ static int run_tx_bolt(App *app, const char *port_path, int baud_rate)
             output_ready = true;
             connected = true;
             announced_disconnected = false;
+            last_byte_ms = 0;
             printf("stoin: TX Bolt connected on %s\n", tx_bolt_port_path(&tx_bolt));
         }
 
-        uint64_t stroke_bits = 0;
-        if (tx_bolt_read_stroke(&tx_bolt, &stroke_bits)) {
-            if (session_active) {
-                (void)handle_stroke_bits(app, stroke_bits, platform_monotonic_ns());
+        bool made_progress = false;
+        while (true) {
+            uint64_t stroke_bits = 0;
+            bool read_byte = false;
+            if (tx_bolt_read_stroke_nonblocking(&tx_bolt, &stroke_bits, &read_byte)) {
+                platform_poll_input_events();
+                if (read_byte) {
+                    last_byte_ms = platform_monotonic_ms();
+                }
+                if (session_active) {
+                    (void)handle_stroke_bits(app, stroke_bits, platform_monotonic_ns());
+                }
+                made_progress = true;
+                continue;
             }
-        } else if (tx_bolt_had_error(&tx_bolt)) {
+            if (read_byte) {
+                last_byte_ms = platform_monotonic_ms();
+                made_progress = true;
+                continue;
+            }
+            break;
+        }
+
+        if (!tx_bolt_had_error(&tx_bolt)
+            && tx_bolt_has_partial_stroke(&tx_bolt)
+            && last_byte_ms != 0) {
+            const uint64_t now_ms = platform_monotonic_ms();
+            if (now_ms - last_byte_ms >= TX_BOLT_STROKE_IDLE_FLUSH_MS) {
+                uint64_t stroke_bits = 0;
+                last_byte_ms = 0;
+                if (tx_bolt_flush_stroke(&tx_bolt, &stroke_bits)) {
+                    platform_poll_input_events();
+                    if (session_active) {
+                        (void)handle_stroke_bits(app, stroke_bits, platform_monotonic_ns());
+                    }
+                    made_progress = true;
+                }
+            }
+        }
+
+        if (tx_bolt_had_error(&tx_bolt)) {
             printf("stoin: TX Bolt disconnected from %s; waiting for reconnect\n", tx_bolt_port_path(&tx_bolt));
             tx_bolt_close(&tx_bolt);
             connected = false;
-            platform_sleep_ms(1000);
+            last_byte_ms = 0;
+            sleep_with_input_events(app, 1000);
+        } else if (!made_progress) {
+            sleep_with_input_events(app, INPUT_EVENT_POLL_SLEEP_MS);
         }
     }
 
@@ -346,6 +506,7 @@ static int run_gemini_pr(App *app, const char *port_path, int baud_rate)
 
     while (!g_stop_requested) {
         run_app_maintenance(app);
+        platform_poll_input_events();
         const bool session_active = app->session_state_known && app->session_active;
 
         if (!connected) {
@@ -359,7 +520,7 @@ static int run_gemini_pr(App *app, const char *port_path, int baud_rate)
                     }
                     announced_disconnected = true;
                 }
-                platform_sleep_ms(1000);
+                sleep_with_input_events(app, 1000);
                 continue;
             }
 
@@ -377,7 +538,7 @@ static int run_gemini_pr(App *app, const char *port_path, int baud_rate)
                     fputc('\n', stderr);
                     announced_disconnected = true;
                 }
-                platform_sleep_ms(1000);
+                sleep_with_input_events(app, 1000);
                 continue;
             }
 
@@ -394,6 +555,7 @@ static int run_gemini_pr(App *app, const char *port_path, int baud_rate)
 
         uint64_t stroke_bits = 0;
         if (gemini_pr_read_stroke(&gemini, &stroke_bits)) {
+            platform_poll_input_events();
             if (session_active) {
                 (void)handle_stroke_bits(app, stroke_bits, platform_monotonic_ns());
             }
@@ -401,7 +563,7 @@ static int run_gemini_pr(App *app, const char *port_path, int baud_rate)
             printf("stoin: Gemini PR disconnected from %s; waiting for reconnect\n", gemini_pr_port_path(&gemini));
             gemini_pr_close(&gemini);
             connected = false;
-            platform_sleep_ms(1000);
+            sleep_with_input_events(app, 1000);
         }
     }
 
@@ -430,6 +592,7 @@ static int run_stentura(App *app, const char *port_path, int baud_rate)
 
     while (!g_stop_requested) {
         run_app_maintenance(app);
+        platform_poll_input_events();
         const bool session_active = app->session_state_known && app->session_active;
 
         if (!connected) {
@@ -482,7 +645,7 @@ static int run_stentura(App *app, const char *port_path, int baud_rate)
                     fputc('\n', stderr);
                     announced_disconnected = true;
                 }
-                platform_sleep_ms(1000);
+                sleep_with_input_events(app, 1000);
                 continue;
             }
 
@@ -499,6 +662,7 @@ static int run_stentura(App *app, const char *port_path, int baud_rate)
 
         uint64_t stroke_bits = 0;
         if (stentura_read_stroke(&stentura, &stroke_bits)) {
+            platform_poll_input_events();
             if (session_active) {
                 (void)handle_stroke_bits(app, stroke_bits, platform_monotonic_ns());
             }
@@ -506,7 +670,7 @@ static int run_stentura(App *app, const char *port_path, int baud_rate)
             printf("stoin: Stentura disconnected from %s; waiting for reconnect\n", stentura_port_path(&stentura));
             stentura_close(&stentura);
             connected = false;
-            platform_sleep_ms(1000);
+            sleep_with_input_events(app, 1000);
         }
     }
 
@@ -557,7 +721,11 @@ int main(int argc, char **argv)
     bool multiple_inputs = false;
     unsigned int multi_input_window_ms = TX_BOLT_MULTIPLE_DEFAULT_WINDOW_MS;
     bool trace_strokes = true;
+    bool trace_key_events = false;
     bool time_translations = false;
+    bool phrase_toggle_enabled = false;
+    uint16_t phrase_toggle_keycode = 0;
+    const char *phrase_toggle_name = NULL;
 
     bool raw_serial_requested = false;
     for (int i = 1; i < argc; ++i) {
@@ -629,9 +797,21 @@ int main(int argc, char **argv)
             trace_strokes = true;
         } else if (strcmp(argv[i], "--no-trace-strokes") == 0) {
             trace_strokes = false;
+        } else if (strcmp(argv[i], "--trace-key-events") == 0
+            || strcmp(argv[i], "--trace-input-events") == 0) {
+            trace_key_events = true;
         } else if (strcmp(argv[i], "--time-translations") == 0
             || strcmp(argv[i], "--time-translation") == 0) {
             time_translations = true;
+        } else if ((strcmp(argv[i], "--phrase-toggle") == 0
+                || strcmp(argv[i], "--phase-toggle") == 0) && i + 1 < argc) {
+            phrase_toggle_name = argv[++i];
+            if (!platform_keycode_from_name(phrase_toggle_name, &phrase_toggle_keycode)) {
+                fprintf(stderr, "stoin: unknown phrase toggle key '%s'\n", phrase_toggle_name);
+                runtime_config_destroy(&runtime_config);
+                return 1;
+            }
+            phrase_toggle_enabled = true;
         } else if (strcmp(argv[i], "--multiple-inputs") == 0) {
             multiple_inputs = true;
         } else if (strcmp(argv[i], "--multi-input-window-ms") == 0 && i + 1 < argc) {
@@ -765,11 +945,17 @@ int main(int argc, char **argv)
             trace_strokes ? stderr : NULL
         ),
         .time_translations = time_translations,
+        .trace_key_events = trace_key_events,
+        .qwerty_input = input_mode == INPUT_MODE_QWERTY,
+        .phrase_toggle_enabled = phrase_toggle_enabled,
+        .phrase_toggle_keycode = phrase_toggle_keycode,
+        .phrase_toggle_name = phrase_toggle_name,
     };
     if (app.steno == NULL) {
         runtime_config_destroy(&runtime_config);
         return 1;
     }
+    steno_set_phrase_namespace_enabled(app.steno, phrase_toggle_enabled);
 
     platform_translation_timing_set_enabled(time_translations);
     if (time_translations) {
@@ -782,27 +968,38 @@ int main(int argc, char **argv)
     int status = 0;
     if (input_mode == INPUT_MODE_QWERTY) {
         status = run_qwerty(&app);
-    } else if (input_mode == INPUT_MODE_TX_BOLT) {
-        if (multiple_inputs) {
-            const Tx_Bolt_Multiple_Config tx_bolt_multiple_config = {
-                .port_path = serial_port,
-                .baud_rate = serial_baud_rate,
-                .merge_window_ms = multi_input_window_ms,
-                .dictionary_count = steno_dictionary_count(app.steno),
-                .start_watcher = start_dictionary_watcher_callback,
-                .run_maintenance = run_app_maintenance_callback,
-                .session_active = app_session_active_callback,
-                .handle_stroke = handle_stroke_bits_callback,
-                .userdata = &app,
-            };
-            status = tx_bolt_multiple_run(&tx_bolt_multiple_config);
-        } else {
-            status = run_tx_bolt(&app, serial_port, serial_baud_rate);
-        }
-    } else if (input_mode == INPUT_MODE_GEMINI_PR) {
-        status = run_gemini_pr(&app, serial_port, serial_baud_rate);
     } else {
-        status = run_stentura(&app, serial_port, serial_baud_rate);
+        if (app_wants_keyboard_events(&app)) {
+            if (!platform_init_listen_only(handle_phrase_toggle_input, &app)) {
+                steno_destroy(app.steno);
+                runtime_config_destroy(&runtime_config);
+                return 1;
+            }
+            print_phrase_toggle_status(&app);
+        }
+
+        if (input_mode == INPUT_MODE_TX_BOLT) {
+            if (multiple_inputs) {
+                const Tx_Bolt_Multiple_Config tx_bolt_multiple_config = {
+                    .port_path = serial_port,
+                    .baud_rate = serial_baud_rate,
+                    .merge_window_ms = multi_input_window_ms,
+                    .dictionary_count = steno_dictionary_count(app.steno),
+                    .start_watcher = start_dictionary_watcher_callback,
+                    .run_maintenance = run_app_maintenance_callback,
+                    .session_active = app_session_active_callback,
+                    .handle_stroke = handle_stroke_bits_callback,
+                    .userdata = &app,
+                };
+                status = tx_bolt_multiple_run(&tx_bolt_multiple_config);
+            } else {
+                status = run_tx_bolt(&app, serial_port, serial_baud_rate);
+            }
+        } else if (input_mode == INPUT_MODE_GEMINI_PR) {
+            status = run_gemini_pr(&app, serial_port, serial_baud_rate);
+        } else {
+            status = run_stentura(&app, serial_port, serial_baud_rate);
+        }
     }
 
     steno_destroy(app.steno);

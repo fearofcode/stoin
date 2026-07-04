@@ -26,6 +26,8 @@ typedef struct Spacing_State {
 typedef struct Stroke_Input {
     uint64_t bits;
     uint64_t received_ns;
+    bool phrase;
+    bool phrase_namespace;
 } Stroke_Input;
 
 typedef struct Steno_Config {
@@ -49,6 +51,8 @@ void steno_destroy(Steno *steno);
 bool steno_handle_event(Steno *steno, const Input_Event *event);
 bool steno_handle_stroke(Steno *steno, Stroke_Input stroke);
 bool steno_handle_stroke_bits(Steno *steno, uint64_t bits);
+void steno_set_phrase_namespace_enabled(Steno *steno, bool enabled);
+void steno_set_phrase_mode(Steno *steno, bool active);
 void steno_set_session_active(Steno *steno, bool active);
 bool steno_reload_dictionary(Steno *steno);
 bool steno_reload_dictionary_if_changed(Steno *steno);

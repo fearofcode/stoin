@@ -1,152 +1,675 @@
 {
   "initial_verbs": {
     "tails": [
-      { "id": "a", "stroke": "-B", "text": "a" },
-      { "id": "the", "stroke": "-T", "text": "the" },
-      { "id": "it", "stroke": "-P", "text": "it" },
-      { "id": "that", "stroke": "-RT", "text": "that" }
+      {
+        "id": "a",
+        "stroke": "-B",
+        "text": "a"
+      },
+      {
+        "id": "the",
+        "stroke": "-T",
+        "text": "the"
+      },
+      {
+        "id": "it",
+        "stroke": "-P",
+        "text": "it"
+      },
+      {
+        "id": "that",
+        "stroke": "-RT",
+        "text": "that"
+      }
     ],
     "stems": [
       {
         "stroke": "PW",
         "forms": [
-          { "stroke": "", "text": "is" },
-          { "stroke": "-D", "text": "was" },
-          { "stroke": "E", "text": "are" },
-          { "stroke": "E-D", "text": "were" }
+          {
+            "stroke": "",
+            "text": "is"
+          },
+          {
+            "stroke": "-D",
+            "text": "was"
+          },
+          {
+            "stroke": "E",
+            "text": "are"
+          },
+          {
+            "stroke": "E-D",
+            "text": "were"
+          }
         ]
       },
       {
         "stroke": "H",
         "forms": [
-          { "stroke": "", "text": "has" },
-          { "stroke": "-D", "text": "had" },
-          { "stroke": "E", "text": "have" }
+          {
+            "stroke": "",
+            "text": "has"
+          },
+          {
+            "stroke": "-D",
+            "text": "had"
+          },
+          {
+            "stroke": "E",
+            "text": "have"
+          }
         ]
       },
       {
-        "stroke": "STKHR",
+        "stroke": "KHR",
         "forms": [
-          { "stroke": "", "text": "calls" },
-          { "stroke": "-D", "text": "called" },
-          { "stroke": "E", "text": "call" },
-          { "stroke": "-G", "text": "calling" }
+          {
+            "stroke": "",
+            "text": "calls"
+          },
+          {
+            "stroke": "-D",
+            "text": "called"
+          },
+          {
+            "stroke": "E",
+            "text": "call"
+          },
+          {
+            "stroke": "-G",
+            "text": "calling"
+          }
         ]
       }
     ]
   },
   "nonverbs": {
     "tails": [
-      { "id": "a", "stroke": "-B", "text": "a" },
-      { "id": "the", "stroke": "-T", "text": "the" },
-      { "id": "them", "stroke": "-PLT", "text": "them" },
-      { "id": "that", "stroke": "-RT", "text": "that" },
-      { "id": "if", "stroke": "-F", "text": "if" },
-      { "id": "though", "stroke": "-GT", "text": "though" },
-      { "id": "else", "stroke": "-F", "text": "else" }
+      {
+        "id": "a",
+        "stroke": "-B",
+        "text": "a"
+      },
+      {
+        "id": "the",
+        "stroke": "-T",
+        "text": "the"
+      },
+      {
+        "id": "them",
+        "stroke": "-PLT",
+        "text": "them"
+      },
+      {
+        "id": "that",
+        "stroke": "-RT",
+        "text": "that"
+      },
+      {
+        "id": "if",
+        "stroke": "-F",
+        "text": "if"
+      },
+      {
+        "id": "though",
+        "stroke": "-GT",
+        "text": "though"
+      },
+      {
+        "id": "else",
+        "stroke": "-F",
+        "text": "else"
+      }
     ],
     "prefixes": [
-      { "stroke": "TW", "text": "with", "tails": ["a", "the", "them", "that"] },
-      { "stroke": "TKPWH*", "text": "anything", "tails": ["that", "else"] },
-      { "stroke": "S*", "text": "as", "tails": ["if", "though"] },
-      { "stroke": "SRAO*E", "text": "even", "tails": ["a", "that", "if", "though"] }
+      {
+        "stroke": "TW",
+        "text": "with",
+        "tails": [
+          "a",
+          "the",
+          "them",
+          "that"
+        ]
+      },
+      {
+        "stroke": "TKPWH*",
+        "text": "anything",
+        "tails": [
+          "that",
+          "else"
+        ]
+      },
+      {
+        "stroke": "S*",
+        "text": "as",
+        "tails": [
+          "if",
+          "though"
+        ]
+      },
+      {
+        "stroke": "SRAO*E",
+        "text": "even",
+        "tails": [
+          "a",
+          "that",
+          "if",
+          "though"
+        ]
+      }
     ]
   },
   "final_verbs": {
     "contraction_stroke": "#",
     "starters": [
-      { "stroke": "SWR", "text": "I", "agreement": "first_singular", "be_contraction": "I'm", "have_contraction": "I've", "will_contraction": "I'll" },
-      { "stroke": "KPWR", "text": "you", "agreement": "plural", "be_contraction": "you're", "have_contraction": "you've", "will_contraction": "you'll" },
-      { "stroke": "KWHR", "text": "he", "agreement": "third_singular", "be_contraction": "he's", "have_contraction": "he's", "will_contraction": "he'll" },
-      { "stroke": "SKWHR", "text": "she", "agreement": "third_singular", "be_contraction": "she's", "have_contraction": "she's", "will_contraction": "she'll" },
-      { "stroke": "KPWH", "text": "it", "agreement": "third_singular", "be_contraction": "it's", "have_contraction": "it's", "will_contraction": "it'll" },
-      { "stroke": "TWR", "text": "we", "agreement": "plural", "be_contraction": "we're", "have_contraction": "we've", "will_contraction": "we'll" },
-      { "stroke": "TWH", "text": "they", "agreement": "plural", "be_contraction": "they're", "have_contraction": "they've", "will_contraction": "they'll" }
+      {
+        "stroke": "SWR",
+        "text": "I",
+        "agreement": "first_singular",
+        "be_contraction": "I'm",
+        "have_contraction": "I've",
+        "will_contraction": "I'll"
+      },
+      {
+        "stroke": "KPWR",
+        "text": "you",
+        "agreement": "plural",
+        "be_contraction": "you're",
+        "have_contraction": "you've",
+        "will_contraction": "you'll"
+      },
+      {
+        "stroke": "KWHR",
+        "text": "he",
+        "agreement": "third_singular",
+        "be_contraction": "he's",
+        "have_contraction": "he's",
+        "will_contraction": "he'll"
+      },
+      {
+        "stroke": "SKWHR",
+        "text": "she",
+        "agreement": "third_singular",
+        "be_contraction": "she's",
+        "have_contraction": "she's",
+        "will_contraction": "she'll"
+      },
+      {
+        "stroke": "KPWH",
+        "text": "it",
+        "agreement": "third_singular",
+        "be_contraction": "it's",
+        "have_contraction": "it's",
+        "will_contraction": "it'll"
+      },
+      {
+        "stroke": "TWR",
+        "text": "we",
+        "agreement": "plural",
+        "be_contraction": "we're",
+        "have_contraction": "we've",
+        "will_contraction": "we'll"
+      },
+      {
+        "stroke": "TWH",
+        "text": "they",
+        "agreement": "plural",
+        "be_contraction": "they're",
+        "have_contraction": "they've",
+        "will_contraction": "they'll"
+      }
     ],
     "operators": [
-      { "stroke": "", "modal": "none", "negative": false },
-      { "stroke": "*", "modal": "none", "negative": true },
-      { "stroke": "A", "modal": "can", "negative": false },
-      { "stroke": "A*", "modal": "can", "negative": true },
-      { "stroke": "O", "modal": "should", "negative": false },
-      { "stroke": "O*", "modal": "should", "negative": true },
-      { "stroke": "AO", "modal": "will", "negative": false },
-      { "stroke": "AO*", "modal": "will", "negative": true }
+      {
+        "stroke": "",
+        "modal": "none",
+        "negative": false
+      },
+      {
+        "stroke": "*",
+        "modal": "none",
+        "negative": true
+      },
+      {
+        "stroke": "A",
+        "modal": "can",
+        "negative": false
+      },
+      {
+        "stroke": "A*",
+        "modal": "can",
+        "negative": true
+      },
+      {
+        "stroke": "O",
+        "modal": "should",
+        "negative": false
+      },
+      {
+        "stroke": "O*",
+        "modal": "should",
+        "negative": true
+      },
+      {
+        "stroke": "AO",
+        "modal": "will",
+        "negative": false
+      },
+      {
+        "stroke": "AO*",
+        "modal": "will",
+        "negative": true
+      }
     ],
     "structures": [
-      { "stroke": "", "kind": "simple" },
-      { "stroke": "E", "kind": "progressive" },
-      { "stroke": "-F", "kind": "perfect" },
-      { "stroke": "E-F", "kind": "perfect_progressive" }
+      {
+        "stroke": "",
+        "kind": "simple"
+      },
+      {
+        "stroke": "E",
+        "kind": "progressive"
+      },
+      {
+        "stroke": "-F",
+        "kind": "perfect"
+      },
+      {
+        "stroke": "E-F",
+        "kind": "perfect_progressive"
+      }
     ],
     "verbs": [
-      { "id": "be", "base": "be", "third": "is", "past": "was", "present_participle": "being", "past_participle": "been" },
-      { "id": "have", "base": "have", "third": "has", "past": "had", "present_participle": "having", "past_participle": "had" },
-      { "id": "do", "base": "do", "third": "does", "past": "did", "present_participle": "doing", "past_participle": "done" },
-      { "id": "go", "base": "go", "third": "goes", "past": "went", "present_participle": "going", "past_participle": "gone" },
-      { "id": "know", "base": "know", "third": "knows", "past": "knew", "present_participle": "knowing", "past_participle": "known" },
-      { "id": "think", "base": "think", "third": "thinks", "past": "thought", "present_participle": "thinking", "past_participle": "thought" },
-      { "id": "want", "base": "want", "third": "wants", "past": "wanted", "present_participle": "wanting", "past_participle": "wanted" },
-      { "id": "need", "base": "need", "third": "needs", "past": "needed", "present_participle": "needing", "past_participle": "needed" },
-      { "id": "see", "base": "see", "third": "sees", "past": "saw", "present_participle": "seeing", "past_participle": "seen" },
-      { "id": "say", "base": "say", "third": "says", "past": "said", "present_participle": "saying", "past_participle": "said" },
-      { "id": "get", "base": "get", "third": "gets", "past": "got", "present_participle": "getting", "past_participle": "gotten" },
-      { "id": "find", "base": "find", "third": "finds", "past": "found", "present_participle": "finding", "past_participle": "found" },
-      { "id": "try", "base": "try", "third": "tries", "past": "tried", "present_participle": "trying", "past_participle": "tried" }
+      {
+        "id": "be",
+        "base": "be",
+        "third": "is",
+        "past": "was",
+        "present_participle": "being",
+        "past_participle": "been"
+      },
+      {
+        "id": "have",
+        "base": "have",
+        "third": "has",
+        "past": "had",
+        "present_participle": "having",
+        "past_participle": "had"
+      },
+      {
+        "id": "do",
+        "base": "do",
+        "third": "does",
+        "past": "did",
+        "present_participle": "doing",
+        "past_participle": "done"
+      },
+      {
+        "id": "go",
+        "base": "go",
+        "third": "goes",
+        "past": "went",
+        "present_participle": "going",
+        "past_participle": "gone"
+      },
+      {
+        "id": "know",
+        "base": "know",
+        "third": "knows",
+        "past": "knew",
+        "present_participle": "knowing",
+        "past_participle": "known"
+      },
+      {
+        "id": "think",
+        "base": "think",
+        "third": "thinks",
+        "past": "thought",
+        "present_participle": "thinking",
+        "past_participle": "thought"
+      },
+      {
+        "id": "want",
+        "base": "want",
+        "third": "wants",
+        "past": "wanted",
+        "present_participle": "wanting",
+        "past_participle": "wanted"
+      },
+      {
+        "id": "need",
+        "base": "need",
+        "third": "needs",
+        "past": "needed",
+        "present_participle": "needing",
+        "past_participle": "needed"
+      },
+      {
+        "id": "see",
+        "base": "see",
+        "third": "sees",
+        "past": "saw",
+        "present_participle": "seeing",
+        "past_participle": "seen"
+      },
+      {
+        "id": "say",
+        "base": "say",
+        "third": "says",
+        "past": "said",
+        "present_participle": "saying",
+        "past_participle": "said"
+      },
+      {
+        "id": "get",
+        "base": "get",
+        "third": "gets",
+        "past": "got",
+        "present_participle": "getting",
+        "past_participle": "gotten"
+      },
+      {
+        "id": "find",
+        "base": "find",
+        "third": "finds",
+        "past": "found",
+        "present_participle": "finding",
+        "past_participle": "found"
+      },
+      {
+        "id": "try",
+        "base": "try",
+        "third": "tries",
+        "past": "tried",
+        "present_participle": "trying",
+        "past_participle": "tried"
+      }
     ],
     "enders": [
-      { "stroke": "", "past": false },
-      { "stroke": "-D", "past": true },
-      { "stroke": "-B", "verb": "be", "past": false },
-      { "stroke": "-BD", "verb": "be", "past": true },
-      { "stroke": "-BT", "verb": "be", "suffix": "a", "past": false },
-      { "stroke": "-BTD", "verb": "be", "suffix": "a", "past": true },
-      { "stroke": "-T", "verb": "have", "past": false },
-      { "stroke": "-TD", "verb": "have", "past": true },
-      { "stroke": "-TS", "verb": "have", "suffix": "to", "past": false },
-      { "stroke": "-TSDZ", "verb": "have", "suffix": "to", "past": true },
-      { "stroke": "-RP", "verb": "do", "past": false },
-      { "stroke": "-RPD", "verb": "do", "past": true },
-      { "stroke": "-RPT", "verb": "do", "suffix": "it", "past": false },
-      { "stroke": "-RPTD", "verb": "do", "suffix": "it", "past": true },
-      { "stroke": "-G", "verb": "go", "past": false },
-      { "stroke": "-GD", "verb": "go", "past": true },
-      { "stroke": "-GT", "verb": "go", "suffix": "to", "past": false },
-      { "stroke": "-GTD", "verb": "go", "suffix": "to", "past": true },
-      { "stroke": "-PB", "verb": "know", "past": false },
-      { "stroke": "-PBD", "verb": "know", "past": true },
-      { "stroke": "-PBT", "verb": "know", "suffix": "that", "past": false },
-      { "stroke": "-PBTD", "verb": "know", "suffix": "that", "past": true },
-      { "stroke": "-PBG", "verb": "think", "past": false },
-      { "stroke": "-PBGD", "verb": "think", "past": true },
-      { "stroke": "-PBGT", "verb": "think", "suffix": "that", "past": false },
-      { "stroke": "-PBGTD", "verb": "think", "suffix": "that", "past": true },
-      { "stroke": "-P", "verb": "want", "past": false },
-      { "stroke": "-PD", "verb": "want", "past": true },
-      { "stroke": "-PT", "verb": "want", "suffix": "to", "past": false },
-      { "stroke": "-PTD", "verb": "want", "suffix": "to", "past": true },
-      { "stroke": "-RPG", "verb": "need", "past": false },
-      { "stroke": "-RPGD", "verb": "need", "past": true },
-      { "stroke": "-RPGT", "verb": "need", "suffix": "to", "past": false },
-      { "stroke": "-RPGTD", "verb": "need", "suffix": "to", "past": true },
-      { "stroke": "-S", "verb": "see", "past": false },
-      { "stroke": "-SZ", "verb": "see", "past": true },
-      { "stroke": "-BS", "verb": "say", "past": false },
-      { "stroke": "-BSZ", "verb": "say", "past": true },
-      { "stroke": "-BTS", "verb": "say", "suffix": "that", "past": false },
-      { "stroke": "-BTSDZ", "verb": "say", "suffix": "that", "past": true },
-      { "stroke": "-GS", "verb": "get", "past": false },
-      { "stroke": "-GSZ", "verb": "get", "past": true },
-      { "stroke": "-GTS", "verb": "get", "suffix": "to", "past": false },
-      { "stroke": "-GTSDZ", "verb": "get", "suffix": "to", "past": true },
-      { "stroke": "-PBLG", "verb": "find", "past": false },
-      { "stroke": "-PBLGD", "verb": "find", "past": true },
-      { "stroke": "-PBLGT", "verb": "find", "suffix": "that", "past": false },
-      { "stroke": "-PBLGTD", "verb": "find", "suffix": "that", "past": true },
-      { "stroke": "-RT", "verb": "try", "past": false },
-      { "stroke": "-RTD", "verb": "try", "past": true },
-      { "stroke": "-RTS", "verb": "try", "suffix": "to", "past": false },
-      { "stroke": "-RTSDZ", "verb": "try", "suffix": "to", "past": true }
+      {
+        "stroke": "",
+        "past": false
+      },
+      {
+        "stroke": "-D",
+        "past": true
+      },
+      {
+        "stroke": "-B",
+        "verb": "be",
+        "past": false
+      },
+      {
+        "stroke": "-BD",
+        "verb": "be",
+        "past": true
+      },
+      {
+        "stroke": "-BT",
+        "verb": "be",
+        "suffix": "a",
+        "past": false
+      },
+      {
+        "stroke": "-BTD",
+        "verb": "be",
+        "suffix": "a",
+        "past": true
+      },
+      {
+        "stroke": "-T",
+        "verb": "have",
+        "past": false
+      },
+      {
+        "stroke": "-TD",
+        "verb": "have",
+        "past": true
+      },
+      {
+        "stroke": "-TS",
+        "verb": "have",
+        "suffix": "to",
+        "past": false
+      },
+      {
+        "stroke": "-TSDZ",
+        "verb": "have",
+        "suffix": "to",
+        "past": true
+      },
+      {
+        "stroke": "-RP",
+        "verb": "do",
+        "past": false
+      },
+      {
+        "stroke": "-RPD",
+        "verb": "do",
+        "past": true
+      },
+      {
+        "stroke": "-RPT",
+        "verb": "do",
+        "suffix": "it",
+        "past": false
+      },
+      {
+        "stroke": "-RPTD",
+        "verb": "do",
+        "suffix": "it",
+        "past": true
+      },
+      {
+        "stroke": "-G",
+        "verb": "go",
+        "past": false
+      },
+      {
+        "stroke": "-GD",
+        "verb": "go",
+        "past": true
+      },
+      {
+        "stroke": "-GT",
+        "verb": "go",
+        "suffix": "to",
+        "past": false
+      },
+      {
+        "stroke": "-GTD",
+        "verb": "go",
+        "suffix": "to",
+        "past": true
+      },
+      {
+        "stroke": "-PB",
+        "verb": "know",
+        "past": false
+      },
+      {
+        "stroke": "-PBD",
+        "verb": "know",
+        "past": true
+      },
+      {
+        "stroke": "-PBT",
+        "verb": "know",
+        "suffix": "that",
+        "past": false
+      },
+      {
+        "stroke": "-PBTD",
+        "verb": "know",
+        "suffix": "that",
+        "past": true
+      },
+      {
+        "stroke": "-PBG",
+        "verb": "think",
+        "past": false
+      },
+      {
+        "stroke": "-PBGD",
+        "verb": "think",
+        "past": true
+      },
+      {
+        "stroke": "-PBGT",
+        "verb": "think",
+        "suffix": "that",
+        "past": false
+      },
+      {
+        "stroke": "-PBGTD",
+        "verb": "think",
+        "suffix": "that",
+        "past": true
+      },
+      {
+        "stroke": "-P",
+        "verb": "want",
+        "past": false
+      },
+      {
+        "stroke": "-PD",
+        "verb": "want",
+        "past": true
+      },
+      {
+        "stroke": "-PT",
+        "verb": "want",
+        "suffix": "to",
+        "past": false
+      },
+      {
+        "stroke": "-PTD",
+        "verb": "want",
+        "suffix": "to",
+        "past": true
+      },
+      {
+        "stroke": "-RPG",
+        "verb": "need",
+        "past": false
+      },
+      {
+        "stroke": "-RPGD",
+        "verb": "need",
+        "past": true
+      },
+      {
+        "stroke": "-RPGT",
+        "verb": "need",
+        "suffix": "to",
+        "past": false
+      },
+      {
+        "stroke": "-RPGTD",
+        "verb": "need",
+        "suffix": "to",
+        "past": true
+      },
+      {
+        "stroke": "-S",
+        "verb": "see",
+        "past": false
+      },
+      {
+        "stroke": "-SZ",
+        "verb": "see",
+        "past": true
+      },
+      {
+        "stroke": "-BS",
+        "verb": "say",
+        "past": false
+      },
+      {
+        "stroke": "-BSZ",
+        "verb": "say",
+        "past": true
+      },
+      {
+        "stroke": "-BTS",
+        "verb": "say",
+        "suffix": "that",
+        "past": false
+      },
+      {
+        "stroke": "-BTSDZ",
+        "verb": "say",
+        "suffix": "that",
+        "past": true
+      },
+      {
+        "stroke": "-GS",
+        "verb": "get",
+        "past": false
+      },
+      {
+        "stroke": "-GSZ",
+        "verb": "get",
+        "past": true
+      },
+      {
+        "stroke": "-GTS",
+        "verb": "get",
+        "suffix": "to",
+        "past": false
+      },
+      {
+        "stroke": "-GTSDZ",
+        "verb": "get",
+        "suffix": "to",
+        "past": true
+      },
+      {
+        "stroke": "-PBLG",
+        "verb": "find",
+        "past": false
+      },
+      {
+        "stroke": "-PBLGD",
+        "verb": "find",
+        "past": true
+      },
+      {
+        "stroke": "-PBLGT",
+        "verb": "find",
+        "suffix": "that",
+        "past": false
+      },
+      {
+        "stroke": "-PBLGTD",
+        "verb": "find",
+        "suffix": "that",
+        "past": true
+      },
+      {
+        "stroke": "-RT",
+        "verb": "try",
+        "past": false
+      },
+      {
+        "stroke": "-RTD",
+        "verb": "try",
+        "past": true
+      },
+      {
+        "stroke": "-RTS",
+        "verb": "try",
+        "suffix": "to",
+        "past": false
+      },
+      {
+        "stroke": "-RTSDZ",
+        "verb": "try",
+        "suffix": "to",
+        "past": true
+      }
     ]
   }
 }

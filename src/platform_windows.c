@@ -156,6 +156,14 @@ static const Windows_Key_Map WINDOWS_KEY_MAP[] = {
     {"right_alt", 61, VK_RMENU, '\0'},
     {"right_control", 62, VK_RCONTROL, '\0'},
     {"right_ctrl", 62, VK_RCONTROL, '\0'},
+    {"f13", 105, VK_F13, '\0'},
+    {"f14", 107, VK_F14, '\0'},
+    {"f15", 113, VK_F15, '\0'},
+    {"f16", 106, VK_F16, '\0'},
+    {"f17", 64, VK_F17, '\0'},
+    {"f18", 79, VK_F18, '\0'},
+    {"f19", 80, VK_F19, '\0'},
+    {"f20", 90, VK_F20, '\0'},
 };
 
 static bool key_name_equals(const char *a, const char *b)
@@ -948,6 +956,11 @@ bool platform_init(Handle_Input_Fn handler, void *userdata)
     return true;
 }
 
+bool platform_init_listen_only(Handle_Input_Fn handler, void *userdata)
+{
+    return platform_init(handler, userdata);
+}
+
 void platform_run(void)
 {
     g_windows.running = true;
@@ -957,6 +970,23 @@ void platform_run(void)
         if (result <= 0) {
             break;
         }
+        if (message.message == WM_TIMER && message.wParam == g_windows.watcher_timer_id) {
+            platform_file_watcher_poll();
+            continue;
+        }
+        TranslateMessage(&message);
+        DispatchMessageA(&message);
+    }
+}
+
+void platform_poll_input_events(void)
+{
+    if (!g_windows.running) {
+        return;
+    }
+
+    MSG message;
+    while (PeekMessageA(&message, NULL, 0, 0, PM_REMOVE)) {
         if (message.message == WM_TIMER && message.wParam == g_windows.watcher_timer_id) {
             platform_file_watcher_poll();
             continue;

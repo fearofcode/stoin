@@ -454,7 +454,7 @@ func TestPhrasingDataRoute(t *testing.T) {
 		`"initial_verbs"`,
 		`"final_verbs"`,
 		`"nonverbs"`,
-		`"STKHR"`,
+		`"KHR"`,
 		`"SRAO*E"`,
 		`"though"`,
 	} {

@@ -246,6 +246,7 @@ int tx_bolt_multiple_run(const Tx_Bolt_Multiple_Config *config)
         if (config->run_maintenance != NULL) {
             config->run_maintenance(config->userdata);
         }
+        platform_poll_input_events();
         const bool session_active = config_session_active(config);
         uint64_t now_ms = platform_monotonic_ms();
 
@@ -289,6 +290,7 @@ int tx_bolt_multiple_run(const Tx_Bolt_Multiple_Config *config)
                 uint64_t stroke_bits = 0;
                 bool read_byte = false;
                 if (tx_bolt_read_stroke_nonblocking(&device->tx_bolt, &stroke_bits, &read_byte)) {
+                    platform_poll_input_events();
                     now_ms = platform_monotonic_ms();
                     if (read_byte) {
                         device->last_byte_ms = now_ms;
@@ -324,6 +326,7 @@ int tx_bolt_multiple_run(const Tx_Bolt_Multiple_Config *config)
                     uint64_t stroke_bits = 0;
                     device->last_byte_ms = 0;
                     if (tx_bolt_flush_stroke(&device->tx_bolt, &stroke_bits)) {
+                        platform_poll_input_events();
                         push_multi_tx_bolt_stroke(
                             config,
                             &merge,

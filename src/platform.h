@@ -39,7 +39,9 @@ typedef struct Platform_Serial_Port Platform_Serial_Port;
 
 bool platform_output_init(void);
 bool platform_init(Handle_Input_Fn handler, void *userdata);
+bool platform_init_listen_only(Handle_Input_Fn handler, void *userdata);
 void platform_run(void);
+void platform_poll_input_events(void);
 void platform_shutdown(void);
 bool platform_send_text_utf8(const char *utf8);
 bool platform_delete_text_utf8(const char *utf8);

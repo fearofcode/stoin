@@ -95,6 +95,8 @@ static bool post_keyboard_event_pair(CGKeyCode keycode)
     if (key_down != NULL && key_up != NULL) {
         macos_mark_generated_event(key_down);
         macos_mark_generated_event(key_up);
+        CGEventSetFlags(key_down, 0);
+        CGEventSetFlags(key_up, 0);
         report_translation_timing_before_cgevent_post("key");
         CGEventPost(kCGSessionEventTap, key_down);
         CGEventPost(kCGSessionEventTap, key_up);
@@ -378,6 +380,8 @@ bool platform_send_text_utf8(const char *utf8)
     if (key_down != NULL && key_up != NULL) {
         macos_mark_generated_event(key_down);
         macos_mark_generated_event(key_up);
+        CGEventSetFlags(key_down, 0);
+        CGEventSetFlags(key_up, 0);
         CGEventKeyboardSetUnicodeString(key_down, (UniCharCount)length, utf16);
         CGEventKeyboardSetUnicodeString(key_up, (UniCharCount)length, utf16);
         report_translation_timing_before_cgevent_post("text");

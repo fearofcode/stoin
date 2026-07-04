@@ -5,6 +5,7 @@
 
 #include <ApplicationServices/ApplicationServices.h>
 #include <CoreFoundation/CoreFoundation.h>
+#include <pthread.h>
 #include <stdbool.h>
 
 #define STOIN_GENERATED_EVENT_USER_DATA 0x73746f696eULL
@@ -18,6 +19,9 @@ typedef struct Mac_State {
     CFMachPortRef tap;
     CFRunLoopSourceRef run_loop_source;
     CFRunLoopRef run_loop;
+    pthread_t tap_thread;
+    pthread_mutex_t tap_thread_mutex;
+    pthread_cond_t tap_thread_condition;
     CFFileDescriptorRef file_watcher_descriptor;
     CFRunLoopSourceRef file_watcher_source;
     CFRunLoopRef file_watcher_run_loop;
@@ -34,6 +38,11 @@ typedef struct Mac_State {
     uint64_t translation_timing_sequence;
     bool file_watcher_active;
     bool screen_lock_notify_registered;
+    bool tap_thread_sync_initialized;
+    bool tap_thread_started;
+    bool tap_thread_ready;
+    bool tap_thread_ok;
+    bool tap_listen_only;
     bool translation_timing_enabled;
     bool translation_timing_active;
 } Mac_State;

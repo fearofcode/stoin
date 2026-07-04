@@ -1,5 +1,6 @@
 #include "platform_macos_internal.h"
 
+#include <ctype.h>
 #include <notify.h>
 #include <stdio.h>
 #include <string.h>
@@ -63,6 +64,22 @@ static char keycode_to_us_qwerty_printable(CGKeyCode keycode)
     case 49: return ' ';
     default: return '\0';
     }
+}
+
+static bool key_name_equals(const char *a, const char *b)
+{
+    if (a == NULL || b == NULL) {
+        return false;
+    }
+
+    while (*a != '\0' && *b != '\0') {
+        if (tolower((unsigned char)*a) != tolower((unsigned char)*b)) {
+            return false;
+        }
+        ++a;
+        ++b;
+    }
+    return *a == '\0' && *b == '\0';
 }
 
 bool platform_keycode_from_name(const char *name, uint16_t *out_keycode)
@@ -148,6 +165,46 @@ bool platform_keycode_from_name(const char *name, uint16_t *out_keycode)
         *out_keycode = 60;
     } else if (strcmp(name, "left_shift") == 0) {
         *out_keycode = 56;
+    } else if (key_name_equals(name, "f1")) {
+        *out_keycode = 122;
+    } else if (key_name_equals(name, "f2")) {
+        *out_keycode = 120;
+    } else if (key_name_equals(name, "f3")) {
+        *out_keycode = 99;
+    } else if (key_name_equals(name, "f4")) {
+        *out_keycode = 118;
+    } else if (key_name_equals(name, "f5")) {
+        *out_keycode = 96;
+    } else if (key_name_equals(name, "f6")) {
+        *out_keycode = 97;
+    } else if (key_name_equals(name, "f7")) {
+        *out_keycode = 98;
+    } else if (key_name_equals(name, "f8")) {
+        *out_keycode = 100;
+    } else if (key_name_equals(name, "f9")) {
+        *out_keycode = 101;
+    } else if (key_name_equals(name, "f10")) {
+        *out_keycode = 109;
+    } else if (key_name_equals(name, "f11")) {
+        *out_keycode = 103;
+    } else if (key_name_equals(name, "f12")) {
+        *out_keycode = 111;
+    } else if (key_name_equals(name, "f13")) {
+        *out_keycode = 105;
+    } else if (key_name_equals(name, "f14")) {
+        *out_keycode = 107;
+    } else if (key_name_equals(name, "f15")) {
+        *out_keycode = 113;
+    } else if (key_name_equals(name, "f16")) {
+        *out_keycode = 106;
+    } else if (key_name_equals(name, "f17")) {
+        *out_keycode = 64;
+    } else if (key_name_equals(name, "f18")) {
+        *out_keycode = 79;
+    } else if (key_name_equals(name, "f19")) {
+        *out_keycode = 80;
+    } else if (key_name_equals(name, "f20")) {
+        *out_keycode = 90;
     } else {
         return false;
     }
@@ -314,64 +371,15 @@ static CGEventRef keyboard_tap_callback(CGEventTapProxy proxy, CGEventType type,
         .printable = keycode_to_us_qwerty_printable(keycode),
     };
 
-    if (g_macos.handler != NULL && g_macos.handler(&input, g_macos.userdata)) {
+    if (g_macos.handler != NULL && g_macos.handler(&input, g_macos.userdata) && !g_macos.tap_listen_only) {
         return NULL;
     }
 
     return event;
 }
 
-bool platform_init(Handle_Input_Fn handler, void *userdata)
+static void macos_clear_keyboard_tap(void)
 {
-    g_macos.handler = handler;
-    g_macos.userdata = userdata;
-
-    if (!platform_output_init()) {
-        return false;
-    }
-
-    const CGEventMask keyboard_events = CGEventMaskBit(kCGEventKeyDown)
-        | CGEventMaskBit(kCGEventKeyUp)
-        | CGEventMaskBit(kCGEventFlagsChanged);
-    g_macos.tap = CGEventTapCreate(
-        kCGSessionEventTap,
-        kCGHeadInsertEventTap,
-        kCGEventTapOptionDefault,
-        keyboard_events,
-        keyboard_tap_callback,
-        NULL
-    );
-
-    if (g_macos.tap == NULL) {
-        fputs("stoin: failed to create keyboard event tap\n", stderr);
-        fputs("stoin: confirm Accessibility permission, then restart the executable\n", stderr);
-        platform_shutdown();
-        return false;
-    }
-
-    g_macos.run_loop_source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, g_macos.tap, 0);
-    if (g_macos.run_loop_source == NULL) {
-        fputs("stoin: failed to create run loop source for event tap\n", stderr);
-        platform_shutdown();
-        return false;
-    }
-
-    g_macos.run_loop = CFRunLoopGetCurrent();
-    CFRunLoopAddSource(g_macos.run_loop, g_macos.run_loop_source, kCFRunLoopCommonModes);
-    CGEventTapEnable(g_macos.tap, true);
-
-    return true;
-}
-
-void platform_run(void)
-{
-    CFRunLoopRun();
-}
-
-void platform_shutdown(void)
-{
-    platform_file_watcher_stop();
-
     if (g_macos.tap != NULL) {
         CGEventTapEnable(g_macos.tap, false);
     }
@@ -392,6 +400,178 @@ void platform_shutdown(void)
         g_macos.tap = NULL;
     }
 
+    g_macos.run_loop = NULL;
+    g_macos.tap_listen_only = false;
+}
+
+static bool platform_init_tap(Handle_Input_Fn handler, void *userdata, bool listen_only)
+{
+    g_macos.handler = handler;
+    g_macos.userdata = userdata;
+    g_macos.tap_listen_only = listen_only;
+
+    if (!platform_output_init()) {
+        return false;
+    }
+
+    const CGEventMask keyboard_events = CGEventMaskBit(kCGEventKeyDown)
+        | CGEventMaskBit(kCGEventKeyUp)
+        | CGEventMaskBit(kCGEventFlagsChanged);
+    g_macos.tap = CGEventTapCreate(
+        kCGSessionEventTap,
+        kCGHeadInsertEventTap,
+        listen_only ? kCGEventTapOptionListenOnly : kCGEventTapOptionDefault,
+        keyboard_events,
+        keyboard_tap_callback,
+        NULL
+    );
+
+    if (g_macos.tap == NULL) {
+        fputs("stoin: failed to create keyboard event tap\n", stderr);
+        fputs("stoin: confirm Accessibility permission, then restart the executable\n", stderr);
+        macos_clear_keyboard_tap();
+        return false;
+    }
+
+    g_macos.run_loop_source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, g_macos.tap, 0);
+    if (g_macos.run_loop_source == NULL) {
+        fputs("stoin: failed to create run loop source for event tap\n", stderr);
+        macos_clear_keyboard_tap();
+        return false;
+    }
+
+    g_macos.run_loop = CFRunLoopGetCurrent();
+    CFRunLoopAddSource(g_macos.run_loop, g_macos.run_loop_source, kCFRunLoopCommonModes);
+    CGEventTapEnable(g_macos.tap, true);
+
+    return true;
+}
+
+bool platform_init(Handle_Input_Fn handler, void *userdata)
+{
+    return platform_init_tap(handler, userdata, false);
+}
+
+static bool macos_init_tap_thread_sync(void)
+{
+    if (g_macos.tap_thread_sync_initialized) {
+        return true;
+    }
+
+    int error = pthread_mutex_init(&g_macos.tap_thread_mutex, NULL);
+    if (error != 0) {
+        fprintf(stderr, "stoin: failed to initialize keyboard listener mutex (%s)\n", strerror(error));
+        return false;
+    }
+
+    error = pthread_cond_init(&g_macos.tap_thread_condition, NULL);
+    if (error != 0) {
+        fprintf(stderr, "stoin: failed to initialize keyboard listener condition (%s)\n", strerror(error));
+        pthread_mutex_destroy(&g_macos.tap_thread_mutex);
+        return false;
+    }
+
+    g_macos.tap_thread_sync_initialized = true;
+    return true;
+}
+
+static void macos_signal_tap_thread_ready(bool ok)
+{
+    pthread_mutex_lock(&g_macos.tap_thread_mutex);
+    g_macos.tap_thread_ok = ok;
+    g_macos.tap_thread_ready = true;
+    pthread_cond_signal(&g_macos.tap_thread_condition);
+    pthread_mutex_unlock(&g_macos.tap_thread_mutex);
+}
+
+static void *macos_listen_only_tap_thread_main(void *userdata)
+{
+    (void)userdata;
+
+    const bool ok = platform_init_tap(g_macos.handler, g_macos.userdata, true);
+    macos_signal_tap_thread_ready(ok);
+    if (ok) {
+        CFRunLoopRun();
+    }
+
+    return NULL;
+}
+
+bool platform_init_listen_only(Handle_Input_Fn handler, void *userdata)
+{
+    if (!macos_init_tap_thread_sync()) {
+        return false;
+    }
+    if (!platform_output_init()) {
+        return false;
+    }
+
+    g_macos.handler = handler;
+    g_macos.userdata = userdata;
+    g_macos.tap_listen_only = true;
+
+    pthread_mutex_lock(&g_macos.tap_thread_mutex);
+    g_macos.tap_thread_ready = false;
+    g_macos.tap_thread_ok = false;
+    pthread_mutex_unlock(&g_macos.tap_thread_mutex);
+
+    const int error = pthread_create(&g_macos.tap_thread, NULL, macos_listen_only_tap_thread_main, NULL);
+    if (error != 0) {
+        fprintf(stderr, "stoin: failed to start keyboard listener thread (%s)\n", strerror(error));
+        g_macos.handler = NULL;
+        g_macos.userdata = NULL;
+        g_macos.tap_listen_only = false;
+        return false;
+    }
+    g_macos.tap_thread_started = true;
+
+    pthread_mutex_lock(&g_macos.tap_thread_mutex);
+    while (!g_macos.tap_thread_ready) {
+        pthread_cond_wait(&g_macos.tap_thread_condition, &g_macos.tap_thread_mutex);
+    }
+    const bool ok = g_macos.tap_thread_ok;
+    pthread_mutex_unlock(&g_macos.tap_thread_mutex);
+
+    if (!ok) {
+        pthread_join(g_macos.tap_thread, NULL);
+        g_macos.tap_thread_started = false;
+        return false;
+    }
+
+    return true;
+}
+
+void platform_run(void)
+{
+    CFRunLoopRun();
+}
+
+void platform_poll_input_events(void)
+{
+    if (g_macos.tap_thread_started) {
+        return;
+    }
+    if (g_macos.run_loop == NULL) {
+        return;
+    }
+
+    while (CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.0, true) == kCFRunLoopRunHandledSource) {
+    }
+}
+
+void platform_shutdown(void)
+{
+    platform_file_watcher_stop();
+
+    if (g_macos.tap_thread_started) {
+        if (g_macos.run_loop != NULL) {
+            CFRunLoopStop(g_macos.run_loop);
+        }
+        pthread_join(g_macos.tap_thread, NULL);
+        g_macos.tap_thread_started = false;
+    }
+    macos_clear_keyboard_tap();
+
     if (g_macos.output_source != NULL) {
         CFRelease(g_macos.output_source);
         g_macos.output_source = NULL;
@@ -401,11 +581,6 @@ void platform_shutdown(void)
         notify_cancel(g_macos.screen_lock_notify_token);
         g_macos.screen_lock_notify_token = 0;
         g_macos.screen_lock_notify_registered = false;
-    }
-
-    if (g_macos.run_loop != NULL) {
-        CFRunLoopStop(g_macos.run_loop);
-        g_macos.run_loop = NULL;
     }
 
     g_macos.handler = NULL;

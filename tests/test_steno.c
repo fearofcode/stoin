@@ -363,6 +363,15 @@ int main(void)
 
     bool ok = true;
 
+    uint16_t f13_keycode = 0;
+    const bool f13_resolved = platform_keycode_from_name("F13", &f13_keycode);
+    ok = ok && expect_size("F13 key resolves", f13_resolved ? 1 : 0, 1);
+    ok = ok && expect_size("F13 keycode", f13_keycode, 105);
+    uint16_t f16_keycode = 0;
+    const bool f16_resolved = platform_keycode_from_name("F16", &f16_keycode);
+    ok = ok && expect_size("F16 key resolves", f16_resolved ? 1 : 0, 1);
+    ok = ok && expect_size("F16 keycode", f16_keycode, 106);
+
     Orthography test_orthography = {0};
     ok = ok && orthography_load(&test_orthography, "tests/test-words.txt");
     ok = ok && orthography_word_count(&test_orthography) > 0;
@@ -916,6 +925,7 @@ int main(void)
     uint64_t right_arrow_bits = 0;
     uint64_t modal_toggle_bits = 0;
     uint64_t phrase_is_a_bits = 0;
+    uint64_t khrep_bits = 0;
     ok = ok && stroke_string_to_bits("STOER", &story_bits);
     ok = ok && stroke_string_to_bits("-Z", &plural_bits);
     ok = ok && stroke_string_to_bits("-D", &past_bits);
@@ -982,6 +992,7 @@ int main(void)
     ok = ok && stroke_string_to_bits("STPH-G", &right_arrow_bits);
     ok = ok && stroke_string_to_bits("STPH", &modal_toggle_bits);
     ok = ok && stroke_string_to_bits("PW-B", &phrase_is_a_bits);
+    ok = ok && stroke_string_to_bits("KHREP", &khrep_bits);
 
     clear_test_output(&output);
     reset_output_log(&output);
@@ -1008,10 +1019,10 @@ int main(void)
         { "PWE-BD", "were a" },
         { "PW-T", "is the" },
         { "H-BD", "had a" },
-        { "STKHR-B", "calls a" },
-        { "STKHR-BD", "called a" },
-        { "STKHRE-P", "call it" },
-        { "STKHR-PG", "calling it" },
+        { "KHR-B", "calls a" },
+        { "KHR-BD", "called a" },
+        { "KHRE-P", "call it" },
+        { "KHR-PG", "calling it" },
     };
     for (size_t i = 0; i < sizeof(initial_verb_cases) / sizeof(initial_verb_cases[0]); ++i) {
         ok = ok && expect_stroke_output(
@@ -1057,7 +1068,6 @@ int main(void)
         const char *stroke;
         const char *expected;
     } custom_nonverb_cases[] = {
-        { "KHREP", "klep" },
         { "TPHORTD", "in order to" },
         { "STPHEFD", "instead of" },
     };
@@ -1070,6 +1080,20 @@ int main(void)
             custom_nonverb_cases[i].stroke,
             custom_nonverb_cases[i].expected);
     }
+
+    ok = ok && reset_test_steno(&steno, &custom_nv_config);
+    steno_set_phrase_namespace_enabled(steno, true);
+    clear_test_output(&output);
+    ok = ok && handle_test_stroke(steno, "KHREP");
+    ok = ok && expect_string("phrase namespace normal KHREP uses custom dictionary", output.text, "klep");
+    ok = ok && reset_test_steno(&steno, &custom_nv_config);
+    clear_test_output(&output);
+    ok = ok && steno_handle_stroke(steno, ((Stroke_Input) {
+        .bits = khrep_bits,
+        .phrase = true,
+        .phrase_namespace = true,
+    }));
+    ok = ok && expect_string("phrase namespace phrase KHREP uses call it", output.text, "call it");
 
     const struct {
         const char *stroke;
@@ -1150,6 +1174,30 @@ int main(void)
     ok = ok && expect_string("phrases and dictionary words interleave normally", output.text, "is a test is the");
 
     ok = ok && reset_test_steno(&steno, &config);
+    steno_set_phrase_namespace_enabled(steno, true);
+    clear_test_output(&output);
+    ok = ok && steno_handle_stroke_bits(steno, phrase_is_a_bits);
+    ok = ok && expect_string("phrase namespace normal stroke skips phrase lookup", output.text, "dictionary is a");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    ok = ok && steno_handle_stroke(steno, ((Stroke_Input) {
+        .bits = phrase_is_a_bits,
+        .phrase = true,
+        .phrase_namespace = true,
+    }));
+    ok = ok && expect_string("phrase namespace phrase stroke uses phrase lookup", output.text, "is a");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    ok = ok && steno_handle_stroke(steno, ((Stroke_Input) {
+        .bits = phrase_fallback_test_bits,
+        .phrase = true,
+        .phrase_namespace = true,
+    }));
+    ok = ok && expect_string("phrase namespace phrase miss skips dictionary lookup", output.text, "#KW");
+
+    ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
     ok = ok && send_key_event(steno, "e", true);
     ok = ok && send_key_event(steno, "d", true);
@@ -1158,6 +1206,30 @@ int main(void)
     ok = ok && send_key_event(steno, "d", false);
     ok = ok && send_key_event(steno, "k", false);
     ok = ok && expect_string("qwerty gathered chord uses keyboard phrase lookup", output.text, "is a");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    steno_set_phrase_namespace_enabled(steno, true);
+    clear_test_output(&output);
+    ok = ok && send_key_event(steno, "e", true);
+    ok = ok && send_key_event(steno, "d", true);
+    ok = ok && send_key_event(steno, "k", true);
+    ok = ok && send_key_event(steno, "e", false);
+    ok = ok && send_key_event(steno, "d", false);
+    ok = ok && send_key_event(steno, "k", false);
+    ok = ok && expect_string("qwerty phrase namespace normal chord skips phrase lookup", output.text, "dictionary is a");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    steno_set_phrase_namespace_enabled(steno, true);
+    clear_test_output(&output);
+    ok = ok && send_key_event(steno, "e", true);
+    steno_set_phrase_mode(steno, true);
+    steno_set_phrase_mode(steno, false);
+    ok = ok && send_key_event(steno, "d", true);
+    ok = ok && send_key_event(steno, "k", true);
+    ok = ok && send_key_event(steno, "e", false);
+    ok = ok && send_key_event(steno, "d", false);
+    ok = ok && send_key_event(steno, "k", false);
+    ok = ok && expect_string("qwerty phrase namespace latches phrase during chord", output.text, "is a");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
