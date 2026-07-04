@@ -789,17 +789,31 @@ int main(void)
         ok = ok && trace_steno != NULL;
         if (trace_steno != NULL) {
             uint64_t trace_bits = 0;
+            uint64_t trace_cat_bits = 0;
+            uint64_t trace_toggle_star_bits = 0;
             clear_test_output(&output);
             ok = ok && stroke_string_to_bits("-T", &trace_bits);
+            ok = ok && stroke_string_to_bits("KAT", &trace_cat_bits);
+            ok = ok && stroke_string_to_bits("#*", &trace_toggle_star_bits);
             ok = ok && steno_handle_stroke_bits(trace_steno, trace_bits);
             ok = ok && handle_test_stroke(trace_steno, "PW-B");
             ok = ok && handle_test_stroke(trace_steno, "#KW");
             ok = ok && handle_test_stroke(trace_steno, "SAO");
+            ok = ok && steno_handle_stroke_bits(trace_steno, trace_cat_bits);
+            ok = ok && steno_handle_stroke(trace_steno, ((Stroke_Input) {
+                .bits = trace_toggle_star_bits,
+                .phrase = true,
+                .phrase_namespace = true,
+            }));
             ok = ok && expect_trace_contains(trace_file, "trace translated stroke", "-T -> the\n");
             ok = ok && expect_trace_contains(
                 trace_file,
                 "trace phrase stroke",
                 "PWB [phrase] -> is a\n");
+            ok = ok && expect_trace_contains(
+                trace_file,
+                "trace phase fallback stroke",
+                "#* [phase fallback] -> {*}\n");
             ok = ok && expect_trace_contains(
                 trace_file,
                 "trace dictionary stroke",
@@ -1196,6 +1210,16 @@ int main(void)
         .phrase_namespace = true,
     }));
     ok = ok && expect_string("phrase namespace phrase miss skips dictionary lookup", output.text, "#KW");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    ok = ok && steno_handle_stroke_bits(steno, cat_bits);
+    ok = ok && steno_handle_stroke(steno, ((Stroke_Input) {
+        .bits = toggle_star_bits,
+        .phrase = true,
+        .phrase_namespace = true,
+    }));
+    ok = ok && expect_string("phrase namespace star falls back to dictionary", output.text, "kitty");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);

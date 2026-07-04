@@ -492,6 +492,7 @@ static void *macos_listen_only_tap_thread_main(void *userdata)
     macos_signal_tap_thread_ready(ok);
     if (ok) {
         CFRunLoopRun();
+        macos_clear_keyboard_tap();
     }
 
     return NULL;
@@ -569,8 +570,9 @@ void platform_shutdown(void)
         }
         pthread_join(g_macos.tap_thread, NULL);
         g_macos.tap_thread_started = false;
+    } else {
+        macos_clear_keyboard_tap();
     }
-    macos_clear_keyboard_tap();
 
     if (g_macos.output_source != NULL) {
         CFRelease(g_macos.output_source);

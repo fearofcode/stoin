@@ -63,6 +63,7 @@ typedef struct Steno_Case_State {
 typedef enum Trace_Stroke_Mode {
     TRACE_STROKE_NORMAL,
     TRACE_STROKE_PHRASE,
+    TRACE_STROKE_PHASE_FALLBACK,
 } Trace_Stroke_Mode;
 
 static bool translate_chord_bits(Steno *steno, uint64_t bits);
@@ -566,6 +567,8 @@ static const char *trace_stroke_mode_label(Trace_Stroke_Mode mode)
     switch (mode) {
     case TRACE_STROKE_PHRASE:
         return " [phrase]";
+    case TRACE_STROKE_PHASE_FALLBACK:
+        return " [phase fallback]";
     case TRACE_STROKE_NORMAL:
     default:
         return "";
@@ -1076,6 +1079,13 @@ static bool translate_dictionary_bits_with_trace(
     return ok;
 }
 
+static bool phrase_namespace_should_fallback_to_dictionary(uint64_t bits)
+{
+    const uint64_t star_bits = steno_bit(STENO_STAR);
+    const uint64_t allowed_bits = star_bits | steno_bit(STENO_NUM);
+    return (bits & star_bits) != 0 && (bits & ~allowed_bits) == 0;
+}
+
 static bool translate_phrase_namespace_bits(Steno *steno, uint64_t bits)
 {
     if (bits == 0) {
@@ -1088,6 +1098,10 @@ static bool translate_phrase_namespace_bits(Steno *steno, uint64_t bits)
     }
     if (phrase_hit) {
         return true;
+    }
+
+    if (phrase_namespace_should_fallback_to_dictionary(bits)) {
+        return translate_dictionary_bits_with_trace(steno, bits, TRACE_STROKE_PHASE_FALLBACK);
     }
 
     return translate_raw_chord_bits_with_trace(steno, bits, TRACE_STROKE_PHRASE);
