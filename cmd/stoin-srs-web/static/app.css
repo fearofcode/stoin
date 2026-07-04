@@ -439,29 +439,50 @@ button:disabled {
 
 .phrase-focus-list {
 	display: grid;
-	gap: 6px;
-	grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+	gap: 12px;
 	max-height: min(90vh, 1000px);
 	overflow: auto;
 	padding: 2px;
 }
 
-.phrase-focus-list label {
+.phrase-bank {
+	display: grid;
+	gap: 6px;
+}
+
+.phrase-bank h2 {
+	color: var(--muted);
+	font-size: 0.9rem;
+	font-weight: 600;
+	letter-spacing: 0;
+	margin: 0;
+}
+
+.phrase-bank-options {
+	display: grid;
+	gap: 6px;
+	grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.phrase-bank-options label {
+	align-items: center;
 	background: #0e1013;
 	border: 1px solid var(--line);
 	border-radius: 4px;
 	box-sizing: border-box;
 	cursor: pointer;
+	display: flex;
+	gap: 6px;
 	min-width: 0;
 	padding: 7px 8px;
 }
 
-.phrase-focus-list input {
+.phrase-bank-options input {
 	flex: 0 0 auto;
 	margin: 0;
 }
 
-.phrase-focus-list span {
+.phrase-bank-options span {
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -486,8 +507,11 @@ button:disabled {
 
 @media (max-width: 700px) {
 	.phrase-focus-list {
-		grid-template-columns: 1fr;
 		max-height: 360px;
+	}
+
+	.phrase-bank-options {
+		grid-template-columns: 1fr;
 	}
 }
 

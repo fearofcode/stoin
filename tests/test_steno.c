@@ -1008,6 +1008,10 @@ int main(void)
         { "PWE-BD", "were a" },
         { "PW-T", "is the" },
         { "H-BD", "had a" },
+        { "STKHR-B", "calls a" },
+        { "STKHR-BD", "called a" },
+        { "STKHRE-P", "call it" },
+        { "STKHR-PG", "calling it" },
     };
     for (size_t i = 0; i < sizeof(initial_verb_cases) / sizeof(initial_verb_cases[0]); ++i) {
         ok = ok && expect_stroke_output(
@@ -1053,6 +1057,7 @@ int main(void)
         const char *stroke;
         const char *expected;
     } custom_nonverb_cases[] = {
+        { "KHREP", "klep" },
         { "TPHORTD", "in order to" },
         { "STPHEFD", "instead of" },
     };

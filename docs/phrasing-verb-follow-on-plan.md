@@ -42,7 +42,7 @@ Jeff's regular final-verb suffix and past-tense variants are not listed here.
 | to leave | `TKW` | `LGZ` |
 | to keep | `TKH` | `PBGS` |
 | to learn | `TPW` | `RPBS` |
-| to call | `KHR` | `RBLG` |
+| to call | `STKHR` | `RBLG` |
 | to change | `TWH` | `PBGZ` |
 | to consider | `KPW` | `RBGZ` |
 | to love | `HR` | `LG` |

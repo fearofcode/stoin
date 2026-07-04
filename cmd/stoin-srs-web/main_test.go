@@ -396,8 +396,8 @@ func TestPhrasingTrainerPage(t *testing.T) {
 		"<h1>Phrasing Trainer</h1>",
 		`src="/static/phrasing-trainer.js"`,
 		"Repetitions",
-		"selected phrases",
-		"Search bank",
+		"selected bank order",
+		"Search banks",
 		"phrase-show-outlines",
 		"Select none",
 	} {
@@ -421,7 +421,11 @@ func TestStaticPhrasingTrainerScript(t *testing.T) {
 	body := rec.Body.String()
 	if !strings.Contains(body, "fetch('/phrasing-data.json'") ||
 		!strings.Contains(body, "validatePhraseData") ||
-		!strings.Contains(body, "trainer.assignments") ||
+		!strings.Contains(body, "initial_verbs") ||
+		!strings.Contains(body, "final_verbs") ||
+		!strings.Contains(body, "nonverbs") ||
+		!strings.Contains(body, "generateFinalVerbPrompts") ||
+		!strings.Contains(body, "combineStrokeParts") ||
 		!strings.Contains(body, "phraseFilterInput") ||
 		!strings.Contains(body, "phraseShowOutlines") ||
 		!strings.Contains(body, "phraseStorageKey") ||
@@ -447,10 +451,12 @@ func TestPhrasingDataRoute(t *testing.T) {
 	}
 	body := rec.Body.String()
 	for _, want := range []string{
-		`"trainer"`,
-		`"assignments"`,
-		`"PW-B"`,
-		`"SRAO*E-GT"`,
+		`"initial_verbs"`,
+		`"final_verbs"`,
+		`"nonverbs"`,
+		`"STKHR"`,
+		`"SRAO*E"`,
+		`"though"`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("expected phrasing data to contain %q, got %q", want, body)

@@ -2,7 +2,8 @@
   "initial_verbs": {
     "tails": [
       { "id": "a", "stroke": "-B", "text": "a" },
-      { "id": "the", "stroke": "-T", "text": "the" }
+      { "id": "the", "stroke": "-T", "text": "the" },
+      { "id": "it", "stroke": "-P", "text": "it" }
     ],
     "stems": [
       {
@@ -18,6 +19,15 @@
         "stroke": "H",
         "forms": [
           { "stroke": "-D", "text": "had" }
+        ]
+      },
+      {
+        "stroke": "STKHR",
+        "forms": [
+          { "stroke": "", "text": "calls" },
+          { "stroke": "-D", "text": "called" },
+          { "stroke": "E", "text": "call" },
+          { "stroke": "-G", "text": "calling" }
         ]
       }
     ]

@@ -14,7 +14,9 @@
 
 ## IV Set 1
 
-Initial-verb phrases are generated assignments.
+Initial-verb phrases are generated assignments. The trainer reads the phrasing
+sections directly and presents selectable IV/FV/NV banks, so adding a stem,
+tail, ender, or flag should not require listing every drill prompt by hand.
 
 ### IV Verb Stems
 
@@ -22,17 +24,22 @@ Initial-verb phrases are generated assignments.
 | --- | --- |
 | `PW` | to be |
 | `H` | to have |
+| `STKHR` | to call |
 
 ### IV Flags
 
 | Flag | Meaning |
 | --- | --- |
-| empty | third-person present: `is`, `has` |
-| `D` | past: `was`, `had` |
-| `E` | base/non-third present: `are`, `have` |
+| empty | third-person present: `is`, `has`, `calls` |
+| `D` | past: `was`, `had`, `called` |
+| `E` | base/non-third present or imperative: `are`, `have`, `call` |
 | `ED` | plural past for `PW`: `were` |
+| `G` | present participle/gerund for stems that define one: `calling` |
 
-`F` is not used by `IV Set 1`.
+`E` names the base-form slot, not the word `are`; `PW` happens to surface
+that slot as `are`. `F` is reserved for `have` / perfect work outside IV, and
+`U` is intentionally left unused because it collides easily with ordinary word
+outlines.
 
 ### IV Tails
 
@@ -75,6 +82,22 @@ Initial-verb phrases are generated assignments.
 | `H-RT` | has that |
 | `H-RTD` | had that |
 | `HE-RT` | have that |
+| `STKHR-B` | calls a |
+| `STKHR-BD` | called a |
+| `STKHRE-B` | call a |
+| `STKHR-BG` | calling a |
+| `STKHR-T` | calls the |
+| `STKHR-TD` | called the |
+| `STKHRE-T` | call the |
+| `STKHR-GT` | calling the |
+| `STKHR-P` | calls it |
+| `STKHR-PD` | called it |
+| `STKHRE-P` | call it |
+| `STKHR-PG` | calling it |
+| `STKHR-RT` | calls that |
+| `STKHR-RTD` | called that |
+| `STKHRE-RT` | call that |
+| `STKHR-RGT` | calling that |
 
 ## FV Set 1
 
@@ -216,6 +239,10 @@ from the open-source Lapwing dictionary.
 | `H-BD` | had a |
 | `HE-B` | have a |
 | `H-RTD` | had that |
+| `STKHR-B` | calls a |
+| `STKHRE-B` | call a |
+| `STKHR-PG` | calling it |
+| `STKHR-RTD` | called that |
 
 ### FV Long-Form Samples
 

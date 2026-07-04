@@ -69,10 +69,9 @@ submit.
 ## Phrasing Trainer
 
 The root page links to `/phrasing`, a non-SRS trainer for Stoin's keyboard-only
-phrasing assignments. It drills the implemented `IV`, `FV`, and `NV` rows from
-`docs/phrasing-keyboard-only-design.md`, including `#` contraction forms,
-generated immediate `NV` rows, and custom `NV` rows from `stoin-custom.json`.
+phrasing assignments. It reads the same `initial_verbs`, `final_verbs`, and
+`nonverbs` data used by the app and generates drills from selectable banks,
+including `#` contraction forms.
 
-Pick a lesson, choose how many repetitions to practice, select a full or partial
-phrase set, then practice shuffled passes, random prompts, or selected phrase
-blocks.
+Choose how many repetitions to practice, select IV/FV/NV banks, then practice
+shuffled passes, random prompts, or selected bank-order blocks.
