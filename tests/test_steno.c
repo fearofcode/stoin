@@ -172,6 +172,17 @@ static void test_dictionary_watch_callback(void *userdata)
     }
 }
 
+static void test_phrasing_watch_callback(void *userdata)
+{
+    Watch_Test *watch = userdata;
+    if (watch == NULL) {
+        return;
+    }
+    if (steno_reload_phrasing_if_changed(watch->steno)) {
+        ++watch->reload_count;
+    }
+}
+
 static bool send_key_event(Steno *steno, const char *key_name, bool is_down)
 {
     uint16_t keycode = 0;
@@ -745,6 +756,103 @@ int main(void)
         ok = ok && steno_handle_stroke_bits(reload_steno, reload_bits);
         ok = ok && expect_string("platform dictionary watcher reload", output.text, " watched");
 
+        const char *reload_phrasing_path = "build/test-hot-reload-phrasing.json";
+        const char *phrasing_is =
+            "{\n"
+            "  \"initial_verbs\": {\n"
+            "    \"tails\": [{\"id\": \"a\", \"stroke\": \"-B\", \"text\": \"a\"}],\n"
+            "    \"stems\": [{\"stroke\": \"PW\", \"forms\": [{\"stroke\": \"\", \"text\": \"is\"}]}]\n"
+            "  },\n"
+            "  \"nonverbs\": {\"tails\": [], \"prefixes\": []},\n"
+            "  \"final_verbs\": {\n"
+            "    \"contraction_stroke\": \"#\",\n"
+            "    \"starters\": [],\n"
+            "    \"operators\": [],\n"
+            "    \"structures\": [],\n"
+            "    \"verbs\": [],\n"
+            "    \"enders\": []\n"
+            "  }\n"
+            "}\n";
+        const char *phrasing_was =
+            "{\n"
+            "  \"initial_verbs\": {\n"
+            "    \"tails\": [{\"id\": \"a\", \"stroke\": \"-B\", \"text\": \"a\"}],\n"
+            "    \"stems\": [{\"stroke\": \"PW\", \"forms\": [{\"stroke\": \"\", \"text\": \"was\"}]}]\n"
+            "  },\n"
+            "  \"nonverbs\": {\"tails\": [], \"prefixes\": []},\n"
+            "  \"final_verbs\": {\n"
+            "    \"contraction_stroke\": \"#\",\n"
+            "    \"starters\": [],\n"
+            "    \"operators\": [],\n"
+            "    \"structures\": [],\n"
+            "    \"verbs\": [],\n"
+            "    \"enders\": []\n"
+            "  }\n"
+            "}\n";
+        const char *phrasing_are =
+            "{\n"
+            "  \"initial_verbs\": {\n"
+            "    \"tails\": [{\"id\": \"a\", \"stroke\": \"-B\", \"text\": \"a\"}],\n"
+            "    \"stems\": [{\"stroke\": \"PW\", \"forms\": [{\"stroke\": \"\", \"text\": \"are\"}]}]\n"
+            "  },\n"
+            "  \"nonverbs\": {\"tails\": [], \"prefixes\": []},\n"
+            "  \"final_verbs\": {\n"
+            "    \"contraction_stroke\": \"#\",\n"
+            "    \"starters\": [],\n"
+            "    \"operators\": [],\n"
+            "    \"structures\": [],\n"
+            "    \"verbs\": [],\n"
+            "    \"enders\": []\n"
+            "  }\n"
+            "}\n";
+        ok = ok && write_text_file(reload_phrasing_path, phrasing_is);
+        Steno_Config phrasing_reload_config = config;
+        phrasing_reload_config.phrasing_path = reload_phrasing_path;
+        Steno *phrasing_reload_steno = steno_create(&phrasing_reload_config);
+        ok = ok && phrasing_reload_steno != NULL;
+        if (phrasing_reload_steno != NULL) {
+            uint64_t phrase_bits = 0;
+            ok = ok && stroke_string_to_bits("PW-B", &phrase_bits);
+            clear_test_output(&output);
+            ok = ok && steno_handle_stroke_bits(phrasing_reload_steno, phrase_bits);
+            ok = ok && expect_string("hot reload initial phrasing", output.text, "is a");
+
+            ok = ok && write_text_file(reload_phrasing_path, "{");
+            ok = ok && !steno_reload_phrasing(phrasing_reload_steno);
+            clear_test_output(&output);
+            ok = ok && steno_handle_stroke_bits(phrasing_reload_steno, phrase_bits);
+            ok = ok && expect_string("hot reload keeps old phrasing on parse failure", output.text, " is a");
+
+            ok = ok && write_text_file(reload_phrasing_path, phrasing_was);
+            ok = ok && steno_reload_phrasing(phrasing_reload_steno);
+            clear_test_output(&output);
+            ok = ok && steno_handle_stroke_bits(phrasing_reload_steno, phrase_bits);
+            ok = ok && expect_string("hot reload updated phrasing", output.text, " was a");
+
+            Watch_Test phrase_watch = {
+                .steno = phrasing_reload_steno,
+            };
+            const char *const phrase_watch_paths[] = { reload_phrasing_path };
+            ok = ok && platform_file_watcher_start(
+                phrase_watch_paths,
+                sizeof(phrase_watch_paths) / sizeof(phrase_watch_paths[0]),
+                test_phrasing_watch_callback,
+                &phrase_watch
+            );
+            ok = ok && write_text_file(reload_phrasing_path, phrasing_are);
+            for (size_t attempt = 0; ok && phrase_watch.reload_count == 0 && attempt < 50; ++attempt) {
+                platform_file_watcher_poll();
+                platform_sleep_ms(10);
+            }
+            platform_file_watcher_stop();
+            ok = ok && phrase_watch.reload_count > 0;
+            clear_test_output(&output);
+            ok = ok && steno_handle_stroke_bits(phrasing_reload_steno, phrase_bits);
+            ok = ok && expect_string("platform phrasing watcher reload", output.text, " are a");
+            steno_destroy(phrasing_reload_steno);
+        }
+        remove(reload_phrasing_path);
+
         ok = ok && !send_raw_key_event(reload_steno, TEST_KEYCODE_LEFT_CONTROL, true, true, false, false);
         ok = ok && send_raw_key_event(reload_steno, TEST_KEYCODE_ESCAPE, true, false, false, false);
         ok = ok && send_raw_key_event(reload_steno, TEST_KEYCODE_ESCAPE, false, false, false, false);
@@ -1102,7 +1210,7 @@ int main(void)
     steno_set_phrase_namespace_enabled(steno, true);
     clear_test_output(&output);
     ok = ok && handle_test_stroke(steno, "KHREP");
-    ok = ok && expect_string("phrase namespace normal KHREP uses custom dictionary", output.text, "klep");
+    ok = ok && expect_string("phrase namespace normal KHREP skips phrase lookup", output.text, "KHREP");
     ok = ok && reset_test_steno(&steno, &custom_nv_config);
     clear_test_output(&output);
     ok = ok && steno_handle_stroke(steno, ((Stroke_Input) {

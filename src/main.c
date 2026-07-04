@@ -105,11 +105,12 @@ static void run_app_maintenance(App *app)
     (void)update_session_active(app);
 }
 
-static void reload_dictionary_from_watcher(void *userdata)
+static void reload_watched_files(void *userdata)
 {
     App *app = userdata;
     if (app != NULL) {
-        (void)steno_reload_dictionary(app->steno);
+        (void)steno_reload_dictionary_if_changed(app->steno);
+        (void)steno_reload_phrasing_if_changed(app->steno);
     }
 }
 
@@ -121,9 +122,29 @@ static void start_dictionary_watcher(App *app)
 
     const char *const *paths = NULL;
     size_t path_count = 0;
-    if (!steno_get_dictionary_paths(app->steno, &paths, &path_count)
-        || !platform_file_watcher_start(paths, path_count, reload_dictionary_from_watcher, app)) {
-        fputs("stoin: warning: failed to start dictionary hot reload watcher\n", stderr);
+    const char **watch_paths = NULL;
+    if (!steno_get_dictionary_paths(app->steno, &paths, &path_count)) {
+        fputs("stoin: warning: failed to start hot reload watcher\n", stderr);
+        return;
+    }
+    for (size_t i = 0; i < path_count; ++i) {
+        arrput(watch_paths, paths[i]);
+    }
+    const char *phrasing_path = NULL;
+    if (steno_get_phrasing_path(app->steno, &phrasing_path) && phrasing_path != NULL) {
+        arrput(watch_paths, phrasing_path);
+    }
+
+    const bool started = arrlenu(watch_paths) > 0
+        && platform_file_watcher_start(
+            (const char *const *)watch_paths,
+            arrlenu(watch_paths),
+            reload_watched_files,
+            app
+        );
+    arrfree(watch_paths);
+    if (!started) {
+        fputs("stoin: warning: failed to start hot reload watcher\n", stderr);
     }
 }
 

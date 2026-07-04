@@ -32,9 +32,11 @@ struct Steno {
     Dictionary_Stack dictionary_stack;
     Orthography orthography;
     Phrasing *phrasing;
+    char *phrasing_path;
     char *lookup_translation;
     uint64_t down_keycodes;
     uint64_t chord_bits;
+    Platform_File_Stamp phrasing_stamp;
     size_t strokes_since_compaction;
     Steno_Phrase_Mode chord_phrase_mode;
     bool phrase_namespace_enabled;
@@ -53,6 +55,8 @@ struct Steno {
     Send_Key_Combination_Fn send_key_combination;
     void *send_userdata;
     FILE *trace_file;
+    bool phrasing_stamp_valid;
+    bool phrasing_reload_error_reported;
 };
 
 typedef struct Steno_Case_State {
@@ -961,6 +965,98 @@ bool steno_reload_dictionary_if_changed(Steno *steno)
     return steno != NULL && dictionary_stack_reload_if_changed(&steno->dictionary_stack);
 }
 
+static bool refresh_phrasing_stamp(Steno *steno)
+{
+    if (steno == NULL || steno->phrasing_path == NULL) {
+        return true;
+    }
+
+    Platform_File_Stamp stamp = {0};
+    if (!platform_file_stamp(steno->phrasing_path, &stamp)) {
+        steno->phrasing_stamp_valid = false;
+        return false;
+    }
+
+    steno->phrasing_stamp = stamp;
+    steno->phrasing_stamp_valid = true;
+    return true;
+}
+
+static bool phrasing_file_changed(Steno *steno, bool *out_changed)
+{
+    if (steno == NULL || out_changed == NULL) {
+        return false;
+    }
+
+    *out_changed = false;
+    if (steno->phrasing_path == NULL) {
+        return true;
+    }
+    if (!steno->phrasing_stamp_valid) {
+        *out_changed = true;
+        return true;
+    }
+
+    Platform_File_Stamp stamp = {0};
+    if (!platform_file_stamp(steno->phrasing_path, &stamp)) {
+        steno->phrasing_stamp_valid = false;
+        return false;
+    }
+    *out_changed = stamp.exists != steno->phrasing_stamp.exists
+        || stamp.size != steno->phrasing_stamp.size
+        || stamp.modified_time_ns != steno->phrasing_stamp.modified_time_ns;
+    return true;
+}
+
+bool steno_reload_phrasing(Steno *steno)
+{
+    if (steno == NULL || steno->phrasing_path == NULL) {
+        return true;
+    }
+
+    Phrasing *next = phrasing_load(steno->phrasing_path);
+    if (next == NULL) {
+        (void)refresh_phrasing_stamp(steno);
+        if (!steno->phrasing_reload_error_reported) {
+            fputs("stoin: phrasing changed but reload failed; keeping previous phrasing\n", stderr);
+            steno->phrasing_reload_error_reported = true;
+        }
+        return false;
+    }
+
+    phrasing_destroy(steno->phrasing);
+    steno->phrasing = next;
+    if (!refresh_phrasing_stamp(steno)) {
+        fputs("stoin: warning: reloaded phrasing, but failed to refresh phrasing file stamp\n", stderr);
+    }
+
+    steno->phrasing_reload_error_reported = false;
+    fprintf(stderr, "stoin: reloaded phrasing from %s\n", steno->phrasing_path);
+    return true;
+}
+
+bool steno_reload_phrasing_if_changed(Steno *steno)
+{
+    if (steno == NULL) {
+        return false;
+    }
+
+    bool changed = false;
+    if (!phrasing_file_changed(steno, &changed)) {
+        if (!steno->phrasing_reload_error_reported) {
+            fputs("stoin: failed to check phrasing file for changes\n", stderr);
+            steno->phrasing_reload_error_reported = true;
+        }
+        return false;
+    }
+
+    if (!changed) {
+        return true;
+    }
+    steno->phrasing_reload_error_reported = false;
+    return steno_reload_phrasing(steno);
+}
+
 bool steno_get_dictionary_paths(const Steno *steno, const char *const **out_paths, size_t *out_path_count)
 {
     return dictionary_stack_get_paths(
@@ -968,6 +1064,15 @@ bool steno_get_dictionary_paths(const Steno *steno, const char *const **out_path
         out_paths,
         out_path_count
     );
+}
+
+bool steno_get_phrasing_path(const Steno *steno, const char **out_path)
+{
+    if (steno == NULL || out_path == NULL) {
+        return false;
+    }
+    *out_path = steno->phrasing_path;
+    return true;
 }
 
 static Phrase_Lookup_Mode phrase_lookup_mode_from_steno_mode(Steno_Phrase_Mode mode)
@@ -1204,10 +1309,18 @@ Steno *steno_create(const Steno_Config *config)
     }
 
     if (config->phrasing_path != NULL) {
-        steno->phrasing = phrasing_load(config->phrasing_path);
+        steno->phrasing_path = copy_cstring(config->phrasing_path);
+        if (steno->phrasing_path == NULL) {
+            steno_destroy(steno);
+            return NULL;
+        }
+        steno->phrasing = phrasing_load(steno->phrasing_path);
         if (steno->phrasing == NULL) {
             steno_destroy(steno);
             return NULL;
+        }
+        if (!refresh_phrasing_stamp(steno)) {
+            fputs("stoin: warning: failed to capture phrasing file stamp; hot reload may not work\n", stderr);
         }
     }
 
@@ -1244,6 +1357,7 @@ void steno_destroy(Steno *steno)
     orthography_destroy(&steno->orthography);
     phrasing_destroy(steno->phrasing);
     dictionary_stack_destroy(&steno->dictionary_stack);
+    free(steno->phrasing_path);
     free(steno->lookup_translation);
     free(steno->spacing.spacing);
     free(steno);
