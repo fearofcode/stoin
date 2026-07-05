@@ -17,6 +17,11 @@
         "text": "it"
       },
       {
+        "id": "us",
+        "stroke": "-S",
+        "text": "us"
+      },
+      {
         "id": "that",
         "stroke": "-RT",
         "text": "that"
@@ -74,6 +79,181 @@
         ]
       },
       {
+        "stroke": "S",
+        "forms": [
+          {
+            "stroke": "",
+            "text": "sees"
+          },
+          {
+            "stroke": "-D",
+            "text": "saw"
+          },
+          {
+            "stroke": "E",
+            "text": "see"
+          },
+          {
+            "stroke": "-G",
+            "text": "seeing"
+          },
+          {
+            "stroke": "U",
+            "text": "to see"
+          }
+        ]
+      },
+      {
+        "stroke": "ST",
+        "forms": [
+          {
+            "stroke": "",
+            "text": "says"
+          },
+          {
+            "stroke": "-D",
+            "text": "said"
+          },
+          {
+            "stroke": "E",
+            "text": "say"
+          },
+          {
+            "stroke": "-G",
+            "text": "saying"
+          },
+          {
+            "stroke": "U",
+            "text": "to say"
+          }
+        ]
+      },
+      {
+        "stroke": "TH",
+        "forms": [
+          {
+            "stroke": "",
+            "text": "thinks"
+          },
+          {
+            "stroke": "-D",
+            "text": "thought"
+          },
+          {
+            "stroke": "E",
+            "text": "think"
+          },
+          {
+            "stroke": "-G",
+            "text": "thinking"
+          },
+          {
+            "stroke": "U",
+            "text": "to think"
+          }
+        ]
+      },
+      {
+        "stroke": "THR",
+        "forms": [
+          {
+            "stroke": "",
+            "text": "tells"
+          },
+          {
+            "stroke": "-D",
+            "text": "told"
+          },
+          {
+            "stroke": "E",
+            "text": "tell"
+          },
+          {
+            "stroke": "-G",
+            "text": "telling"
+          },
+          {
+            "stroke": "U",
+            "text": "to tell"
+          }
+        ]
+      },
+      {
+        "stroke": "SHR",
+        "forms": [
+          {
+            "stroke": "",
+            "text": "sells"
+          },
+          {
+            "stroke": "-D",
+            "text": "sold"
+          },
+          {
+            "stroke": "E",
+            "text": "sell"
+          },
+          {
+            "stroke": "-G",
+            "text": "selling"
+          },
+          {
+            "stroke": "U",
+            "text": "to sell"
+          }
+        ]
+      },
+      {
+        "stroke": "SPHR",
+        "forms": [
+          {
+            "stroke": "",
+            "text": "spells"
+          },
+          {
+            "stroke": "-D",
+            "text": "spelled"
+          },
+          {
+            "stroke": "E",
+            "text": "spell"
+          },
+          {
+            "stroke": "-G",
+            "text": "spelling"
+          },
+          {
+            "stroke": "U",
+            "text": "to spell"
+          }
+        ]
+      },
+      {
+        "stroke": "KP",
+        "forms": [
+          {
+            "stroke": "",
+            "text": "keeps"
+          },
+          {
+            "stroke": "-D",
+            "text": "kept"
+          },
+          {
+            "stroke": "E",
+            "text": "keep"
+          },
+          {
+            "stroke": "-G",
+            "text": "keeping"
+          },
+          {
+            "stroke": "U",
+            "text": "to keep"
+          }
+        ]
+      },
+      {
         "stroke": "KHR",
         "forms": [
           {
@@ -95,6 +275,14 @@
           {
             "stroke": "U",
             "text": "to call"
+          },
+          {
+            "stroke": "A",
+            "text": "can call"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could call"
           }
         ]
       }
@@ -116,6 +304,11 @@
         "id": "them",
         "stroke": "-PLT",
         "text": "them"
+      },
+      {
+        "id": "us",
+        "stroke": "-S",
+        "text": "us"
       },
       {
         "id": "that",
@@ -146,6 +339,7 @@
           "a",
           "the",
           "them",
+          "us",
           "that"
         ]
       },
@@ -171,6 +365,7 @@
         "tails": [
           "a",
           "that",
+          "us",
           "if",
           "though"
         ]
@@ -213,7 +408,7 @@
         "will_contraction": "she'll"
       },
       {
-        "stroke": "KPWH",
+        "stroke": "T",
         "text": "it",
         "agreement": "third_singular",
         "be_contraction": "it's",
@@ -345,6 +540,38 @@
         "past": "thought",
         "present_participle": "thinking",
         "past_participle": "thought"
+      },
+      {
+        "id": "keep",
+        "base": "keep",
+        "third": "keeps",
+        "past": "kept",
+        "present_participle": "keeping",
+        "past_participle": "kept"
+      },
+      {
+        "id": "tell",
+        "base": "tell",
+        "third": "tells",
+        "past": "told",
+        "present_participle": "telling",
+        "past_participle": "told"
+      },
+      {
+        "id": "sell",
+        "base": "sell",
+        "third": "sells",
+        "past": "sold",
+        "present_participle": "selling",
+        "past_participle": "sold"
+      },
+      {
+        "id": "spell",
+        "base": "spell",
+        "third": "spells",
+        "past": "spelled",
+        "present_participle": "spelling",
+        "past_participle": "spelled"
       },
       {
         "id": "want",
@@ -542,6 +769,46 @@
         "stroke": "-PBGTD",
         "verb": "think",
         "suffix": "that",
+        "past": true
+      },
+      {
+        "stroke": "-RPBTS",
+        "verb": "keep",
+        "past": false
+      },
+      {
+        "stroke": "-RPBTSD",
+        "verb": "keep",
+        "past": true
+      },
+      {
+        "stroke": "-RLT",
+        "verb": "tell",
+        "past": false
+      },
+      {
+        "stroke": "-RLTD",
+        "verb": "tell",
+        "past": true
+      },
+      {
+        "stroke": "-LS",
+        "verb": "sell",
+        "past": false
+      },
+      {
+        "stroke": "-LSD",
+        "verb": "sell",
+        "past": true
+      },
+      {
+        "stroke": "-PLS",
+        "verb": "spell",
+        "past": false
+      },
+      {
+        "stroke": "-PLSD",
+        "verb": "spell",
         "past": true
       },
       {

@@ -46,23 +46,38 @@ tail, ender, or flag should not require listing every drill prompt by hand.
 | --- | --- |
 | `PW` | to be |
 | `H` | to have |
+| `S` | to see |
+| `ST` | to say |
+| `TH` | to think |
+| `THR` | to tell |
+| `SHR` | to sell |
+| `SPHR` | to spell |
+| `KP` | to keep |
 | `KHR` | to call |
 
 ### IV Flags
 
 | Flag | Meaning |
 | --- | --- |
-| empty | third-person present: `is`, `has`, `calls` |
-| `D` | past: `was`, `had`, `called` |
-| `E` | base/non-third present or imperative: `are`, `have`, `call` |
+| empty | third-person present: `is`, `has`, `calls`, `says`, `thinks`, `tells`, `sells`, `spells`, `keeps` |
+| `D` | past: `was`, `had`, `called`, `said`, `thought`, `told`, `sold`, `spelled`, `kept` |
+| `E` | base/non-third present or imperative: `are`, `have`, `call`, `say`, `think`, `tell`, `sell`, `spell`, `keep` |
 | `ED` | plural past for `PW`: `were` |
-| `G` | present participle/gerund for stems that define one: `calling` |
-| `U` | infinitive with `to`: `to be`, `to have`, `to call` |
+| `G` | present participle/gerund for stems that define one: `calling`, `saying`, `thinking`, `telling`, `selling`, `spelling`, `keeping` |
+| `U` | infinitive with `to`: `to be`, `to have`, `to call`, `to say`, `to think`, `to tell`, `to sell`, `to spell`, `to keep` |
+| `A` | modal base for stems that define one: `can call` |
+| `AD` | modal past for stems that define one: `could call` |
 
 `E` names the base-form slot, not the word `are`; `PW` happens to surface
 that slot as `are`. `U` names the infinitive-with-`to` slot for IV only; the FV
 grammar does not generate forms like `he to be`. `F` is reserved for `have` /
-perfect work outside IV.
+perfect work outside IV. `A` follows the FV can/could mnemonic, but IV exposes
+it only as data-defined forms on individual stems.
+
+IV stems should avoid right-hand `G` because `-G` is the IV gerund/progressive
+flag. A verb whose best mnemonic needs right-hand `G` should either choose a
+different IV stem or omit the `-G` form for that stem. FV enders may use `G`
+normally because FV progressive uses `E`.
 
 ### IV Tails
 
@@ -71,6 +86,7 @@ perfect work outside IV.
 | `B` | `BD` | a |
 | `T` | `TD` | the |
 | `P` | `PD` | it |
+| `S` | `SD` | us |
 | `RT` | `RTD` | that |
 
 ## FV Set 1
@@ -132,6 +148,10 @@ starter + operator + structure + ender
 | `PBT` / `PBTD` | know that | knew that |
 | `PBG` / `PBGD` | think | thought |
 | `PBGT` / `PBGTD` | think that | thought that |
+| `RPBTS` / `RPBTSD` | keep | kept |
+| `RLT` / `RLTD` | tell | told |
+| `LS` / `LSD` | sell | sold |
+| `PLS` / `PLSD` | spell | spelled |
 | `P` / `PD` | want | wanted |
 | `PT` / `PTD` | want to | wanted to |
 | `RPG` / `RPGD` | need | needed |
@@ -186,6 +206,7 @@ dictionary rows. The `anything` stem is written in canonical steno order as
 | `-GT` | `*` though | `S*`, `SRAO*E` |
 | `-PLT` | `*` them | `TW` |
 | `-RT` | `*` that | `TW`, `TKPWH*`, `SRAO*E` |
+| `-S` | `*` us | `TW`, `SRAO*E` |
 | `-T` | `*` the | `TW` |
 
 ### NV Custom Rows
@@ -215,9 +236,46 @@ from the open-source Lapwing dictionary.
 | `HE-B` | have a |
 | `HU-B` | to have a |
 | `H-RTD` | had that |
+| `ST-P` | says it |
+| `ST-PD` | said it |
+| `STE-P` | say it |
+| `STU-P` | to say it |
+| `ST-PG` | saying it |
+| `TH-P` | thinks it |
+| `TH-PD` | thought it |
+| `THE-P` | think it |
+| `THU-P` | to think it |
+| `TH-PG` | thinking it |
+| `THR-S` | tells us |
+| `THR-SD` | told us |
+| `THRE-S` | tell us |
+| `THRU-S` | to tell us |
+| `THR-GS` | telling us |
+| `SHR-S` | sells us |
+| `SHR-SD` | sold us |
+| `SHRE-S` | sell us |
+| `SHRU-S` | to sell us |
+| `SHR-GS` | selling us |
+| `SPHR-S` | spells us |
+| `SPHR-SD` | spelled us |
+| `SPHRE-S` | spell us |
+| `SPHRU-S` | to spell us |
+| `SPHR-GS` | spelling us |
+| `KP-P` | keeps it |
+| `KP-PD` | kept it |
+| `KPE-P` | keep it |
+| `KPU-P` | to keep it |
+| `KP-PG` | keeping it |
+| `KP-S` | keeps us |
+| `KP-SD` | kept us |
+| `KPE-S` | keep us |
+| `KPU-S` | to keep us |
+| `KP-GS` | keeping us |
 | `KHR-B` | calls a |
 | `KHRE-B` | call a |
 | `KHRU-B` | to call a |
+| `KHRA-P` | can call it |
+| `KHRA-PD` | could call it |
 | `KHR-PG` | calling it |
 | `KHR-RTD` | called that |
 
@@ -238,6 +296,16 @@ from the open-source Lapwing dictionary.
 | `SKWHR-GTD` | she went to |
 | `SKWHR-PBG` | she thinks |
 | `SKWHR-PBGD` | she thought |
+| `SKWHR-BS` | she says |
+| `SKWHR-BSZ` | she said |
+| `SKWHR-RLT` | she tells |
+| `SKWHR-RLTD` | she told |
+| `SKWHR-LS` | she sells |
+| `SKWHR-LSD` | she sold |
+| `SKWHR-PLS` | she spells |
+| `SKWHR-PLSD` | she spelled |
+| `SKWHR-RPBTS` | she keeps |
+| `SKWHR-RPBTSD` | she kept |
 | `SKWHRAO-G` | she will go |
 | `SKWHRAO*G` | she will not go |
 | `SKWHREG` | she is going |
@@ -263,11 +331,13 @@ from the open-source Lapwing dictionary.
 | `TW-B` | with a |
 | `TW-T` | with the |
 | `TW-PLT` | with them |
+| `TW-S` | with us |
 | `TW-RT` | with that |
 | `TKPWH*-RT` | anything that |
 | `TKPWH*-F` | anything else |
 | `S*-F` | as if |
 | `S*-GT` | as though |
+| `SRAO*E-S` | even us |
 | `SRAO*E-B` | even a |
 | `SRAO*E-F` | even if |
 | `SRAO*E-GT` | even though |

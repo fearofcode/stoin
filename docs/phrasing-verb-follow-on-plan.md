@@ -7,19 +7,14 @@ Jeff's regular final-verb suffix and past-tense variants are not listed here.
 
 | Verb | Left Hand / Initial Verb Assignment | Right Hand / Final Verb Assignment |
 | --- | --- | --- |
-| to have | `H` | `T` |
-| to see | `S` | `S` |
 | to do | `TK` | `RP` |
 | to go | `TKPW` | `G` |
-| to be | `PW` | `B` |
 | to want | `W` | `P` |
-| to say | `ST` | `BS` |
 | to ask | `SK` | `RB` |
 | to happen | `SP` | `PZ` |
 | to feel | `SW` | `LT` |
 | to come | `K` | `BG` |
 | to know | `TPH` | `PB` |
-| to think | `TH` | `PBG` |
 | to look | `TW` | `L` |
 | to get | `TKPWH` | `GS` |
 | to believe | `PWHR` | `BL` |
@@ -28,7 +23,6 @@ Jeff's regular final-verb suffix and past-tense variants are not listed here.
 | to make | `KPL` | `RPBL` |
 | to take | `PH` | `RBT` |
 | to find | `TP` | `PBLG` |
-| to tell | `THR` | `RLT` |
 | to give | `STP` | `GZ` |
 | to use | `STW` | `Z` |
 | to work | `WR` | `RBG` |
@@ -36,10 +30,10 @@ Jeff's regular final-verb suffix and past-tense variants are not listed here.
 | to remember | `SKW` | `RPL` |
 | to understand | `SKH` | `RPB` |
 | to try | `TR` | `RT` |
-| to expect | `KP` | `PGS` |
+| to expect | `TKP` | `PGS` |
 | to call | `KHR` | deferred |
 
-Rows from `to hope` downward in the old reference were removed for now because
-they were speculative and did not have a clear mnemonic rationale. `to call` is
-kept because its IV stem is implemented as `KHR`; the FV ender is still
-uncommitted.
+Rows with complete IV and FV support are removed from this plan. Rows from `to
+hope` downward in the old reference were removed for now because they were
+speculative and did not have a clear mnemonic rationale. `to call` is kept
+because its IV stem is implemented as `KHR`; the FV ender is still uncommitted.

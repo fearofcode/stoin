@@ -433,7 +433,8 @@ func TestStaticPhrasingTrainerScript(t *testing.T) {
 		!strings.Contains(body, "restorePhraseSettings") ||
 		!strings.Contains(body, "savePhraseSettings") ||
 		!strings.Contains(body, "repeatedShuffledPasses") ||
-		!strings.Contains(body, "repeatedPromptBlocks") {
+		!strings.Contains(body, "repeatedPromptBlocks") ||
+		!strings.Contains(body, "normalizedPromptPhrase") {
 		t.Fatalf("expected trainer script contents, got %q", rec.Body.String())
 	}
 }

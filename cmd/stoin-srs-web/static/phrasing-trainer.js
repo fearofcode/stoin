@@ -1123,7 +1123,11 @@ function rebuildPhraseQueue() {
 }
 
 function normalizeAnswer(text) {
-	return text.trim();
+	return text.trim().toLowerCase();
+}
+
+function normalizedPromptPhrase(prompt) {
+	return normalizeAnswer(prompt.phrase);
 }
 
 function currentPhrase() {
@@ -1138,7 +1142,7 @@ function hintShouldShow(prompt) {
 
 function answerPrefixOk(prompt, answer) {
 	if (!prompt || answer === '') return true;
-	return prompt.phrase.startsWith(answer);
+	return normalizedPromptPhrase(prompt).startsWith(answer);
 }
 
 function renderPhraseTrainer() {
@@ -1182,7 +1186,7 @@ function advancePhraseIfCorrect() {
 	const prompt = currentPhrase();
 	if (!prompt) return;
 	const typed = normalizeAnswer(phraseAnswer.value);
-	if (typed === prompt.phrase) {
+	if (typed === normalizedPromptPhrase(prompt)) {
 		phraseIndex++;
 		phraseMistake = false;
 		phraseAnswer.value = '';
