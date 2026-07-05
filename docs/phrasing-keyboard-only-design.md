@@ -50,6 +50,7 @@ tail, ender, or flag should not require listing every drill prompt by hand.
 | `ST` | to say |
 | `TH` | to think |
 | `THR` | to tell |
+| `TKH` | to hold |
 | `SHR` | to sell |
 | `SPHR` | to spell |
 | `KP` | to keep |
@@ -59,20 +60,19 @@ tail, ender, or flag should not require listing every drill prompt by hand.
 
 | Flag | Meaning |
 | --- | --- |
-| empty | third-person present: `is`, `has`, `calls`, `says`, `thinks`, `tells`, `sells`, `spells`, `keeps` |
-| `D` | past: `was`, `had`, `called`, `said`, `thought`, `told`, `sold`, `spelled`, `kept` |
-| `E` | base/non-third present or imperative: `are`, `have`, `call`, `say`, `think`, `tell`, `sell`, `spell`, `keep` |
+| empty | third-person present: `is`, `has`, `calls`, `says`, `thinks`, `tells`, `holds`, `sells`, `spells`, `keeps` |
+| `D` | past: `was`, `had`, `called`, `said`, `thought`, `told`, `held`, `sold`, `spelled`, `kept` |
+| `E` | base/non-third present or imperative: `are`, `have`, `call`, `say`, `think`, `tell`, `hold`, `sell`, `spell`, `keep` |
 | `ED` | plural past for `PW`: `were` |
-| `G` | present participle/gerund for stems that define one: `calling`, `saying`, `thinking`, `telling`, `selling`, `spelling`, `keeping` |
-| `U` | infinitive with `to`: `to be`, `to have`, `to call`, `to say`, `to think`, `to tell`, `to sell`, `to spell`, `to keep` |
-| `A` | modal base for stems that define one: `can call` |
-| `AD` | modal past for stems that define one: `could call` |
+| `G` | present participle/gerund for stems that define one: `calling`, `saying`, `thinking`, `telling`, `holding`, `selling`, `spelling`, `keeping` |
+| `U` | infinitive with `to`: `to be`, `to have`, `to call`, `to say`, `to think`, `to tell`, `to hold`, `to sell`, `to spell`, `to keep` |
+| `A` | modal base: `can` + base verb |
+| `AD` | modal past: `could` + base verb |
 
 `E` names the base-form slot, not the word `are`; `PW` happens to surface
 that slot as `are`. `U` names the infinitive-with-`to` slot for IV only; the FV
 grammar does not generate forms like `he to be`. `F` is reserved for `have` /
-perfect work outside IV. `A` follows the FV can/could mnemonic, but IV exposes
-it only as data-defined forms on individual stems.
+perfect work outside IV. `A` follows the FV can/could mnemonic.
 
 IV stems should avoid right-hand `G` because `-G` is the IV gerund/progressive
 flag. A verb whose best mnemonic needs right-hand `G` should either choose a
@@ -150,6 +150,7 @@ starter + operator + structure + ender
 | `PBGT` / `PBGTD` | think that | thought that |
 | `RPBTS` / `RPBTSD` | keep | kept |
 | `RLT` / `RLTD` | tell | told |
+| `FPL` / `FPLD` | hold | held |
 | `LS` / `LSD` | sell | sold |
 | `PLS` / `PLSD` | spell | spelled |
 | `P` / `PD` | want | wanted |
@@ -230,37 +231,52 @@ from the open-source Lapwing dictionary.
 | `PWE-B` | are a |
 | `PWU-B` | to be a |
 | `PWE-BD` | were a |
+| `PWA-B` | can be a |
+| `PWA-BD` | could be a |
 | `PW-RTD` | was that |
 | `H-B` | has a |
 | `H-BD` | had a |
 | `HE-B` | have a |
 | `HU-B` | to have a |
+| `HA-P` | can have it |
+| `HA-PD` | could have it |
 | `H-RTD` | had that |
 | `ST-P` | says it |
 | `ST-PD` | said it |
 | `STE-P` | say it |
 | `STU-P` | to say it |
 | `ST-PG` | saying it |
+| `STA-P` | can say it |
 | `TH-P` | thinks it |
 | `TH-PD` | thought it |
 | `THE-P` | think it |
 | `THU-P` | to think it |
 | `TH-PG` | thinking it |
+| `THA-P` | can think it |
 | `THR-S` | tells us |
 | `THR-SD` | told us |
 | `THRE-S` | tell us |
 | `THRU-S` | to tell us |
 | `THR-GS` | telling us |
+| `THRA-S` | can tell us |
+| `TKH-P` | holds it |
+| `TKH-PD` | held it |
+| `TKHE-P` | hold it |
+| `TKHU-P` | to hold it |
+| `TKH-PG` | holding it |
+| `TKHA-P` | can hold it |
 | `SHR-S` | sells us |
 | `SHR-SD` | sold us |
 | `SHRE-S` | sell us |
 | `SHRU-S` | to sell us |
 | `SHR-GS` | selling us |
+| `SHRA-P` | can sell it |
 | `SPHR-S` | spells us |
 | `SPHR-SD` | spelled us |
 | `SPHRE-S` | spell us |
 | `SPHRU-S` | to spell us |
 | `SPHR-GS` | spelling us |
+| `SPHRA-P` | can spell it |
 | `KP-P` | keeps it |
 | `KP-PD` | kept it |
 | `KPE-P` | keep it |
@@ -271,6 +287,7 @@ from the open-source Lapwing dictionary.
 | `KPE-S` | keep us |
 | `KPU-S` | to keep us |
 | `KP-GS` | keeping us |
+| `KPA-P` | can keep it |
 | `KHR-B` | calls a |
 | `KHRE-B` | call a |
 | `KHRU-B` | to call a |
@@ -300,6 +317,8 @@ from the open-source Lapwing dictionary.
 | `SKWHR-BSZ` | she said |
 | `SKWHR-RLT` | she tells |
 | `SKWHR-RLTD` | she told |
+| `SKWHR-FPL` | she holds |
+| `SKWHR-FPLD` | she held |
 | `SKWHR-LS` | she sells |
 | `SKWHR-LSD` | she sold |
 | `SKWHR-PLS` | she spells |

@@ -54,6 +54,14 @@
           {
             "stroke": "EU",
             "text": "be"
+          },
+          {
+            "stroke": "A",
+            "text": "can be"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could be"
           }
         ]
       },
@@ -75,6 +83,14 @@
           {
             "stroke": "U",
             "text": "to have"
+          },
+          {
+            "stroke": "A",
+            "text": "can have"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could have"
           }
         ]
       },
@@ -100,6 +116,14 @@
           {
             "stroke": "U",
             "text": "to see"
+          },
+          {
+            "stroke": "A",
+            "text": "can see"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could see"
           }
         ]
       },
@@ -125,6 +149,14 @@
           {
             "stroke": "U",
             "text": "to say"
+          },
+          {
+            "stroke": "A",
+            "text": "can say"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could say"
           }
         ]
       },
@@ -150,6 +182,14 @@
           {
             "stroke": "U",
             "text": "to think"
+          },
+          {
+            "stroke": "A",
+            "text": "can think"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could think"
           }
         ]
       },
@@ -175,6 +215,47 @@
           {
             "stroke": "U",
             "text": "to tell"
+          },
+          {
+            "stroke": "A",
+            "text": "can tell"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could tell"
+          }
+        ]
+      },
+      {
+        "stroke": "TKH",
+        "forms": [
+          {
+            "stroke": "",
+            "text": "holds"
+          },
+          {
+            "stroke": "-D",
+            "text": "held"
+          },
+          {
+            "stroke": "E",
+            "text": "hold"
+          },
+          {
+            "stroke": "-G",
+            "text": "holding"
+          },
+          {
+            "stroke": "U",
+            "text": "to hold"
+          },
+          {
+            "stroke": "A",
+            "text": "can hold"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could hold"
           }
         ]
       },
@@ -200,6 +281,14 @@
           {
             "stroke": "U",
             "text": "to sell"
+          },
+          {
+            "stroke": "A",
+            "text": "can sell"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could sell"
           }
         ]
       },
@@ -225,6 +314,14 @@
           {
             "stroke": "U",
             "text": "to spell"
+          },
+          {
+            "stroke": "A",
+            "text": "can spell"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could spell"
           }
         ]
       },
@@ -250,6 +347,14 @@
           {
             "stroke": "U",
             "text": "to keep"
+          },
+          {
+            "stroke": "A",
+            "text": "can keep"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could keep"
           }
         ]
       },
@@ -558,6 +663,14 @@
         "past_participle": "told"
       },
       {
+        "id": "hold",
+        "base": "hold",
+        "third": "holds",
+        "past": "held",
+        "present_participle": "holding",
+        "past_participle": "held"
+      },
+      {
         "id": "sell",
         "base": "sell",
         "third": "sells",
@@ -789,6 +902,16 @@
       {
         "stroke": "-RLTD",
         "verb": "tell",
+        "past": true
+      },
+      {
+        "stroke": "-FPL",
+        "verb": "hold",
+        "past": false
+      },
+      {
+        "stroke": "-FPLD",
+        "verb": "hold",
         "past": true
       },
       {
