@@ -22,6 +22,21 @@
         "text": "us"
       },
       {
+        "id": "my",
+        "stroke": "-PL",
+        "text": "my"
+      },
+      {
+        "id": "myself",
+        "stroke": "-PLS",
+        "text": "myself"
+      },
+      {
+        "id": "me",
+        "stroke": "-PLT",
+        "text": "me"
+      },
+      {
         "id": "that",
         "stroke": "-RT",
         "text": "that"
@@ -227,6 +242,39 @@
         ]
       },
       {
+        "stroke": "KH",
+        "forms": [
+          {
+            "stroke": "",
+            "text": "catches"
+          },
+          {
+            "stroke": "-D",
+            "text": "caught"
+          },
+          {
+            "stroke": "E",
+            "text": "catch"
+          },
+          {
+            "stroke": "-G",
+            "text": "catching"
+          },
+          {
+            "stroke": "U",
+            "text": "to catch"
+          },
+          {
+            "stroke": "A",
+            "text": "can catch"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could catch"
+          }
+        ]
+      },
+      {
         "stroke": "TKH",
         "forms": [
           {
@@ -322,6 +370,39 @@
           {
             "stroke": "A-D",
             "text": "could spell"
+          }
+        ]
+      },
+      {
+        "stroke": "PHR",
+        "forms": [
+          {
+            "stroke": "",
+            "text": "pulls"
+          },
+          {
+            "stroke": "-D",
+            "text": "pulled"
+          },
+          {
+            "stroke": "E",
+            "text": "pull"
+          },
+          {
+            "stroke": "-G",
+            "text": "pulling"
+          },
+          {
+            "stroke": "U",
+            "text": "to pull"
+          },
+          {
+            "stroke": "A",
+            "text": "can pull"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could pull"
           }
         ]
       },
@@ -446,6 +527,15 @@
           "them",
           "us",
           "that"
+        ]
+      },
+      {
+        "stroke": "THA",
+        "text": "that",
+        "tails": [
+          "a",
+          "the",
+          "us"
         ]
       },
       {
@@ -663,6 +753,14 @@
         "past_participle": "told"
       },
       {
+        "id": "catch",
+        "base": "catch",
+        "third": "catches",
+        "past": "caught",
+        "present_participle": "catching",
+        "past_participle": "caught"
+      },
+      {
         "id": "hold",
         "base": "hold",
         "third": "holds",
@@ -685,6 +783,14 @@
         "past": "spelled",
         "present_participle": "spelling",
         "past_participle": "spelled"
+      },
+      {
+        "id": "pull",
+        "base": "pull",
+        "third": "pulls",
+        "past": "pulled",
+        "present_participle": "pulling",
+        "past_participle": "pulled"
       },
       {
         "id": "want",
@@ -791,7 +897,7 @@
         "past": false
       },
       {
-        "stroke": "-TSDZ",
+        "stroke": "-TSD",
         "verb": "have",
         "suffix": "to",
         "past": true
@@ -905,6 +1011,16 @@
         "past": true
       },
       {
+        "stroke": "-RB",
+        "verb": "catch",
+        "past": false
+      },
+      {
+        "stroke": "-RBD",
+        "verb": "catch",
+        "past": true
+      },
+      {
         "stroke": "-FPL",
         "verb": "hold",
         "past": false
@@ -932,6 +1048,16 @@
       {
         "stroke": "-PLSD",
         "verb": "spell",
+        "past": true
+      },
+      {
+        "stroke": "-PL",
+        "verb": "pull",
+        "past": false
+      },
+      {
+        "stroke": "-PLD",
+        "verb": "pull",
         "past": true
       },
       {
@@ -984,7 +1110,7 @@
         "past": false
       },
       {
-        "stroke": "-SZ",
+        "stroke": "-SD",
         "verb": "see",
         "past": true
       },
@@ -994,7 +1120,7 @@
         "past": false
       },
       {
-        "stroke": "-BSZ",
+        "stroke": "-BSD",
         "verb": "say",
         "past": true
       },
@@ -1005,7 +1131,7 @@
         "past": false
       },
       {
-        "stroke": "-BTSDZ",
+        "stroke": "-BTSD",
         "verb": "say",
         "suffix": "that",
         "past": true
@@ -1016,7 +1142,7 @@
         "past": false
       },
       {
-        "stroke": "-GSZ",
+        "stroke": "-GSD",
         "verb": "get",
         "past": true
       },
@@ -1027,7 +1153,7 @@
         "past": false
       },
       {
-        "stroke": "-GTSDZ",
+        "stroke": "-GTSD",
         "verb": "get",
         "suffix": "to",
         "past": true
@@ -1071,7 +1197,7 @@
         "past": false
       },
       {
-        "stroke": "-RTSDZ",
+        "stroke": "-RTSD",
         "verb": "try",
         "suffix": "to",
         "past": true

@@ -702,7 +702,7 @@
         "past": false
       },
       {
-        "stroke": "-BSZ",
+        "stroke": "-BSD",
         "verb": "say",
         "past": true
       },
@@ -713,7 +713,7 @@
         "past": false
       },
       {
-        "stroke": "-BTSDZ",
+        "stroke": "-BTSD",
         "verb": "say",
         "suffix": "that",
         "past": true

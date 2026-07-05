@@ -50,9 +50,11 @@ tail, ender, or flag should not require listing every drill prompt by hand.
 | `ST` | to say |
 | `TH` | to think |
 | `THR` | to tell |
+| `KH` | to catch |
 | `TKH` | to hold |
 | `SHR` | to sell |
 | `SPHR` | to spell |
+| `PHR` | to pull |
 | `KP` | to keep |
 | `KHR` | to call |
 
@@ -60,12 +62,12 @@ tail, ender, or flag should not require listing every drill prompt by hand.
 
 | Flag | Meaning |
 | --- | --- |
-| empty | third-person present: `is`, `has`, `calls`, `says`, `thinks`, `tells`, `holds`, `sells`, `spells`, `keeps` |
-| `D` | past: `was`, `had`, `called`, `said`, `thought`, `told`, `held`, `sold`, `spelled`, `kept` |
-| `E` | base/non-third present or imperative: `are`, `have`, `call`, `say`, `think`, `tell`, `hold`, `sell`, `spell`, `keep` |
+| empty | third-person present: `is`, `has`, `calls`, `says`, `thinks`, `tells`, `catches`, `holds`, `sells`, `spells`, `pulls`, `keeps` |
+| `D` | past: `was`, `had`, `called`, `said`, `thought`, `told`, `caught`, `held`, `sold`, `spelled`, `pulled`, `kept` |
+| `E` | base/non-third present or imperative: `are`, `have`, `call`, `say`, `think`, `tell`, `catch`, `hold`, `sell`, `spell`, `pull`, `keep` |
 | `ED` | plural past for `PW`: `were` |
-| `G` | present participle/gerund for stems that define one: `calling`, `saying`, `thinking`, `telling`, `holding`, `selling`, `spelling`, `keeping` |
-| `U` | infinitive with `to`: `to be`, `to have`, `to call`, `to say`, `to think`, `to tell`, `to hold`, `to sell`, `to spell`, `to keep` |
+| `G` | present participle/gerund for stems that define one: `calling`, `saying`, `thinking`, `telling`, `catching`, `holding`, `selling`, `spelling`, `pulling`, `keeping` |
+| `U` | infinitive with `to`: `to be`, `to have`, `to call`, `to say`, `to think`, `to tell`, `to catch`, `to hold`, `to sell`, `to spell`, `to pull`, `to keep` |
 | `A` | modal base: `can` + base verb |
 | `AD` | modal past: `could` + base verb |
 
@@ -87,6 +89,9 @@ normally because FV progressive uses `E`.
 | `T` | `TD` | the |
 | `P` | `PD` | it |
 | `S` | `SD` | us |
+| `PL` | `PLD` | my |
+| `PLS` | `PLSD` | myself |
+| `PLT` | `PLTD` | me |
 | `RT` | `RTD` | that |
 
 ## FV Set 1
@@ -139,7 +144,7 @@ starter + operator + structure + ender
 | `B` / `BD` | be | was/were |
 | `BT` / `BTD` | be a | was/were a |
 | `T` / `TD` | have | had |
-| `TS` / `TSDZ` | have to | had to |
+| `TS` / `TSD` | have to | had to |
 | `RP` / `RPD` | do | did |
 | `RPT` / `RPTD` | do it | did it |
 | `G` / `GD` | go | went |
@@ -150,22 +155,24 @@ starter + operator + structure + ender
 | `PBGT` / `PBGTD` | think that | thought that |
 | `RPBTS` / `RPBTSD` | keep | kept |
 | `RLT` / `RLTD` | tell | told |
+| `RB` / `RBD` | catch | caught |
 | `FPL` / `FPLD` | hold | held |
 | `LS` / `LSD` | sell | sold |
 | `PLS` / `PLSD` | spell | spelled |
+| `PL` / `PLD` | pull | pulled |
 | `P` / `PD` | want | wanted |
 | `PT` / `PTD` | want to | wanted to |
 | `RPG` / `RPGD` | need | needed |
 | `RPGT` / `RPGTD` | need to | needed to |
-| `S` / `SZ` | see | saw |
-| `BS` / `BSZ` | say | said |
-| `BTS` / `BTSDZ` | say that | said that |
-| `GS` / `GSZ` | get | got |
-| `GTS` / `GTSDZ` | get to | got to |
+| `S` / `SD` | see | saw |
+| `BS` / `BSD` | say | said |
+| `BTS` / `BTSD` | say that | said that |
+| `GS` / `GSD` | get | got |
+| `GTS` / `GTSD` | get to | got to |
 | `PBLG` / `PBLGD` | find | found |
 | `PBLGT` / `PBLGTD` | find that | found that |
 | `RT` / `RTD` | try | tried |
-| `RTS` / `RTSDZ` | try to | tried to |
+| `RTS` / `RTSD` | try to | tried to |
 
 ### FV Contraction Patterns
 
@@ -193,6 +200,7 @@ dictionary rows. The `anything` stem is written in canonical steno order as
 | Keys | Output Pattern |
 | --- | --- |
 | `TW` | with `*` |
+| `THA` | that `*` |
 | `TKPWH*` | anything `*` |
 | `S*` | as `*` |
 | `SRAO*E` | even `*` |
@@ -201,14 +209,14 @@ dictionary rows. The `anything` stem is written in canonical steno order as
 
 | Keys | Output Pattern | Used With |
 | --- | --- | --- |
-| `-B` | `*` a | `TW`, `SRAO*E` |
+| `-B` | `*` a | `TW`, `THA`, `SRAO*E` |
 | `-F` | `*` else | `TKPWH*` |
 | `-F` | `*` if | `S*`, `SRAO*E` |
 | `-GT` | `*` though | `S*`, `SRAO*E` |
 | `-PLT` | `*` them | `TW` |
 | `-RT` | `*` that | `TW`, `TKPWH*`, `SRAO*E` |
-| `-S` | `*` us | `TW`, `SRAO*E` |
-| `-T` | `*` the | `TW` |
+| `-S` | `*` us | `TW`, `THA`, `SRAO*E` |
+| `-T` | `*` the | `TW`, `THA` |
 
 ### NV Custom Rows
 
@@ -259,6 +267,15 @@ from the open-source Lapwing dictionary.
 | `THRU-S` | to tell us |
 | `THR-GS` | telling us |
 | `THRA-S` | can tell us |
+| `KH-P` | catches it |
+| `KH-PD` | caught it |
+| `KHE-P` | catch it |
+| `KHU-P` | to catch it |
+| `KH-PG` | catching it |
+| `KHA-P` | can catch it |
+| `KHE-PL` | catch my |
+| `KHE-PLS` | catch myself |
+| `KHE-PLT` | catch me |
 | `TKH-P` | holds it |
 | `TKH-PD` | held it |
 | `TKHE-P` | hold it |
@@ -277,6 +294,12 @@ from the open-source Lapwing dictionary.
 | `SPHRU-S` | to spell us |
 | `SPHR-GS` | spelling us |
 | `SPHRA-P` | can spell it |
+| `PHR-P` | pulls it |
+| `PHR-PD` | pulled it |
+| `PHRE-P` | pull it |
+| `PHRU-P` | to pull it |
+| `PHR-PG` | pulling it |
+| `PHRA-P` | can pull it |
 | `KP-P` | keeps it |
 | `KP-PD` | kept it |
 | `KPE-P` | keep it |
@@ -314,15 +337,19 @@ from the open-source Lapwing dictionary.
 | `SKWHR-PBG` | she thinks |
 | `SKWHR-PBGD` | she thought |
 | `SKWHR-BS` | she says |
-| `SKWHR-BSZ` | she said |
+| `SKWHR-BSD` | she said |
 | `SKWHR-RLT` | she tells |
 | `SKWHR-RLTD` | she told |
+| `SKWHR-RB` | she catches |
+| `SKWHR-RBD` | she caught |
 | `SKWHR-FPL` | she holds |
 | `SKWHR-FPLD` | she held |
 | `SKWHR-LS` | she sells |
 | `SKWHR-LSD` | she sold |
 | `SKWHR-PLS` | she spells |
 | `SKWHR-PLSD` | she spelled |
+| `SKWHR-PL` | she pulls |
+| `SKWHR-PLD` | she pulled |
 | `SKWHR-RPBTS` | she keeps |
 | `SKWHR-RPBTSD` | she kept |
 | `SKWHRAO-G` | she will go |
@@ -352,6 +379,9 @@ from the open-source Lapwing dictionary.
 | `TW-PLT` | with them |
 | `TW-S` | with us |
 | `TW-RT` | with that |
+| `THA-B` | that a |
+| `THAT` | that the |
+| `THA-S` | that us |
 | `TKPWH*-RT` | anything that |
 | `TKPWH*-F` | anything else |
 | `S*-F` | as if |
