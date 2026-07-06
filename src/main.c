@@ -9,7 +9,6 @@
 
 #include <errno.h>
 #include <signal.h>
-#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -40,13 +39,13 @@ typedef struct App {
     bool trace_key_events;
     bool qwerty_input;
     bool phrase_toggle_enabled;
-    atomic_bool phrase_toggle_down;
-    atomic_bool phrase_stroke_latched;
+    Platform_Atomic_Bool *phrase_toggle_down;
+    Platform_Atomic_Bool *phrase_stroke_latched;
     uint16_t phrase_toggle_keycode;
     const char *phrase_toggle_name;
     bool nonverb_phrase_toggle_enabled;
-    atomic_bool nonverb_phrase_toggle_down;
-    atomic_bool nonverb_phrase_stroke_latched;
+    Platform_Atomic_Bool *nonverb_phrase_toggle_down;
+    Platform_Atomic_Bool *nonverb_phrase_stroke_latched;
     uint16_t nonverb_phrase_toggle_keycode;
     const char *nonverb_phrase_toggle_name;
 } App;
@@ -170,15 +169,15 @@ static bool app_phrase_namespace_enabled(const App *app)
 }
 
 static bool app_toggle_active(
-    const atomic_bool *down,
-    atomic_bool *latched,
+    Platform_Atomic_Bool *down,
+    Platform_Atomic_Bool *latched,
     bool consume_latch
 )
 {
-    const bool is_down = atomic_load_explicit(down, memory_order_relaxed);
+    const bool is_down = platform_atomic_bool_load(down);
     const bool was_latched = consume_latch
-        ? atomic_exchange_explicit(latched, false, memory_order_relaxed)
-        : atomic_load_explicit(latched, memory_order_relaxed);
+        ? platform_atomic_bool_exchange(latched, false)
+        : platform_atomic_bool_load(latched);
     return is_down || was_latched;
 }
 
@@ -209,11 +208,11 @@ static Steno_Phrase_Mode app_current_phrase_mode(App *app, bool consume_latches)
     }
 
     const bool phrase_active = app->phrase_toggle_enabled
-        && app_toggle_active(&app->phrase_toggle_down, &app->phrase_stroke_latched, consume_latches);
+        && app_toggle_active(app->phrase_toggle_down, app->phrase_stroke_latched, consume_latches);
     const bool nonverb_active = app->nonverb_phrase_toggle_enabled
         && app_toggle_active(
-            &app->nonverb_phrase_toggle_down,
-            &app->nonverb_phrase_stroke_latched,
+            app->nonverb_phrase_toggle_down,
+            app->nonverb_phrase_stroke_latched,
             consume_latches
         );
     return app_phrase_mode_from_active(app, phrase_active, nonverb_active);
@@ -226,9 +225,9 @@ static Steno_Phrase_Mode app_current_phrase_down_mode(const App *app)
     }
 
     const bool phrase_active = app->phrase_toggle_enabled
-        && atomic_load_explicit(&app->phrase_toggle_down, memory_order_relaxed);
+        && platform_atomic_bool_load(app->phrase_toggle_down);
     const bool nonverb_active = app->nonverb_phrase_toggle_enabled
-        && atomic_load_explicit(&app->nonverb_phrase_toggle_down, memory_order_relaxed);
+        && platform_atomic_bool_load(app->nonverb_phrase_toggle_down);
     return app_phrase_mode_from_active(app, phrase_active, nonverb_active);
 }
 
@@ -281,12 +280,16 @@ static void print_key_event(const Input_Event *event)
     fflush(stdout);
 }
 
-static void update_phrase_toggle_state(atomic_bool *down, atomic_bool *latched, const Input_Event *event)
+static void update_phrase_toggle_state(
+    Platform_Atomic_Bool *down,
+    Platform_Atomic_Bool *latched,
+    const Input_Event *event
+)
 {
     if (!event->is_repeat) {
-        atomic_store_explicit(down, event->is_down, memory_order_relaxed);
+        platform_atomic_bool_store(down, event->is_down);
         if (event->is_down) {
-            atomic_store_explicit(latched, true, memory_order_relaxed);
+            platform_atomic_bool_store(latched, true);
         }
     }
 }
@@ -298,7 +301,7 @@ static bool update_phrase_toggle_from_event(App *app, const Input_Event *event, 
     }
 
     if (app->phrase_toggle_enabled && event->keycode == app->phrase_toggle_keycode) {
-        update_phrase_toggle_state(&app->phrase_toggle_down, &app->phrase_stroke_latched, event);
+        update_phrase_toggle_state(app->phrase_toggle_down, app->phrase_stroke_latched, event);
         if (update_steno) {
             steno_set_phrase_mode_family(app->steno, app_current_phrase_down_mode(app));
         }
@@ -307,8 +310,8 @@ static bool update_phrase_toggle_from_event(App *app, const Input_Event *event, 
 
     if (app->nonverb_phrase_toggle_enabled && event->keycode == app->nonverb_phrase_toggle_keycode) {
         update_phrase_toggle_state(
-            &app->nonverb_phrase_toggle_down,
-            &app->nonverb_phrase_stroke_latched,
+            app->nonverb_phrase_toggle_down,
+            app->nonverb_phrase_stroke_latched,
             event
         );
         if (update_steno) {
@@ -364,6 +367,40 @@ static bool app_wants_keyboard_events(const App *app)
 {
     return app != NULL
         && (app->phrase_toggle_enabled || app->nonverb_phrase_toggle_enabled || app->trace_key_events);
+}
+
+static void app_destroy_phrase_toggle_state(App *app)
+{
+    if (app == NULL) {
+        return;
+    }
+    platform_atomic_bool_destroy(app->phrase_toggle_down);
+    platform_atomic_bool_destroy(app->phrase_stroke_latched);
+    platform_atomic_bool_destroy(app->nonverb_phrase_toggle_down);
+    platform_atomic_bool_destroy(app->nonverb_phrase_stroke_latched);
+    app->phrase_toggle_down = NULL;
+    app->phrase_stroke_latched = NULL;
+    app->nonverb_phrase_toggle_down = NULL;
+    app->nonverb_phrase_stroke_latched = NULL;
+}
+
+static bool app_init_phrase_toggle_state(App *app)
+{
+    if (app == NULL) {
+        return false;
+    }
+    app->phrase_toggle_down = platform_atomic_bool_create(false);
+    app->phrase_stroke_latched = platform_atomic_bool_create(false);
+    app->nonverb_phrase_toggle_down = platform_atomic_bool_create(false);
+    app->nonverb_phrase_stroke_latched = platform_atomic_bool_create(false);
+    if (app->phrase_toggle_down == NULL
+        || app->phrase_stroke_latched == NULL
+        || app->nonverb_phrase_toggle_down == NULL
+        || app->nonverb_phrase_stroke_latched == NULL) {
+        app_destroy_phrase_toggle_state(app);
+        return false;
+    }
+    return true;
 }
 
 static void print_phrase_toggle_status(const App *app)
@@ -1093,6 +1130,12 @@ int main(int argc, char **argv)
         runtime_config_destroy(&runtime_config);
         return 1;
     }
+    if (!app_init_phrase_toggle_state(&app)) {
+        fputs("stoin: failed to initialize phrase toggle state\n", stderr);
+        steno_destroy(app.steno);
+        runtime_config_destroy(&runtime_config);
+        return 1;
+    }
     steno_set_phrase_namespace_enabled(app.steno, app_phrase_namespace_enabled(&app));
 
     platform_translation_timing_set_enabled(time_translations);
@@ -1109,6 +1152,7 @@ int main(int argc, char **argv)
     } else {
         if (app_wants_keyboard_events(&app)) {
             if (!platform_init_listen_only(handle_phrase_toggle_input, &app)) {
+                app_destroy_phrase_toggle_state(&app);
                 steno_destroy(app.steno);
                 runtime_config_destroy(&runtime_config);
                 return 1;
@@ -1140,6 +1184,7 @@ int main(int argc, char **argv)
         }
     }
 
+    app_destroy_phrase_toggle_state(&app);
     steno_destroy(app.steno);
     runtime_config_destroy(&runtime_config);
     return status;
