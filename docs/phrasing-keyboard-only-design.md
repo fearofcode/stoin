@@ -51,6 +51,7 @@ tail, ender, or flag should not require listing every drill prompt by hand.
 | `TH` | to think |
 | `THR` | to tell |
 | `KH` | to catch |
+| `HR` | to look |
 | `TKH` | to hold |
 | `SHR` | to sell |
 | `SPHR` | to spell |
@@ -62,12 +63,12 @@ tail, ender, or flag should not require listing every drill prompt by hand.
 
 | Flag | Meaning |
 | --- | --- |
-| empty | third-person present: `is`, `has`, `calls`, `says`, `thinks`, `tells`, `catches`, `holds`, `sells`, `spells`, `pulls`, `keeps` |
-| `D` | past: `was`, `had`, `called`, `said`, `thought`, `told`, `caught`, `held`, `sold`, `spelled`, `pulled`, `kept` |
-| `E` | base/non-third present or imperative: `are`, `have`, `call`, `say`, `think`, `tell`, `catch`, `hold`, `sell`, `spell`, `pull`, `keep` |
+| empty | third-person present: `is`, `has`, `calls`, `says`, `thinks`, `tells`, `catches`, `looks`, `holds`, `sells`, `spells`, `pulls`, `keeps` |
+| `D` | past: `was`, `had`, `called`, `said`, `thought`, `told`, `caught`, `looked`, `held`, `sold`, `spelled`, `pulled`, `kept` |
+| `E` | base/non-third present or imperative: `are`, `have`, `call`, `say`, `think`, `tell`, `catch`, `look`, `hold`, `sell`, `spell`, `pull`, `keep` |
 | `ED` | plural past for `PW`: `were` |
-| `G` | present participle/gerund for stems that define one: `calling`, `saying`, `thinking`, `telling`, `catching`, `holding`, `selling`, `spelling`, `pulling`, `keeping` |
-| `U` | infinitive with `to`: `to be`, `to have`, `to call`, `to say`, `to think`, `to tell`, `to catch`, `to hold`, `to sell`, `to spell`, `to pull`, `to keep` |
+| `G` | present participle/gerund for stems that define one: `calling`, `saying`, `thinking`, `telling`, `catching`, `looking`, `holding`, `selling`, `spelling`, `pulling`, `keeping` |
+| `U` | infinitive with `to`: `to be`, `to have`, `to call`, `to say`, `to think`, `to tell`, `to catch`, `to look`, `to hold`, `to sell`, `to spell`, `to pull`, `to keep` |
 | `A` | modal base: `can` + base verb |
 | `AD` | modal past: `could` + base verb |
 
@@ -87,8 +88,12 @@ normally because FV progressive uses `E`.
 | --- | --- | --- |
 | `B` | `BD` | a |
 | `T` | `TD` | the |
+| `LT` | `LTD` | at |
 | `P` | `PD` | it |
 | `S` | `SD` | us |
+| `R` | `RD` | her |
+| `Z` | `ZD` | his |
+| `FB` | `FBD` | of |
 | `PL` | `PLD` | my |
 | `PLS` | `PLSD` | myself |
 | `PLT` | `PLTD` | me |
@@ -151,6 +156,7 @@ starter + operator + structure + ender
 | `GT` / `GTD` | go to | went to |
 | `PB` / `PBD` | know | knew |
 | `PBT` / `PBTD` | know that | knew that |
+| `L` / `LD` | look | looked |
 | `PBG` / `PBGD` | think | thought |
 | `PBGT` / `PBGTD` | think that | thought that |
 | `RPBTS` / `RPBTSD` | keep | kept |
@@ -201,6 +207,8 @@ dictionary rows. The `anything` stem is written in canonical steno order as
 | --- | --- |
 | `TW` | with `*` |
 | `THA` | that `*` |
+| `TPO` | for `*` |
+| `OF` | of `*` |
 | `TKPWH*` | anything `*` |
 | `S*` | as `*` |
 | `SRAO*E` | even `*` |
@@ -209,14 +217,17 @@ dictionary rows. The `anything` stem is written in canonical steno order as
 
 | Keys | Output Pattern | Used With |
 | --- | --- | --- |
+| `-R` | `*` her | `TPO`, `OF` |
 | `-B` | `*` a | `TW`, `THA`, `SRAO*E` |
-| `-F` | `*` else | `TKPWH*` |
 | `-F` | `*` if | `S*`, `SRAO*E` |
 | `-GT` | `*` though | `S*`, `SRAO*E` |
+| `-LS` | `*` else | `TKPWH*` |
+| `-P` | `*` it | `OF` |
 | `-PLT` | `*` them | `TW` |
 | `-RT` | `*` that | `TW`, `TKPWH*`, `SRAO*E` |
 | `-S` | `*` us | `TW`, `THA`, `SRAO*E` |
-| `-T` | `*` the | `TW`, `THA` |
+| `-T` | `*` the | `TW`, `THA`, `TPO` |
+| `-Z` | `*` his | `TW`, `THA`, `TPO`, `OF`, `TKPWH*`, `S*`, `SRAO*E` |
 
 ### NV Custom Rows
 
@@ -261,6 +272,7 @@ from the open-source Lapwing dictionary.
 | `THU-P` | to think it |
 | `TH-PG` | thinking it |
 | `THA-P` | can think it |
+| `THE-FB` | think of |
 | `THR-S` | tells us |
 | `THR-SD` | told us |
 | `THRE-S` | tell us |
@@ -273,9 +285,18 @@ from the open-source Lapwing dictionary.
 | `KHU-P` | to catch it |
 | `KH-PG` | catching it |
 | `KHA-P` | can catch it |
+| `KHE-R` | catch her |
+| `KHE-Z` | catch his |
 | `KHE-PL` | catch my |
 | `KHE-PLS` | catch myself |
 | `KHE-PLT` | catch me |
+| `HR-P` | looks it |
+| `HR-PD` | looked it |
+| `HRE-P` | look it |
+| `HRU-P` | to look it |
+| `HR-PG` | looking it |
+| `HRA-P` | can look it |
+| `HRELT` | look at |
 | `TKH-P` | holds it |
 | `TKH-PD` | held it |
 | `TKHE-P` | hold it |
@@ -336,6 +357,8 @@ from the open-source Lapwing dictionary.
 | `SKWHR-GTD` | she went to |
 | `SKWHR-PBG` | she thinks |
 | `SKWHR-PBGD` | she thought |
+| `SKWHR-L` | she looks |
+| `SKWHR-LD` | she looked |
 | `SKWHR-BS` | she says |
 | `SKWHR-BSD` | she said |
 | `SKWHR-RLT` | she tells |
@@ -382,8 +405,13 @@ from the open-source Lapwing dictionary.
 | `THA-B` | that a |
 | `THAT` | that the |
 | `THA-S` | that us |
+| `TPOR` | for her |
+| `TPOT` | for the |
+| `OFR` | of her |
+| `OFP` | of it |
+| `OFZ` | of his |
 | `TKPWH*-RT` | anything that |
-| `TKPWH*-F` | anything else |
+| `TKPWH*-LS` | anything else |
 | `S*-F` | as if |
 | `S*-GT` | as though |
 | `SRAO*E-S` | even us |

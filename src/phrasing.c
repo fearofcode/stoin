@@ -239,6 +239,142 @@ static bool parse_required_stroke(
     return true;
 }
 
+static bool report_duplicate_stroke(const char *path, const char *context, uint64_t bits)
+{
+    char stroke[64] = {0};
+    if (bits == 0) {
+        snprintf(stroke, sizeof(stroke), "<empty>");
+    } else if (!chord_bits_to_string(bits, stroke, sizeof(stroke))) {
+        snprintf(stroke, sizeof(stroke), "0x%llx", (unsigned long long)bits);
+    }
+    fprintf(stderr,
+        "stoin: phrasing '%s' %s.stroke duplicates outline '%s' in the same list\n",
+        path,
+        context,
+        stroke);
+    return false;
+}
+
+static bool phrase_form_stroke_is_unique(
+    const Phrase_Form *forms,
+    uint64_t bits,
+    const char *path,
+    const char *context
+)
+{
+    for (size_t i = 0; i < arrlenu(forms); ++i) {
+        if (forms[i].bits == bits) {
+            return report_duplicate_stroke(path, context, bits);
+        }
+    }
+    return true;
+}
+
+static bool tail_stroke_is_unique(
+    const Phrase_Tail *tails,
+    uint64_t bits,
+    const char *path,
+    const char *context
+)
+{
+    for (size_t i = 0; i < arrlenu(tails); ++i) {
+        if (tails[i].bits == bits) {
+            return report_duplicate_stroke(path, context, bits);
+        }
+    }
+    return true;
+}
+
+static bool iv_stem_stroke_is_unique(
+    const Iv_Stem *stems,
+    uint64_t bits,
+    const char *path,
+    const char *context
+)
+{
+    for (size_t i = 0; i < arrlenu(stems); ++i) {
+        if (stems[i].bits == bits) {
+            return report_duplicate_stroke(path, context, bits);
+        }
+    }
+    return true;
+}
+
+static bool nv_prefix_stroke_is_unique(
+    const Nv_Prefix *prefixes,
+    uint64_t bits,
+    const char *path,
+    const char *context
+)
+{
+    for (size_t i = 0; i < arrlenu(prefixes); ++i) {
+        if (prefixes[i].bits == bits) {
+            return report_duplicate_stroke(path, context, bits);
+        }
+    }
+    return true;
+}
+
+static bool fv_starter_stroke_is_unique(
+    const Fv_Starter *starters,
+    uint64_t bits,
+    const char *path,
+    const char *context
+)
+{
+    for (size_t i = 0; i < arrlenu(starters); ++i) {
+        if (starters[i].bits == bits) {
+            return report_duplicate_stroke(path, context, bits);
+        }
+    }
+    return true;
+}
+
+static bool fv_operator_stroke_is_unique(
+    const Fv_Operator *operators,
+    uint64_t bits,
+    const char *path,
+    const char *context
+)
+{
+    for (size_t i = 0; i < arrlenu(operators); ++i) {
+        if (operators[i].bits == bits) {
+            return report_duplicate_stroke(path, context, bits);
+        }
+    }
+    return true;
+}
+
+static bool fv_structure_stroke_is_unique(
+    const Fv_Structure_Row *structures,
+    uint64_t bits,
+    const char *path,
+    const char *context
+)
+{
+    for (size_t i = 0; i < arrlenu(structures); ++i) {
+        if (structures[i].bits == bits) {
+            return report_duplicate_stroke(path, context, bits);
+        }
+    }
+    return true;
+}
+
+static bool fv_ender_stroke_is_unique(
+    const Fv_Ender *enders,
+    uint64_t bits,
+    const char *path,
+    const char *context
+)
+{
+    for (size_t i = 0; i < arrlenu(enders); ++i) {
+        if (enders[i].bits == bits) {
+            return report_duplicate_stroke(path, context, bits);
+        }
+    }
+    return true;
+}
+
 static bool parse_optional_bool(const cJSON *parent, const char *field, bool default_value, bool *out_value)
 {
     const cJSON *item = cJSON_GetObjectItemCaseSensitive(parent, field);
@@ -364,6 +500,9 @@ static bool parse_phrase_form_array(
         if (!parse_required_stroke(item, "stroke", &form.bits, path, item_context)) {
             return false;
         }
+        if (!phrase_form_stroke_is_unique(*out_forms, form.bits, path, item_context)) {
+            return false;
+        }
         if (!copy_required_string(item, "text", &form.text)) {
             print_field_error(path, item_context, "text", "must be a string");
             return false;
@@ -392,6 +531,10 @@ static bool parse_tail_array(Phrase_Tail **out_tails, const cJSON *array, const 
             return false;
         }
         if (!parse_required_stroke(item, "stroke", &tail.bits, path, item_context)) {
+            free(tail.id);
+            return false;
+        }
+        if (!tail_stroke_is_unique(*out_tails, tail.bits, path, item_context)) {
             free(tail.id);
             return false;
         }
@@ -433,6 +576,9 @@ static bool parse_initial_verbs(Phrasing *phrasing, const cJSON *root, const cha
         if (!parse_required_stroke(item, "stroke", &stem.bits, path, context)) {
             return false;
         }
+        if (!iv_stem_stroke_is_unique(phrasing->iv_stems, stem.bits, path, context)) {
+            return false;
+        }
 
         const cJSON *forms = required_array(item, "forms", path, context);
         if (forms == NULL || !parse_phrase_form_array(&stem.forms, forms, path, "initial_verbs.forms")) {
@@ -470,6 +616,9 @@ static bool parse_nonverbs(Phrasing *phrasing, const cJSON *root, const char *pa
 
         Nv_Prefix prefix = {0};
         if (!parse_required_stroke(item, "stroke", &prefix.bits, path, context)) {
+            return false;
+        }
+        if (!nv_prefix_stroke_is_unique(phrasing->nv_prefixes, prefix.bits, path, context)) {
             return false;
         }
         if (!copy_required_string(item, "text", &prefix.text)) {
@@ -524,6 +673,9 @@ static bool parse_fv_starters(Phrasing *phrasing, const cJSON *array, const char
         if (!parse_required_stroke(item, "stroke", &starter.bits, path, context)) {
             return false;
         }
+        if (!fv_starter_stroke_is_unique(phrasing->fv_starters, starter.bits, path, context)) {
+            return false;
+        }
         if (!copy_required_string(item, "text", &starter.text)) {
             print_field_error(path, context, "text", "must be a string");
             return false;
@@ -570,6 +722,9 @@ static bool parse_fv_operators(Phrasing *phrasing, const cJSON *array, const cha
         if (!parse_required_stroke(item, "stroke", &operator.bits, path, context)) {
             return false;
         }
+        if (!fv_operator_stroke_is_unique(phrasing->fv_operators, operator.bits, path, context)) {
+            return false;
+        }
         char *modal = NULL;
         if (!copy_required_string(item, "modal", &modal) || !parse_modal(modal, &operator.modal)) {
             print_field_error(path, context, "modal", "must be none, can, should, or will");
@@ -601,6 +756,9 @@ static bool parse_fv_structures(Phrasing *phrasing, const cJSON *array, const ch
 
         Fv_Structure_Row row = {0};
         if (!parse_required_stroke(item, "stroke", &row.bits, path, context)) {
+            return false;
+        }
+        if (!fv_structure_stroke_is_unique(phrasing->fv_structures, row.bits, path, context)) {
             return false;
         }
         char *kind = NULL;
@@ -665,6 +823,9 @@ static bool parse_fv_enders(Phrasing *phrasing, const cJSON *array, const char *
 
         Fv_Ender ender = {0};
         if (!parse_required_stroke(item, "stroke", &ender.bits, path, context)) {
+            return false;
+        }
+        if (!fv_ender_stroke_is_unique(phrasing->fv_enders, ender.bits, path, context)) {
             return false;
         }
         if (!copy_optional_string(item, "verb", &ender.verb_id)

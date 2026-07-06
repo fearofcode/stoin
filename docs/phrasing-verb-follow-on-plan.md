@@ -15,7 +15,6 @@ Jeff's regular final-verb suffix and past-tense variants are not listed here.
 | to feel | `SW` | `LT` |
 | to come | `K` | `BG` |
 | to know | `TPH` | `PB` |
-| to look | `TW` | `L` |
 | to get | `TKPWH` | `GS` |
 | to believe | `PWHR` | `BL` |
 | to become | `KW` | `RPBG` |

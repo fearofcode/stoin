@@ -805,6 +805,28 @@ int main(void)
             "    \"enders\": []\n"
             "  }\n"
             "}\n";
+        const char *phrasing_duplicate_tail =
+            "{\n"
+            "  \"initial_verbs\": {\n"
+            "    \"tails\": [{\"id\": \"a\", \"stroke\": \"-B\", \"text\": \"a\"}],\n"
+            "    \"stems\": [{\"stroke\": \"PW\", \"forms\": [{\"stroke\": \"\", \"text\": \"is\"}]}]\n"
+            "  },\n"
+            "  \"nonverbs\": {\n"
+            "    \"tails\": [\n"
+            "      {\"id\": \"if\", \"stroke\": \"-F\", \"text\": \"if\"},\n"
+            "      {\"id\": \"else\", \"stroke\": \"-F\", \"text\": \"else\"}\n"
+            "    ],\n"
+            "    \"prefixes\": []\n"
+            "  },\n"
+            "  \"final_verbs\": {\n"
+            "    \"contraction_stroke\": \"#\",\n"
+            "    \"starters\": [],\n"
+            "    \"operators\": [],\n"
+            "    \"structures\": [],\n"
+            "    \"verbs\": [],\n"
+            "    \"enders\": []\n"
+            "  }\n"
+            "}\n";
         ok = ok && write_text_file(reload_phrasing_path, phrasing_is);
         Steno_Config phrasing_reload_config = config;
         phrasing_reload_config.phrasing_path = reload_phrasing_path;
@@ -822,6 +844,12 @@ int main(void)
             clear_test_output(&output);
             ok = ok && steno_handle_stroke_bits(phrasing_reload_steno, phrase_bits);
             ok = ok && expect_string("hot reload keeps old phrasing on parse failure", output.text, " is a");
+
+            ok = ok && write_text_file(reload_phrasing_path, phrasing_duplicate_tail);
+            ok = ok && !steno_reload_phrasing(phrasing_reload_steno);
+            clear_test_output(&output);
+            ok = ok && steno_handle_stroke_bits(phrasing_reload_steno, phrase_bits);
+            ok = ok && expect_string("hot reload keeps old phrasing on duplicate stroke", output.text, " is a");
 
             ok = ok && write_text_file(reload_phrasing_path, phrasing_was);
             ok = ok && steno_reload_phrasing(phrasing_reload_steno);
@@ -1218,7 +1246,7 @@ int main(void)
         { "TW-B", "with a" },
         { "TW-S", "with us" },
         { "TKPWH*-RT", "anything that" },
-        { "TKPWH*-F", "anything else" },
+        { "TKPWH*-LS", "anything else" },
         { "S*-F", "as if" },
         { "S*-GT", "as though" },
         { "SRAO*E-S", "even us" },

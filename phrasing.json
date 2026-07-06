@@ -12,6 +12,11 @@
         "text": "the"
       },
       {
+        "id": "at",
+        "stroke": "-LT",
+        "text": "at"
+      },
+      {
         "id": "it",
         "stroke": "-P",
         "text": "it"
@@ -20,6 +25,21 @@
         "id": "us",
         "stroke": "-S",
         "text": "us"
+      },
+      {
+        "id": "her",
+        "stroke": "-R",
+        "text": "her"
+      },
+      {
+        "id": "his",
+        "stroke": "-Z",
+        "text": "his"
+      },
+      {
+        "id": "of",
+        "stroke": "-FB",
+        "text": "of"
       },
       {
         "id": "my",
@@ -275,6 +295,39 @@
         ]
       },
       {
+        "stroke": "HR",
+        "forms": [
+          {
+            "stroke": "",
+            "text": "looks"
+          },
+          {
+            "stroke": "-D",
+            "text": "looked"
+          },
+          {
+            "stroke": "E",
+            "text": "look"
+          },
+          {
+            "stroke": "-G",
+            "text": "looking"
+          },
+          {
+            "stroke": "U",
+            "text": "to look"
+          },
+          {
+            "stroke": "A",
+            "text": "can look"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could look"
+          }
+        ]
+      },
+      {
         "stroke": "TKH",
         "forms": [
           {
@@ -497,6 +550,21 @@
         "text": "us"
       },
       {
+        "id": "her",
+        "stroke": "-R",
+        "text": "her"
+      },
+      {
+        "id": "it",
+        "stroke": "-P",
+        "text": "it"
+      },
+      {
+        "id": "his",
+        "stroke": "-Z",
+        "text": "his"
+      },
+      {
         "id": "that",
         "stroke": "-RT",
         "text": "that"
@@ -513,7 +581,7 @@
       },
       {
         "id": "else",
-        "stroke": "-F",
+        "stroke": "-LS",
         "text": "else"
       }
     ],
@@ -526,6 +594,7 @@
           "the",
           "them",
           "us",
+          "his",
           "that"
         ]
       },
@@ -535,7 +604,26 @@
         "tails": [
           "a",
           "the",
-          "us"
+          "us",
+          "his"
+        ]
+      },
+      {
+        "stroke": "TPO",
+        "text": "for",
+        "tails": [
+          "her",
+          "the",
+          "his"
+        ]
+      },
+      {
+        "stroke": "OF",
+        "text": "of",
+        "tails": [
+          "her",
+          "it",
+          "his"
         ]
       },
       {
@@ -543,7 +631,8 @@
         "text": "anything",
         "tails": [
           "that",
-          "else"
+          "else",
+          "his"
         ]
       },
       {
@@ -551,7 +640,8 @@
         "text": "as",
         "tails": [
           "if",
-          "though"
+          "though",
+          "his"
         ]
       },
       {
@@ -562,7 +652,8 @@
           "that",
           "us",
           "if",
-          "though"
+          "though",
+          "his"
         ]
       }
     ]
@@ -727,6 +818,14 @@
         "past": "knew",
         "present_participle": "knowing",
         "past_participle": "known"
+      },
+      {
+        "id": "look",
+        "base": "look",
+        "third": "looks",
+        "past": "looked",
+        "present_participle": "looking",
+        "past_participle": "looked"
       },
       {
         "id": "think",
@@ -966,6 +1065,16 @@
         "stroke": "-PBTD",
         "verb": "know",
         "suffix": "that",
+        "past": true
+      },
+      {
+        "stroke": "-L",
+        "verb": "look",
+        "past": false
+      },
+      {
+        "stroke": "-LD",
+        "verb": "look",
         "past": true
       },
       {
