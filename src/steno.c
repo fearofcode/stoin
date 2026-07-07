@@ -70,7 +70,6 @@ typedef enum Trace_Stroke_Mode {
 } Trace_Stroke_Mode;
 
 static bool translate_chord_bits(Steno *steno, uint64_t bits);
-static bool translate_chord_bits_with_trace(Steno *steno, uint64_t bits, Trace_Stroke_Mode trace_mode);
 static bool translate_stroke_input(Steno *steno, Stroke_Input stroke);
 
 static bool steno_set_spacing(Steno *steno, const char *spacing)
@@ -1243,12 +1242,7 @@ static bool translate_phrase_namespace_bits(Steno *steno, uint64_t bits, Steno_P
 
 static bool translate_chord_bits(Steno *steno, uint64_t bits)
 {
-    return translate_chord_bits_with_trace(steno, bits, TRACE_STROKE_NORMAL);
-}
-
-static bool translate_chord_bits_with_trace(Steno *steno, uint64_t bits, Trace_Stroke_Mode trace_mode)
-{
-    return translate_dictionary_bits_with_trace(steno, bits, trace_mode);
+    return translate_dictionary_bits_with_trace(steno, bits, TRACE_STROKE_NORMAL);
 }
 
 static bool translate_stroke_input(Steno *steno, Stroke_Input stroke)
