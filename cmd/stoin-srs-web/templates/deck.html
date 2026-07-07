@@ -12,30 +12,52 @@
 		<button type="submit" name="mode" value="practice">Practice selected</button>
 		<button type="submit" name="mode" value="practice_all">Practice all</button>
 	</div>
-	{{if .Groups}}
-	{{range .Groups}}
-	<section class="group">
-		<header>
-			<label><input type="checkbox" class="group-check" data-group="{{.ID}}"> {{.Name}}</label>
-			<span class="small">{{len .Items}} words{{if gt .LearningCount 0}}, {{.LearningCount}} learning, {{.IntroRemaining}} reps left{{end}}</span>
-		</header>
-		{{if .Items}}
-		{{range .Items}}
-		<div class="word-row">
-			<input type="checkbox" name="item_id" value="{{.ID}}" data-group="{{.GroupID}}">
-			<span>{{.Text}}</span>
-			<span class="word-meta">{{if gt .IntroRemaining 0}}learning {{.IntroRemaining}}{{else}}due {{.DueAt.Format "2006-01-02"}}{{end}}</span>
-		</div>
-		{{end}}
+</form>
+{{if .Groups}}
+{{range .Groups}}
+<section class="group">
+	<header>
+		<label><input type="checkbox" class="group-check" data-group="{{.ID}}"> {{.Name}}</label>
+		<span class="small">{{len .Items}} words{{if gt .LearningCount 0}}, {{.LearningCount}} learning, {{.IntroRemaining}} reps left{{end}}</span>
+	</header>
+	{{if .Items}}
+	{{range .Items}}
+	<div class="word-row{{if eq $.EditItemID .ID}} editing{{end}}">
+		<input form="selection-form" type="checkbox" name="item_id" value="{{.ID}}" data-group="{{.GroupID}}">
+		{{if eq $.EditItemID .ID}}
+		<form class="word-edit-form" method="post" action="/item/edit">
+			<input type="hidden" name="deck_id" value="{{$.Deck.ID}}">
+			<input type="hidden" name="item_id" value="{{.ID}}">
+			<label class="sr-only" for="item-text-{{.ID}}">Word</label>
+			<input id="item-text-{{.ID}}" name="text" value="{{.Text}}" required>
+			<button class="primary" type="submit">Save</button>
+			<a class="button-link" href="/deck?id={{$.Deck.ID}}">Cancel</a>
+			{{if $.ItemError}}<span class="item-error">{{$.ItemError}}</span>{{end}}
+		</form>
+		<span class="word-meta">{{if gt .IntroRemaining 0}}learning {{.IntroRemaining}}{{else}}due {{.DueAt.Format "2006-01-02"}}{{end}}</span>
+		<span></span>
 		{{else}}
-		<div class="word-row"><span></span><span class="small">No words in this group.</span><span></span></div>
+		<span>{{.Text}}</span>
+		<span class="word-meta">{{if gt .IntroRemaining 0}}learning {{.IntroRemaining}}{{else}}due {{.DueAt.Format "2006-01-02"}}{{end}}</span>
+		<span class="item-actions">
+			<a href="/deck?id={{$.Deck.ID}}&edit_item_id={{.ID}}">Edit</a>
+			<form class="inline-delete" method="post" action="/item/delete" onsubmit="return confirm('Delete {{.Text}} from this deck?');">
+				<input type="hidden" name="deck_id" value="{{$.Deck.ID}}">
+				<input type="hidden" name="item_id" value="{{.ID}}">
+				<button type="submit">Delete</button>
+			</form>
+		</span>
 		{{end}}
-	</section>
+	</div>
 	{{end}}
 	{{else}}
-	<p>No groups yet.</p>
+	<div class="word-row"><span></span><span class="small">No words in this group.</span><span></span><span></span></div>
 	{{end}}
-</form>
+</section>
+{{end}}
+{{else}}
+<p>No groups yet.</p>
+{{end}}
 <h2>Import Into {{.Deck.Name}}</h2>
 {{template "importForm" dict "Errors" .Errors "Form" .Form "Decks" nil "DeckID" .Deck.ID "Return" (printf "/deck?id=%d" .Deck.ID)}}
 <script>

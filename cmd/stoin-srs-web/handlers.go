@@ -51,7 +51,71 @@ func (a *App) handleDeck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data.Notice = r.URL.Query().Get("notice")
+	data.EditItemID = parseOptionalInt64(r.URL.Query().Get("edit_item_id"))
+	data.ItemError = r.URL.Query().Get("item_error")
 	a.render(w, "deck", data)
+}
+
+func (a *App) handleItemEdit(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		methodNotAllowed(w)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "could not read form", http.StatusBadRequest)
+		return
+	}
+	deckID := parseOptionalInt64(r.FormValue("deck_id"))
+	itemID := parseOptionalInt64(r.FormValue("item_id"))
+	if deckID <= 0 || itemID <= 0 {
+		http.Error(w, "invalid item edit", http.StatusBadRequest)
+		return
+	}
+
+	text := strings.TrimSpace(r.FormValue("text"))
+	if text == "" {
+		redirectWithItemError(w, r, deckID, itemID, "Word cannot be empty.")
+		return
+	}
+	if err := a.updateItemText(r.Context(), deckID, itemID, text); err != nil {
+		if errors.Is(err, ErrDuplicateItem) {
+			redirectWithItemError(w, r, deckID, itemID, "That word is already in this deck.")
+			return
+		}
+		if errors.Is(err, sql.ErrNoRows) {
+			http.NotFound(w, r)
+			return
+		}
+		serverError(w, err)
+		return
+	}
+	redirectWithNotice(w, r, deckPath(deckID), "Updated word.")
+}
+
+func (a *App) handleItemDelete(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		methodNotAllowed(w)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "could not read form", http.StatusBadRequest)
+		return
+	}
+	deckID := parseOptionalInt64(r.FormValue("deck_id"))
+	itemID := parseOptionalInt64(r.FormValue("item_id"))
+	if deckID <= 0 || itemID <= 0 {
+		http.Error(w, "invalid item delete", http.StatusBadRequest)
+		return
+	}
+	if err := a.deleteItem(r.Context(), deckID, itemID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			http.NotFound(w, r)
+			return
+		}
+		serverError(w, err)
+		return
+	}
+	redirectWithNotice(w, r, deckPath(deckID), "Deleted word.")
 }
 
 func (a *App) handlePhrasingTrainer(w http.ResponseWriter, r *http.Request) {

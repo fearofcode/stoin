@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+var ErrDuplicateItem = errors.New("item already exists in deck")
+
 func (a *App) initSchema(ctx context.Context) error {
 	_, err := a.db.ExecContext(ctx, `
 PRAGMA foreign_keys = ON;
@@ -431,6 +433,74 @@ LIMIT 1`, deckID, word).Scan(&id)
 		return 0, false, err
 	}
 	return id, true, nil
+}
+
+func (a *App) updateItemText(ctx context.Context, deckID int64, itemID int64, text string) error {
+	tx, err := a.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	var groupID int64
+	if err := tx.QueryRowContext(ctx, `
+SELECT i.group_id
+FROM items i
+JOIN groups g ON g.id = i.group_id
+WHERE i.id = ? AND g.deck_id = ?`, itemID, deckID).Scan(&groupID); err != nil {
+		return err
+	}
+
+	var duplicateID int64
+	err = tx.QueryRowContext(ctx, `
+SELECT i.id
+FROM items i
+JOIN groups g ON g.id = i.group_id
+WHERE g.deck_id = ? AND i.text = ? AND i.id <> ?
+LIMIT 1`, deckID, text, itemID).Scan(&duplicateID)
+	if err == nil {
+		return ErrDuplicateItem
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+UPDATE items
+SET text = ?, updated_at = ?
+WHERE id = ?`,
+		text,
+		formatDBTime(time.Now().UTC()),
+		itemID,
+	); err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "constraint") {
+			return ErrDuplicateItem
+		}
+		return err
+	}
+	return tx.Commit()
+}
+
+func (a *App) deleteItem(ctx context.Context, deckID int64, itemID int64) error {
+	res, err := a.db.ExecContext(ctx, `
+DELETE FROM items
+WHERE id IN (
+	SELECT i.id
+	FROM items i
+	JOIN groups g ON g.id = i.group_id
+	WHERE i.id = ? AND g.deck_id = ?
+)`, itemID, deckID)
+	if err != nil {
+		return err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
 }
 
 func (a *App) itemsByID(ctx context.Context, ids []int64) ([]SessionItem, error) {

@@ -78,6 +78,8 @@ type DeckPageData struct {
 	Groups         []Group
 	Errors         []ParseIssue
 	Notice         string
+	EditItemID     int64
+	ItemError      string
 	Form           ImportFormData
 	TotalItems     int
 	DueCount       int

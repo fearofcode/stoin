@@ -68,11 +68,15 @@ h3 {
 
 .word-row {
 	display: grid;
-	grid-template-columns: auto 1fr auto;
+	grid-template-columns: auto minmax(160px, 1fr) auto auto;
 	gap: 10px;
 	align-items: center;
 	padding: 8px 14px;
 	border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.word-row.editing {
+	align-items: start;
 }
 
 .word-row:first-of-type {
@@ -82,6 +86,41 @@ h3 {
 .word-meta {
 	color: var(--muted);
 	font-size: 0.9em;
+	white-space: nowrap;
+}
+
+.item-actions,
+.word-edit-form {
+	align-items: center;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.inline-delete {
+	display: inline;
+	margin: 0;
+}
+
+.item-error {
+	color: #e8b8b8;
+	font-size: 0.9em;
+}
+
+.button-link {
+	border: 1px solid var(--line);
+	border-radius: 4px;
+	color: var(--text);
+	padding: 8px;
+	text-decoration: none;
+}
+
+.sr-only {
+	height: 1px;
+	margin: -1px;
+	overflow: hidden;
+	position: absolute;
+	width: 1px;
 }
 
 label {

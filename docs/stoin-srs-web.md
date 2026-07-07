@@ -18,6 +18,22 @@ Use a custom database or address directly:
 go run ./cmd/stoin-srs-web --db practice.sqlite3 --addr 127.0.0.1:8090
 ```
 
+## Backups
+
+The app exposes a live SQL dump at `/backup`, so you can back up a running app
+without copying the SQLite file directly:
+
+```sh
+curl -fsS http://127.0.0.1:8080/backup -o stoin-srs-backup.sql
+```
+
+There is also a small helper script:
+
+```sh
+scripts/stoin-srs-backup.sh
+scripts/stoin-srs-backup.sh http://127.0.0.1:8090/backup practice-backup.sql
+```
+
 ## Import Format
 
 Paste grouped text into the import form:

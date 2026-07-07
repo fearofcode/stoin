@@ -69,6 +69,10 @@ func importFormFromQuery(query url.Values) ImportFormData {
 	}
 }
 
+func deckPath(deckID int64) string {
+	return "/deck?id=" + strconv.FormatInt(deckID, 10)
+}
+
 func redirectWithNotice(w http.ResponseWriter, r *http.Request, path string, notice string) {
 	u, err := url.Parse(path)
 	if err != nil || !strings.HasPrefix(path, "/") {
@@ -76,6 +80,16 @@ func redirectWithNotice(w http.ResponseWriter, r *http.Request, path string, not
 	}
 	query := u.Query()
 	query.Set("notice", notice)
+	u.RawQuery = query.Encode()
+	http.Redirect(w, r, u.String(), http.StatusSeeOther)
+}
+
+func redirectWithItemError(w http.ResponseWriter, r *http.Request, deckID int64, itemID int64, message string) {
+	u := &url.URL{Path: "/deck"}
+	query := u.Query()
+	query.Set("id", strconv.FormatInt(deckID, 10))
+	query.Set("edit_item_id", strconv.FormatInt(itemID, 10))
+	query.Set("item_error", message)
 	u.RawQuery = query.Encode()
 	http.Redirect(w, r, u.String(), http.StatusSeeOther)
 }

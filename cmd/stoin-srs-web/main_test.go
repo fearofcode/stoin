@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -327,6 +328,143 @@ func TestPracticeAllStartsDeckSessionWithoutSelection(t *testing.T) {
 	}
 }
 
+func TestEditItemUpdatesTextAndRejectsDuplicates(t *testing.T) {
+	app := testApp(t)
+	ctx := context.Background()
+	deckID, err := app.getOrCreateDeck(ctx, "briefs", time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = app.ingestGroups(ctx, deckID, []ImportGroup{{Name: "words", Words: []string{"a", "the"}}}, "test", "one")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var itemID int64
+	if err := app.db.QueryRow(`SELECT id FROM items WHERE text = 'a'`).Scan(&itemID); err != nil {
+		t.Fatal(err)
+	}
+
+	form := url.Values{}
+	form.Set("deck_id", fmt.Sprint(deckID))
+	form.Set("item_id", fmt.Sprint(itemID))
+	form.Set("text", "an")
+	req := httptest.NewRequest(http.MethodPost, "/item/edit", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+
+	app.handleItemEdit(rec, req)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("expected redirect after edit, got %d with body %q", rec.Code, rec.Body.String())
+	}
+	if location := rec.Header().Get("Location"); !strings.HasPrefix(location, fmt.Sprintf("/deck?id=%d", deckID)) {
+		t.Fatalf("unexpected edit redirect %q", location)
+	}
+	var text string
+	if err := app.db.QueryRow(`SELECT text FROM items WHERE id = ?`, itemID).Scan(&text); err != nil {
+		t.Fatal(err)
+	}
+	if text != "an" {
+		t.Fatalf("expected edited text, got %q", text)
+	}
+
+	form.Set("text", "the")
+	req = httptest.NewRequest(http.MethodPost, "/item/edit", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec = httptest.NewRecorder()
+
+	app.handleItemEdit(rec, req)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("expected redirect after duplicate edit, got %d with body %q", rec.Code, rec.Body.String())
+	}
+	location := rec.Header().Get("Location")
+	if !strings.Contains(location, "edit_item_id=") || !strings.Contains(location, "item_error=") {
+		t.Fatalf("expected duplicate edit redirect to reopen row with error, got %q", location)
+	}
+	if err := app.db.QueryRow(`SELECT text FROM items WHERE id = ?`, itemID).Scan(&text); err != nil {
+		t.Fatal(err)
+	}
+	if text != "an" {
+		t.Fatalf("duplicate edit should not change text, got %q", text)
+	}
+}
+
+func TestEditItemRejectsEmptyText(t *testing.T) {
+	app := testApp(t)
+	ctx := context.Background()
+	deckID, err := app.getOrCreateDeck(ctx, "briefs", time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = app.ingestGroups(ctx, deckID, []ImportGroup{{Name: "words", Words: []string{"a"}}}, "test", "one")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var itemID int64
+	if err := app.db.QueryRow(`SELECT id FROM items WHERE text = 'a'`).Scan(&itemID); err != nil {
+		t.Fatal(err)
+	}
+
+	form := url.Values{}
+	form.Set("deck_id", fmt.Sprint(deckID))
+	form.Set("item_id", fmt.Sprint(itemID))
+	form.Set("text", "   ")
+	req := httptest.NewRequest(http.MethodPost, "/item/edit", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+
+	app.handleItemEdit(rec, req)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("expected redirect after empty edit, got %d", rec.Code)
+	}
+	if location := rec.Header().Get("Location"); !strings.Contains(location, "item_error=") {
+		t.Fatalf("expected empty edit redirect with error, got %q", location)
+	}
+	var text string
+	if err := app.db.QueryRow(`SELECT text FROM items WHERE id = ?`, itemID).Scan(&text); err != nil {
+		t.Fatal(err)
+	}
+	if text != "a" {
+		t.Fatalf("empty edit should not change text, got %q", text)
+	}
+}
+
+func TestDeleteItemRemovesItFromDeck(t *testing.T) {
+	app := testApp(t)
+	ctx := context.Background()
+	deckID, err := app.getOrCreateDeck(ctx, "briefs", time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = app.ingestGroups(ctx, deckID, []ImportGroup{{Name: "words", Words: []string{"a", "the"}}}, "test", "one")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var itemID int64
+	if err := app.db.QueryRow(`SELECT id FROM items WHERE text = 'a'`).Scan(&itemID); err != nil {
+		t.Fatal(err)
+	}
+
+	form := url.Values{}
+	form.Set("deck_id", fmt.Sprint(deckID))
+	form.Set("item_id", fmt.Sprint(itemID))
+	req := httptest.NewRequest(http.MethodPost, "/item/delete", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+
+	app.handleItemDelete(rec, req)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("expected redirect after delete, got %d with body %q", rec.Code, rec.Body.String())
+	}
+	var count int
+	if err := app.db.QueryRow(`SELECT COUNT(*) FROM items WHERE text = 'a'`).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatalf("expected deleted item to be gone, got count %d", count)
+	}
+}
+
 func TestParseSubmittedResultsUsesSessionRows(t *testing.T) {
 	form := url.Values{}
 	form.Add("session_index", "0")
@@ -379,6 +517,57 @@ func TestInvalidImportDoesNotCreateDeck(t *testing.T) {
 	}
 	if count != 0 {
 		t.Fatalf("expected no decks after invalid import, got %d", count)
+	}
+}
+
+func TestBackupRouteDumpsRestorableSQL(t *testing.T) {
+	app := testApp(t)
+	ctx := context.Background()
+	deckID, err := app.getOrCreateDeck(ctx, "briefs", time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = app.ingestGroups(ctx, deckID, []ImportGroup{{Name: "words", Words: []string{"can't", "the"}}}, "test", "one")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mux := http.NewServeMux()
+	app.routes(mux)
+	req := httptest.NewRequest(http.MethodGet, "/backup", nil)
+	rec := httptest.NewRecorder()
+
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected backup, got %d with body %q", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	for _, want := range []string{
+		"CREATE TABLE decks",
+		`INSERT INTO "decks"`,
+		`INSERT INTO "items"`,
+		`'can''t'`,
+		"COMMIT;",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("expected backup to contain %q, got %q", want, body)
+		}
+	}
+
+	restoreDB, err := sql.Open("sqlite", t.TempDir()+"/restore.sqlite3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer restoreDB.Close()
+	if _, err := restoreDB.Exec(body); err != nil {
+		t.Fatalf("backup did not restore: %v\n%s", err, body)
+	}
+	var restoredCount int
+	if err := restoreDB.QueryRow(`SELECT COUNT(*) FROM items`).Scan(&restoredCount); err != nil {
+		t.Fatal(err)
+	}
+	if restoredCount != 2 {
+		t.Fatalf("expected restored backup to contain 2 items, got %d", restoredCount)
 	}
 }
 
