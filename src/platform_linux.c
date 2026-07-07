@@ -128,21 +128,6 @@ static bool test_bit(unsigned int bit, const unsigned long *array, size_t array_
     return BIT_WORD(bit) < array_length && (array[BIT_WORD(bit)] & BIT_MASK(bit)) != 0;
 }
 
-static char *copy_cstring(const char *s)
-{
-    if (s == NULL) {
-        return NULL;
-    }
-
-    const size_t length = strlen(s);
-    char *copy = malloc(length + 1);
-    if (copy == NULL) {
-        return NULL;
-    }
-    memcpy(copy, s, length + 1);
-    return copy;
-}
-
 static bool key_name_equals(const char *a, const char *b)
 {
     if (a == NULL || b == NULL) {

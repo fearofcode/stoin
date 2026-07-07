@@ -1,5 +1,7 @@
 #include "platform_linux_internal.h"
 
+#include "util.h"
+
 #include <errno.h>
 #include <fcntl.h>
 #include <stdlib.h>
@@ -14,22 +16,6 @@
 #define O_CLOEXEC 0
 #endif
 
-static char *copy_range_cstring(const char *start, size_t length)
-{
-    char *copy = malloc(length + 1);
-    if (copy == NULL) {
-        return NULL;
-    }
-    memcpy(copy, start, length);
-    copy[length] = '\0';
-    return copy;
-}
-
-static char *copy_cstring(const char *s)
-{
-    return s == NULL ? NULL : copy_range_cstring(s, strlen(s));
-}
-
 static char *copy_parent_directory(const char *path)
 {
     const char *slash = strrchr(path, '/');
@@ -39,7 +25,7 @@ static char *copy_parent_directory(const char *path)
     if (slash == path) {
         return copy_cstring("/");
     }
-    return copy_range_cstring(path, (size_t)(slash - path));
+    return copy_range(path, (size_t)(slash - path));
 }
 
 bool platform_file_stamp(const char *path, Platform_File_Stamp *out_stamp)
