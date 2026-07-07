@@ -130,6 +130,25 @@ static bool handle_test_stroke(Steno *steno, const char *stroke)
     return ok;
 }
 
+static bool handle_phrase_test_stroke(Steno *steno, const char *stroke, Steno_Phrase_Mode phrase_mode)
+{
+    uint64_t bits = 0;
+    if (!stroke_string_to_bits(stroke, &bits)) {
+        fprintf(stderr, "test failed: could not parse phrase stroke '%s'\n", stroke);
+        return false;
+    }
+
+    const bool ok = steno_handle_stroke(steno, ((Stroke_Input) {
+        .bits = bits,
+        .phrase_mode = phrase_mode,
+        .phrase_namespace = true,
+    }));
+    if (!ok) {
+        fprintf(stderr, "test failed: phrase stroke '%s' was not handled\n", stroke);
+    }
+    return ok;
+}
+
 static bool expect_stroke_output(
     Steno **steno,
     const Steno_Config *config,
@@ -145,6 +164,25 @@ static bool expect_stroke_output(
     clear_test_output(output);
     reset_output_log(output);
     return handle_test_stroke(*steno, stroke)
+        && expect_string(name, output->text, expected);
+}
+
+static bool expect_phrase_stroke_output(
+    Steno **steno,
+    const Steno_Config *config,
+    Test_Output *output,
+    const char *name,
+    const char *stroke,
+    Steno_Phrase_Mode phrase_mode,
+    const char *expected
+)
+{
+    if (!reset_test_steno(steno, config)) {
+        return false;
+    }
+    clear_test_output(output);
+    reset_output_log(output);
+    return handle_phrase_test_stroke(*steno, stroke, phrase_mode)
         && expect_string(name, output->text, expected);
 }
 
@@ -683,11 +721,10 @@ int main(void)
 
     const char *phrase_lookup = NULL;
     ok = ok && steno_lookup_stroke(steno, "PW-B", &phrase_lookup);
-    ok = ok && expect_string("phrase lookup wins over dictionary", phrase_lookup, "is a");
+    ok = ok && expect_string("lookup uses dictionary without phrase namespace", phrase_lookup, "dictionary is a");
 
     const char *have_phrase_lookup = NULL;
-    ok = ok && steno_lookup_stroke(steno, "H-BD", &have_phrase_lookup);
-    ok = ok && expect_string("initial have phrase lookup", have_phrase_lookup, "had a");
+    ok = ok && !steno_lookup_stroke(steno, "H-BD", &have_phrase_lookup);
 
     const char *ampersand = NULL;
     ok = ok && steno_lookup_stroke(steno, "PH", &ampersand);
@@ -833,28 +870,26 @@ int main(void)
         Steno *phrasing_reload_steno = steno_create(&phrasing_reload_config);
         ok = ok && phrasing_reload_steno != NULL;
         if (phrasing_reload_steno != NULL) {
-            uint64_t phrase_bits = 0;
-            ok = ok && stroke_string_to_bits("PW-B", &phrase_bits);
             clear_test_output(&output);
-            ok = ok && steno_handle_stroke_bits(phrasing_reload_steno, phrase_bits);
+            ok = ok && handle_phrase_test_stroke(phrasing_reload_steno, "PW-B", STENO_PHRASE_MODE_VERBS);
             ok = ok && expect_string("hot reload initial phrasing", output.text, "is a");
 
             ok = ok && write_text_file(reload_phrasing_path, "{");
             ok = ok && !steno_reload_phrasing(phrasing_reload_steno);
             clear_test_output(&output);
-            ok = ok && steno_handle_stroke_bits(phrasing_reload_steno, phrase_bits);
+            ok = ok && handle_phrase_test_stroke(phrasing_reload_steno, "PW-B", STENO_PHRASE_MODE_VERBS);
             ok = ok && expect_string("hot reload keeps old phrasing on parse failure", output.text, " is a");
 
             ok = ok && write_text_file(reload_phrasing_path, phrasing_duplicate_tail);
             ok = ok && !steno_reload_phrasing(phrasing_reload_steno);
             clear_test_output(&output);
-            ok = ok && steno_handle_stroke_bits(phrasing_reload_steno, phrase_bits);
+            ok = ok && handle_phrase_test_stroke(phrasing_reload_steno, "PW-B", STENO_PHRASE_MODE_VERBS);
             ok = ok && expect_string("hot reload keeps old phrasing on duplicate stroke", output.text, " is a");
 
             ok = ok && write_text_file(reload_phrasing_path, phrasing_was);
             ok = ok && steno_reload_phrasing(phrasing_reload_steno);
             clear_test_output(&output);
-            ok = ok && steno_handle_stroke_bits(phrasing_reload_steno, phrase_bits);
+            ok = ok && handle_phrase_test_stroke(phrasing_reload_steno, "PW-B", STENO_PHRASE_MODE_VERBS);
             ok = ok && expect_string("hot reload updated phrasing", output.text, " was a");
 
             Watch_Test phrase_watch = {
@@ -875,7 +910,7 @@ int main(void)
             platform_file_watcher_stop();
             ok = ok && phrase_watch.reload_count > 0;
             clear_test_output(&output);
-            ok = ok && steno_handle_stroke_bits(phrasing_reload_steno, phrase_bits);
+            ok = ok && handle_phrase_test_stroke(phrasing_reload_steno, "PW-B", STENO_PHRASE_MODE_VERBS);
             ok = ok && expect_string("platform phrasing watcher reload", output.text, " are a");
             steno_destroy(phrasing_reload_steno);
         }
@@ -932,7 +967,7 @@ int main(void)
             ok = ok && stroke_string_to_bits("KAT", &trace_cat_bits);
             ok = ok && stroke_string_to_bits("#*", &trace_toggle_star_bits);
             ok = ok && steno_handle_stroke_bits(trace_steno, trace_bits);
-            ok = ok && handle_test_stroke(trace_steno, "PW-B");
+            ok = ok && handle_phrase_test_stroke(trace_steno, "PW-B", STENO_PHRASE_MODE_VERBS);
             ok = ok && handle_test_stroke(trace_steno, "#KW");
             ok = ok && handle_test_stroke(trace_steno, "SAO");
             ok = ok && steno_handle_stroke_bits(trace_steno, trace_cat_bits);
@@ -1147,14 +1182,20 @@ int main(void)
     clear_test_output(&output);
     reset_output_log(&output);
     ok = ok && steno_handle_stroke_bits(steno, phrase_is_a_bits);
-    ok = ok && expect_string("phrase wins over dictionary conflict", output.text, "is a");
+    ok = ok && expect_string("phrase is inactive without namespace", output.text, "dictionary is a");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
     reset_output_log(&output);
-    ok = ok && handle_test_stroke(steno, "PW-B");
+    ok = ok && handle_phrase_test_stroke(steno, "PW-B", STENO_PHRASE_MODE_VERBS);
+    ok = ok && expect_string("phrase wins over dictionary conflict when active", output.text, "is a");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    reset_output_log(&output);
+    ok = ok && handle_phrase_test_stroke(steno, "PW-B", STENO_PHRASE_MODE_VERBS);
     ok = ok && expect_string("initial verb is a", output.text, "is a");
-    ok = ok && handle_test_stroke(steno, "PW-T");
+    ok = ok && handle_phrase_test_stroke(steno, "PW-T", STENO_PHRASE_MODE_VERBS);
     ok = ok && expect_string("initial verb spacing", output.text, "is a is the");
     ok = ok && steno_handle_stroke_bits(steno, undo_bits);
     ok = ok && expect_string("initial verb undo", output.text, "is a");
@@ -1230,12 +1271,13 @@ int main(void)
         { "KHR-PG", "calling it" },
     };
     for (size_t i = 0; i < sizeof(initial_verb_cases) / sizeof(initial_verb_cases[0]); ++i) {
-        ok = ok && expect_stroke_output(
+        ok = ok && expect_phrase_stroke_output(
             &steno,
             &config,
             &output,
             "initial verb set 1",
             initial_verb_cases[i].stroke,
+            STENO_PHRASE_MODE_VERBS,
             initial_verb_cases[i].expected);
     }
 
@@ -1254,12 +1296,13 @@ int main(void)
         { "SRAO*E-GT", "even though" },
     };
     for (size_t i = 0; i < sizeof(nonverb_cases) / sizeof(nonverb_cases[0]); ++i) {
-        ok = ok && expect_stroke_output(
+        ok = ok && expect_phrase_stroke_output(
             &steno,
             &config,
             &output,
             "nonverb set 1",
             nonverb_cases[i].stroke,
+            STENO_PHRASE_MODE_NONVERBS,
             nonverb_cases[i].expected);
     }
 
@@ -1339,12 +1382,13 @@ int main(void)
         { "TWH-TS", "they have to" },
     };
     for (size_t i = 0; i < sizeof(final_verb_long_cases) / sizeof(final_verb_long_cases[0]); ++i) {
-        ok = ok && expect_stroke_output(
+        ok = ok && expect_phrase_stroke_output(
             &steno,
             &config,
             &output,
             "final verb long forms",
             final_verb_long_cases[i].stroke,
+            STENO_PHRASE_MODE_VERBS,
             final_verb_long_cases[i].expected);
     }
 
@@ -1362,41 +1406,53 @@ int main(void)
         { "#TWHAO-G", "they'll go" },
     };
     for (size_t i = 0; i < sizeof(final_verb_contraction_cases) / sizeof(final_verb_contraction_cases[0]); ++i) {
-        ok = ok && expect_stroke_output(
+        ok = ok && expect_phrase_stroke_output(
             &steno,
             &config,
             &output,
             "final verb contractions",
             final_verb_contraction_cases[i].stroke,
+            STENO_PHRASE_MODE_VERBS,
             final_verb_contraction_cases[i].expected);
     }
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    ok = ok && handle_test_stroke(steno, "PW-PB");
+    ok = ok && handle_phrase_test_stroke(steno, "PW-PB", STENO_PHRASE_MODE_VERBS);
     ok = ok && expect_string("unassigned IV stroke falls back to raw outline", output.text, "PW-PB");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    ok = ok && handle_test_stroke(steno, "#SKWHR-BD");
+    ok = ok && handle_phrase_test_stroke(steno, "#SKWHR-BD", STENO_PHRASE_MODE_VERBS);
     ok = ok && expect_string("unnatural contraction form stays unassigned", output.text, "#SKWHRBD");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    ok = ok && handle_test_stroke(steno, "SAO");
+    ok = ok && handle_phrase_test_stroke(steno, "SAO", STENO_PHRASE_MODE_ALL);
     ok = ok && expect_string("phrase miss falls back to raw outline", output.text, "SAO");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    ok = ok && steno_handle_stroke_bits(steno, phrase_fallback_test_bits);
-    ok = ok && expect_string("phrase miss falls back to dictionary", output.text, "test");
+    ok = ok && steno_handle_stroke(steno, ((Stroke_Input) {
+        .bits = phrase_fallback_test_bits,
+        .phrase_mode = STENO_PHRASE_MODE_ALL,
+        .phrase_namespace = true,
+    }));
+    ok = ok && expect_string("phrase miss skips dictionary lookup", output.text, "#KW");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    ok = ok && steno_handle_stroke_bits(steno, phrase_is_a_bits);
+    ok = ok && steno_handle_stroke(steno, ((Stroke_Input) {
+        .bits = phrase_is_a_bits,
+        .phrase_mode = STENO_PHRASE_MODE_VERBS,
+        .phrase_namespace = true,
+    }));
     ok = ok && steno_handle_stroke_bits(steno, phrase_fallback_test_bits);
-    ok = ok && handle_test_stroke(steno, "PW-T");
-    ok = ok && expect_string("phrases and dictionary words interleave normally", output.text, "is a test is the");
+    ok = ok && steno_handle_stroke_bits(steno, phrase_is_a_bits);
+    ok = ok && expect_string(
+        "phrases and dictionary words interleave normally",
+        output.text,
+        "is a test dictionary is a");
 
     ok = ok && reset_test_steno(&steno, &config);
     steno_set_phrase_namespace_enabled(steno, true);
@@ -1458,7 +1514,7 @@ int main(void)
     ok = ok && send_key_event(steno, "e", false);
     ok = ok && send_key_event(steno, "d", false);
     ok = ok && send_key_event(steno, "k", false);
-    ok = ok && expect_string("qwerty gathered chord uses keyboard phrase lookup", output.text, "is a");
+    ok = ok && expect_string("qwerty gathered chord ignores inactive phrase lookup", output.text, "dictionary is a");
 
     ok = ok && reset_test_steno(&steno, &config);
     steno_set_phrase_namespace_enabled(steno, true);

@@ -33,7 +33,6 @@ struct Steno {
     Orthography orthography;
     Phrasing *phrasing;
     char *phrasing_path;
-    char *lookup_translation;
     uint64_t down_keycodes;
     uint64_t chord_bits;
     Platform_File_Stamp phrasing_stamp;
@@ -1249,18 +1248,6 @@ static bool translate_chord_bits(Steno *steno, uint64_t bits)
 
 static bool translate_chord_bits_with_trace(Steno *steno, uint64_t bits, Trace_Stroke_Mode trace_mode)
 {
-    if (bits == 0) {
-        return true;
-    }
-
-    bool phrase_hit = false;
-    if (!translate_phrase_bits(steno, bits, STENO_PHRASE_MODE_ALL, &phrase_hit)) {
-        return false;
-    }
-    if (phrase_hit) {
-        return true;
-    }
-
     return translate_dictionary_bits_with_trace(steno, bits, trace_mode);
 }
 
@@ -1358,7 +1345,6 @@ void steno_destroy(Steno *steno)
     phrasing_destroy(steno->phrasing);
     dictionary_stack_destroy(&steno->dictionary_stack);
     free(steno->phrasing_path);
-    free(steno->lookup_translation);
     free(steno->spacing.spacing);
     free(steno);
 }
@@ -1516,23 +1502,6 @@ bool steno_lookup_stroke(Steno *steno, const char *stroke, const char **out_tran
 {
     if (steno == NULL) {
         return false;
-    }
-    uint64_t bits = 0;
-    if (stroke != NULL && strchr(stroke, '/') == NULL && stroke_string_to_bits(stroke, &bits)) {
-        char *phrase = NULL;
-        const Phrase_Lookup_Result result = phrasing_lookup(steno->phrasing, bits, &phrase);
-        if (result == PHRASE_LOOKUP_ERROR) {
-            free(phrase);
-            return false;
-        }
-        if (result == PHRASE_LOOKUP_HIT) {
-            free(steno->lookup_translation);
-            steno->lookup_translation = phrase;
-            if (out_translation != NULL) {
-                *out_translation = steno->lookup_translation;
-            }
-            return true;
-        }
     }
     return dictionary_lookup_stroke(&steno->dictionary_stack.dictionary, stroke, out_translation);
 }
