@@ -33,12 +33,14 @@ Simple_Engine :: struct {
 	history:    [dynamic]Applied_Translation,
 	case_mode:  Case_Mode,
 	next_case:  Case_Mode,
+	spacing:    string,
 }
 
 simple_engine_init :: proc(engine: ^Simple_Engine, dictionary: ^Dictionary) {
 	engine^ = {}
 	engine.dictionary = dictionary
 	engine.history = make([dynamic]Applied_Translation)
+	engine.spacing, _ = clone_string_ok(" ")
 }
 
 simple_engine_destroy :: proc(engine: ^Simple_Engine) {
@@ -46,7 +48,18 @@ simple_engine_destroy :: proc(engine: ^Simple_Engine) {
 		applied_translation_destroy(&engine.history[i])
 	}
 	delete(engine.history)
+	owned_string_delete(engine.spacing)
 	engine^ = {}
+}
+
+simple_engine_set_spacing :: proc(engine: ^Simple_Engine, spacing: string) -> bool {
+	copy, ok := clone_string_ok(spacing)
+	if !ok {
+		return false
+	}
+	owned_string_delete(engine.spacing)
+	engine.spacing = copy
+	return true
 }
 
 applied_translation_destroy :: proc(translation: ^Applied_Translation) {
@@ -440,28 +453,28 @@ simple_engine_previous_visible :: proc(engine: ^Simple_Engine, before_index: int
 	return nil
 }
 
-text_starts_with_spacing :: proc(text: string) -> bool {
-	return len(text) > 0 && text[0] == ' '
+text_starts_with_prefix :: proc(text: string, prefix: string) -> bool {
+	return len(prefix) > 0 && len(text) >= len(prefix) && text[:len(prefix)] == prefix
 }
 
-text_ends_with_spacing :: proc(text: string) -> bool {
-	return len(text) > 0 && text[len(text) - 1] == ' '
+text_ends_with_suffix :: proc(text: string, suffix: string) -> bool {
+	return len(suffix) > 0 && len(text) >= len(suffix) && text[len(text) - len(suffix):] == suffix
 }
 
-simple_engine_should_prepend_spacing :: proc(previous: ^Applied_Translation, formatted: ^Formatted_Text) -> bool {
-	if len(formatted.text) == 0 || formatted.attach_prev || formatted.glue || text_starts_with_spacing(formatted.text) {
+simple_engine_should_prepend_spacing :: proc(engine: ^Simple_Engine, previous: ^Applied_Translation, formatted: ^Formatted_Text) -> bool {
+	if len(formatted.text) == 0 || formatted.attach_prev || formatted.glue || len(engine.spacing) == 0 || text_starts_with_prefix(formatted.text, engine.spacing) {
 		return false
 	}
 	if previous == nil {
 		return false
 	}
-	if previous.next_attach || text_ends_with_spacing(previous.text) {
+	if previous.next_attach || text_ends_with_suffix(previous.text, engine.spacing) {
 		return false
 	}
 	return true
 }
 
-simple_engine_build_text :: proc(old_text: string, previous: ^Applied_Translation, formatted: ^Formatted_Text) -> (string, bool) {
+simple_engine_build_text :: proc(engine: ^Simple_Engine, old_text: string, previous: ^Applied_Translation, formatted: ^Formatted_Text) -> (string, bool) {
 	buffer := make([dynamic]byte)
 	defer delete(buffer)
 
@@ -484,8 +497,8 @@ simple_engine_build_text :: proc(old_text: string, previous: ^Applied_Translatio
 		} else {
 			formatted_append_string(&buffer, old_text)
 		}
-	} else if simple_engine_should_prepend_spacing(previous, formatted) {
-		append(&buffer, ' ')
+	} else if simple_engine_should_prepend_spacing(engine, previous, formatted) {
+		formatted_append_string(&buffer, engine.spacing)
 	}
 	if len(formatted.ortho_suffix) == 0 {
 		formatted_append_string(&buffer, formatted.text)
@@ -514,6 +527,13 @@ simple_engine_apply_match :: proc(engine: ^Simple_Engine, match: ^Translation_Ma
 
 	if formatted.retro_case != .Normal {
 		return simple_engine_apply_retro_case(engine, match, formatted.retro_case)
+	}
+
+	if len(formatted.mode_command) > 0 &&
+	   len(formatted.text) == 0 &&
+	   !formatted.attach_prev &&
+	   !formatted.attach_next {
+		return simple_engine_execute_mode_command(engine, formatted.mode_command)
 	}
 
 	previous_case_mode := engine.case_mode
@@ -558,7 +578,7 @@ simple_engine_apply_match :: proc(engine: ^Simple_Engine, match: ^Translation_Ma
 	}
 
 	previous := simple_engine_previous_visible(engine, replace_start)
-	next_text, next_text_ok := simple_engine_build_text(old_text, previous, &formatted)
+	next_text, next_text_ok := simple_engine_build_text(engine, old_text, previous, &formatted)
 	if old_text_owned {
 		owned_string_delete(old_text_alloc)
 	}
@@ -626,8 +646,8 @@ simple_engine_repeat_last :: proc(engine: ^Simple_Engine, command_bits: u64) -> 
 
 	buffer := make([dynamic]byte)
 	defer delete(buffer)
-	if len(last.text) > 0 && !last.glue && !last.next_attach && !text_starts_with_spacing(last.text) {
-		append(&buffer, ' ')
+	if len(last.text) > 0 && !last.glue && !last.next_attach && len(engine.spacing) > 0 && !text_starts_with_prefix(last.text, engine.spacing) {
+		formatted_append_string(&buffer, engine.spacing)
 	}
 	formatted_append_string(&buffer, last.text)
 
@@ -652,9 +672,9 @@ simple_engine_execute_command :: proc(engine: ^Simple_Engine, command: string, b
 	}
 }
 
-simple_engine_text_without_leading_spacing :: proc(text: string) -> string {
-	if len(text) > 0 && text[0] == ' ' {
-		return text[1:]
+simple_engine_text_without_leading_spacing :: proc(engine: ^Simple_Engine, text: string) -> string {
+	if text_starts_with_prefix(text, engine.spacing) {
+		return text[len(engine.spacing):]
 	}
 	return text
 }
@@ -674,7 +694,7 @@ simple_engine_apply_retro_delete_space :: proc(engine: ^Simple_Engine, match: ^T
 	buffer := make([dynamic]byte)
 	defer delete(buffer)
 	formatted_append_string(&buffer, first.text)
-	formatted_append_string(&buffer, simple_engine_text_without_leading_spacing(second.text))
+	formatted_append_string(&buffer, simple_engine_text_without_leading_spacing(engine, second.text))
 	new_text, new_text_ok := clone_bytes_to_string(buffer[:])
 	if !new_text_ok {
 		return false
@@ -783,6 +803,75 @@ simple_engine_apply_retro_case :: proc(engine: ^Simple_Engine, match: ^Translati
 	return true
 }
 
+simple_engine_ascii_equal_ignore_case :: proc(a: string, b: string) -> bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i in 0..<len(a) {
+		if simple_engine_to_lower(a[i]) != simple_engine_to_lower(b[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+simple_engine_execute_mode_command :: proc(engine: ^Simple_Engine, command: string) -> bool {
+	separator := len(command)
+	for i in 0..<len(command) {
+		if command[i] == ':' {
+			separator = i
+			break
+		}
+	}
+	name := command[:separator]
+	argument := ""
+	has_argument := separator < len(command)
+	if has_argument {
+		argument = command[separator + 1:]
+	}
+
+	if simple_engine_ascii_equal_ignore_case(name, "set_space") {
+		return simple_engine_set_spacing(engine, argument)
+	}
+	if has_argument {
+		return true
+	}
+	if simple_engine_ascii_equal_ignore_case(name, "caps") {
+		engine.case_mode = .Upper
+		return true
+	}
+	if simple_engine_ascii_equal_ignore_case(name, "title") {
+		engine.case_mode = .Title
+		return true
+	}
+	if simple_engine_ascii_equal_ignore_case(name, "lower") {
+		engine.case_mode = .Lower
+		return true
+	}
+	if simple_engine_ascii_equal_ignore_case(name, "snake") {
+		return simple_engine_set_spacing(engine, "_")
+	}
+	if simple_engine_ascii_equal_ignore_case(name, "camel") {
+		engine.case_mode = .Title
+		engine.next_case = .Lower_First_Char
+		return simple_engine_set_spacing(engine, "")
+	}
+	if simple_engine_ascii_equal_ignore_case(name, "reset") {
+		engine.case_mode = .Normal
+		engine.next_case = .Normal
+		return simple_engine_set_spacing(engine, " ")
+	}
+	if simple_engine_ascii_equal_ignore_case(name, "reset_space") {
+		return simple_engine_set_spacing(engine, " ")
+	}
+	if simple_engine_ascii_equal_ignore_case(name, "reset_case") {
+		engine.case_mode = .Normal
+		engine.next_case = .Normal
+		return true
+	}
+	return true
+}
+
 simple_engine_apply_stitch_last_word :: proc(engine: ^Simple_Engine, match: ^Translation_Match, formatted: ^Formatted_Text) -> bool {
 	translation_count := len(engine.history)
 	if match.replaced_count > translation_count {
@@ -886,7 +975,7 @@ simple_engine_apply_suffix_match :: proc(engine: ^Simple_Engine, match: ^Transla
 	}
 
 	previous := simple_engine_previous_visible(engine, replace_start)
-	base_text, base_text_ok := simple_engine_build_text(old_text, previous, &base)
+	base_text, base_text_ok := simple_engine_build_text(engine, old_text, previous, &base)
 	if old_text_owned {
 		owned_string_delete(old_text_alloc)
 	}
@@ -894,7 +983,7 @@ simple_engine_apply_suffix_match :: proc(engine: ^Simple_Engine, match: ^Transla
 		return false
 	}
 
-	final_text, final_text_ok := simple_engine_build_text(base_text, nil, &suffix)
+	final_text, final_text_ok := simple_engine_build_text(engine, base_text, nil, &suffix)
 	owned_string_delete(base_text)
 	if !final_text_ok {
 		return false

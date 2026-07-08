@@ -35,12 +35,14 @@ Formatted_Text :: struct {
 	text_case: Case_Mode,
 	next_case: Case_Mode,
 	retro_case: Case_Mode,
+	mode_command: string,
 }
 
 formatted_text_destroy :: proc(formatted: ^Formatted_Text) {
 	delete(formatted.text)
 	owned_string_delete(formatted.ortho_suffix)
 	owned_string_delete(formatted.stitch_delimiter)
+	owned_string_delete(formatted.mode_command)
 	formatted^ = {}
 }
 
@@ -196,6 +198,19 @@ formatted_parse_case_meta :: proc(formatted: ^Formatted_Text, buffer: ^[dynamic]
 	return false
 }
 
+formatted_parse_mode_meta :: proc(formatted: ^Formatted_Text, meta: string) -> bool {
+	if len(meta) < 5 || (meta[:5] != "MODE:" && meta[:5] != "mode:") {
+		return false
+	}
+	command, ok := clone_string_ok(meta[5:])
+	if !ok {
+		return false
+	}
+	owned_string_delete(formatted.mode_command)
+	formatted.mode_command = command
+	return true
+}
+
 formatted_parse_attach_meta :: proc(formatted: ^Formatted_Text, buffer: ^[dynamic]byte, meta: string, pending_attach_prev: ^bool) -> bool {
 	begin := len(meta) > 0 && meta[0] == '^'
 	end := len(meta) > 0 && meta[len(meta) - 1] == '^'
@@ -272,6 +287,10 @@ formatted_apply_meta :: proc(formatted: ^Formatted_Text, buffer: ^[dynamic]byte,
 		return true
 	}
 
+	if formatted_parse_mode_meta(formatted, meta) {
+		return true
+	}
+
 	if len(meta) == 1 && meta[0] == '*' {
 		formatted.retro_command = .Toggle_Asterisk
 		return true
@@ -296,9 +315,6 @@ formatted_apply_meta :: proc(formatted: ^Formatted_Text, buffer: ^[dynamic]byte,
 	if meta[0] == '&' {
 		formatted.glue = true
 		return formatted_append_string(buffer, meta[1:])
-	}
-	if len(meta) >= 5 && (meta[:5] == "MODE:" || meta[:5] == "mode:") {
-		return true
 	}
 	if len(meta) >= 7 && (meta[:7] == "PLOVER:" || meta[:7] == "plover:") {
 		return true

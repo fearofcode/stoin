@@ -119,12 +119,26 @@ test_format_translation_case_metadata :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_format_translation_mode_metadata :: proc(t: ^testing.T) {
+	mode, ok := format_translation_text_basic("{MODE:SET_SPACE:}")
+	defer formatted_text_destroy(&mode)
+
+	testing.expect(t, ok)
+	testing.expect_value(t, mode.text, "")
+	testing.expect_value(t, mode.mode_command, "SET_SPACE:")
+}
+
+@(test)
 test_build_text_does_not_alias_old_text :: proc(t: ^testing.T) {
 	old_text, old_ok := clone_string_ok("quick")
 	testing.expect(t, old_ok)
 
+	engine: Simple_Engine
+	simple_engine_init(&engine, nil)
+	defer simple_engine_destroy(&engine)
+
 	formatted := Formatted_Text{text = "ly", attach_prev = true}
-	next_text, next_ok := simple_engine_build_text(old_text, nil, &formatted)
+	next_text, next_ok := simple_engine_build_text(&engine, old_text, nil, &formatted)
 	defer owned_string_delete(next_text)
 	owned_string_delete(old_text)
 
@@ -315,6 +329,38 @@ test_simple_engine_case_formatting :: proc(t: ^testing.T) {
 
 	undo_restores_pending_case := [?]string{"KAT", "TP-PL", "KAT", "-R", "KAT"}
 	test_translate_sequence(t, &dictionary, undo_restores_pending_case[:], "cat. Cat")
+}
+
+@(test)
+test_simple_engine_mode_commands :: proc(t: ^testing.T) {
+	dictionary: Dictionary
+	dictionary_init(&dictionary)
+	defer dictionary_destroy(&dictionary)
+	testing.expect(t, dictionary_load(&dictionary, "tests/test-dictionary.json"))
+
+	caps_word := [?]string{"KA*PS", "KAT"}
+	test_translate_sequence(t, &dictionary, caps_word[:], "CAT")
+
+	caps_preserves_spacing := [?]string{"KAT", "KA*PS", "PWAL"}
+	test_translate_sequence(t, &dictionary, caps_preserves_spacing[:], "cat BALL")
+
+	reset_mode := [?]string{"R*EFT", "KAT"}
+	test_translate_sequence(t, &dictionary, reset_mode[:], "cat")
+
+	lower_mode := [?]string{"WRE", "PHROF"}
+	test_translate_sequence(t, &dictionary, lower_mode[:], "plover")
+
+	title_mode := [?]string{"WRU", "KAT"}
+	test_translate_sequence(t, &dictionary, title_mode[:], "Cat")
+
+	snake_mode := [?]string{"R*EFT", "WRA", "KAT", "PWAL"}
+	test_translate_sequence(t, &dictionary, snake_mode[:], "cat_ball")
+
+	empty_space := [?]string{"R*EFT", "TPHA", "KAT", "PWAL", "KPAO", "KAT"}
+	test_translate_sequence(t, &dictionary, empty_space[:], "catball cat")
+
+	camel_mode := [?]string{"R*EFT", "WRO", "KAT", "PWAL"}
+	test_translate_sequence(t, &dictionary, camel_mode[:], "catBall")
 }
 
 @(test)
