@@ -23,6 +23,10 @@ macos_tap: CFMachPortRef
 macos_run_loop_source: CFRunLoopSourceRef
 macos_run_loop: CFRunLoopRef
 
+macos_run_loop_mode :: proc() -> CF.String {
+	return CF.STR("kCFRunLoopDefaultMode")
+}
+
 macos_event_mask_bit :: proc(event_type: CGEventType) -> CGEventMask {
 	return CGEventMask(u64(1) << uint(event_type))
 }
@@ -117,7 +121,7 @@ macos_qwerty_start :: proc(owner: ^Steno_Runtime_Owner) -> bool {
 		return false
 	}
 	macos_run_loop = CFRunLoopGetCurrent()
-	CFRunLoopAddSource(macos_run_loop, macos_run_loop_source, CF.STR("kCFRunLoopCommonModes"))
+	CFRunLoopAddSource(macos_run_loop, macos_run_loop_source, macos_run_loop_mode())
 	CGEventTapEnable(macos_tap, true)
 	return true
 }
@@ -131,7 +135,7 @@ macos_qwerty_stop :: proc() {
 		CGEventTapEnable(macos_tap, false)
 	}
 	if macos_run_loop != nil && macos_run_loop_source != nil {
-		CFRunLoopRemoveSource(macos_run_loop, macos_run_loop_source, CF.STR("kCFRunLoopCommonModes"))
+		CFRunLoopRemoveSource(macos_run_loop, macos_run_loop_source, macos_run_loop_mode())
 	}
 	if macos_run_loop_source != nil {
 		CFRunLoopSourceInvalidate(macos_run_loop_source)
