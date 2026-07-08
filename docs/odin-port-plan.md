@@ -229,6 +229,11 @@ Acceptance:
 
 ## Phase 6: Serial And Pedals On macOS
 
+Status: started. A POSIX serial layer now handles serial device discovery,
+8N1-style termios setup, nonblocking byte reads, writes, flush, close, and
+basic baud validation on Darwin/Linux. TX Bolt runtime wiring, reconnect loops,
+and pedal polling are still pending.
+
 Port the current real-machine path:
 
 - POSIX serial open/configuration/read loop.
