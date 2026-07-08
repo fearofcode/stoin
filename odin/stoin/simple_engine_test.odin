@@ -62,6 +62,25 @@ test_format_translation_tracks_first_orthographic_suffix :: proc(t: ^testing.T) 
 }
 
 @(test)
+test_format_translation_stitch_metadata :: proc(t: ^testing.T) {
+	formatted, ok := format_translation_text_basic("{:stitch:A}")
+	defer formatted_text_destroy(&formatted)
+
+	testing.expect(t, ok)
+	testing.expect_value(t, formatted.text, "A")
+	testing.expect(t, formatted.stitch)
+	testing.expect(t, formatted.glue)
+	testing.expect_value(t, formatted_stitch_delimiter(&formatted), "-")
+
+	retro, retro_ok := format_translation_text_basic("{:stitch_last_word:2:-}")
+	defer formatted_text_destroy(&retro)
+	testing.expect(t, retro_ok)
+	testing.expect(t, retro.stitch_last_word)
+	testing.expect_value(t, retro.stitch_count, 2)
+	testing.expect_value(t, formatted_stitch_delimiter(&retro), "-")
+}
+
+@(test)
 test_build_text_does_not_alias_old_text :: proc(t: ^testing.T) {
 	old_text, old_ok := clone_string_ok("quick")
 	testing.expect(t, old_ok)
@@ -189,6 +208,26 @@ test_simple_engine_commands :: proc(t: ^testing.T) {
 
 	undo_repeat := [?]string{"KAT", "SKWR", "-R"}
 	test_translate_sequence(t, &dictionary, undo_repeat[:], "cat")
+}
+
+@(test)
+test_simple_engine_stitch :: proc(t: ^testing.T) {
+	dictionary: Dictionary
+	dictionary_init(&dictionary)
+	defer dictionary_destroy(&dictionary)
+	testing.expect(t, dictionary_load(&dictionary, "tests/test-dictionary.json"))
+
+	stitch_letters := [?]string{"A", "PW", "KR"}
+	test_translate_sequence(t, &dictionary, stitch_letters[:], "A-B-C")
+
+	stitch_last_word := [?]string{"TEFT", "-RBGS"}
+	test_translate_sequence(t, &dictionary, stitch_last_word[:], "t-e-s-t")
+
+	stitch_last_word_after_previous := [?]string{"AOEU", "TO", "-RBGS"}
+	test_translate_sequence(t, &dictionary, stitch_last_word_after_previous[:], "eye t-o")
+
+	stitch_last_word_supersedes := [?]string{"AOEU", "TO", "-RBGS", "-RBGS"}
+	test_translate_sequence(t, &dictionary, stitch_last_word_supersedes[:], "e-y-e t-o")
 }
 
 @(test)

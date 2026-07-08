@@ -10,11 +10,16 @@ Formatted_Text :: struct {
 	attach_prev:  bool,
 	attach_next:  bool,
 	glue:         bool,
+	stitch:       bool,
+	stitch_last_word: bool,
+	stitch_count: int,
+	stitch_delimiter: string,
 }
 
 formatted_text_destroy :: proc(formatted: ^Formatted_Text) {
 	delete(formatted.text)
 	owned_string_delete(formatted.ortho_suffix)
+	owned_string_delete(formatted.stitch_delimiter)
 	formatted^ = {}
 }
 
@@ -27,6 +32,111 @@ formatted_append_bytes :: proc(buffer: ^[dynamic]byte, data: []byte) -> bool {
 
 formatted_append_string :: proc(buffer: ^[dynamic]byte, text: string) -> bool {
 	return formatted_append_bytes(buffer, transmute([]byte)text)
+}
+
+formatted_prepend_string :: proc(formatted: ^Formatted_Text, prefix: string) -> bool {
+	buffer := make([dynamic]byte)
+	defer delete(buffer)
+	formatted_append_string(&buffer, prefix)
+	formatted_append_string(&buffer, formatted.text)
+
+	text, clone_err := strings.clone(string(buffer[:]))
+	if clone_err != nil {
+		return false
+	}
+	delete(formatted.text)
+	formatted.text = text
+	return true
+}
+
+parse_positive_int :: proc(text: string) -> (value: int, ok: bool) {
+	if len(text) == 0 {
+		return 0, false
+	}
+	for i in 0..<len(text) {
+		if text[i] < '0' || text[i] > '9' {
+			return 0, false
+		}
+		value = value * 10 + int(text[i] - '0')
+	}
+	return value, value > 0
+}
+
+formatted_set_stitch_delimiter :: proc(formatted: ^Formatted_Text, delimiter: string) -> bool {
+	copy, copy_ok := clone_string_ok(delimiter)
+	if !copy_ok {
+		return false
+	}
+	owned_string_delete(formatted.stitch_delimiter)
+	formatted.stitch_delimiter = copy
+	return true
+}
+
+formatted_stitch_delimiter :: proc(formatted: ^Formatted_Text) -> string {
+	if len(formatted.stitch_delimiter) == 0 {
+		return "-"
+	}
+	return formatted.stitch_delimiter
+}
+
+formatted_parse_stitch_meta :: proc(formatted: ^Formatted_Text, buffer: ^[dynamic]byte, meta: string) -> bool {
+	if len(meta) >= 8 && meta[:8] == ":stitch:" {
+		args := meta[8:]
+		separator := len(args)
+		for separator > 0 && args[separator - 1] != ':' {
+			separator -= 1
+		}
+
+		word := args
+		delimiter := "-"
+		if separator > 0 {
+			word = args[:separator - 1]
+			delimiter = args[separator:]
+		}
+		if len(word) == 0 {
+			return false
+		}
+
+		formatted.stitch = true
+		formatted.glue = true
+		return formatted_set_stitch_delimiter(formatted, delimiter) &&
+			formatted_append_string(buffer, word)
+	}
+
+	command := ":stitch_last_word"
+	if len(meta) < len(command) || meta[:len(command)] != command {
+		return false
+	}
+	if len(meta) > len(command) && meta[len(command)] != ':' {
+		return false
+	}
+
+	count := 1
+	delimiter := "-"
+	args := ""
+	if len(meta) > len(command) {
+		args = meta[len(command) + 1:]
+		separator := len(args)
+		for separator > 0 && args[separator - 1] != ':' {
+			separator -= 1
+		}
+		count_text := args
+		if separator > 0 {
+			count_text = args[:separator - 1]
+			delimiter = args[separator:]
+		}
+		if len(count_text) > 0 {
+			parsed_count, parsed := parse_positive_int(count_text)
+			if !parsed {
+				return false
+			}
+			count = parsed_count
+		}
+	}
+
+	formatted.stitch_last_word = true
+	formatted.stitch_count = count
+	return formatted_set_stitch_delimiter(formatted, delimiter)
 }
 
 formatted_parse_attach_meta :: proc(formatted: ^Formatted_Text, buffer: ^[dynamic]byte, meta: string, pending_attach_prev: ^bool) -> bool {
@@ -92,6 +202,10 @@ formatted_apply_meta :: proc(formatted: ^Formatted_Text, buffer: ^[dynamic]byte,
 
 	if meta[0] == '^' || meta[len(meta) - 1] == '^' {
 		return formatted_parse_attach_meta(formatted, buffer, meta, pending_attach_prev)
+	}
+
+	if formatted_parse_stitch_meta(formatted, buffer, meta) {
+		return true
 	}
 
 	if len(meta) >= 5 && meta[:5] == "glue:" {

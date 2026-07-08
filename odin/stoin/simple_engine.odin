@@ -255,6 +255,39 @@ simple_engine_range_text :: proc(engine: ^Simple_Engine, start: int, count: int)
 	return clone_bytes_to_string(buffer[:])
 }
 
+applied_translation_source_text :: proc(translation: ^Applied_Translation) -> (string, bool) {
+	if len(translation.replaced) == 0 {
+		return clone_string_ok(translation.text)
+	}
+
+	buffer := make([dynamic]byte)
+	defer delete(buffer)
+	for i in 0..<len(translation.replaced) {
+		source, source_ok := applied_translation_source_text(&translation.replaced[i])
+		if !source_ok {
+			return "", false
+		}
+		formatted_append_string(&buffer, source)
+		owned_string_delete(source)
+	}
+	return clone_bytes_to_string(buffer[:])
+}
+
+simple_engine_range_source_text :: proc(engine: ^Simple_Engine, start: int, count: int) -> (string, bool) {
+	buffer := make([dynamic]byte)
+	defer delete(buffer)
+
+	for i in start..<start + count {
+		source, source_ok := applied_translation_source_text(&engine.history[i])
+		if !source_ok {
+			return "", false
+		}
+		formatted_append_string(&buffer, source)
+		owned_string_delete(source)
+	}
+	return clone_bytes_to_string(buffer[:])
+}
+
 simple_engine_previous_visible :: proc(engine: ^Simple_Engine, before_index: int) -> (translation: ^Applied_Translation) {
 	for i := before_index; i > 0; {
 		i -= 1
@@ -329,12 +362,21 @@ simple_engine_apply_match :: proc(engine: ^Simple_Engine, match: ^Translation_Ma
 	}
 	defer formatted_text_destroy(&formatted)
 
+	if formatted.stitch_last_word {
+		return simple_engine_apply_stitch_last_word(engine, match, &formatted)
+	}
+
 	translation_count := len(engine.history)
 	replaced_count := match.replaced_count
 	strokes := make([dynamic]u64)
 	defer delete(strokes)
 
 	if replaced_count == 0 && translation_count > 0 && (formatted.attach_prev || formatted.glue && engine.history[translation_count - 1].glue) {
+		if formatted.stitch && engine.history[translation_count - 1].glue {
+			if !formatted_prepend_string(&formatted, formatted_stitch_delimiter(&formatted)) {
+				return false
+			}
+		}
 		replaced_count = 1
 		formatted.attach_prev = true
 		append_strokes(&strokes, engine.history[translation_count - 1].strokes[:])
@@ -442,6 +484,61 @@ simple_engine_execute_command :: proc(engine: ^Simple_Engine, command: string, b
 	case:
 		return true
 	}
+}
+
+simple_engine_apply_stitch_last_word :: proc(engine: ^Simple_Engine, match: ^Translation_Match, formatted: ^Formatted_Text) -> bool {
+	translation_count := len(engine.history)
+	if match.replaced_count > translation_count {
+		return false
+	}
+
+	replace_start := translation_count - match.replaced_count
+	source_text := ""
+	source_owned := false
+	for {
+		count := translation_count - replace_start
+		source, source_ok := simple_engine_range_source_text(engine, replace_start, count)
+		if !source_ok {
+			if source_owned {
+				owned_string_delete(source_text)
+			}
+			return false
+		}
+		if source_owned {
+			owned_string_delete(source_text)
+		}
+		source_text = source
+		source_owned = true
+		if stitch_token_count(source_text) >= formatted.stitch_count || replace_start == 0 {
+			break
+		}
+		replace_start -= 1
+	}
+	defer if source_owned {
+		owned_string_delete(source_text)
+	}
+
+	actual_replaced_count := translation_count - replace_start
+	new_text, new_text_ok := stitch_text_suffix(source_text, formatted.stitch_count, formatted_stitch_delimiter(formatted))
+	if !new_text_ok {
+		return false
+	}
+
+	next := Applied_Translation {
+		strokes = make([dynamic]u64),
+		text = new_text,
+	}
+	append_strokes(&next.strokes, match.strokes[:])
+	if actual_replaced_count > 0 {
+		next.replaced = make([dynamic]Applied_Translation)
+		for i := replace_start; i < translation_count; i += 1 {
+			append(&next.replaced, engine.history[i])
+		}
+	}
+
+	resize(&engine.history, replace_start)
+	append(&engine.history, next)
+	return true
 }
 
 simple_engine_apply_suffix_match :: proc(engine: ^Simple_Engine, match: ^Translation_Match) -> bool {
