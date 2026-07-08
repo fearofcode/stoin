@@ -30,6 +30,7 @@ Translation_Match :: struct {
 
 Simple_Engine :: struct {
 	dictionary: ^Dictionary,
+	dictionary_stack: ^Dictionary_Stack,
 	history:    [dynamic]Applied_Translation,
 	key_combos: [dynamic]string,
 	case_mode:  Case_Mode,
@@ -43,6 +44,11 @@ simple_engine_init :: proc(engine: ^Simple_Engine, dictionary: ^Dictionary) {
 	engine.history = make([dynamic]Applied_Translation)
 	engine.key_combos = make([dynamic]string)
 	engine.spacing, _ = clone_string_ok(" ")
+}
+
+simple_engine_init_with_stack :: proc(engine: ^Simple_Engine, stack: ^Dictionary_Stack) {
+	simple_engine_init(engine, &stack.dictionary)
+	engine.dictionary_stack = stack
 }
 
 simple_engine_destroy :: proc(engine: ^Simple_Engine) {
@@ -544,9 +550,18 @@ simple_engine_apply_match :: proc(engine: ^Simple_Engine, match: ^Translation_Ma
 	if len(formatted.mode_command) > 0 &&
 	   len(formatted.text) == 0 &&
 	   len(formatted.key_combos) == 0 &&
+	   len(formatted.plover_command) == 0 &&
 	   !formatted.attach_prev &&
 	   !formatted.attach_next {
 		return simple_engine_execute_mode_command(engine, formatted.mode_command)
+	}
+
+	if len(formatted.plover_command) > 0 &&
+	   len(formatted.text) == 0 &&
+	   len(formatted.key_combos) == 0 &&
+	   !formatted.attach_prev &&
+	   !formatted.attach_next {
+		return simple_engine_execute_plover_command(engine, formatted.plover_command)
 	}
 
 	previous_case_mode := engine.case_mode
@@ -622,6 +637,9 @@ simple_engine_apply_match :: proc(engine: ^Simple_Engine, match: ^Translation_Ma
 		return false
 	}
 	if len(formatted.mode_command) > 0 && !simple_engine_execute_mode_command(engine, formatted.mode_command) {
+		return false
+	}
+	if len(formatted.plover_command) > 0 && !simple_engine_execute_plover_command(engine, formatted.plover_command) {
 		return false
 	}
 	return true
@@ -906,7 +924,23 @@ formatted_has_deferred_action :: proc(formatted: ^Formatted_Text) -> bool {
 	return formatted.retro_command != .None ||
 		formatted.stitch_last_word ||
 		len(formatted.mode_command) > 0 ||
+		len(formatted.plover_command) > 0 ||
 		len(formatted.key_combos) > 0
+}
+
+simple_engine_execute_plover_command :: proc(engine: ^Simple_Engine, command: string) -> bool {
+	if len(command) == 0 {
+		return true
+	}
+
+	prefix := "toggle_dict:"
+	if len(command) >= len(prefix) && formatted_ascii_equal_ignore_case(command[:len(prefix)], prefix) {
+		if engine.dictionary_stack == nil {
+			return true
+		}
+		return dictionary_stack_toggle(engine.dictionary_stack, command[len(prefix):])
+	}
+	return true
 }
 
 simple_engine_apply_stitch_last_word :: proc(engine: ^Simple_Engine, match: ^Translation_Match, formatted: ^Formatted_Text) -> bool {

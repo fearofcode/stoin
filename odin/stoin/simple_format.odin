@@ -37,6 +37,7 @@ Formatted_Text :: struct {
 	next_case: Case_Mode,
 	retro_case: Case_Mode,
 	mode_command: string,
+	plover_command: string,
 	carry_case: bool,
 	cancel_formatting: bool,
 }
@@ -50,6 +51,7 @@ formatted_text_destroy :: proc(formatted: ^Formatted_Text) {
 	}
 	delete(formatted.key_combos)
 	owned_string_delete(formatted.mode_command)
+	owned_string_delete(formatted.plover_command)
 	formatted^ = {}
 }
 
@@ -275,6 +277,19 @@ formatted_parse_mode_meta :: proc(formatted: ^Formatted_Text, meta: string) -> b
 	return true
 }
 
+formatted_parse_plover_command_meta :: proc(formatted: ^Formatted_Text, meta: string) -> bool {
+	if len(meta) < 7 || !formatted_ascii_equal_ignore_case(meta[:7], "PLOVER:") {
+		return false
+	}
+	command, ok := clone_string_ok(meta[7:])
+	if !ok {
+		return false
+	}
+	owned_string_delete(formatted.plover_command)
+	formatted.plover_command = command
+	return true
+}
+
 formatted_parse_key_combo_meta :: proc(formatted: ^Formatted_Text, meta: string) -> bool {
 	if len(meta) < 2 || meta[0] != '#' {
 		return false
@@ -400,6 +415,10 @@ formatted_apply_meta :: proc(formatted: ^Formatted_Text, buffer: ^[dynamic]byte,
 		return true
 	}
 
+	if formatted_parse_plover_command_meta(formatted, meta) {
+		return true
+	}
+
 	if formatted_parse_mode_meta(formatted, meta) {
 		return true
 	}
@@ -436,9 +455,6 @@ formatted_apply_meta :: proc(formatted: ^Formatted_Text, buffer: ^[dynamic]byte,
 	if meta[0] == '&' {
 		formatted.glue = true
 		return formatted_append_string(buffer, meta[1:])
-	}
-	if len(meta) >= 7 && (meta[:7] == "PLOVER:" || meta[:7] == "plover:") {
-		return true
 	}
 	if meta[0] == '#' {
 		return true

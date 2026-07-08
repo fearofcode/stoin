@@ -160,6 +160,12 @@ test_format_translation_mode_metadata :: proc(t: ^testing.T) {
 	testing.expect(t, ok)
 	testing.expect_value(t, mode.text, "")
 	testing.expect_value(t, mode.mode_command, "SET_SPACE:")
+
+	plover, plover_ok := format_translation_text_basic("{plover:toggle_dict:!test-modal-dictionary.json}")
+	defer formatted_text_destroy(&plover)
+	testing.expect(t, plover_ok)
+	testing.expect_value(t, plover.text, "")
+	testing.expect_value(t, plover.plover_command, "toggle_dict:!test-modal-dictionary.json")
 }
 
 @(test)
@@ -449,6 +455,35 @@ test_simple_engine_key_combos :: proc(t: ^testing.T) {
 	testing.expect_value(t, text, "")
 	testing.expect_value(t, len(engine.key_combos), 1)
 	testing.expect_value(t, engine.key_combos[0], "Right")
+}
+
+@(test)
+test_simple_engine_plover_modal_toggle :: proc(t: ^testing.T) {
+	stack := test_dictionary_stack_fixture(t)
+	defer dictionary_stack_destroy(&stack)
+
+	engine: Simple_Engine
+	simple_engine_init_with_stack(&engine, &stack)
+	defer simple_engine_destroy(&engine)
+
+	toggle_bits, toggle_parsed := stroke_string_to_bits("STPH")
+	testing.expect(t, toggle_parsed)
+	testing.expect(t, simple_engine_translate_bits(&engine, toggle_bits))
+
+	left_bits, left_parsed := stroke_string_to_bits("-R")
+	testing.expect(t, left_parsed)
+	testing.expect(t, simple_engine_translate_bits(&engine, left_bits))
+
+	text, ok := simple_engine_render(&engine)
+	defer owned_string_delete(text)
+	testing.expect(t, ok)
+	testing.expect_value(t, text, "")
+	testing.expect_value(t, len(engine.key_combos), 1)
+	testing.expect_value(t, engine.key_combos[0], "Left")
+
+	translation, found := dictionary_lookup_stroke(&stack.dictionary, "-R")
+	testing.expect(t, found)
+	testing.expect_value(t, translation, "{#Left}{^}")
 }
 
 @(test)
