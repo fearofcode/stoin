@@ -222,6 +222,12 @@ simple_engine_replace_formatted_text :: proc(formatted: ^Formatted_Text, text: s
 }
 
 simple_engine_apply_case_state_to_formatted :: proc(engine: ^Simple_Engine, formatted: ^Formatted_Text) -> bool {
+	if formatted.cancel_formatting {
+		engine.next_case = .Normal
+	}
+	if formatted.carry_case && formatted.next_case == .Normal && engine.next_case != .Normal {
+		formatted.next_case = engine.next_case
+	}
 	if len(formatted.text) > 0 {
 		cased, case_ok := simple_engine_apply_case_to_text(formatted.text, engine.case_mode)
 		if !case_ok {

@@ -116,6 +116,40 @@ test_format_translation_case_metadata :: proc(t: ^testing.T) {
 	defer formatted_text_destroy(&retro)
 	testing.expect(t, retro_ok)
 	testing.expect_value(t, retro.retro_case, Case_Mode.Lower_First_Char)
+
+	cancel, cancel_ok := format_translation_text_basic("{}")
+	defer formatted_text_destroy(&cancel)
+	testing.expect(t, cancel_ok)
+	testing.expect(t, cancel.cancel_formatting)
+
+	lower_shortcut, lower_ok := format_translation_text_basic("{>}")
+	defer formatted_text_destroy(&lower_shortcut)
+	testing.expect(t, lower_ok)
+	testing.expect_value(t, lower_shortcut.next_case, Case_Mode.Lower_First_Char)
+
+	upper_shortcut, upper_ok := format_translation_text_basic("{<}")
+	defer formatted_text_destroy(&upper_shortcut)
+	testing.expect(t, upper_ok)
+	testing.expect_value(t, upper_shortcut.next_case, Case_Mode.Upper_First_Word)
+
+	cap_attach, cap_attach_ok := format_translation_text_basic("{-|}")
+	defer formatted_text_destroy(&cap_attach)
+	testing.expect(t, cap_attach_ok)
+	testing.expect_value(t, cap_attach.next_case, Case_Mode.Cap_First_Word)
+	testing.expect(t, cap_attach.attach_next)
+
+	retro_shortcut, retro_shortcut_ok := format_translation_text_basic("{*-|}")
+	defer formatted_text_destroy(&retro_shortcut)
+	testing.expect(t, retro_shortcut_ok)
+	testing.expect_value(t, retro_shortcut.retro_case, Case_Mode.Cap_First_Word)
+
+	carry, carry_ok := format_translation_text_basic("{^~|plover^}")
+	defer formatted_text_destroy(&carry)
+	testing.expect(t, carry_ok)
+	testing.expect_value(t, carry.text, "plover")
+	testing.expect(t, carry.carry_case)
+	testing.expect(t, carry.attach_prev)
+	testing.expect(t, carry.attach_next)
 }
 
 @(test)
@@ -342,6 +376,24 @@ test_simple_engine_case_formatting :: proc(t: ^testing.T) {
 
 	undo_restores_pending_case := [?]string{"KAT", "TP-PL", "KAT", "-R", "KAT"}
 	test_translate_sequence(t, &dictionary, undo_restores_pending_case[:], "cat. Cat")
+}
+
+@(test)
+test_simple_engine_cancel_and_carry_case :: proc(t: ^testing.T) {
+	dictionary: Dictionary
+	dictionary_init(&dictionary)
+	defer dictionary_destroy(&dictionary)
+
+	testing.expect(t, dictionary_put(&dictionary, "KPA", 1, "{:case:cap_first_word}"))
+	testing.expect(t, dictionary_put(&dictionary, "R-R", 1, "{}"))
+	testing.expect(t, dictionary_put(&dictionary, "PHROF", 1, "{~|plover}"))
+	testing.expect(t, dictionary_put(&dictionary, "KAT", 1, "cat"))
+
+	cancel_case := [?]string{"KPA", "R-R", "KAT"}
+	test_translate_sequence(t, &dictionary, cancel_case[:], "cat")
+
+	carry_case := [?]string{"KPA", "PHROF", "KAT"}
+	test_translate_sequence(t, &dictionary, carry_case[:], "Plover Cat")
 }
 
 @(test)

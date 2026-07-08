@@ -37,6 +37,8 @@ Formatted_Text :: struct {
 	next_case: Case_Mode,
 	retro_case: Case_Mode,
 	mode_command: string,
+	carry_case: bool,
+	cancel_formatting: bool,
 }
 
 formatted_text_destroy :: proc(formatted: ^Formatted_Text) {
@@ -168,19 +170,64 @@ formatted_parse_stitch_meta :: proc(formatted: ^Formatted_Text, buffer: ^[dynami
 }
 
 formatted_parse_case_name :: proc(name: string) -> (Case_Mode, bool) {
-	switch name {
-	case "cap_first_word":
+	if formatted_ascii_equal_ignore_case(name, "cap_first_word") {
 		return .Cap_First_Word, true
-	case "upper_first_word":
+	}
+	if formatted_ascii_equal_ignore_case(name, "upper_first_word") {
 		return .Upper_First_Word, true
-	case "lower_first_char":
+	}
+	if formatted_ascii_equal_ignore_case(name, "lower_first_char") {
 		return .Lower_First_Char, true
 	}
 	return .Normal, false
 }
 
+formatted_ascii_to_lower :: proc(c: byte) -> byte {
+	if c >= 'A' && c <= 'Z' {
+		return c + ('a' - 'A')
+	}
+	return c
+}
+
+formatted_ascii_equal_ignore_case :: proc(a: string, b: string) -> bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i in 0..<len(a) {
+		if formatted_ascii_to_lower(a[i]) != formatted_ascii_to_lower(b[i]) {
+			return false
+		}
+	}
+	return true
+}
+
 formatted_parse_case_meta :: proc(formatted: ^Formatted_Text, buffer: ^[dynamic]byte, meta: string) -> bool {
-	if len(meta) > 6 && meta[:6] == ":case:" {
+	if len(meta) == 1 && meta[0] == '>' {
+		if len(buffer^) == 0 && formatted.text_case == .Normal {
+			formatted.text_case = .Lower_First_Char
+		} else {
+			formatted.next_case = .Lower_First_Char
+		}
+		return true
+	}
+	if len(meta) == 1 && meta[0] == '<' {
+		if len(buffer^) == 0 && formatted.text_case == .Normal {
+			formatted.text_case = .Upper_First_Word
+		} else {
+			formatted.next_case = .Upper_First_Word
+		}
+		return true
+	}
+	if len(meta) == 2 && meta[0] == '-' && meta[1] == '|' {
+		if len(buffer^) == 0 && formatted.text_case == .Normal {
+			formatted.text_case = .Cap_First_Word
+		} else {
+			formatted.next_case = .Cap_First_Word
+		}
+		formatted.attach_next = true
+		return true
+	}
+	if len(meta) > 6 && formatted_ascii_equal_ignore_case(meta[:6], ":case:") {
 		mode, ok := formatted_parse_case_name(meta[6:])
 		if !ok {
 			return false
@@ -192,7 +239,7 @@ formatted_parse_case_meta :: proc(formatted: ^Formatted_Text, buffer: ^[dynamic]
 		}
 		return true
 	}
-	if len(meta) > 12 && meta[:12] == ":retro_case:" {
+	if len(meta) > 12 && formatted_ascii_equal_ignore_case(meta[:12], ":retro_case:") {
 		mode, ok := formatted_parse_case_name(meta[12:])
 		if !ok {
 			return false
@@ -200,11 +247,23 @@ formatted_parse_case_meta :: proc(formatted: ^Formatted_Text, buffer: ^[dynamic]
 		formatted.retro_case = mode
 		return true
 	}
+	if len(meta) == 3 && meta[0] == '*' && meta[1] == '-' && meta[2] == '|' {
+		formatted.retro_case = .Cap_First_Word
+		return true
+	}
+	if len(meta) == 2 && meta[0] == '*' && meta[1] == '<' {
+		formatted.retro_case = .Upper_First_Word
+		return true
+	}
+	if len(meta) == 2 && meta[0] == '*' && meta[1] == '>' {
+		formatted.retro_case = .Lower_First_Char
+		return true
+	}
 	return false
 }
 
 formatted_parse_mode_meta :: proc(formatted: ^Formatted_Text, meta: string) -> bool {
-	if len(meta) < 5 || (meta[:5] != "MODE:" && meta[:5] != "mode:") {
+	if len(meta) < 5 || !formatted_ascii_equal_ignore_case(meta[:5], "MODE:") {
 		return false
 	}
 	command, ok := clone_string_ok(meta[5:])
@@ -229,6 +288,39 @@ formatted_parse_key_combo_meta :: proc(formatted: ^Formatted_Text, meta: string)
 	}
 	append(&formatted.key_combos, combo)
 	return true
+}
+
+formatted_parse_carry_case_meta :: proc(formatted: ^Formatted_Text, buffer: ^[dynamic]byte, meta: string) -> bool {
+	separator := -1
+	for i := 0; i + 1 < len(meta); i += 1 {
+		if meta[i] == '~' && meta[i + 1] == '|' {
+			separator = i
+			break
+		}
+	}
+	if separator < 0 {
+		return false
+	}
+
+	begin := len(meta) > 0 && meta[0] == '^'
+	end := len(meta) > 0 && meta[len(meta) - 1] == '^'
+	start := separator + 2
+	end_index := len(meta)
+	if end {
+		end_index -= 1
+	}
+	if start > end_index {
+		start = end_index
+	}
+
+	if begin {
+		formatted.attach_prev = true
+	}
+	if end {
+		formatted.attach_next = true
+	}
+	formatted.carry_case = true
+	return formatted_append_string(buffer, meta[start:end_index])
 }
 
 formatted_parse_attach_meta :: proc(formatted: ^Formatted_Text, buffer: ^[dynamic]byte, meta: string, pending_attach_prev: ^bool) -> bool {
@@ -278,6 +370,7 @@ formatted_parse_attach_meta :: proc(formatted: ^Formatted_Text, buffer: ^[dynami
 
 formatted_apply_meta :: proc(formatted: ^Formatted_Text, buffer: ^[dynamic]byte, translation: string, meta: string, pending_attach_prev: ^bool) -> bool {
 	if len(meta) == 0 {
+		formatted.cancel_formatting = true
 		return true
 	}
 
@@ -295,10 +388,6 @@ formatted_apply_meta :: proc(formatted: ^Formatted_Text, buffer: ^[dynamic]byte,
 		}
 	}
 
-	if meta[0] == '^' || meta[len(meta) - 1] == '^' {
-		return formatted_parse_attach_meta(formatted, buffer, meta, pending_attach_prev)
-	}
-
 	if formatted_parse_stitch_meta(formatted, buffer, meta) {
 		return true
 	}
@@ -313,6 +402,14 @@ formatted_apply_meta :: proc(formatted: ^Formatted_Text, buffer: ^[dynamic]byte,
 
 	if formatted_parse_mode_meta(formatted, meta) {
 		return true
+	}
+
+	if formatted_parse_carry_case_meta(formatted, buffer, meta) {
+		return true
+	}
+
+	if meta[0] == '^' || meta[len(meta) - 1] == '^' {
+		return formatted_parse_attach_meta(formatted, buffer, meta, pending_attach_prev)
 	}
 
 	if len(meta) == 1 && meta[0] == '*' {
