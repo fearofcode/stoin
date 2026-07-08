@@ -1,0 +1,306 @@
+package stoin
+
+import "base:runtime"
+
+TRANSLATION_MATCH_MAX_STROKES :: 100
+
+Applied_Translation :: struct {
+	strokes:      [dynamic]u64,
+	text:         string,
+	next_attach:  bool,
+	glue:         bool,
+}
+
+Translation_Match :: struct {
+	translation:    string,
+	strokes:         [dynamic]u64,
+	replaced_count:  int,
+	outline:         string,
+	found:           bool,
+}
+
+Simple_Engine :: struct {
+	dictionary: ^Dictionary,
+	history:    [dynamic]Applied_Translation,
+}
+
+simple_engine_init :: proc(engine: ^Simple_Engine, dictionary: ^Dictionary) {
+	engine^ = {}
+	engine.dictionary = dictionary
+	engine.history = make([dynamic]Applied_Translation)
+}
+
+simple_engine_destroy :: proc(engine: ^Simple_Engine) {
+	for i in 0..<len(engine.history) {
+		applied_translation_destroy(&engine.history[i])
+	}
+	delete(engine.history)
+	engine^ = {}
+}
+
+applied_translation_destroy :: proc(translation: ^Applied_Translation) {
+	delete(translation.strokes)
+	owned_string_delete(translation.text)
+	translation^ = {}
+}
+
+translation_match_destroy :: proc(match: ^Translation_Match) {
+	delete(match.strokes)
+	owned_string_delete(match.outline)
+	match^ = {}
+}
+
+clone_bytes_to_string :: proc(data: []byte) -> (string, bool) {
+	cloned := make([]byte, len(data), runtime.heap_allocator())
+	if len(data) > 0 && len(cloned) != len(data) {
+		return "", false
+	}
+	copy(cloned, data)
+	return string(cloned), true
+}
+
+clone_string_ok :: proc(s: string) -> (string, bool) {
+	return clone_bytes_to_string(transmute([]byte)s)
+}
+
+owned_string_delete :: proc(text: string) {
+	if len(text) != 0 {
+		delete(text, runtime.heap_allocator())
+	}
+}
+
+stroke_sequence_to_string_alloc :: proc(strokes: []u64) -> (outline: string, ok: bool) {
+	buffer: [DICTIONARY_MAX_OUTLINE_BYTES]byte
+	n, formatted := strokes_to_outline_key(strokes, buffer[:])
+	if !formatted {
+		return "", false
+	}
+	return clone_bytes_to_string(buffer[:n])
+}
+
+simple_engine_lookup_stroke_limit :: proc(dictionary: ^Dictionary) -> int {
+	max_strokes := dictionary_longest_key(dictionary)
+	if max_strokes == 0 || max_strokes > TRANSLATION_MATCH_MAX_STROKES {
+		max_strokes = TRANSLATION_MATCH_MAX_STROKES
+	}
+	return max_strokes
+}
+
+append_strokes :: proc(out: ^[dynamic]u64, strokes: []u64) {
+	for stroke in strokes {
+		append(out, stroke)
+	}
+}
+
+simple_engine_find_match :: proc(engine: ^Simple_Engine, bits: u64) -> (match: Translation_Match, ok: bool) {
+	max_strokes := simple_engine_lookup_stroke_limit(engine.dictionary)
+	candidate := make([dynamic]u64)
+	defer delete(candidate)
+	append(&candidate, bits)
+
+	replaced_count := 0
+	if translation, found := dictionary_lookup_strokes(engine.dictionary, candidate[:]); found && len(translation) > 0 && translation[0] != '=' {
+		match.translation = translation
+		match.replaced_count = replaced_count
+		match.found = true
+	}
+
+	for i := len(engine.history); i > 0 && len(candidate) < max_strokes; {
+		i -= 1
+		previous := &engine.history[i]
+		if len(previous.strokes) == 0 || len(candidate) + len(previous.strokes) > max_strokes {
+			break
+		}
+
+		next_candidate := make([dynamic]u64)
+		append_strokes(&next_candidate, previous.strokes[:])
+		append_strokes(&next_candidate, candidate[:])
+		delete(candidate)
+		candidate = next_candidate
+		replaced_count += 1
+
+		if translation, found := dictionary_lookup_strokes(engine.dictionary, candidate[:]); found && len(translation) > 0 && translation[0] != '=' {
+			match.translation = translation
+			match.replaced_count = replaced_count
+			match.found = true
+		}
+	}
+
+	if !match.found {
+		outline, outline_ok := stroke_sequence_to_string_alloc(candidate[:])
+		if !outline_ok {
+			return {}, false
+		}
+		match.translation = outline
+		match.outline = outline
+		match.found = false
+	} else {
+		outline, outline_ok := stroke_sequence_to_string_alloc(candidate[:])
+		if !outline_ok {
+			translation_match_destroy(&match)
+			return {}, false
+		}
+		match.outline = outline
+	}
+
+	match.strokes = make([dynamic]u64)
+	append_strokes(&match.strokes, candidate[:])
+	return match, true
+}
+
+simple_engine_range_text :: proc(engine: ^Simple_Engine, start: int, count: int) -> (string, bool) {
+	buffer := make([dynamic]byte)
+	defer delete(buffer)
+
+	for i in start..<start + count {
+		formatted_append_string(&buffer, engine.history[i].text)
+	}
+	return clone_bytes_to_string(buffer[:])
+}
+
+simple_engine_previous_visible :: proc(engine: ^Simple_Engine, before_index: int) -> (translation: ^Applied_Translation) {
+	for i := before_index; i > 0; {
+		i -= 1
+		if len(engine.history[i].text) > 0 {
+			return &engine.history[i]
+		}
+	}
+	return nil
+}
+
+text_starts_with_spacing :: proc(text: string) -> bool {
+	return len(text) > 0 && text[0] == ' '
+}
+
+text_ends_with_spacing :: proc(text: string) -> bool {
+	return len(text) > 0 && text[len(text) - 1] == ' '
+}
+
+simple_engine_should_prepend_spacing :: proc(previous: ^Applied_Translation, formatted: ^Formatted_Text) -> bool {
+	if len(formatted.text) == 0 || formatted.attach_prev || formatted.glue || text_starts_with_spacing(formatted.text) {
+		return false
+	}
+	if previous == nil {
+		return false
+	}
+	if previous.next_attach || text_ends_with_spacing(previous.text) {
+		return false
+	}
+	return true
+}
+
+simple_engine_build_text :: proc(old_text: string, previous: ^Applied_Translation, formatted: ^Formatted_Text) -> (string, bool) {
+	buffer := make([dynamic]byte)
+	defer delete(buffer)
+
+	if formatted.attach_prev {
+		formatted_append_string(&buffer, old_text)
+	} else if simple_engine_should_prepend_spacing(previous, formatted) {
+		append(&buffer, ' ')
+	}
+	formatted_append_string(&buffer, formatted.text)
+	return clone_bytes_to_string(buffer[:])
+}
+
+simple_engine_apply_match :: proc(engine: ^Simple_Engine, match: ^Translation_Match) -> bool {
+	formatted, formatted_ok := format_translation_text_basic(match.translation)
+	if !formatted_ok {
+		return false
+	}
+	defer formatted_text_destroy(&formatted)
+
+	translation_count := len(engine.history)
+	replaced_count := match.replaced_count
+	strokes := make([dynamic]u64)
+	defer delete(strokes)
+
+	if replaced_count == 0 && translation_count > 0 && (formatted.attach_prev || formatted.glue && engine.history[translation_count - 1].glue) {
+		replaced_count = 1
+		formatted.attach_prev = true
+		append_strokes(&strokes, engine.history[translation_count - 1].strokes[:])
+	}
+	append_strokes(&strokes, match.strokes[:])
+
+	if replaced_count > translation_count {
+		return false
+	}
+
+	replace_start := translation_count - replaced_count
+	old_text := ""
+	old_text_alloc := ""
+	old_text_owned := false
+	if replaced_count > 0 {
+		old_text_ok: bool
+		old_text_alloc, old_text_ok = simple_engine_range_text(engine, replace_start, replaced_count)
+		if !old_text_ok {
+			return false
+		}
+		old_text_owned = true
+		old_text = old_text_alloc
+	}
+
+	previous := simple_engine_previous_visible(engine, replace_start)
+	next_text, next_text_ok := simple_engine_build_text(old_text, previous, &formatted)
+	if old_text_owned {
+		owned_string_delete(old_text_alloc)
+	}
+	if !next_text_ok {
+		return false
+	}
+
+	for i := replace_start; i < translation_count; i += 1 {
+		applied_translation_destroy(&engine.history[i])
+	}
+	resize(&engine.history, replace_start)
+
+	next := Applied_Translation {
+		strokes = make([dynamic]u64),
+		text = next_text,
+		next_attach = formatted.attach_next,
+		glue = formatted.glue,
+	}
+	append_strokes(&next.strokes, strokes[:])
+	append(&engine.history, next)
+	return true
+}
+
+simple_engine_translate_bits :: proc(engine: ^Simple_Engine, bits: u64) -> bool {
+	match, match_ok := simple_engine_find_match(engine, bits)
+	if !match_ok {
+		return false
+	}
+	defer translation_match_destroy(&match)
+
+	return simple_engine_apply_match(engine, &match)
+}
+
+simple_engine_render :: proc(engine: ^Simple_Engine) -> (string, bool) {
+	buffer := make([dynamic]byte)
+	defer delete(buffer)
+
+	for translation in engine.history {
+		formatted_append_string(&buffer, translation.text)
+	}
+	return clone_bytes_to_string(buffer[:])
+}
+
+translate_outline_sequence :: proc(dictionary: ^Dictionary, outlines: []string) -> (text: string, ok: bool) {
+	engine: Simple_Engine
+	simple_engine_init(&engine, dictionary)
+
+	for outline in outlines {
+		bits, parsed := stroke_string_to_bits(outline)
+		if !parsed {
+			simple_engine_destroy(&engine)
+			return "", false
+		}
+		if !simple_engine_translate_bits(&engine, bits) {
+			simple_engine_destroy(&engine)
+			return "", false
+		}
+	}
+
+	text, ok = simple_engine_render(&engine)
+	simple_engine_destroy(&engine)
+	return text, ok
+}

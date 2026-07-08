@@ -9,9 +9,10 @@ print_help :: proc() {
 	fmt.println("Usage:")
 	fmt.println("  stoin [--help]")
 	fmt.println("  stoin --dict PATH --lookup OUTLINE [--lookup OUTLINE...]")
+	fmt.println("  stoin --dict PATH [--dict PATH...] --translate OUTLINE [OUTLINE...]")
 	fmt.println("")
 	fmt.println("This binary is Phase 0 of the Odin port. Use the C binary for stenography until parity is complete.")
-	fmt.println("The --dict/--lookup path is a temporary manual checkpoint for exact dictionary lookups.")
+	fmt.println("The --dict lookup and translate paths are temporary manual checkpoints for the Odin port.")
 }
 
 main :: proc() {
@@ -30,6 +31,11 @@ main :: proc() {
 		return
 	case .Lookup:
 		if !run_lookup_cli(&config) {
+			os.exit(1)
+		}
+		return
+	case .Translate:
+		if !run_translate_cli(&config) {
 			os.exit(1)
 		}
 		return

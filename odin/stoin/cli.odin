@@ -1,6 +1,7 @@
 package stoin
 
 import "core:fmt"
+import "core:os"
 
 APP_NAME :: "stoin"
 
@@ -8,12 +9,14 @@ Cli_Mode :: enum {
 	Scaffold,
 	Help,
 	Lookup,
+	Translate,
 }
 
 Cli_Config :: struct {
 	mode:          Cli_Mode,
 	dict_paths:    [dynamic]string,
 	lookups:       [dynamic]string,
+	translates:     [dynamic]string,
 	error_message: string,
 }
 
@@ -21,6 +24,7 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 	config.mode = .Scaffold
 	config.dict_paths = make([dynamic]string)
 	config.lookups = make([dynamic]string)
+	config.translates = make([dynamic]string)
 
 	for i := 1; i < len(args); i += 1 {
 		arg := args[i]
@@ -41,10 +45,24 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 			}
 			append(&config.lookups, args[i + 1])
 			i += 1
+		case "--translate":
+			if i + 1 >= len(args) {
+				config.error_message = "--translate requires at least one outline"
+				return config, false
+			}
+			for j := i + 1; j < len(args); j += 1 {
+				append(&config.translates, args[j])
+			}
+			i = len(args)
 		case:
 			config.error_message = "unknown argument"
 			return config, false
 		}
+	}
+
+	if len(config.lookups) > 0 && len(config.translates) > 0 {
+		config.error_message = "--lookup and --translate cannot be combined"
+		return config, false
 	}
 
 	if len(config.lookups) > 0 {
@@ -53,8 +71,14 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 			config.error_message = "--lookup requires at least one --dict"
 			return config, false
 		}
+	} else if len(config.translates) > 0 {
+		config.mode = .Translate
+		if len(config.dict_paths) == 0 {
+			config.error_message = "--translate requires at least one --dict"
+			return config, false
+		}
 	} else if len(config.dict_paths) > 0 {
-		config.error_message = "--dict requires at least one --lookup"
+		config.error_message = "--dict requires --lookup or --translate"
 		return config, false
 	}
 
@@ -64,6 +88,7 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 cli_config_destroy :: proc(config: ^Cli_Config) {
 	delete(config.dict_paths)
 	delete(config.lookups)
+	delete(config.translates)
 	config^ = {}
 }
 
@@ -80,11 +105,50 @@ run_lookup_cli :: proc(config: ^Cli_Config) -> bool {
 	all_ok := true
 	for outline in config.lookups {
 		if translation, found := dictionary_lookup_stroke(&dictionary, outline); found {
-			fmt.printfln("%s -> %s", outline, translation)
+			cli_write(outline)
+			cli_write(" -> ")
+			cli_write_line(translation)
 		} else {
-			fmt.eprintfln("stoin: no exact dictionary entry for %s", outline)
+			fmt.eprintln("stoin: no exact dictionary entry for", outline)
 			all_ok = false
 		}
 	}
 	return all_ok
+}
+
+run_translate_cli :: proc(config: ^Cli_Config) -> bool {
+	dictionary: Dictionary
+	dictionary_init(&dictionary)
+	defer dictionary_destroy(&dictionary)
+
+	if !dictionary_load_many(&dictionary, config.dict_paths[:]) {
+		fmt.eprintln("stoin: failed to load dictionary")
+		return false
+	}
+
+	text, ok := translate_outline_sequence(&dictionary, config.translates[:])
+	if !ok {
+		fmt.eprintln("stoin: failed to translate outline sequence")
+		return false
+	}
+	defer owned_string_delete(text)
+
+	for outline, i in config.translates {
+		if i != 0 {
+			cli_write("/")
+		}
+		cli_write(outline)
+	}
+	cli_write(" -> ")
+	cli_write_line(text)
+	return true
+}
+
+cli_write :: proc(text: string) {
+	_, _ = os.write_string(os.stdout, text)
+}
+
+cli_write_line :: proc(text: string) {
+	cli_write(text)
+	cli_write("\n")
 }
