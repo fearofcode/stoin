@@ -446,6 +446,18 @@ steno_phrase_lookup_mode_from_runtime_mode :: proc(mode: Steno_Phrase_Mode) -> P
 	return .All
 }
 
+steno_phrase_mode_from_lookup_mode :: proc(mode: Phrase_Lookup_Mode) -> Steno_Phrase_Mode {
+	switch mode {
+	case .Verbs:
+		return .Verbs
+	case .Nonverbs:
+		return .Nonverbs
+	case .All:
+		return .All
+	}
+	return .All
+}
+
 steno_normalize_stroke_phrase_mode :: proc(stroke: Stroke_Input, current_mode: Steno_Phrase_Mode) -> Steno_Phrase_Mode {
 	if stroke.phrase_mode != .None {
 		return stroke.phrase_mode

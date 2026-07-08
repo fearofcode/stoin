@@ -175,46 +175,67 @@ run_lookup_cli :: proc(config: ^Cli_Config) -> bool {
 	return all_ok
 }
 
-run_translate_cli :: proc(config: ^Cli_Config) -> bool {
-	dictionary: Dictionary
-	dictionary_init(&dictionary)
-	defer dictionary_destroy(&dictionary)
+Cli_Runtime_Output :: struct {
+	text:                [dynamic]byte,
+	suggestion_log_file: ^os.File,
+}
 
-	if !dictionary_load_many(&dictionary, config.dict_paths[:]) {
-		fmt.eprintln("stoin: failed to load dictionary")
+cli_runtime_output_init :: proc(output: ^Cli_Runtime_Output) {
+	output^ = {}
+	output.text = make([dynamic]byte)
+}
+
+cli_runtime_output_destroy :: proc(output: ^Cli_Runtime_Output) {
+	delete(output.text)
+	output^ = {}
+}
+
+cli_runtime_send_text :: proc(text: string, userdata: rawptr) -> bool {
+	output := (^Cli_Runtime_Output)(userdata)
+	if output == nil {
 		return false
 	}
-
-	phrasing: Phrasing
-	if config.phrase_mode_enabled {
-		phrasing_ok: bool
-		phrasing, phrasing_ok = phrasing_load(config.phrasing_path)
-		if !phrasing_ok {
-			fmt.eprintln("stoin: failed to load phrasing")
-			return false
-		}
+	for b in transmute([]byte)text {
+		append(&output.text, b)
 	}
-	defer if config.phrase_mode_enabled {
-		phrasing_destroy(&phrasing)
-	}
+	return true
+}
 
-	engine: Simple_Engine
-	simple_engine_init(&engine, &dictionary)
-	defer simple_engine_destroy(&engine)
-
-	orthography: Orthography
-	if len(config.orthography_path) > 0 {
-		orthography_init(&orthography)
-		if !orthography_load(&orthography, config.orthography_path) {
-			fmt.eprintln("stoin: failed to load orthography word list")
-			return false
-		}
-		simple_engine_set_orthography(&engine, &orthography)
+cli_runtime_delete_text :: proc(text: string, userdata: rawptr) -> bool {
+	output := (^Cli_Runtime_Output)(userdata)
+	if output == nil || len(text) > len(output.text) {
+		return false
 	}
-	defer if len(config.orthography_path) > 0 {
-		orthography_destroy(&orthography)
+	start := len(output.text) - len(text)
+	if string(output.text[start:]) != text {
+		return false
 	}
+	resize(&output.text, start)
+	return true
+}
 
+cli_runtime_send_key_combination :: proc(combo: string, userdata: rawptr) -> bool {
+	_ = combo
+	_ = userdata
+	return true
+}
+
+cli_runtime_write_suggestion :: proc(line: string, userdata: rawptr) -> bool {
+	_ = userdata
+	cli_write(line)
+	return true
+}
+
+cli_runtime_write_suggestion_log :: proc(line: string, userdata: rawptr) -> bool {
+	output := (^Cli_Runtime_Output)(userdata)
+	if output == nil || output.suggestion_log_file == nil {
+		return false
+	}
+	_, write_err := os.write_string(output.suggestion_log_file, line)
+	return write_err == nil
+}
+
+run_translate_cli :: proc(config: ^Cli_Config) -> bool {
 	suggestion_log_file: ^os.File
 	if len(config.suggestion_log_path) > 0 {
 		open_file, open_err := os.open(
@@ -232,46 +253,55 @@ run_translate_cli :: proc(config: ^Cli_Config) -> bool {
 		os.close(suggestion_log_file)
 	}
 
+	output: Cli_Runtime_Output
+	cli_runtime_output_init(&output)
+	output.suggestion_log_file = suggestion_log_file
+	defer cli_runtime_output_destroy(&output)
+
+	runtime_config := Steno_Runtime_Load_Config {
+		dictionary_paths = config.dict_paths[:],
+		orthography_path = config.orthography_path,
+		send_text = cli_runtime_send_text,
+		delete_text = cli_runtime_delete_text,
+		send_key_combination = cli_runtime_send_key_combination,
+		userdata = rawptr(&output),
+	}
+	if config.phrase_mode_enabled {
+		runtime_config.phrasing_path = config.phrasing_path
+	}
+	if config.print_suggestions {
+		runtime_config.write_suggestion = cli_runtime_write_suggestion
+	}
+	if suggestion_log_file != nil {
+		runtime_config.write_suggestion_log = cli_runtime_write_suggestion_log
+	}
+
+	owner: Steno_Runtime_Owner
+	if !steno_runtime_owner_init(&owner, &runtime_config) {
+		fmt.eprintln("stoin: failed to initialize runtime")
+		return false
+	}
+	defer steno_runtime_owner_destroy(&owner)
+
 	for outline in config.translates {
 		bits, parsed := stroke_string_to_bits(outline)
 		translated := false
 		if parsed {
 			if config.phrase_mode_enabled {
-				translated = simple_engine_translate_phrase_bits(&engine, &phrasing, bits, config.phrase_mode)
+				translated = steno_runtime_owner_handle_stroke(&owner, Stroke_Input {
+					bits = bits,
+					phrase_namespace = true,
+					phrase_mode = steno_phrase_mode_from_lookup_mode(config.phrase_mode),
+				})
 			} else {
-				translated = simple_engine_translate_bits(&engine, bits)
+				translated = steno_runtime_owner_handle_stroke_bits(&owner, bits)
 			}
 		}
 		if !parsed || !translated {
 			fmt.eprintln("stoin: failed to translate outline sequence")
 			return false
 		}
-		if config.print_suggestions || suggestion_log_file != nil {
-			suggestion, found := brevity_suggest(&engine)
-			if found {
-				if suggestion_log_file != nil && !brevity_log_suggestion(suggestion_log_file, &suggestion) {
-					brevity_suggestion_destroy(&suggestion)
-					fmt.eprintln("stoin: failed to write suggestion log")
-					return false
-				}
-				if config.print_suggestions {
-					cli_write("Suggestion: Use ")
-					cli_write(suggestion.suggested_outline)
-					cli_write(" for \"")
-					cli_write(suggestion.text)
-					cli_write_line("\"")
-				}
-				brevity_suggestion_destroy(&suggestion)
-			}
-		}
 	}
-
-	text, ok := simple_engine_render(&engine)
-	if !ok {
-		fmt.eprintln("stoin: failed to render outline sequence")
-		return false
-	}
-	defer owned_string_delete(text)
 
 	for outline, i in config.translates {
 		if i != 0 {
@@ -280,7 +310,7 @@ run_translate_cli :: proc(config: ^Cli_Config) -> bool {
 		cli_write(outline)
 	}
 	cli_write(" -> ")
-	cli_write_line(text)
+	cli_write_line(string(output.text[:]))
 	return true
 }
 
