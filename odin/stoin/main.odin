@@ -9,7 +9,7 @@ print_help :: proc() {
 	fmt.println("Usage:")
 	fmt.println("  stoin [--help]")
 	fmt.println("  stoin --dict PATH --lookup OUTLINE [--lookup OUTLINE...]")
-	fmt.println("  stoin --dict PATH [--dict PATH...] --translate OUTLINE [OUTLINE...]")
+	fmt.println("  stoin --dict PATH [--dict PATH...] [--print-suggestions] --translate OUTLINE [OUTLINE...]")
 	fmt.println("")
 	fmt.println("This binary is Phase 0 of the Odin port. Use the C binary for stenography until parity is complete.")
 	fmt.println("The --dict lookup and translate paths are temporary manual checkpoints for the Odin port.")

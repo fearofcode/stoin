@@ -57,3 +57,25 @@ test_outline_canonicalization :: proc(t: ^testing.T) {
 	_, _, ok = outline_to_canonical_key("1", buffer[:])
 	testing.expect(t, !ok)
 }
+
+@(test)
+test_dictionary_find_translation_outline :: proc(t: ^testing.T) {
+	dictionary: Dictionary
+	dictionary_init(&dictionary)
+	defer dictionary_destroy(&dictionary)
+	testing.expect(t, dictionary_load(&dictionary, "tests/test-dictionary.json"))
+
+	outline, found := dictionary_find_translation_outline(&dictionary, "in the", "TPH/-T", 1)
+	testing.expect(t, found)
+	testing.expect_value(t, outline, "TPH-T")
+	owned_string_delete(outline)
+
+	outline, found = dictionary_find_translation_outline(&dictionary, "quickly", "KWEUBG/-L", 1)
+	testing.expect(t, found)
+	testing.expect_value(t, outline, "KWEUL")
+	owned_string_delete(outline)
+
+	outline, found = dictionary_find_translation_outline(&dictionary, "in the", "TPH-T", 1)
+	testing.expect(t, !found)
+	owned_string_delete(outline)
+}

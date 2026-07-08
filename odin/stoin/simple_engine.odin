@@ -97,12 +97,15 @@ simple_engine_find_match :: proc(engine: ^Simple_Engine, bits: u64) -> (match: T
 	candidate := make([dynamic]u64)
 	defer delete(candidate)
 	append(&candidate, bits)
+	best_candidate := make([dynamic]u64)
+	defer delete(best_candidate)
 
 	replaced_count := 0
 	if translation, found := dictionary_lookup_strokes(engine.dictionary, candidate[:]); found && len(translation) > 0 && translation[0] != '=' {
 		match.translation = translation
 		match.replaced_count = replaced_count
 		match.found = true
+		append_strokes(&best_candidate, candidate[:])
 	}
 
 	for i := len(engine.history); i > 0 && len(candidate) < max_strokes; {
@@ -123,28 +126,33 @@ simple_engine_find_match :: proc(engine: ^Simple_Engine, bits: u64) -> (match: T
 			match.translation = translation
 			match.replaced_count = replaced_count
 			match.found = true
+			resize(&best_candidate, 0)
+			append_strokes(&best_candidate, candidate[:])
 		}
 	}
 
 	if !match.found {
-		outline, outline_ok := stroke_sequence_to_string_alloc(candidate[:])
+		current := [?]u64{bits}
+		outline, outline_ok := stroke_sequence_to_string_alloc(current[:])
 		if !outline_ok {
 			return {}, false
 		}
 		match.translation = outline
 		match.outline = outline
 		match.found = false
+		match.strokes = make([dynamic]u64)
+		append_strokes(&match.strokes, current[:])
 	} else {
-		outline, outline_ok := stroke_sequence_to_string_alloc(candidate[:])
+		outline, outline_ok := stroke_sequence_to_string_alloc(best_candidate[:])
 		if !outline_ok {
 			translation_match_destroy(&match)
 			return {}, false
 		}
 		match.outline = outline
+		match.strokes = make([dynamic]u64)
+		append_strokes(&match.strokes, best_candidate[:])
 	}
 
-	match.strokes = make([dynamic]u64)
-	append_strokes(&match.strokes, candidate[:])
 	return match, true
 }
 

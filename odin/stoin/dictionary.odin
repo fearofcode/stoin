@@ -11,6 +11,28 @@ Dictionary :: struct {
 	longest_key: int,
 }
 
+string_compare_ascii :: proc(a: string, b: string) -> int {
+	length := len(a)
+	if len(b) < length {
+		length = len(b)
+	}
+	for i in 0..<length {
+		if a[i] < b[i] {
+			return -1
+		}
+		if a[i] > b[i] {
+			return 1
+		}
+	}
+	if len(a) < len(b) {
+		return -1
+	}
+	if len(a) > len(b) {
+		return 1
+	}
+	return 0
+}
+
 append_bytes_to_buffer :: proc(out: []byte, index: ^int, data: []byte) -> bool {
 	if index^ + len(data) > len(out) {
 		return false
@@ -243,4 +265,45 @@ dictionary_lookup_stroke :: proc(dictionary: ^Dictionary, outline: string) -> (t
 	}
 
 	return dictionary.entries[string(canonical_buffer[:canonical_len])]
+}
+
+dictionary_find_translation_outline :: proc(dictionary: ^Dictionary, translation: string, exclude_outline: string, max_stroke_count: int) -> (outline: string, ok: bool) {
+	if dictionary.entries == nil {
+		return "", false
+	}
+
+	best_outline := ""
+	best_stroke_count := 0
+	best_outline_length := 0
+	for outline_key, value in dictionary.entries {
+		if len(value) > 0 && value[0] == '=' {
+			continue
+		}
+		if value != translation {
+			continue
+		}
+		if len(exclude_outline) > 0 && outline_key == exclude_outline {
+			continue
+		}
+
+		stroke_count := outline_key_stroke_count(outline_key)
+		if stroke_count == 0 || (max_stroke_count > 0 && stroke_count > max_stroke_count) {
+			continue
+		}
+
+		outline_length := len(outline_key)
+		if len(best_outline) == 0 ||
+		   stroke_count < best_stroke_count ||
+		   (stroke_count == best_stroke_count && outline_length < best_outline_length) ||
+		   (stroke_count == best_stroke_count && outline_length == best_outline_length && string_compare_ascii(outline_key, best_outline) < 0) {
+			best_outline = outline_key
+			best_stroke_count = stroke_count
+			best_outline_length = outline_length
+		}
+	}
+
+	if len(best_outline) == 0 {
+		return "", false
+	}
+	return clone_string_ok(best_outline)
 }

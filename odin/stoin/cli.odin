@@ -17,6 +17,7 @@ Cli_Config :: struct {
 	dict_paths:    [dynamic]string,
 	lookups:       [dynamic]string,
 	translates:     [dynamic]string,
+	print_suggestions: bool,
 	error_message: string,
 }
 
@@ -45,6 +46,8 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 			}
 			append(&config.lookups, args[i + 1])
 			i += 1
+		case "--print-suggestions":
+			config.print_suggestions = true
 		case "--translate":
 			if i + 1 >= len(args) {
 				config.error_message = "--translate requires at least one outline"
@@ -126,9 +129,32 @@ run_translate_cli :: proc(config: ^Cli_Config) -> bool {
 		return false
 	}
 
-	text, ok := translate_outline_sequence(&dictionary, config.translates[:])
+	engine: Simple_Engine
+	simple_engine_init(&engine, &dictionary)
+	defer simple_engine_destroy(&engine)
+
+	for outline in config.translates {
+		bits, parsed := stroke_string_to_bits(outline)
+		if !parsed || !simple_engine_translate_bits(&engine, bits) {
+			fmt.eprintln("stoin: failed to translate outline sequence")
+			return false
+		}
+		if config.print_suggestions {
+			suggestion, found := brevity_suggest(&engine)
+			if found {
+				cli_write("Suggestion: Use ")
+				cli_write(suggestion.suggested_outline)
+				cli_write(" for \"")
+				cli_write(suggestion.text)
+				cli_write_line("\"")
+				brevity_suggestion_destroy(&suggestion)
+			}
+		}
+	}
+
+	text, ok := simple_engine_render(&engine)
 	if !ok {
-		fmt.eprintln("stoin: failed to translate outline sequence")
+		fmt.eprintln("stoin: failed to render outline sequence")
 		return false
 	}
 	defer owned_string_delete(text)

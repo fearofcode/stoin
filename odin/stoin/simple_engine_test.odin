@@ -16,6 +16,27 @@ test_translate_sequence :: proc(t: ^testing.T, dictionary: ^Dictionary, outlines
 	testing.expect_value(t, text, expected)
 }
 
+test_suggestion_after_sequence :: proc(t: ^testing.T, dictionary: ^Dictionary, outlines: []string, expected_outline: string, expected_text: string, expected_typed_outline: string, expected_typed_strokes: int) {
+	engine: Simple_Engine
+	simple_engine_init(&engine, dictionary)
+	defer simple_engine_destroy(&engine)
+
+	for outline in outlines {
+		bits, parsed := stroke_string_to_bits(outline)
+		testing.expect(t, parsed)
+		testing.expect(t, simple_engine_translate_bits(&engine, bits))
+	}
+
+	suggestion, found := brevity_suggest(&engine)
+	defer brevity_suggestion_destroy(&suggestion)
+	testing.expect(t, found)
+	testing.expect_value(t, suggestion.suggested_outline, expected_outline)
+	testing.expect_value(t, suggestion.text, expected_text)
+	testing.expect_value(t, suggestion.typed_outline, expected_typed_outline)
+	testing.expect_value(t, suggestion.typed_strokes, expected_typed_strokes)
+	testing.expect(t, suggestion.saved_strokes > 0)
+}
+
 @(test)
 test_basic_format_translation_text :: proc(t: ^testing.T) {
 	formatted, ok := format_translation_text_basic("{^ly}")
@@ -95,6 +116,33 @@ test_simple_engine_translation :: proc(t: ^testing.T) {
 
 	reddish := [?]string{"RED", "EURB"}
 	test_translate_sequence(t, &dictionary, reddish[:], "reddish")
+}
+
+@(test)
+test_simple_engine_brevity_suggestions :: proc(t: ^testing.T) {
+	dictionary: Dictionary
+	dictionary_init(&dictionary)
+	defer dictionary_destroy(&dictionary)
+	testing.expect(t, dictionary_load(&dictionary, "tests/test-dictionary.json"))
+
+	in_the := [?]string{"TPH", "-T"}
+	test_suggestion_after_sequence(t, &dictionary, in_the[:], "TPH-T", "in the", "TPH/-T", 2)
+
+	in_the_beginning := [?]string{"TPH", "-T", "PW-G"}
+	test_suggestion_after_sequence(t, &dictionary, in_the_beginning[:], "TPH-T/PWG", "in the beginning", "TPH/-T/PWG", 3)
+
+	quickly := [?]string{"KWEUBG", "-L"}
+	test_suggestion_after_sequence(t, &dictionary, quickly[:], "KWEUL", "quickly", "KWEUBG/L", 2)
+
+	engine: Simple_Engine
+	simple_engine_init(&engine, &dictionary)
+	defer simple_engine_destroy(&engine)
+	bits, parsed := stroke_string_to_bits("TPH-T")
+	testing.expect(t, parsed)
+	testing.expect(t, simple_engine_translate_bits(&engine, bits))
+	suggestion, found := brevity_suggest(&engine)
+	defer brevity_suggestion_destroy(&suggestion)
+	testing.expect(t, !found)
 }
 
 @(test)
