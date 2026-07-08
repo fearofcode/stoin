@@ -89,6 +89,25 @@ test_parse_cli_args_qwerty_custom_keymap :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_parse_cli_args_tx_bolt :: proc(t: ^testing.T) {
+	args := [?]string {
+		APP_NAME,
+		"--input", "tx-bolt",
+		"--dict", "tests/test-dictionary.json",
+		"--serial-port", "/dev/cu.usbserial-test",
+		"--serial-baud", "9600",
+	}
+	config, ok := parse_cli_args(args[:])
+	defer cli_config_destroy(&config)
+
+	testing.expect(t, ok)
+	testing.expect_value(t, config.mode, Cli_Mode.Tx_Bolt)
+	testing.expect(t, config.input_tx_bolt)
+	testing.expect_value(t, config.serial_port_path, "/dev/cu.usbserial-test")
+	testing.expect_value(t, config.serial_baud_rate, 9600)
+}
+
+@(test)
 test_parse_cli_args_orthography :: proc(t: ^testing.T) {
 	args := [?]string{APP_NAME, "--dict", "tests/test-dictionary.json", "--orthography", "tests/test-words.txt", "--translate", "STOER", "-Z"}
 	config, ok := parse_cli_args(args[:])
@@ -147,6 +166,16 @@ test_parse_cli_args_requires_dictionary_for_qwerty :: proc(t: ^testing.T) {
 
 	testing.expect(t, !ok)
 	testing.expect_value(t, config.error_message, "--input qwerty requires at least one --dict")
+}
+
+@(test)
+test_parse_cli_args_requires_dictionary_for_tx_bolt :: proc(t: ^testing.T) {
+	args := [?]string{APP_NAME, "--input", "bolt"}
+	config, ok := parse_cli_args(args[:])
+	defer cli_config_destroy(&config)
+
+	testing.expect(t, !ok)
+	testing.expect_value(t, config.error_message, "--input tx-bolt requires at least one --dict")
 }
 
 @(test)

@@ -231,8 +231,11 @@ Acceptance:
 
 Status: started. A POSIX serial layer now handles serial device discovery,
 8N1-style termios setup, nonblocking byte reads, writes, flush, close, and
-basic baud validation on Darwin/Linux. TX Bolt runtime wiring, reconnect loops,
-and pedal polling are still pending.
+basic baud validation on Darwin/Linux. The Odin CLI also has a macOS
+`--input tx-bolt` checkpoint that loads the runtime, reconnects to serial TX
+Bolt devices, decodes strokes, and emits through the macOS output callbacks.
+Pedal polling, hot reload, raw serial diagnostics, and multi-input merge are
+still pending.
 
 Port the current real-machine path:
 
