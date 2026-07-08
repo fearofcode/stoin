@@ -9,6 +9,13 @@
 	<div class="actions">
 		<button class="primary" type="submit" name="mode" value="review">Review selected</button>
 		<label>Practice count <input type="number" name="practice_count" min="1" value="1"></label>
+		<label>Order
+			<select name="session_order">
+				<option value="group_random" selected>Shuffle within groups</option>
+				<option value="total_random">Total random</option>
+				<option value="listed">Listed order</option>
+			</select>
+		</label>
 		<button type="submit" name="mode" value="practice">Practice selected</button>
 		<button type="submit" name="mode" value="practice_all">Practice all</button>
 	</div>

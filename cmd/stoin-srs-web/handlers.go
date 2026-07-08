@@ -264,6 +264,11 @@ func (a *App) handleSessionStart(w http.ResponseWriter, r *http.Request) {
 	if practiceAll {
 		mode = "practice"
 	}
+	order, err := parseSessionOrder(r.FormValue("session_order"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
 	deckID := parseOptionalInt64(r.FormValue("deck_id"))
 	returnURL := "/"
@@ -273,7 +278,6 @@ func (a *App) handleSessionStart(w http.ResponseWriter, r *http.Request) {
 
 	count := 1
 	if mode == "practice" {
-		var err error
 		count, err = positiveIntForm(r.FormValue("practice_count"), 1)
 		if err != nil {
 			redirectWithNotice(w, r, returnURL, err.Error())
@@ -282,7 +286,6 @@ func (a *App) handleSessionStart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var items []SessionItem
-	var err error
 	if practiceAll {
 		if deckID <= 0 {
 			http.Error(w, "practice all requires a deck", http.StatusBadRequest)
@@ -310,11 +313,13 @@ func (a *App) handleSessionStart(w http.ResponseWriter, r *http.Request) {
 		redirectWithNotice(w, r, returnURL, "No words in this deck.")
 		return
 	}
+	items = orderSessionItems(items, order, nil)
 	items = repeatSessionItems(items, count)
 	a.renderSession(w, SessionPageData{
 		Mode:       mode,
 		DeckID:     deckID,
 		ReturnURL:  returnURL,
+		Order:      order,
 		Items:      items,
 		IsReview:   mode == "review",
 		IsPractice: mode == "practice",
@@ -364,6 +369,11 @@ func (a *App) handleSessionSubmit(w http.ResponseWriter, r *http.Request) {
 		redirectWithNotice(w, r, returnURL, "Practice complete.")
 		return
 	}
+	order, err := parseSessionOrder(r.FormValue("session_order"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
 	results, err := parseSubmittedResults(r)
 	if err != nil {
@@ -380,10 +390,12 @@ func (a *App) handleSessionSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(nextItems) > 0 {
+		nextItems = orderSessionItems(nextItems, order, nil)
 		a.renderSession(w, SessionPageData{
 			Mode:      "review",
 			DeckID:    deckID,
 			ReturnURL: returnURL,
+			Order:     order,
 			Items:     nextItems,
 			IsReview:  true,
 		})

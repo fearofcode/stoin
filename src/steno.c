@@ -1093,7 +1093,7 @@ static void maybe_emit_brevity_suggestion(Steno *steno)
     const size_t max_window = translation_count < BREVITY_MAX_TRANSLATIONS
         ? translation_count
         : BREVITY_MAX_TRANSLATIONS;
-    for (size_t window = max_window; window > 1; --window) {
+    for (size_t window = max_window; window > 0; --window) {
         const size_t start = translation_count - window;
         Fixed_String_Buffer text = {0};
         Fixed_String_Buffer typed_outline = {0};

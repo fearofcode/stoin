@@ -358,10 +358,42 @@ func TestSessionPageIncludesHintControls(t *testing.T) {
 	for _, want := range []string{
 		`class="session-hint-button"`,
 		`class="session-hint"`,
+		`name="session_order" value="group_random"`,
 		">Hint<",
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("expected session body to contain %q, got %q", want, body)
+		}
+	}
+}
+
+func TestDeckPageIncludesSessionOrderOptions(t *testing.T) {
+	app := testApp(t)
+	ctx := context.Background()
+	deckID, err := app.getOrCreateDeck(ctx, "briefs", time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = app.ingestGroups(ctx, deckID, []ImportGroup{{Name: "words", Words: []string{"a"}}}, "test", "one")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/deck?id=%d", deckID), nil)
+	rec := httptest.NewRecorder()
+	app.handleDeck(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected deck page, got %d with body %q", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	for _, want := range []string{
+		`name="session_order"`,
+		`value="group_random" selected`,
+		`value="total_random"`,
+		`value="listed"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("expected deck body to contain %q, got %q", want, body)
 		}
 	}
 }
@@ -384,6 +416,41 @@ func TestChunkSessionLinesKeepsShortWordsTogether(t *testing.T) {
 	}
 	if lines[1].StartIndex != 4 || lines[1].EndIndex != 4 || len(lines[1].Items) != 1 {
 		t.Fatalf("expected second line to contain the long phrase, got %#v", lines[1])
+	}
+}
+
+func TestOrderSessionItemsShufflesWithinGroupsByDefault(t *testing.T) {
+	items := []SessionItem{
+		{Text: "a1", DeckName: "deck", GroupName: "alpha"},
+		{Text: "a2", DeckName: "deck", GroupName: "alpha"},
+		{Text: "b1", DeckName: "deck", GroupName: "beta"},
+		{Text: "b2", DeckName: "deck", GroupName: "beta"},
+	}
+	reverse := func(items []SessionItem) {
+		for i, j := 0, len(items)-1; i < j; i, j = i+1, j-1 {
+			items[i], items[j] = items[j], items[i]
+		}
+	}
+
+	ordered := orderSessionItems(items, sessionOrderGroupRandom, reverse)
+	got := []string{ordered[0].Text, ordered[1].Text, ordered[2].Text, ordered[3].Text}
+	want := []string{"a2", "a1", "b2", "b1"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("expected group-preserving shuffle %v, got %v", want, got)
+	}
+
+	total := orderSessionItems(items, sessionOrderTotalRandom, reverse)
+	got = []string{total[0].Text, total[1].Text, total[2].Text, total[3].Text}
+	want = []string{"b2", "b1", "a2", "a1"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("expected total shuffle %v, got %v", want, got)
+	}
+
+	listed := orderSessionItems(items, sessionOrderListed, reverse)
+	got = []string{listed[0].Text, listed[1].Text, listed[2].Text, listed[3].Text}
+	want = []string{"a1", "a2", "b1", "b2"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("expected listed order %v, got %v", want, got)
 	}
 }
 

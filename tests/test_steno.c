@@ -1084,6 +1084,31 @@ int main(void)
         fclose(suggestions_file);
     }
 
+    FILE *suffix_suggestions_file = tmpfile();
+    ok = ok && suffix_suggestions_file != NULL;
+    if (suffix_suggestions_file != NULL) {
+        Steno_Config suffix_suggestions_config = config;
+        suffix_suggestions_config.suggestions_file = suffix_suggestions_file;
+        suffix_suggestions_config.print_suggestions = true;
+        Steno *suffix_suggestions_steno = steno_create(&suffix_suggestions_config);
+        ok = ok && suffix_suggestions_steno != NULL;
+        if (suffix_suggestions_steno != NULL) {
+            clear_test_output(&output);
+            ok = ok && handle_test_stroke(suffix_suggestions_steno, "KWEUBG");
+            ok = ok && handle_test_stroke(suffix_suggestions_steno, "-L");
+            ok = ok && expect_file_contains(
+                suffix_suggestions_file,
+                "brevity suggests collapsed attached suffix",
+                "Suggestion: Use KWEUL for \"quickly\"\n");
+            ok = ok && expect_string(
+                "collapsed attached suffix output",
+                output.text,
+                "quickly");
+            steno_destroy(suffix_suggestions_steno);
+        }
+        fclose(suffix_suggestions_file);
+    }
+
     FILE *brief_suggestions_file = tmpfile();
     ok = ok && brief_suggestions_file != NULL;
     if (brief_suggestions_file != NULL) {

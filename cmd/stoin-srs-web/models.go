@@ -110,6 +110,7 @@ type SessionPageData struct {
 	Mode       string
 	DeckID     int64
 	ReturnURL  string
+	Order      string
 	Items      []SessionItem
 	Lines      []SessionLine
 	ItemsJSON  template.JS

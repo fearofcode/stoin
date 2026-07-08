@@ -5,10 +5,20 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"math/rand"
 	"net/http"
 	"strconv"
+	"time"
 	"unicode/utf8"
 )
+
+const (
+	sessionOrderGroupRandom = "group_random"
+	sessionOrderTotalRandom = "total_random"
+	sessionOrderListed      = "listed"
+)
+
+type sessionShuffleFunc func([]SessionItem)
 
 func selectedItemIDs(r *http.Request) ([]int64, error) {
 	var ids []int64
@@ -24,6 +34,56 @@ func selectedItemIDs(r *http.Request) ([]int64, error) {
 		}
 	}
 	return ids, nil
+}
+
+func parseSessionOrder(raw string) (string, error) {
+	switch raw {
+	case "", sessionOrderGroupRandom:
+		return sessionOrderGroupRandom, nil
+	case sessionOrderTotalRandom, sessionOrderListed:
+		return raw, nil
+	default:
+		return "", fmt.Errorf("invalid session order %q", raw)
+	}
+}
+
+func randomShuffleSessionItems(items []SessionItem) {
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	rng.Shuffle(len(items), func(i, j int) {
+		items[i], items[j] = items[j], items[i]
+	})
+}
+
+func orderSessionItems(items []SessionItem, order string, shuffle sessionShuffleFunc) []SessionItem {
+	out := append([]SessionItem(nil), items...)
+	if len(out) < 2 || order == sessionOrderListed {
+		return out
+	}
+	if shuffle == nil {
+		shuffle = randomShuffleSessionItems
+	}
+	if order == sessionOrderTotalRandom {
+		shuffle(out)
+		return out
+	}
+
+	groupOrder := []string{}
+	groupItems := map[string][]SessionItem{}
+	for _, item := range out {
+		key := item.DeckName + "\x00" + item.GroupName
+		if _, ok := groupItems[key]; !ok {
+			groupOrder = append(groupOrder, key)
+		}
+		groupItems[key] = append(groupItems[key], item)
+	}
+
+	out = out[:0]
+	for _, key := range groupOrder {
+		items := groupItems[key]
+		shuffle(items)
+		out = append(out, items...)
+	}
+	return out
 }
 
 func repeatSessionItems(items []SessionItem, count int) []SessionItem {
@@ -113,6 +173,9 @@ func parseSubmittedResults(r *http.Request) ([]ReviewResult, error) {
 }
 
 func (a *App) renderSession(w http.ResponseWriter, data SessionPageData) {
+	if data.Order == "" {
+		data.Order = sessionOrderGroupRandom
+	}
 	itemsJSON, err := json.Marshal(data.Items)
 	if err != nil {
 		serverError(w, err)

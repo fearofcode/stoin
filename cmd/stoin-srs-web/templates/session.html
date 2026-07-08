@@ -5,6 +5,7 @@
 <form method="post" action="/session/submit" id="session-form">
 	<input type="hidden" name="mode" value="{{.Mode}}">
 	<input type="hidden" name="return" value="{{.ReturnURL}}">
+	<input type="hidden" name="session_order" value="{{.Order}}">
 	{{if .DeckID}}<input type="hidden" name="deck_id" value="{{.DeckID}}">{{end}}
 	<div class="session-list" id="word-list">
 	{{range $line := .Lines}}
