@@ -119,6 +119,32 @@ test_simple_engine_translation :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_simple_engine_commands :: proc(t: ^testing.T) {
+	dictionary: Dictionary
+	dictionary_init(&dictionary)
+	defer dictionary_destroy(&dictionary)
+	testing.expect(t, dictionary_load(&dictionary, "tests/test-dictionary.json"))
+
+	undo_one := [?]string{"F", "-P", "-R"}
+	test_translate_sequence(t, &dictionary, undo_one[:], "fee")
+
+	undo_empty := [?]string{"F", "-R", "-R"}
+	test_translate_sequence(t, &dictionary, undo_empty[:], "")
+
+	undo_retroactive_match := [?]string{"STOER", "-Z", "-R"}
+	test_translate_sequence(t, &dictionary, undo_retroactive_match[:], "story")
+
+	translate_after_retroactive_undo := [?]string{"STOER", "-Z", "-R", "-D"}
+	test_translate_sequence(t, &dictionary, translate_after_retroactive_undo[:], "storied")
+
+	repeat_last := [?]string{"KAT", "SKWR"}
+	test_translate_sequence(t, &dictionary, repeat_last[:], "cat cat")
+
+	undo_repeat := [?]string{"KAT", "SKWR", "-R"}
+	test_translate_sequence(t, &dictionary, undo_repeat[:], "cat")
+}
+
+@(test)
 test_simple_engine_brevity_suggestions :: proc(t: ^testing.T) {
 	dictionary: Dictionary
 	dictionary_init(&dictionary)

@@ -9,6 +9,7 @@ Applied_Translation :: struct {
 	text:         string,
 	next_attach:  bool,
 	glue:         bool,
+	replaced:     [dynamic]Applied_Translation,
 }
 
 Translation_Match :: struct {
@@ -41,6 +42,17 @@ simple_engine_destroy :: proc(engine: ^Simple_Engine) {
 applied_translation_destroy :: proc(translation: ^Applied_Translation) {
 	delete(translation.strokes)
 	owned_string_delete(translation.text)
+	for i in 0..<len(translation.replaced) {
+		applied_translation_destroy(&translation.replaced[i])
+	}
+	delete(translation.replaced)
+	translation^ = {}
+}
+
+applied_translation_destroy_without_replaced :: proc(translation: ^Applied_Translation) {
+	delete(translation.strokes)
+	owned_string_delete(translation.text)
+	delete(translation.replaced)
 	translation^ = {}
 }
 
@@ -270,11 +282,6 @@ simple_engine_apply_match :: proc(engine: ^Simple_Engine, match: ^Translation_Ma
 		return false
 	}
 
-	for i := replace_start; i < translation_count; i += 1 {
-		applied_translation_destroy(&engine.history[i])
-	}
-	resize(&engine.history, replace_start)
-
 	next := Applied_Translation {
 		strokes = make([dynamic]u64),
 		text = next_text,
@@ -282,11 +289,80 @@ simple_engine_apply_match :: proc(engine: ^Simple_Engine, match: ^Translation_Ma
 		glue = formatted.glue,
 	}
 	append_strokes(&next.strokes, strokes[:])
+	if replaced_count > 0 {
+		next.replaced = make([dynamic]Applied_Translation)
+		for i := replace_start; i < translation_count; i += 1 {
+			append(&next.replaced, engine.history[i])
+		}
+	}
+
+	resize(&engine.history, replace_start)
 	append(&engine.history, next)
 	return true
 }
 
+simple_engine_undo_last :: proc(engine: ^Simple_Engine) -> bool {
+	translation_count := len(engine.history)
+	if translation_count == 0 {
+		return true
+	}
+
+	last := engine.history[translation_count - 1]
+	resize(&engine.history, translation_count - 1)
+	for replaced in last.replaced {
+		append(&engine.history, replaced)
+	}
+	applied_translation_destroy_without_replaced(&last)
+	return true
+}
+
+simple_engine_repeat_last :: proc(engine: ^Simple_Engine, command_bits: u64) -> bool {
+	translation_count := len(engine.history)
+	if translation_count == 0 {
+		return true
+	}
+
+	last := &engine.history[translation_count - 1]
+	next := Applied_Translation {
+		strokes = make([dynamic]u64),
+		next_attach = last.next_attach,
+		glue = last.glue,
+	}
+	append(&next.strokes, command_bits)
+
+	buffer := make([dynamic]byte)
+	defer delete(buffer)
+	if len(last.text) > 0 && !last.glue && !last.next_attach && !text_starts_with_spacing(last.text) {
+		append(&buffer, ' ')
+	}
+	formatted_append_string(&buffer, last.text)
+
+	text, text_ok := clone_bytes_to_string(buffer[:])
+	if !text_ok {
+		applied_translation_destroy(&next)
+		return false
+	}
+	next.text = text
+	append(&engine.history, next)
+	return true
+}
+
+simple_engine_execute_command :: proc(engine: ^Simple_Engine, command: string, bits: u64) -> bool {
+	switch command {
+	case "=undo":
+		return simple_engine_undo_last(engine)
+	case "=repeat_last_translation":
+		return simple_engine_repeat_last(engine, bits)
+	case:
+		return true
+	}
+}
+
 simple_engine_translate_bits :: proc(engine: ^Simple_Engine, bits: u64) -> bool {
+	if translation, found := dictionary_lookup_bits(engine.dictionary, bits); found && len(translation) > 0 && translation[0] == '=' {
+		return simple_engine_execute_command(engine, translation, bits)
+	}
+
 	match, match_ok := simple_engine_find_match(engine, bits)
 	if !match_ok {
 		return false
