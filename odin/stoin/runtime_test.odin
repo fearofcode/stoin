@@ -353,3 +353,44 @@ test_steno_runtime_writes_brevity_suggestions :: proc(t: ^testing.T) {
 	testing.expect_value(t, runtime_test_last(output.suggestions[:]), "Suggestion: Use TPH-T for \"in the\"\n")
 	testing.expect_value(t, len(output.suggestion_logs), 1)
 }
+
+@(test)
+test_steno_runtime_compacts_history :: proc(t: ^testing.T) {
+	dictionary: Dictionary
+	dictionary_init(&dictionary)
+	defer dictionary_destroy(&dictionary)
+	testing.expect(t, dictionary_load(&dictionary, "tests/test-dictionary.json"))
+
+	output: Runtime_Test_Output
+	runtime_test_output_init(&output)
+	defer runtime_test_output_destroy(&output)
+
+	runtime: Steno_Runtime
+	config := runtime_test_config(&dictionary, nil, nil, &output)
+	testing.expect(t, steno_runtime_init(&runtime, &config))
+	defer steno_runtime_destroy(&runtime)
+
+	filler_bits := runtime_test_bits(t, "KAT")
+	for _ in 0..<1999 {
+		testing.expect(t, steno_runtime_handle_stroke_bits(&runtime, filler_bits))
+	}
+
+	runtime_test_output_clear(&output)
+	testing.expect(t, steno_runtime_handle_stroke_bits(&runtime, runtime_test_bits(t, "STOER")))
+	testing.expect(t, steno_runtime_translation_history_stroke_count(&runtime) <= TRANSLATION_HISTORY_STROKE_LIMIT)
+	runtime_test_expect_output(t, &output, " story")
+
+	runtime_test_output_reset_events(&output)
+	testing.expect(t, steno_runtime_handle_stroke_bits(&runtime, runtime_test_bits(t, "-Z")))
+	runtime_test_expect_output(t, &output, " stories")
+	testing.expect_value(t, runtime_test_last(output.deletes[:]), "y")
+	testing.expect_value(t, runtime_test_last(output.sends[:]), "ies")
+
+	runtime_test_output_reset_events(&output)
+	testing.expect(t, steno_runtime_handle_stroke_bits(&runtime, runtime_test_bits(t, "-R")))
+	runtime_test_expect_output(t, &output, " story")
+
+	runtime_test_output_reset_events(&output)
+	testing.expect(t, steno_runtime_handle_stroke_bits(&runtime, runtime_test_bits(t, "-D")))
+	runtime_test_expect_output(t, &output, " storied")
+}

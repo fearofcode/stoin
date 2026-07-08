@@ -270,6 +270,47 @@ simple_engine_lookup_stroke_limit :: proc(dictionary: ^Dictionary) -> int {
 	return max_strokes
 }
 
+simple_engine_history_stroke_count :: proc(engine: ^Simple_Engine) -> int {
+	if engine == nil {
+		return 0
+	}
+	stroke_count := 0
+	for translation in engine.history {
+		stroke_count += len(translation.strokes)
+	}
+	return stroke_count
+}
+
+simple_engine_compact_history :: proc(engine: ^Simple_Engine, keep_strokes: int) {
+	if engine == nil || keep_strokes <= 0 || len(engine.history) == 0 {
+		return
+	}
+
+	retained_strokes := 0
+	retained_translations := 0
+	for i := len(engine.history); i > 0; {
+		i -= 1
+		retained_translations += 1
+		retained_strokes += len(engine.history[i].strokes)
+		if retained_strokes >= keep_strokes {
+			break
+		}
+	}
+
+	dropped_translations := len(engine.history) - retained_translations
+	if dropped_translations <= 0 {
+		return
+	}
+
+	for i in 0..<dropped_translations {
+		applied_translation_destroy(&engine.history[i])
+	}
+	for i in 0..<retained_translations {
+		engine.history[i] = engine.history[dropped_translations + i]
+	}
+	resize(&engine.history, retained_translations)
+}
+
 append_strokes :: proc(out: ^[dynamic]u64, strokes: []u64) {
 	for stroke in strokes {
 		append(out, stroke)

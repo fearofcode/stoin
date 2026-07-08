@@ -2,6 +2,9 @@ package stoin
 
 import "core:time"
 
+TRANSLATION_COMPACT_INTERVAL_STROKES :: 1000
+TRANSLATION_HISTORY_STROKE_LIMIT :: 1000
+
 Send_Text_Callback :: proc(text: string, userdata: rawptr) -> bool
 Delete_Text_Callback :: proc(text: string, userdata: rawptr) -> bool
 Send_Key_Combination_Callback :: proc(combo: string, userdata: rawptr) -> bool
@@ -48,6 +51,7 @@ Steno_Runtime :: struct {
 	session_active:           bool,
 	phrase_namespace_enabled: bool,
 	phrase_mode:              Steno_Phrase_Mode,
+	strokes_since_compaction: int,
 }
 
 Trace_Stroke_Mode :: enum {
@@ -116,6 +120,31 @@ steno_runtime_set_phrase_mode :: proc(runtime: ^Steno_Runtime, mode: Steno_Phras
 		return
 	}
 	runtime.phrase_mode = mode
+}
+
+steno_runtime_translation_history_stroke_count :: proc(runtime: ^Steno_Runtime) -> int {
+	if runtime == nil {
+		return 0
+	}
+	return simple_engine_history_stroke_count(&runtime.engine)
+}
+
+steno_runtime_count_completed_stroke :: proc(runtime: ^Steno_Runtime) {
+	if runtime == nil {
+		return
+	}
+	runtime.strokes_since_compaction += 1
+	if runtime.strokes_since_compaction < TRANSLATION_COMPACT_INTERVAL_STROKES {
+		return
+	}
+
+	keep_strokes := TRANSLATION_HISTORY_STROKE_LIMIT
+	lookup_strokes := simple_engine_lookup_stroke_limit(runtime.engine.dictionary)
+	if keep_strokes < lookup_strokes {
+		keep_strokes = lookup_strokes
+	}
+	simple_engine_compact_history(&runtime.engine, keep_strokes)
+	runtime.strokes_since_compaction = 0
 }
 
 steno_phrase_lookup_mode_from_runtime_mode :: proc(mode: Steno_Phrase_Mode) -> Phrase_Lookup_Mode {
@@ -399,9 +428,18 @@ steno_runtime_handle_stroke :: proc(runtime: ^Steno_Runtime, stroke: Stroke_Inpu
 	}
 	defer owned_string_delete(new_text)
 
-	return steno_runtime_replace_output_text(runtime, old_text, new_text) &&
-		steno_runtime_send_key_combinations(runtime, first_combo) &&
-		(!maybe_suggest || steno_runtime_maybe_emit_brevity_suggestion(runtime))
+	if !steno_runtime_replace_output_text(runtime, old_text, new_text) {
+		return false
+	}
+	if !steno_runtime_send_key_combinations(runtime, first_combo) {
+		return false
+	}
+	if maybe_suggest && !steno_runtime_maybe_emit_brevity_suggestion(runtime) {
+		return false
+	}
+
+	steno_runtime_count_completed_stroke(runtime)
+	return true
 }
 
 steno_runtime_handle_stroke_bits :: proc(runtime: ^Steno_Runtime, bits: u64) -> bool {

@@ -165,8 +165,9 @@ Acceptance:
 Status: started. A callback-style Odin runtime now wraps the simple engine for
 direct stroke handling, phrase namespace gating, minimal text delete/insert
 output, key-combo callbacks, trace lines, and brevity suggestion output/log
-lines. It is covered by fake-output tests. Runtime config ownership, reload
-wiring, session-level history cleanup, and C/Odin fixture log parity are still
+lines. It also compacts old translation history while preserving retroactive
+matches over the retained suffix. It is covered by fake-output tests. Runtime
+config ownership, reload wiring, and C/Odin fixture log parity are still
 pending.
 
 Assemble the Odin `Steno` runtime around callback-style output:
