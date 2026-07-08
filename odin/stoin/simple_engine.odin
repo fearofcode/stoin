@@ -10,6 +10,7 @@ Applied_Translation :: struct {
 	next_attach:  bool,
 	glue:         bool,
 	replaced:     [dynamic]Applied_Translation,
+	retro_space_command: bool,
 }
 
 Translation_Match :: struct {
@@ -288,6 +289,15 @@ simple_engine_range_source_text :: proc(engine: ^Simple_Engine, start: int, coun
 	return clone_bytes_to_string(buffer[:])
 }
 
+applied_translation_replaced_text :: proc(translation: ^Applied_Translation) -> (string, bool) {
+	buffer := make([dynamic]byte)
+	defer delete(buffer)
+	for i in 0..<len(translation.replaced) {
+		formatted_append_string(&buffer, translation.replaced[i].text)
+	}
+	return clone_bytes_to_string(buffer[:])
+}
+
 simple_engine_previous_visible :: proc(engine: ^Simple_Engine, before_index: int) -> (translation: ^Applied_Translation) {
 	for i := before_index; i > 0; {
 		i -= 1
@@ -361,6 +371,10 @@ simple_engine_apply_match :: proc(engine: ^Simple_Engine, match: ^Translation_Ma
 		return false
 	}
 	defer formatted_text_destroy(&formatted)
+
+	if formatted.retro_command != .None {
+		return simple_engine_apply_retro_command(engine, match, formatted.retro_command)
+	}
 
 	if formatted.stitch_last_word {
 		return simple_engine_apply_stitch_last_word(engine, match, &formatted)
@@ -484,6 +498,105 @@ simple_engine_execute_command :: proc(engine: ^Simple_Engine, command: string, b
 	case:
 		return true
 	}
+}
+
+simple_engine_text_without_leading_spacing :: proc(text: string) -> string {
+	if len(text) > 0 && text[0] == ' ' {
+		return text[1:]
+	}
+	return text
+}
+
+simple_engine_apply_retro_delete_space :: proc(engine: ^Simple_Engine, match: ^Translation_Match) -> bool {
+	translation_count := len(engine.history)
+	if translation_count < 2 {
+		return true
+	}
+	if engine.history[translation_count - 1].retro_space_command {
+		return true
+	}
+
+	replace_start := translation_count - 2
+	first := &engine.history[replace_start]
+	second := &engine.history[replace_start + 1]
+	buffer := make([dynamic]byte)
+	defer delete(buffer)
+	formatted_append_string(&buffer, first.text)
+	formatted_append_string(&buffer, simple_engine_text_without_leading_spacing(second.text))
+	new_text, new_text_ok := clone_bytes_to_string(buffer[:])
+	if !new_text_ok {
+		return false
+	}
+
+	next := Applied_Translation {
+		strokes = make([dynamic]u64),
+		text = new_text,
+		retro_space_command = true,
+	}
+	append_strokes(&next.strokes, match.strokes[:])
+	next.replaced = make([dynamic]Applied_Translation)
+	append(&next.replaced, engine.history[replace_start])
+	append(&next.replaced, engine.history[replace_start + 1])
+	resize(&engine.history, replace_start)
+	append(&engine.history, next)
+	return true
+}
+
+simple_engine_apply_retro_insert_space :: proc(engine: ^Simple_Engine, match: ^Translation_Match) -> bool {
+	translation_count := len(engine.history)
+	if translation_count == 0 {
+		return true
+	}
+
+	last := &engine.history[translation_count - 1]
+	if !last.retro_space_command || len(last.replaced) == 0 {
+		return true
+	}
+
+	new_text, new_text_ok := applied_translation_replaced_text(last)
+	if !new_text_ok {
+		return false
+	}
+	next := Applied_Translation {
+		strokes = make([dynamic]u64),
+		text = new_text,
+	}
+	append_strokes(&next.strokes, match.strokes[:])
+	next.replaced = make([dynamic]Applied_Translation)
+	append(&next.replaced, engine.history[translation_count - 1])
+	resize(&engine.history, translation_count - 1)
+	append(&engine.history, next)
+	return true
+}
+
+simple_engine_apply_retro_toggle_asterisk :: proc(engine: ^Simple_Engine) -> bool {
+	translation_count := len(engine.history)
+	if translation_count == 0 {
+		return true
+	}
+
+	last := &engine.history[translation_count - 1]
+	stroke_count := len(last.strokes)
+	if stroke_count == 0 {
+		return true
+	}
+
+	toggled_bits := last.strokes[stroke_count - 1] ~ steno_bit(.Star)
+	return simple_engine_undo_last(engine) && simple_engine_translate_bits(engine, toggled_bits)
+}
+
+simple_engine_apply_retro_command :: proc(engine: ^Simple_Engine, match: ^Translation_Match, command: Retro_Command) -> bool {
+	switch command {
+	case .None:
+		return true
+	case .Toggle_Asterisk:
+		return simple_engine_apply_retro_toggle_asterisk(engine)
+	case .Delete_Space:
+		return simple_engine_apply_retro_delete_space(engine, match)
+	case .Insert_Space:
+		return simple_engine_apply_retro_insert_space(engine, match)
+	}
+	return true
 }
 
 simple_engine_apply_stitch_last_word :: proc(engine: ^Simple_Engine, match: ^Translation_Match, formatted: ^Formatted_Text) -> bool {

@@ -81,6 +81,25 @@ test_format_translation_stitch_metadata :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_format_translation_retro_commands :: proc(t: ^testing.T) {
+	toggle, toggle_ok := format_translation_text_basic("{*}")
+	defer formatted_text_destroy(&toggle)
+	testing.expect(t, toggle_ok)
+	testing.expect_value(t, toggle.retro_command, Retro_Command.Toggle_Asterisk)
+	testing.expect_value(t, toggle.text, "")
+
+	delete_space, delete_ok := format_translation_text_basic("{*!}")
+	defer formatted_text_destroy(&delete_space)
+	testing.expect(t, delete_ok)
+	testing.expect_value(t, delete_space.retro_command, Retro_Command.Delete_Space)
+
+	insert_space, insert_ok := format_translation_text_basic("{*?}")
+	defer formatted_text_destroy(&insert_space)
+	testing.expect(t, insert_ok)
+	testing.expect_value(t, insert_space.retro_command, Retro_Command.Insert_Space)
+}
+
+@(test)
 test_build_text_does_not_alias_old_text :: proc(t: ^testing.T) {
 	old_text, old_ok := clone_string_ok("quick")
 	testing.expect(t, old_ok)
@@ -228,6 +247,23 @@ test_simple_engine_stitch :: proc(t: ^testing.T) {
 
 	stitch_last_word_supersedes := [?]string{"AOEU", "TO", "-RBGS", "-RBGS"}
 	test_translate_sequence(t, &dictionary, stitch_last_word_supersedes[:], "e-y-e t-o")
+}
+
+@(test)
+test_simple_engine_retro_commands :: proc(t: ^testing.T) {
+	dictionary: Dictionary
+	dictionary_init(&dictionary)
+	defer dictionary_destroy(&dictionary)
+	testing.expect(t, dictionary_load(&dictionary, "tests/test-dictionary.json"))
+
+	toggle_star := [?]string{"KAT", "#*"}
+	test_translate_sequence(t, &dictionary, toggle_star[:], "kitty")
+
+	delete_space := [?]string{"PWA", "PWAL", "SP-LS"}
+	test_translate_sequence(t, &dictionary, delete_space[:], "basketball")
+
+	insert_space := [?]string{"PWA", "PWAL", "SP-LS", "S-PD"}
+	test_translate_sequence(t, &dictionary, insert_space[:], "basket ball")
 }
 
 @(test)

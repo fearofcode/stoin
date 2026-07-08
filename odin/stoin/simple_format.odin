@@ -2,6 +2,13 @@ package stoin
 
 import "core:strings"
 
+Retro_Command :: enum {
+	None,
+	Toggle_Asterisk,
+	Delete_Space,
+	Insert_Space,
+}
+
 Formatted_Text :: struct {
 	text:         string,
 	ortho_suffix: string,
@@ -14,6 +21,7 @@ Formatted_Text :: struct {
 	stitch_last_word: bool,
 	stitch_count: int,
 	stitch_delimiter: string,
+	retro_command: Retro_Command,
 }
 
 formatted_text_destroy :: proc(formatted: ^Formatted_Text) {
@@ -205,6 +213,19 @@ formatted_apply_meta :: proc(formatted: ^Formatted_Text, buffer: ^[dynamic]byte,
 	}
 
 	if formatted_parse_stitch_meta(formatted, buffer, meta) {
+		return true
+	}
+
+	if len(meta) == 1 && meta[0] == '*' {
+		formatted.retro_command = .Toggle_Asterisk
+		return true
+	}
+	if len(meta) == 2 && meta[0] == '*' && meta[1] == '!' {
+		formatted.retro_command = .Delete_Space
+		return true
+	}
+	if len(meta) == 2 && meta[0] == '*' && meta[1] == '?' {
+		formatted.retro_command = .Insert_Space
 		return true
 	}
 
