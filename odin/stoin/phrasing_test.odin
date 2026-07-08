@@ -123,3 +123,72 @@ test_phrasing_lookup_namespaces :: proc(t: ^testing.T) {
 	test_expect_phrase_lookup(t, &phrasing, "PW-B", .All, "is a")
 	test_expect_phrase_miss(t, &phrasing, "TW-B", .Verbs)
 }
+
+@(test)
+test_phrasing_lookup_final_verbs_long :: proc(t: ^testing.T) {
+	phrasing, ok := phrasing_load("tests/test-phrasing.json")
+	defer phrasing_destroy(&phrasing)
+	testing.expect(t, ok)
+
+	cases := [?]struct{outline: string, expected: string} {
+		{outline = "SKWHR-B", expected = "she is"},
+		{outline = "SKWHR-BD", expected = "she was"},
+		{outline = "SKWHR*E", expected = "she is not"},
+		{outline = "SKWHR*ED", expected = "she was not"},
+		{outline = "SWR-F", expected = "I have"},
+		{outline = "SWR-FD", expected = "I had"},
+		{outline = "KPWR-GD", expected = "you went"},
+		{outline = "SKWHRAO-G", expected = "she will go"},
+		{outline = "SKWHRAO*G", expected = "she will not go"},
+		{outline = "SKWHREG", expected = "she is going"},
+		{outline = "SKWHR-FG", expected = "she has gone"},
+		{outline = "KPWR-PBT", expected = "you know that"},
+		{outline = "SKWHR-PBG", expected = "she thinks"},
+		{outline = "SKWHR-PBGD", expected = "she thought"},
+		{outline = "SKWHR-PBGT", expected = "she thinks that"},
+		{outline = "SKWHR-PBGTD", expected = "she thought that"},
+		{outline = "SKWHR-BS", expected = "she says"},
+		{outline = "SKWHR-BSD", expected = "she said"},
+		{outline = "SKWHR-BTS", expected = "she says that"},
+		{outline = "SKWHR-BTSD", expected = "she said that"},
+		{outline = "SKWHR-RLT", expected = "she tells"},
+		{outline = "SKWHR-RLTD", expected = "she told"},
+		{outline = "SKWHR-FPL", expected = "she holds"},
+		{outline = "SKWHR-FPLD", expected = "she held"},
+		{outline = "SKWHR-LS", expected = "she sells"},
+		{outline = "SKWHR-LSD", expected = "she sold"},
+		{outline = "SKWHR-PLS", expected = "she spells"},
+		{outline = "SKWHR-PLSD", expected = "she spelled"},
+		{outline = "SKWHR-RPBTS", expected = "she keeps"},
+		{outline = "SKWHR-RPBTSD", expected = "she kept"},
+		{outline = "TWH-TS", expected = "they have to"},
+	}
+
+	for c in cases {
+		test_expect_phrase_lookup(t, &phrasing, c.outline, .Verbs, c.expected)
+	}
+}
+
+@(test)
+test_phrasing_lookup_final_verb_contractions :: proc(t: ^testing.T) {
+	phrasing, ok := phrasing_load("tests/test-phrasing.json")
+	defer phrasing_destroy(&phrasing)
+	testing.expect(t, ok)
+
+	cases := [?]struct{outline: string, expected: string} {
+		{outline = "#SKWHR-B", expected = "she's"},
+		{outline = "#SKWHR*E", expected = "she isn't"},
+		{outline = "#SKWHR*ED", expected = "she wasn't"},
+		{outline = "#SKWHRAO-G", expected = "she'll go"},
+		{outline = "#SKWHRAO*G", expected = "she won't go"},
+		{outline = "#SWR-F", expected = "I've"},
+		{outline = "#KWHR-FG", expected = "he's gone"},
+		{outline = "#TWHAO-G", expected = "they'll go"},
+	}
+
+	for c in cases {
+		test_expect_phrase_lookup(t, &phrasing, c.outline, .Verbs, c.expected)
+	}
+
+	test_expect_phrase_miss(t, &phrasing, "#SKWHR-BD", .Verbs)
+}

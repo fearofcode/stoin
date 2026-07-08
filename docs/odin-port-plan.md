@@ -137,8 +137,9 @@ Acceptance:
 
 Status: started. The Odin phrasing loader parses and validates the current JSON
 schema into owned IV, FV, and NV tables, including duplicate-stroke validation
-and tail/verb reference checks. Initial-verb and nonverb lookup are implemented;
-final-verb phrase generation is still on the C side.
+and tail/verb reference checks. Initial-verb, nonverb, and final-verb lookup are
+implemented. Runtime phrase-mode integration, fallback behavior, and hot reload
+are still on the C side.
 
 Port the phrasing system before platform pedals:
 

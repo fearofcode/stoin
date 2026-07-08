@@ -755,7 +755,328 @@ phrasing_lookup_nonverb :: proc(phrasing: ^Phrasing, bits: u64) -> (string, Phra
 	return "", .Miss
 }
 
+fv_ender_has_verb :: proc(ender: ^Fv_Ender) -> bool {
+	return ender.verb_index >= 0
+}
+
+fv_ender_verb :: proc(phrasing: ^Phrasing, ender: ^Fv_Ender) -> ^Fv_Verb {
+	if !fv_ender_has_verb(ender) {
+		return nil
+	}
+	return &phrasing.fv_verbs[ender.verb_index]
+}
+
+fv_be_word :: proc(starter: ^Fv_Starter, past: bool) -> string {
+	if past {
+		return starter.agreement == .Plural ? "were" : "was"
+	}
+	if starter.agreement == .First_Singular {
+		return "am"
+	}
+	return starter.agreement == .Plural ? "are" : "is"
+}
+
+fv_have_word :: proc(starter: ^Fv_Starter, past: bool) -> string {
+	if past {
+		return "had"
+	}
+	return starter.agreement == .Third_Singular ? "has" : "have"
+}
+
+fv_do_word :: proc(starter: ^Fv_Starter, past: bool) -> string {
+	if past {
+		return "did"
+	}
+	return starter.agreement == .Third_Singular ? "does" : "do"
+}
+
+fv_finite_verb_word :: proc(starter: ^Fv_Starter, verb: ^Fv_Verb, past: bool) -> string {
+	switch verb.kind {
+	case .Be:
+		return fv_be_word(starter, past)
+	case .Have:
+		return fv_have_word(starter, past)
+	case .Do:
+		return fv_do_word(starter, past)
+	case .Other:
+	}
+	if past {
+		return verb.past
+	}
+	return starter.agreement == .Third_Singular ? verb.third : verb.base
+}
+
+fv_modal_word :: proc(modal: Fv_Modal, past: bool, negative: bool) -> string {
+	switch modal {
+	case .Can:
+		if negative {
+			return past ? "could not" : "cannot"
+		}
+		return past ? "could" : "can"
+	case .Should:
+		return negative ? "should not" : "should"
+	case .Will:
+		if negative {
+			return past ? "would not" : "will not"
+		}
+		return past ? "would" : "will"
+	case .None:
+	}
+	return ""
+}
+
+fv_modal_negative_contraction :: proc(modal: Fv_Modal, past: bool) -> (string, bool) {
+	switch modal {
+	case .Can:
+		return past ? "couldn't" : "can't", true
+	case .Should:
+		return "shouldn't", true
+	case .Will:
+		return past ? "wouldn't" : "won't", true
+	case .None:
+	}
+	return "", false
+}
+
+fv_be_negative_contraction :: proc(starter: ^Fv_Starter, past: bool) -> (string, bool) {
+	if past {
+		return starter.agreement == .Plural ? "weren't" : "wasn't", true
+	}
+	if starter.agreement == .First_Singular {
+		return "", false
+	}
+	return starter.agreement == .Plural ? "aren't" : "isn't", true
+}
+
+fv_have_negative_contraction :: proc(starter: ^Fv_Starter, past: bool) -> string {
+	if past {
+		return "hadn't"
+	}
+	return starter.agreement == .Third_Singular ? "hasn't" : "haven't"
+}
+
+fv_append_verb_and_suffix :: proc(buffer: ^[dynamic]byte, verb: string, suffix: string) -> bool {
+	return phrase_append_word(buffer, verb) && phrase_append_word(buffer, suffix)
+}
+
+fv_append_modal_complement :: proc(phrasing: ^Phrasing, buffer: ^[dynamic]byte, structure: Fv_Structure, ender: ^Fv_Ender) -> bool {
+	verb := fv_ender_verb(phrasing, ender)
+	has_verb := verb != nil
+	switch structure {
+	case .Simple:
+		return !has_verb || fv_append_verb_and_suffix(buffer, verb.base, ender.suffix)
+	case .Progressive:
+		return phrase_append_word(buffer, "be") &&
+			(!has_verb || fv_append_verb_and_suffix(buffer, verb.present_participle, ender.suffix))
+	case .Perfect:
+		return phrase_append_word(buffer, "have") &&
+			(!has_verb || fv_append_verb_and_suffix(buffer, verb.past_participle, ender.suffix))
+	case .Perfect_Progressive:
+		return phrase_append_word(buffer, "have") &&
+			phrase_append_word(buffer, "been") &&
+			(!has_verb || fv_append_verb_and_suffix(buffer, verb.present_participle, ender.suffix))
+	}
+	return false
+}
+
+fv_buffer_to_string :: proc(buffer: ^[dynamic]byte) -> (string, bool) {
+	if len(buffer^) == 0 {
+		return "", false
+	}
+	return clone_bytes_to_string(buffer^[:])
+}
+
+fv_build_long :: proc(phrasing: ^Phrasing, starter: ^Fv_Starter, operator: Fv_Operator, structure: Fv_Structure, ender: ^Fv_Ender) -> (string, bool) {
+	verb := fv_ender_verb(phrasing, ender)
+	has_verb := verb != nil
+	if operator.modal == .None && structure == .Simple && !has_verb {
+		return "", false
+	}
+
+	buffer := make([dynamic]byte)
+	defer delete(buffer)
+	if !phrase_append_word(&buffer, starter.text) {
+		return "", false
+	}
+
+	if operator.modal != .None {
+		if !phrase_append_word(&buffer, fv_modal_word(operator.modal, ender.past, operator.negative)) ||
+		   !fv_append_modal_complement(phrasing, &buffer, structure, ender) {
+			return "", false
+		}
+		return fv_buffer_to_string(&buffer)
+	}
+
+	switch structure {
+	case .Simple:
+		if operator.negative && verb.kind != .Be {
+			if !phrase_append_word(&buffer, fv_do_word(starter, ender.past)) ||
+			   !phrase_append_word(&buffer, "not") ||
+			   !fv_append_verb_and_suffix(&buffer, verb.base, ender.suffix) {
+				return "", false
+			}
+			return fv_buffer_to_string(&buffer)
+		}
+		if !phrase_append_word(&buffer, fv_finite_verb_word(starter, verb, ender.past)) ||
+		   (operator.negative && !phrase_append_word(&buffer, "not")) ||
+		   !phrase_append_word(&buffer, ender.suffix) {
+			return "", false
+		}
+	case .Progressive:
+		if !phrase_append_word(&buffer, fv_be_word(starter, ender.past)) ||
+		   (operator.negative && !phrase_append_word(&buffer, "not")) ||
+		   (has_verb && !fv_append_verb_and_suffix(&buffer, verb.present_participle, ender.suffix)) {
+			return "", false
+		}
+	case .Perfect:
+		if !phrase_append_word(&buffer, fv_have_word(starter, ender.past)) ||
+		   (operator.negative && !phrase_append_word(&buffer, "not")) ||
+		   (has_verb && !fv_append_verb_and_suffix(&buffer, verb.past_participle, ender.suffix)) {
+			return "", false
+		}
+	case .Perfect_Progressive:
+		if !phrase_append_word(&buffer, fv_have_word(starter, ender.past)) ||
+		   (operator.negative && !phrase_append_word(&buffer, "not")) ||
+		   !phrase_append_word(&buffer, "been") ||
+		   (has_verb && !fv_append_verb_and_suffix(&buffer, verb.present_participle, ender.suffix)) {
+			return "", false
+		}
+	}
+	return fv_buffer_to_string(&buffer)
+}
+
+fv_append_be_contraction_complement :: proc(phrasing: ^Phrasing, buffer: ^[dynamic]byte, structure: Fv_Structure, ender: ^Fv_Ender) -> bool {
+	verb := fv_ender_verb(phrasing, ender)
+	has_verb := verb != nil
+	if structure == .Simple && has_verb && verb.kind == .Be {
+		return phrase_append_word(buffer, ender.suffix)
+	}
+	if structure == .Progressive {
+		return !has_verb || fv_append_verb_and_suffix(buffer, verb.present_participle, ender.suffix)
+	}
+	return false
+}
+
+fv_append_have_contraction_complement :: proc(phrasing: ^Phrasing, buffer: ^[dynamic]byte, structure: Fv_Structure, ender: ^Fv_Ender) -> bool {
+	verb := fv_ender_verb(phrasing, ender)
+	has_verb := verb != nil
+	if structure == .Perfect {
+		return !has_verb || fv_append_verb_and_suffix(buffer, verb.past_participle, ender.suffix)
+	}
+	if structure == .Perfect_Progressive {
+		return phrase_append_word(buffer, "been") &&
+			(!has_verb || fv_append_verb_and_suffix(buffer, verb.present_participle, ender.suffix))
+	}
+	return false
+}
+
+fv_build_contraction :: proc(phrasing: ^Phrasing, starter: ^Fv_Starter, operator: Fv_Operator, structure: Fv_Structure, ender: ^Fv_Ender) -> (string, bool) {
+	verb := fv_ender_verb(phrasing, ender)
+	buffer := make([dynamic]byte)
+	defer delete(buffer)
+
+	if operator.modal != .None {
+		if operator.negative {
+			modal, modal_ok := fv_modal_negative_contraction(operator.modal, ender.past)
+			if !modal_ok ||
+			   !phrase_append_word(&buffer, starter.text) ||
+			   !phrase_append_word(&buffer, modal) ||
+			   !fv_append_modal_complement(phrasing, &buffer, structure, ender) {
+				return "", false
+			}
+			return fv_buffer_to_string(&buffer)
+		}
+		if operator.modal == .Will && !ender.past && len(starter.will_contraction) > 0 {
+			if !phrase_append_word(&buffer, starter.will_contraction) ||
+			   !fv_append_modal_complement(phrasing, &buffer, structure, ender) {
+				return "", false
+			}
+			return fv_buffer_to_string(&buffer)
+		}
+		return "", false
+	}
+
+	if operator.negative &&
+	   (structure == .Progressive || (structure == .Simple && verb != nil && verb.kind == .Be)) {
+		if starter.agreement == .First_Singular && !ender.past {
+			if len(starter.be_contraction) == 0 ||
+			   !phrase_append_word(&buffer, starter.be_contraction) ||
+			   !phrase_append_word(&buffer, "not") ||
+			   !fv_append_be_contraction_complement(phrasing, &buffer, structure, ender) {
+				return "", false
+			}
+			return fv_buffer_to_string(&buffer)
+		}
+		negative, negative_ok := fv_be_negative_contraction(starter, ender.past)
+		if !negative_ok ||
+		   !phrase_append_word(&buffer, starter.text) ||
+		   !phrase_append_word(&buffer, negative) ||
+		   !fv_append_be_contraction_complement(phrasing, &buffer, structure, ender) {
+			return "", false
+		}
+		return fv_buffer_to_string(&buffer)
+	}
+
+	if !operator.negative && !ender.past &&
+	   (structure == .Progressive || (structure == .Simple && verb != nil && verb.kind == .Be)) {
+		if len(starter.be_contraction) == 0 ||
+		   !phrase_append_word(&buffer, starter.be_contraction) ||
+		   !fv_append_be_contraction_complement(phrasing, &buffer, structure, ender) {
+			return "", false
+		}
+		return fv_buffer_to_string(&buffer)
+	}
+
+	if structure == .Perfect || structure == .Perfect_Progressive {
+		if operator.negative {
+			if !phrase_append_word(&buffer, starter.text) ||
+			   !phrase_append_word(&buffer, fv_have_negative_contraction(starter, ender.past)) ||
+			   !fv_append_have_contraction_complement(phrasing, &buffer, structure, ender) {
+				return "", false
+			}
+			return fv_buffer_to_string(&buffer)
+		}
+		if !ender.past && len(starter.have_contraction) > 0 {
+			if !phrase_append_word(&buffer, starter.have_contraction) ||
+			   !fv_append_have_contraction_complement(phrasing, &buffer, structure, ender) {
+				return "", false
+			}
+			return fv_buffer_to_string(&buffer)
+		}
+	}
+
+	return "", false
+}
+
 phrasing_lookup_final_verb :: proc(phrasing: ^Phrasing, bits: u64) -> (string, Phrase_Lookup_Result) {
+	for starter_index in 0..<len(phrasing.fv_starters) {
+		starter := &phrasing.fv_starters[starter_index]
+		for operator in phrasing.fv_operators {
+			for structure in phrasing.fv_structures {
+				for ender_index in 0..<len(phrasing.fv_enders) {
+					ender := &phrasing.fv_enders[ender_index]
+					long_bits := starter.bits | operator.bits | structure.bits | ender.bits
+					contraction := bits == (long_bits | phrasing.contraction_bits)
+					if bits != long_bits && !contraction {
+						continue
+					}
+
+					text: string
+					ok: bool
+					if contraction {
+						text, ok = fv_build_contraction(phrasing, starter, operator, structure.structure, ender)
+					} else {
+						text, ok = fv_build_long(phrasing, starter, operator, structure.structure, ender)
+					}
+					if !ok || len(text) == 0 {
+						owned_string_delete(text)
+						continue
+					}
+					return text, .Hit
+				}
+			}
+		}
+	}
 	return "", .Miss
 }
 
