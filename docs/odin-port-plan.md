@@ -162,6 +162,12 @@ Acceptance:
 
 ## Phase 4: Engine Runtime Without Platform Input
 
+Status: started. A callback-style Odin runtime now wraps the simple engine for
+direct stroke handling, phrase namespace gating, minimal text delete/insert
+output, and key-combo callbacks. It is covered by fake-output tests. Runtime
+config ownership, reload wiring, trace/suggestion file output, session-level
+history cleanup, and C/Odin fixture log parity are still pending.
+
 Assemble the Odin `Steno` runtime around callback-style output:
 
 - Engine config.
