@@ -14,6 +14,9 @@ Applied_Translation :: struct {
 
 Translation_Match :: struct {
 	translation:    string,
+	suffix_base_translation: string,
+	suffix_translation: string,
+	suffix_match:    bool,
 	strokes:         [dynamic]u64,
 	replaced_count:  int,
 	outline:         string,
@@ -104,6 +107,61 @@ append_strokes :: proc(out: ^[dynamic]u64, strokes: []u64) {
 	}
 }
 
+bits_after_steno_key :: proc(key: Steno_Key) -> u64 {
+	bits: u64 = 0
+	for candidate_index := int(key) + 1; candidate_index <= int(Steno_Key.Right_Z); candidate_index += 1 {
+		bits |= steno_bit(Steno_Key(candidate_index))
+	}
+	return bits
+}
+
+simple_engine_try_suffix_match :: proc(dictionary: ^Dictionary, candidate: []u64, replaced_count: int, match: ^Translation_Match, best_candidate: ^[dynamic]u64) -> (found: bool, ok: bool) {
+	if len(candidate) == 0 {
+		return false, true
+	}
+
+	suffix_keys := [?]Steno_Key{.Right_Z, .Right_D, .Right_S, .Right_G}
+	last_stroke := candidate[len(candidate) - 1]
+	for suffix_key in suffix_keys {
+		suffix_bit := steno_bit(suffix_key)
+		if (last_stroke & suffix_bit) == 0 || (last_stroke & bits_after_steno_key(suffix_key)) != 0 {
+			continue
+		}
+
+		base_candidate := make([dynamic]u64)
+		append_strokes(&base_candidate, candidate)
+		base_candidate[len(base_candidate) - 1] &= ~suffix_bit
+		if base_candidate[len(base_candidate) - 1] == 0 {
+			delete(base_candidate)
+			continue
+		}
+
+		base_translation, base_found := dictionary_lookup_strokes(dictionary, base_candidate[:])
+		if !base_found || len(base_translation) > 0 && base_translation[0] == '=' {
+			delete(base_candidate)
+			continue
+		}
+		suffix_translation, suffix_found := dictionary_lookup_bits(dictionary, suffix_bit)
+		if !suffix_found || len(suffix_translation) > 0 && suffix_translation[0] == '=' {
+			delete(base_candidate)
+			continue
+		}
+		delete(base_candidate)
+
+		match.translation = ""
+		match.suffix_base_translation = base_translation
+		match.suffix_translation = suffix_translation
+		match.suffix_match = true
+		match.replaced_count = replaced_count
+		match.found = true
+		resize(best_candidate, 0)
+		append_strokes(best_candidate, candidate)
+		return true, true
+	}
+
+	return false, true
+}
+
 simple_engine_find_match :: proc(engine: ^Simple_Engine, bits: u64) -> (match: Translation_Match, ok: bool) {
 	max_strokes := simple_engine_lookup_stroke_limit(engine.dictionary)
 	candidate := make([dynamic]u64)
@@ -113,11 +171,20 @@ simple_engine_find_match :: proc(engine: ^Simple_Engine, bits: u64) -> (match: T
 	defer delete(best_candidate)
 
 	replaced_count := 0
-	if translation, found := dictionary_lookup_strokes(engine.dictionary, candidate[:]); found && len(translation) > 0 && translation[0] != '=' {
-		match.translation = translation
-		match.replaced_count = replaced_count
-		match.found = true
-		append_strokes(&best_candidate, candidate[:])
+	if translation, found := dictionary_lookup_strokes(engine.dictionary, candidate[:]); found {
+		if len(translation) == 0 || translation[0] != '=' {
+			match.translation = translation
+			match.suffix_base_translation = ""
+			match.suffix_translation = ""
+			match.suffix_match = false
+			match.replaced_count = replaced_count
+			match.found = true
+			append_strokes(&best_candidate, candidate[:])
+		}
+	} else {
+		if _, suffix_ok := simple_engine_try_suffix_match(engine.dictionary, candidate[:], replaced_count, &match, &best_candidate); !suffix_ok {
+			return {}, false
+		}
 	}
 
 	for i := len(engine.history); i > 0 && len(candidate) < max_strokes; {
@@ -134,12 +201,22 @@ simple_engine_find_match :: proc(engine: ^Simple_Engine, bits: u64) -> (match: T
 		candidate = next_candidate
 		replaced_count += 1
 
-		if translation, found := dictionary_lookup_strokes(engine.dictionary, candidate[:]); found && len(translation) > 0 && translation[0] != '=' {
-			match.translation = translation
-			match.replaced_count = replaced_count
-			match.found = true
-			resize(&best_candidate, 0)
-			append_strokes(&best_candidate, candidate[:])
+		if translation, found := dictionary_lookup_strokes(engine.dictionary, candidate[:]); found {
+			if len(translation) == 0 || translation[0] != '=' {
+				match.translation = translation
+				match.suffix_base_translation = ""
+				match.suffix_translation = ""
+				match.suffix_match = false
+				match.replaced_count = replaced_count
+				match.found = true
+				resize(&best_candidate, 0)
+				append_strokes(&best_candidate, candidate[:])
+			}
+		} else {
+			if _, suffix_ok := simple_engine_try_suffix_match(engine.dictionary, candidate[:], replaced_count, &match, &best_candidate); !suffix_ok {
+				translation_match_destroy(&match)
+				return {}, false
+			}
 		}
 	}
 
@@ -221,8 +298,13 @@ simple_engine_build_text :: proc(old_text: string, previous: ^Applied_Translatio
 			if !joined_ok {
 				return "", false
 			}
+			formatted_append_string(&buffer, formatted.text[:formatted.ortho_suffix_text_offset])
 			formatted_append_string(&buffer, joined)
 			owned_string_delete(joined)
+			suffix_end := formatted.ortho_suffix_text_offset + formatted.ortho_suffix_text_length
+			if suffix_end < len(formatted.text) {
+				formatted_append_string(&buffer, formatted.text[suffix_end:])
+			}
 			formatted_append_string(&buffer, old_text[word_end:])
 		} else {
 			formatted_append_string(&buffer, old_text)
@@ -237,6 +319,10 @@ simple_engine_build_text :: proc(old_text: string, previous: ^Applied_Translatio
 }
 
 simple_engine_apply_match :: proc(engine: ^Simple_Engine, match: ^Translation_Match) -> bool {
+	if match.suffix_match {
+		return simple_engine_apply_suffix_match(engine, match)
+	}
+
 	formatted, formatted_ok := format_translation_text_basic(match.translation)
 	if !formatted_ok {
 		return false
@@ -356,6 +442,90 @@ simple_engine_execute_command :: proc(engine: ^Simple_Engine, command: string, b
 	case:
 		return true
 	}
+}
+
+simple_engine_apply_suffix_match :: proc(engine: ^Simple_Engine, match: ^Translation_Match) -> bool {
+	if len(match.suffix_base_translation) == 0 || len(match.suffix_translation) == 0 {
+		return false
+	}
+
+	base, base_ok := format_translation_text_basic(match.suffix_base_translation)
+	if !base_ok {
+		return false
+	}
+	defer formatted_text_destroy(&base)
+
+	suffix, suffix_ok := format_translation_text_basic(match.suffix_translation)
+	if !suffix_ok {
+		return false
+	}
+	defer formatted_text_destroy(&suffix)
+
+	translation_count := len(engine.history)
+	replaced_count := match.replaced_count
+	if replaced_count > translation_count {
+		return false
+	}
+	if replaced_count == 0 && translation_count > 0 && (base.attach_prev || base.glue && engine.history[translation_count - 1].glue) {
+		replaced_count = 1
+		base.attach_prev = true
+	}
+
+	replace_start := translation_count - replaced_count
+	old_text := ""
+	old_text_alloc := ""
+	old_text_owned := false
+	if replaced_count > 0 {
+		old_text_ok: bool
+		old_text_alloc, old_text_ok = simple_engine_range_text(engine, replace_start, replaced_count)
+		if !old_text_ok {
+			return false
+		}
+		old_text_owned = true
+		old_text = old_text_alloc
+	}
+
+	previous := simple_engine_previous_visible(engine, replace_start)
+	base_text, base_text_ok := simple_engine_build_text(old_text, previous, &base)
+	if old_text_owned {
+		owned_string_delete(old_text_alloc)
+	}
+	if !base_text_ok {
+		return false
+	}
+
+	final_text, final_text_ok := simple_engine_build_text(base_text, nil, &suffix)
+	owned_string_delete(base_text)
+	if !final_text_ok {
+		return false
+	}
+
+	strokes := make([dynamic]u64)
+	defer delete(strokes)
+	if replaced_count != match.replaced_count {
+		for i := replace_start; i < translation_count; i += 1 {
+			append_strokes(&strokes, engine.history[i].strokes[:])
+		}
+	}
+	append_strokes(&strokes, match.strokes[:])
+
+	next := Applied_Translation {
+		strokes = make([dynamic]u64),
+		text = final_text,
+		next_attach = suffix.attach_next,
+		glue = suffix.glue,
+	}
+	append_strokes(&next.strokes, strokes[:])
+	if replaced_count > 0 {
+		next.replaced = make([dynamic]Applied_Translation)
+		for i := replace_start; i < translation_count; i += 1 {
+			append(&next.replaced, engine.history[i])
+		}
+	}
+
+	resize(&engine.history, replace_start)
+	append(&engine.history, next)
+	return true
 }
 
 simple_engine_translate_bits :: proc(engine: ^Simple_Engine, bits: u64) -> bool {

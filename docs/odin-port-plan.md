@@ -106,9 +106,10 @@ loading, exact lookup, native Odin dictionary tests, and a temporary manual
 `--dict PATH --translate OUTLINE...` checkpoint now handles exact lookups,
 retroactive longest-match replacement, simple spacing, attach suffixes, glue,
 punctuation, a focused port of the current orthographic suffix rules, and
-`--print-suggestions` brevity hints with JSONL logging. Full formatting,
-word-list-backed orthography, history, retro, and stitch are still on the C
-side.
+same-stroke suffix-key fallback. It also handles `=undo`,
+`=repeat_last_translation`, and `--print-suggestions` brevity hints with JSONL
+logging. Full formatting, word-list-backed orthography, retro commands, and
+stitch are still on the C side.
 
 Port the pure translation data path:
 

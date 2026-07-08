@@ -5,6 +5,8 @@ import "core:strings"
 Formatted_Text :: struct {
 	text:         string,
 	ortho_suffix: string,
+	ortho_suffix_text_offset: int,
+	ortho_suffix_text_length: int,
 	attach_prev:  bool,
 	attach_next:  bool,
 	glue:         bool,
@@ -60,13 +62,14 @@ formatted_parse_attach_meta :: proc(formatted: ^Formatted_Text, buffer: ^[dynami
 		formatted.attach_prev = true
 		pending_attach_prev^ = false
 	}
-	if begin && !end {
+	if begin && !end && len(formatted.ortho_suffix) == 0 {
 		suffix, suffix_ok := clone_string_ok(meta[start:end_index])
 		if !suffix_ok {
 			return false
 		}
-		owned_string_delete(formatted.ortho_suffix)
 		formatted.ortho_suffix = suffix
+		formatted.ortho_suffix_text_offset = len(buffer^)
+		formatted.ortho_suffix_text_length = end_index - start
 	}
 	return formatted_append_string(buffer, meta[start:end_index])
 }

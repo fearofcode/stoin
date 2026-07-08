@@ -50,6 +50,18 @@ test_basic_format_translation_text :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_format_translation_tracks_first_orthographic_suffix :: proc(t: ^testing.T) {
+	formatted, ok := format_translation_text_basic("{^er}{^s}")
+	defer formatted_text_destroy(&formatted)
+
+	testing.expect(t, ok)
+	testing.expect_value(t, formatted.text, "ers")
+	testing.expect_value(t, formatted.ortho_suffix, "er")
+	testing.expect_value(t, formatted.ortho_suffix_text_offset, 0)
+	testing.expect_value(t, formatted.ortho_suffix_text_length, 2)
+}
+
+@(test)
 test_build_text_does_not_alias_old_text :: proc(t: ^testing.T) {
 	old_text, old_ok := clone_string_ok("quick")
 	testing.expect(t, old_ok)
@@ -116,6 +128,41 @@ test_simple_engine_translation :: proc(t: ^testing.T) {
 
 	reddish := [?]string{"RED", "EURB"}
 	test_translate_sequence(t, &dictionary, reddish[:], "reddish")
+}
+
+@(test)
+test_simple_engine_suffix_key_matches :: proc(t: ^testing.T) {
+	dictionary: Dictionary
+	dictionary_init(&dictionary)
+	defer dictionary_destroy(&dictionary)
+	testing.expect(t, dictionary_load(&dictionary, "tests/test-dictionary.json"))
+
+	cherries := [?]string{"KHERZ"}
+	test_translate_sequence(t, &dictionary, cherries[:], "cherries")
+
+	deferred := [?]string{"TKEFRD"}
+	test_translate_sequence(t, &dictionary, deferred[:], "deferred")
+
+	failing := [?]string{"TPAEULG"}
+	test_translate_sequence(t, &dictionary, failing[:], "failing")
+
+	stymied := [?]string{"STAOEU", "PHAOED"}
+	test_translate_sequence(t, &dictionary, stymied[:], "stymied")
+
+	history_saps := [?]string{"HEU", "SAPS"}
+	test_translate_sequence(t, &dictionary, history_saps[:], "history saps")
+
+	sappers := [?]string{"SAP", "*ERZ"}
+	test_translate_sequence(t, &dictionary, sappers[:], "sappers")
+
+	nonfinal_d := [?]string{"WADZ"}
+	test_translate_sequence(t, &dictionary, nonfinal_d[:], "WADZ")
+
+	nonfinal_s := [?]string{"KASD"}
+	test_translate_sequence(t, &dictionary, nonfinal_s[:], "KASD")
+
+	nonfinal_g := [?]string{"KAURBGS"}
+	test_translate_sequence(t, &dictionary, nonfinal_g[:], "KAURBGS")
 }
 
 @(test)
