@@ -79,6 +79,9 @@ Acceptance:
 
 ## Phase 1: Pure Stroke And Protocol Units
 
+Status: implemented for pure stroke parsing/formatting, TX Bolt byte decoding,
+Gemini PR packet decoding, Stentura packet helpers, and stroke merge behavior.
+
 Port the deterministic lowest-level modules first:
 
 - Steno key enum and bitset helpers.
