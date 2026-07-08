@@ -95,7 +95,8 @@ CORE_SOURCES := $(COMMON_SOURCES) $(PLATFORM_SOURCES)
 CORE_OBJECTS := $(patsubst src/%.c,$(BUILD_DIR)/%.o,$(CORE_SOURCES)) \
 	$(patsubst third_party/%.c,$(BUILD_DIR)/third_party/%.o,$(VENDOR_SOURCES))
 APP_OBJECTS := $(BUILD_DIR)/main.o $(CORE_OBJECTS)
-TEST_OBJECTS := $(BUILD_DIR)/test_steno.o $(CORE_OBJECTS)
+TEST_SOURCES := $(wildcard tests/test_*.c)
+TEST_OBJECTS := $(patsubst tests/%.c,$(BUILD_DIR)/%.o,$(TEST_SOURCES)) $(CORE_OBJECTS)
 RELEASE_CORE_OBJECTS := $(patsubst src/%.c,$(RELEASE_DIR)/%.o,$(CORE_SOURCES)) \
 	$(patsubst third_party/%.c,$(RELEASE_DIR)/third_party/%.o,$(VENDOR_SOURCES))
 RELEASE_APP_OBJECTS := $(RELEASE_DIR)/main.o $(RELEASE_CORE_OBJECTS)
