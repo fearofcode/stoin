@@ -108,9 +108,10 @@ retroactive longest-match replacement, simple spacing, attach suffixes, glue,
 punctuation, a focused port of the current orthographic suffix rules, and
 same-stroke suffix-key fallback. It also handles `=undo`,
 `=repeat_last_translation`, and `--print-suggestions` brevity hints with JSONL
-logging. Basic stitch and stitch-last-word commands are also implemented. Full
-formatting, word-list-backed orthography, key-combo output, and plover
-side-effect commands are still on the C side.
+logging. Basic stitch and stitch-last-word commands, plus key-combo command
+modeling, are also implemented. Full formatting, word-list-backed orthography,
+platform key-combo output, and plover side-effect commands are still on the C
+side.
 
 Port the pure translation data path:
 

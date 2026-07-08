@@ -31,6 +31,7 @@ Formatted_Text :: struct {
 	stitch_last_word: bool,
 	stitch_count: int,
 	stitch_delimiter: string,
+	key_combos: [dynamic]string,
 	retro_command: Retro_Command,
 	text_case: Case_Mode,
 	next_case: Case_Mode,
@@ -42,6 +43,10 @@ formatted_text_destroy :: proc(formatted: ^Formatted_Text) {
 	delete(formatted.text)
 	owned_string_delete(formatted.ortho_suffix)
 	owned_string_delete(formatted.stitch_delimiter)
+	for combo in formatted.key_combos {
+		owned_string_delete(combo)
+	}
+	delete(formatted.key_combos)
 	owned_string_delete(formatted.mode_command)
 	formatted^ = {}
 }
@@ -211,6 +216,21 @@ formatted_parse_mode_meta :: proc(formatted: ^Formatted_Text, meta: string) -> b
 	return true
 }
 
+formatted_parse_key_combo_meta :: proc(formatted: ^Formatted_Text, meta: string) -> bool {
+	if len(meta) < 2 || meta[0] != '#' {
+		return false
+	}
+	combo, ok := clone_string_ok(meta[1:])
+	if !ok {
+		return false
+	}
+	if formatted.key_combos == nil {
+		formatted.key_combos = make([dynamic]string)
+	}
+	append(&formatted.key_combos, combo)
+	return true
+}
+
 formatted_parse_attach_meta :: proc(formatted: ^Formatted_Text, buffer: ^[dynamic]byte, meta: string, pending_attach_prev: ^bool) -> bool {
 	begin := len(meta) > 0 && meta[0] == '^'
 	end := len(meta) > 0 && meta[len(meta) - 1] == '^'
@@ -284,6 +304,10 @@ formatted_apply_meta :: proc(formatted: ^Formatted_Text, buffer: ^[dynamic]byte,
 	}
 
 	if formatted_parse_case_meta(formatted, buffer, meta) {
+		return true
+	}
+
+	if formatted_parse_key_combo_meta(formatted, meta) {
 		return true
 	}
 

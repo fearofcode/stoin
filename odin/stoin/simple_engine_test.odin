@@ -129,6 +129,19 @@ test_format_translation_mode_metadata :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_format_translation_key_combo_metadata :: proc(t: ^testing.T) {
+	key_combo, ok := format_translation_text_basic("{#Right}{^}")
+	defer formatted_text_destroy(&key_combo)
+
+	testing.expect(t, ok)
+	testing.expect_value(t, key_combo.text, "")
+	testing.expect_value(t, len(key_combo.key_combos), 1)
+	testing.expect_value(t, key_combo.key_combos[0], "Right")
+	testing.expect(t, key_combo.attach_prev)
+	testing.expect(t, key_combo.attach_next)
+}
+
+@(test)
 test_build_text_does_not_alias_old_text :: proc(t: ^testing.T) {
 	old_text, old_ok := clone_string_ok("quick")
 	testing.expect(t, old_ok)
@@ -361,6 +374,29 @@ test_simple_engine_mode_commands :: proc(t: ^testing.T) {
 
 	camel_mode := [?]string{"R*EFT", "WRO", "KAT", "PWAL"}
 	test_translate_sequence(t, &dictionary, camel_mode[:], "catBall")
+}
+
+@(test)
+test_simple_engine_key_combos :: proc(t: ^testing.T) {
+	dictionary: Dictionary
+	dictionary_init(&dictionary)
+	defer dictionary_destroy(&dictionary)
+	testing.expect(t, dictionary_load(&dictionary, "tests/test-dictionary.json"))
+
+	engine: Simple_Engine
+	simple_engine_init(&engine, &dictionary)
+	defer simple_engine_destroy(&engine)
+
+	bits, parsed := stroke_string_to_bits("STPH-G")
+	testing.expect(t, parsed)
+	testing.expect(t, simple_engine_translate_bits(&engine, bits))
+
+	text, ok := simple_engine_render(&engine)
+	defer owned_string_delete(text)
+	testing.expect(t, ok)
+	testing.expect_value(t, text, "")
+	testing.expect_value(t, len(engine.key_combos), 1)
+	testing.expect_value(t, engine.key_combos[0], "Right")
 }
 
 @(test)

@@ -31,6 +31,7 @@ Translation_Match :: struct {
 Simple_Engine :: struct {
 	dictionary: ^Dictionary,
 	history:    [dynamic]Applied_Translation,
+	key_combos: [dynamic]string,
 	case_mode:  Case_Mode,
 	next_case:  Case_Mode,
 	spacing:    string,
@@ -40,6 +41,7 @@ simple_engine_init :: proc(engine: ^Simple_Engine, dictionary: ^Dictionary) {
 	engine^ = {}
 	engine.dictionary = dictionary
 	engine.history = make([dynamic]Applied_Translation)
+	engine.key_combos = make([dynamic]string)
 	engine.spacing, _ = clone_string_ok(" ")
 }
 
@@ -48,6 +50,10 @@ simple_engine_destroy :: proc(engine: ^Simple_Engine) {
 		applied_translation_destroy(&engine.history[i])
 	}
 	delete(engine.history)
+	for combo in engine.key_combos {
+		owned_string_delete(combo)
+	}
+	delete(engine.key_combos)
 	owned_string_delete(engine.spacing)
 	engine^ = {}
 }
@@ -531,6 +537,7 @@ simple_engine_apply_match :: proc(engine: ^Simple_Engine, match: ^Translation_Ma
 
 	if len(formatted.mode_command) > 0 &&
 	   len(formatted.text) == 0 &&
+	   len(formatted.key_combos) == 0 &&
 	   !formatted.attach_prev &&
 	   !formatted.attach_next {
 		return simple_engine_execute_mode_command(engine, formatted.mode_command)
@@ -605,6 +612,12 @@ simple_engine_apply_match :: proc(engine: ^Simple_Engine, match: ^Translation_Ma
 
 	resize(&engine.history, replace_start)
 	append(&engine.history, next)
+	if !simple_engine_record_key_combos(engine, &formatted) {
+		return false
+	}
+	if len(formatted.mode_command) > 0 && !simple_engine_execute_mode_command(engine, formatted.mode_command) {
+		return false
+	}
 	return true
 }
 
@@ -872,6 +885,24 @@ simple_engine_execute_mode_command :: proc(engine: ^Simple_Engine, command: stri
 	return true
 }
 
+simple_engine_record_key_combos :: proc(engine: ^Simple_Engine, formatted: ^Formatted_Text) -> bool {
+	for combo in formatted.key_combos {
+		copy, ok := clone_string_ok(combo)
+		if !ok {
+			return false
+		}
+		append(&engine.key_combos, copy)
+	}
+	return true
+}
+
+formatted_has_deferred_action :: proc(formatted: ^Formatted_Text) -> bool {
+	return formatted.retro_command != .None ||
+		formatted.stitch_last_word ||
+		len(formatted.mode_command) > 0 ||
+		len(formatted.key_combos) > 0
+}
+
 simple_engine_apply_stitch_last_word :: proc(engine: ^Simple_Engine, match: ^Translation_Match, formatted: ^Formatted_Text) -> bool {
 	translation_count := len(engine.history)
 	if match.replaced_count > translation_count {
@@ -943,6 +974,9 @@ simple_engine_apply_suffix_match :: proc(engine: ^Simple_Engine, match: ^Transla
 		return false
 	}
 	defer formatted_text_destroy(&suffix)
+	if formatted_has_deferred_action(&base) || formatted_has_deferred_action(&suffix) {
+		return false
+	}
 
 	translation_count := len(engine.history)
 	replaced_count := match.replaced_count
