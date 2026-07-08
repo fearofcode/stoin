@@ -8,19 +8,35 @@ foreign import CoreGraphics "system:CoreGraphics.framework"
 
 CGEventRef :: distinct CF.TypeRef
 CGEventSourceRef :: distinct CF.TypeRef
+CFMachPortRef :: distinct CF.TypeRef
 CGEventSourceStateID :: distinct i32
 CGEventTapLocation :: distinct u32
+CGEventTapPlacement :: distinct u32
+CGEventTapOptions :: distinct u32
+CGEventTapProxy :: distinct rawptr
+CGEventType :: distinct u32
+CGEventMask :: distinct u64
 CGEventField :: distinct i32
 CGEventFlags :: distinct u64
 CGKeyCode :: distinct u16
 UniCharCount :: distinct c.ulong
+CGEventTapCallBack :: proc "c" (proxy: CGEventTapProxy, event_type: CGEventType, event: CGEventRef, user_info: rawptr) -> CGEventRef
 
 MACOS_BACKSPACE_KEYCODE :: CGKeyCode(51)
 MACOS_GENERATED_EVENT_USER_DATA :: i64(0x73746f696e)
 
 KCG_EVENT_SOURCE_STATE_HID_SYSTEM :: CGEventSourceStateID(1)
 KCG_SESSION_EVENT_TAP :: CGEventTapLocation(1)
+KCG_HEAD_INSERT_EVENT_TAP :: CGEventTapPlacement(0)
+KCG_EVENT_TAP_OPTION_DEFAULT :: CGEventTapOptions(0)
 KCG_EVENT_SOURCE_USER_DATA :: CGEventField(42)
+KCG_KEYBOARD_EVENT_AUTOREPEAT :: CGEventField(8)
+KCG_KEYBOARD_EVENT_KEYCODE :: CGEventField(9)
+
+KCG_EVENT_KEY_DOWN :: CGEventType(10)
+KCG_EVENT_KEY_UP :: CGEventType(11)
+KCG_EVENT_FLAGS_CHANGED :: CGEventType(12)
+KCG_EVENT_TAP_DISABLED_BY_TIMEOUT :: CGEventType(0xfffffffe)
 
 KCG_EVENT_FLAG_MASK_SHIFT :: CGEventFlags(0x00020000)
 KCG_EVENT_FLAG_MASK_CONTROL :: CGEventFlags(0x00040000)
@@ -33,8 +49,11 @@ foreign CoreGraphics {
 	CGEventSetIntegerValueField :: proc(event: CGEventRef, field: CGEventField, value: i64) ---
 	CGEventGetIntegerValueField :: proc(event: CGEventRef, field: CGEventField) -> i64 ---
 	CGEventSetFlags :: proc(event: CGEventRef, flags: CGEventFlags) ---
+	CGEventGetFlags :: proc(event: CGEventRef) -> CGEventFlags ---
 	CGEventKeyboardSetUnicodeString :: proc(event: CGEventRef, string_length: UniCharCount, unicode_string: [^]u16) ---
 	CGEventPost :: proc(tap: CGEventTapLocation, event: CGEventRef) ---
+	CGEventTapCreate :: proc(tap: CGEventTapLocation, place: CGEventTapPlacement, options: CGEventTapOptions, events_of_interest: CGEventMask, callback: CGEventTapCallBack, user_info: rawptr) -> CFMachPortRef ---
+	CGEventTapEnable :: proc(tap: CFMachPortRef, enable: bool) ---
 }
 
 macos_output_source: CGEventSourceRef

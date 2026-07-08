@@ -10,6 +10,7 @@ Cli_Mode :: enum {
 	Help,
 	Lookup,
 	Translate,
+	Qwerty,
 }
 
 Cli_Config :: struct {
@@ -17,6 +18,8 @@ Cli_Config :: struct {
 	dict_paths:    [dynamic]string,
 	lookups:       [dynamic]string,
 	translates:     [dynamic]string,
+	input_qwerty:   bool,
+	keymap_path:    string,
 	print_suggestions: bool,
 	suggestion_log_path: string,
 	orthography_path: string,
@@ -63,6 +66,24 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 				return config, false
 			}
 			append(&config.lookups, args[i + 1])
+			i += 1
+		case "--input":
+			if i + 1 >= len(args) {
+				config.error_message = "--input requires qwerty"
+				return config, false
+			}
+			if args[i + 1] != "qwerty" {
+				config.error_message = "--input currently supports only qwerty"
+				return config, false
+			}
+			config.input_qwerty = true
+			i += 1
+		case "--keymap":
+			if i + 1 >= len(args) {
+				config.error_message = "--keymap requires a path"
+				return config, false
+			}
+			config.keymap_path = args[i + 1]
 			i += 1
 		case "--print-suggestions":
 			config.print_suggestions = true
@@ -115,12 +136,35 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 		}
 	}
 
-	if len(config.lookups) > 0 && len(config.translates) > 0 {
-		config.error_message = "--lookup and --translate cannot be combined"
+	selected_modes := 0
+	if len(config.lookups) > 0 {
+		selected_modes += 1
+	}
+	if len(config.translates) > 0 {
+		selected_modes += 1
+	}
+	if config.input_qwerty {
+		selected_modes += 1
+	}
+	if selected_modes > 1 {
+		config.error_message = "--lookup, --translate, and --input cannot be combined"
 		return config, false
 	}
 
-	if len(config.lookups) > 0 {
+	if config.input_qwerty {
+		config.mode = .Qwerty
+		if len(config.dict_paths) == 0 {
+			config.error_message = "--input qwerty requires at least one --dict"
+			return config, false
+		}
+		if len(config.keymap_path) == 0 {
+			config.keymap_path = "stoin.keymap"
+		}
+		if config.phrase_mode_enabled && len(config.phrasing_path) == 0 {
+			config.error_message = "--phrase-mode requires --phrasing"
+			return config, false
+		}
+	} else if len(config.lookups) > 0 {
 		config.mode = .Lookup
 		if len(config.dict_paths) == 0 {
 			config.error_message = "--lookup requires at least one --dict"
@@ -312,6 +356,80 @@ run_translate_cli :: proc(config: ^Cli_Config) -> bool {
 	cli_write(" -> ")
 	cli_write_line(string(output.text[:]))
 	return true
+}
+
+run_qwerty_cli :: proc(config: ^Cli_Config) -> bool {
+	when ODIN_OS != .Darwin {
+		_ = config
+		fmt.eprintln("stoin: qwerty input is currently implemented only on macOS in the Odin port")
+		return false
+	} else {
+		suggestion_log_file: ^os.File
+		if len(config.suggestion_log_path) > 0 {
+			open_file, open_err := os.open(
+				config.suggestion_log_path,
+				os.File_Flags{.Write, .Create, .Append},
+				os.Permissions_Default_File,
+			)
+			if open_err != nil {
+				fmt.eprintln("stoin: failed to open suggestion log")
+				return false
+			}
+			suggestion_log_file = open_file
+		}
+		defer if suggestion_log_file != nil {
+			os.close(suggestion_log_file)
+		}
+
+		output: Cli_Runtime_Output
+		cli_runtime_output_init(&output)
+		output.suggestion_log_file = suggestion_log_file
+		defer cli_runtime_output_destroy(&output)
+
+		runtime_config := Steno_Runtime_Load_Config {
+			dictionary_paths = config.dict_paths[:],
+			keymap_path = config.keymap_path,
+			orthography_path = config.orthography_path,
+			send_text = macos_runtime_send_text,
+			delete_text = macos_runtime_delete_text,
+			send_key_combination = macos_runtime_send_key_combination,
+			userdata = rawptr(&output),
+		}
+		if len(config.phrasing_path) > 0 {
+			runtime_config.phrasing_path = config.phrasing_path
+		}
+		if config.print_suggestions {
+			runtime_config.write_suggestion = cli_runtime_write_suggestion
+		}
+		if suggestion_log_file != nil {
+			runtime_config.write_suggestion_log = cli_runtime_write_suggestion_log
+		}
+
+		owner: Steno_Runtime_Owner
+		if !steno_runtime_owner_init(&owner, &runtime_config) {
+			fmt.eprintln("stoin: failed to initialize runtime")
+			return false
+		}
+		defer steno_runtime_owner_destroy(&owner)
+
+		if config.phrase_mode_enabled {
+			steno_runtime_set_phrase_namespace_enabled(&owner.runtime, true)
+			steno_runtime_set_phrase_mode(&owner.runtime, steno_phrase_mode_from_lookup_mode(config.phrase_mode))
+		}
+
+		if !macos_qwerty_start(&owner) {
+			fmt.eprintln("stoin: failed to start macOS qwerty event tap; confirm Accessibility permission")
+			return false
+		}
+		defer macos_output_shutdown()
+		defer macos_qwerty_stop()
+
+		fmt.eprintln("stoin: macOS Odin qwerty event tap running")
+		fmt.eprintln("stoin: loaded keymap from", config.keymap_path)
+		fmt.eprintln("stoin: press Ctrl+Esc to toggle capture; press Ctrl+C in this terminal to quit")
+		macos_qwerty_run()
+		return true
+	}
 }
 
 cli_write :: proc(text: string) {

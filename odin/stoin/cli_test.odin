@@ -65,6 +65,30 @@ test_parse_cli_args_suggestion_log :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_parse_cli_args_qwerty_defaults_keymap :: proc(t: ^testing.T) {
+	args := [?]string{APP_NAME, "--input", "qwerty", "--dict", "tests/test-dictionary.json"}
+	config, ok := parse_cli_args(args[:])
+	defer cli_config_destroy(&config)
+
+	testing.expect(t, ok)
+	testing.expect_value(t, config.mode, Cli_Mode.Qwerty)
+	testing.expect(t, config.input_qwerty)
+	testing.expect_value(t, len(config.dict_paths), 1)
+	testing.expect_value(t, config.keymap_path, "stoin.keymap")
+}
+
+@(test)
+test_parse_cli_args_qwerty_custom_keymap :: proc(t: ^testing.T) {
+	args := [?]string{APP_NAME, "--input", "qwerty", "--dict", "tests/test-dictionary.json", "--keymap", "tests/test.keymap"}
+	config, ok := parse_cli_args(args[:])
+	defer cli_config_destroy(&config)
+
+	testing.expect(t, ok)
+	testing.expect_value(t, config.mode, Cli_Mode.Qwerty)
+	testing.expect_value(t, config.keymap_path, "tests/test.keymap")
+}
+
+@(test)
 test_parse_cli_args_orthography :: proc(t: ^testing.T) {
 	args := [?]string{APP_NAME, "--dict", "tests/test-dictionary.json", "--orthography", "tests/test-words.txt", "--translate", "STOER", "-Z"}
 	config, ok := parse_cli_args(args[:])
@@ -113,6 +137,26 @@ test_parse_cli_args_requires_dictionary_for_translate :: proc(t: ^testing.T) {
 
 	testing.expect(t, !ok)
 	testing.expect_value(t, config.error_message, "--translate requires at least one --dict")
+}
+
+@(test)
+test_parse_cli_args_requires_dictionary_for_qwerty :: proc(t: ^testing.T) {
+	args := [?]string{APP_NAME, "--input", "qwerty"}
+	config, ok := parse_cli_args(args[:])
+	defer cli_config_destroy(&config)
+
+	testing.expect(t, !ok)
+	testing.expect_value(t, config.error_message, "--input qwerty requires at least one --dict")
+}
+
+@(test)
+test_parse_cli_args_rejects_combined_modes :: proc(t: ^testing.T) {
+	args := [?]string{APP_NAME, "--input", "qwerty", "--dict", "tests/test-dictionary.json", "--lookup", "SA-P"}
+	config, ok := parse_cli_args(args[:])
+	defer cli_config_destroy(&config)
+
+	testing.expect(t, !ok)
+	testing.expect_value(t, config.error_message, "--lookup, --translate, and --input cannot be combined")
 }
 
 @(test)

@@ -198,8 +198,9 @@ Status: started. The Odin port now has a keymap loader and synthetic qwerty
 event/chord-gathering path wired into the runtime, including Ctrl+Esc capture
 toggle, shortcut-modifier pass-through, phrase-mode latching during a chord, and
 phrase namespace gating. Darwin-only CoreGraphics output bindings are started
-for text, delete, key-combo emission, and generated-event marking. Live macOS
-event taps and file watching are still pending.
+for text, delete, key-combo emission, generated-event marking, and a live macOS
+qwerty event tap behind `--input qwerty`. File watching and real pedal
+integration are still pending.
 
 Implement the first real platform layer on macOS:
 
