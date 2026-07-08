@@ -19,6 +19,7 @@ Cli_Config :: struct {
 	translates:     [dynamic]string,
 	print_suggestions: bool,
 	suggestion_log_path: string,
+	orthography_path: string,
 	phrasing_path: string,
 	phrase_mode: Phrase_Lookup_Mode,
 	phrase_mode_enabled: bool,
@@ -71,6 +72,13 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 				return config, false
 			}
 			config.suggestion_log_path = args[i + 1]
+			i += 1
+		case "--orthography":
+			if i + 1 >= len(args) {
+				config.error_message = "--orthography requires a path"
+				return config, false
+			}
+			config.orthography_path = args[i + 1]
 			i += 1
 		case "--phrasing":
 			if i + 1 >= len(args) {
@@ -193,6 +201,19 @@ run_translate_cli :: proc(config: ^Cli_Config) -> bool {
 	engine: Simple_Engine
 	simple_engine_init(&engine, &dictionary)
 	defer simple_engine_destroy(&engine)
+
+	orthography: Orthography
+	if len(config.orthography_path) > 0 {
+		orthography_init(&orthography)
+		if !orthography_load(&orthography, config.orthography_path) {
+			fmt.eprintln("stoin: failed to load orthography word list")
+			return false
+		}
+		simple_engine_set_orthography(&engine, &orthography)
+	}
+	defer if len(config.orthography_path) > 0 {
+		orthography_destroy(&orthography)
+	}
 
 	suggestion_log_file: ^os.File
 	if len(config.suggestion_log_path) > 0 {

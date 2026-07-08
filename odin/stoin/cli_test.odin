@@ -65,6 +65,18 @@ test_parse_cli_args_suggestion_log :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_parse_cli_args_orthography :: proc(t: ^testing.T) {
+	args := [?]string{APP_NAME, "--dict", "tests/test-dictionary.json", "--orthography", "tests/test-words.txt", "--translate", "STOER", "-Z"}
+	config, ok := parse_cli_args(args[:])
+	defer cli_config_destroy(&config)
+
+	testing.expect(t, ok)
+	testing.expect_value(t, config.mode, Cli_Mode.Translate)
+	testing.expect_value(t, config.orthography_path, "tests/test-words.txt")
+	testing.expect_value(t, len(config.translates), 2)
+}
+
+@(test)
 test_parse_cli_args_phrase_mode :: proc(t: ^testing.T) {
 	args := [?]string {
 		APP_NAME,
