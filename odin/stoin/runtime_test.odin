@@ -1,5 +1,6 @@
 package stoin
 
+import "core:os"
 import "core:testing"
 
 Runtime_Test_Output :: struct {
@@ -179,6 +180,27 @@ runtime_test_config :: proc(dictionary: ^Dictionary, phrasing: ^Phrasing, orthog
 		send_key_combination = runtime_test_send_key_combination,
 		userdata = rawptr(output),
 	}
+}
+
+runtime_test_load_config :: proc(paths: []string, enabled: []bool, output: ^Runtime_Test_Output) -> Steno_Runtime_Load_Config {
+	return Steno_Runtime_Load_Config {
+		dictionary_paths = paths,
+		dictionary_enabled = enabled,
+		send_text = runtime_test_send_text,
+		delete_text = runtime_test_delete_text,
+		send_key_combination = runtime_test_send_key_combination,
+		userdata = rawptr(output),
+	}
+}
+
+runtime_test_write_file :: proc(path: string, contents: string) -> bool {
+	file, create_err := os.create(path)
+	if create_err != nil {
+		return false
+	}
+	_, write_err := os.write_string(file, contents)
+	close_err := os.close(file)
+	return write_err == nil && close_err == nil
 }
 
 @(test)
@@ -393,4 +415,124 @@ test_steno_runtime_compacts_history :: proc(t: ^testing.T) {
 	runtime_test_output_reset_events(&output)
 	testing.expect(t, steno_runtime_handle_stroke_bits(&runtime, runtime_test_bits(t, "-D")))
 	runtime_test_expect_output(t, &output, " storied")
+}
+
+@(test)
+test_steno_runtime_owner_loads_paths :: proc(t: ^testing.T) {
+	output: Runtime_Test_Output
+	runtime_test_output_init(&output)
+	defer runtime_test_output_destroy(&output)
+
+	paths := [?]string{"tests/test-dictionary.json"}
+	config := runtime_test_load_config(paths[:], nil, &output)
+	config.orthography_path = "tests/test-words.txt"
+	config.phrasing_path = "tests/test-phrasing.json"
+
+	owner: Steno_Runtime_Owner
+	testing.expect(t, steno_runtime_owner_init(&owner, &config))
+	defer steno_runtime_owner_destroy(&owner)
+
+	testing.expect(t, steno_runtime_owner_handle_stroke_bits(&owner, runtime_test_bits(t, "KHERZ")))
+	runtime_test_expect_output(t, &output, "cherries")
+
+	runtime_test_output_clear(&output)
+	testing.expect(t, steno_runtime_owner_handle_stroke(&owner, Stroke_Input {
+		bits = runtime_test_bits(t, "PW-B"),
+		phrase_namespace = true,
+		phrase_mode = .Verbs,
+	}))
+	runtime_test_expect_output(t, &output, " is a")
+}
+
+@(test)
+test_steno_runtime_owner_uses_dictionary_stack :: proc(t: ^testing.T) {
+	output: Runtime_Test_Output
+	runtime_test_output_init(&output)
+	defer runtime_test_output_destroy(&output)
+
+	paths := [?]string {
+		"tests/test-dictionary.json",
+		"tests/test-modal-dictionary.json",
+		"tests/test-custom-dictionary.json",
+	}
+	enabled := [?]bool{true, false, true}
+	config := runtime_test_load_config(paths[:], enabled[:], &output)
+
+	owner: Steno_Runtime_Owner
+	testing.expect(t, steno_runtime_owner_init(&owner, &config))
+	defer steno_runtime_owner_destroy(&owner)
+
+	testing.expect(t, steno_runtime_owner_handle_stroke_bits(&owner, runtime_test_bits(t, "KAT")))
+	runtime_test_expect_output(t, &output, "kitten")
+
+	testing.expect(t, steno_runtime_owner_handle_stroke_bits(&owner, runtime_test_bits(t, "STPH")))
+	runtime_test_output_reset_events(&output)
+	testing.expect(t, steno_runtime_owner_handle_stroke_bits(&owner, runtime_test_bits(t, "-R")))
+	testing.expect_value(t, runtime_test_last(output.key_combos[:]), "Left")
+}
+
+@(test)
+test_steno_runtime_owner_reloads_dictionary :: proc(t: ^testing.T) {
+	mkdir_err := os.make_directory("build")
+	testing.expect(t, mkdir_err == nil || mkdir_err == .Exist)
+
+	path := "build/odin-runtime-reload-dictionary.json"
+	defer os.remove(path)
+	testing.expect(t, runtime_test_write_file(path, "{\"KAT\":\"cat\"}\n"))
+
+	output: Runtime_Test_Output
+	runtime_test_output_init(&output)
+	defer runtime_test_output_destroy(&output)
+
+	paths := [?]string{path}
+	config := runtime_test_load_config(paths[:], nil, &output)
+
+	owner: Steno_Runtime_Owner
+	testing.expect(t, steno_runtime_owner_init(&owner, &config))
+	defer steno_runtime_owner_destroy(&owner)
+
+	testing.expect(t, steno_runtime_owner_handle_stroke_bits(&owner, runtime_test_bits(t, "KAT")))
+	runtime_test_expect_output(t, &output, "cat")
+
+	testing.expect(t, runtime_test_write_file(path, "{\"KAT\":\"kitten\"}\n"))
+	testing.expect(t, steno_runtime_owner_reload_dictionary(&owner))
+	runtime_test_output_clear(&output)
+	testing.expect(t, steno_runtime_owner_handle_stroke_bits(&owner, runtime_test_bits(t, "KAT")))
+	runtime_test_expect_output(t, &output, " kitten")
+}
+
+@(test)
+test_steno_runtime_owner_keeps_phrasing_after_failed_reload :: proc(t: ^testing.T) {
+	mkdir_err := os.make_directory("build")
+	testing.expect(t, mkdir_err == nil || mkdir_err == .Exist)
+
+	phrasing_data, read_err := os.read_entire_file("tests/test-phrasing.json", context.allocator)
+	testing.expect(t, read_err == nil)
+	defer delete(phrasing_data)
+
+	path := "build/odin-runtime-reload-phrasing.json"
+	defer os.remove(path)
+	testing.expect(t, runtime_test_write_file(path, string(phrasing_data)))
+
+	output: Runtime_Test_Output
+	runtime_test_output_init(&output)
+	defer runtime_test_output_destroy(&output)
+
+	paths := [?]string{"tests/test-dictionary.json"}
+	config := runtime_test_load_config(paths[:], nil, &output)
+	config.phrasing_path = path
+
+	owner: Steno_Runtime_Owner
+	testing.expect(t, steno_runtime_owner_init(&owner, &config))
+	defer steno_runtime_owner_destroy(&owner)
+
+	testing.expect(t, runtime_test_write_file(path, "not json\n"))
+	testing.expect(t, !steno_runtime_owner_reload_phrasing(&owner))
+
+	testing.expect(t, steno_runtime_owner_handle_stroke(&owner, Stroke_Input {
+		bits = runtime_test_bits(t, "PW-B"),
+		phrase_namespace = true,
+		phrase_mode = .Verbs,
+	}))
+	runtime_test_expect_output(t, &output, "is a")
 }

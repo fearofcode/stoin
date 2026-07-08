@@ -166,9 +166,10 @@ Status: started. A callback-style Odin runtime now wraps the simple engine for
 direct stroke handling, phrase namespace gating, minimal text delete/insert
 output, key-combo callbacks, trace lines, and brevity suggestion output/log
 lines. It also compacts old translation history while preserving retroactive
-matches over the retained suffix. It is covered by fake-output tests. Runtime
-config ownership, reload wiring, and C/Odin fixture log parity are still
-pending.
+matches over the retained suffix. A path-owning runtime wrapper loads dictionary
+stacks, orthography, and phrasing, and supports explicit dictionary/phrasing
+reloads while keeping previous phrasing after failed reloads. It is covered by
+fake-output tests. C/Odin fixture log parity is still pending.
 
 Assemble the Odin `Steno` runtime around callback-style output:
 

@@ -38,6 +38,20 @@ Steno_Runtime_Config :: struct {
 	userdata:             rawptr,
 }
 
+Steno_Runtime_Load_Config :: struct {
+	dictionary_paths:     []string,
+	dictionary_enabled:   []bool,
+	orthography_path:     string,
+	phrasing_path:        string,
+	send_text:            Send_Text_Callback,
+	delete_text:          Delete_Text_Callback,
+	send_key_combination: Send_Key_Combination_Callback,
+	write_trace:          Line_Output_Callback,
+	write_suggestion:     Line_Output_Callback,
+	write_suggestion_log: Line_Output_Callback,
+	userdata:             rawptr,
+}
+
 Steno_Runtime :: struct {
 	engine:                   Simple_Engine,
 	phrasing:                 ^Phrasing,
@@ -52,6 +66,16 @@ Steno_Runtime :: struct {
 	phrase_namespace_enabled: bool,
 	phrase_mode:              Steno_Phrase_Mode,
 	strokes_since_compaction: int,
+}
+
+Steno_Runtime_Owner :: struct {
+	dictionary_stack: Dictionary_Stack,
+	orthography:      Orthography,
+	has_orthography:  bool,
+	phrasing:         Phrasing,
+	has_phrasing:     bool,
+	phrasing_path:    string,
+	runtime:          Steno_Runtime,
 }
 
 Trace_Stroke_Mode :: enum {
@@ -85,6 +109,123 @@ steno_runtime_init :: proc(runtime: ^Steno_Runtime, config: ^Steno_Runtime_Confi
 	runtime.userdata = config.userdata
 	runtime.session_active = true
 	return true
+}
+
+steno_runtime_owner_init :: proc(owner: ^Steno_Runtime_Owner, config: ^Steno_Runtime_Load_Config) -> bool {
+	if owner == nil || config == nil {
+		return false
+	}
+	owner^ = {}
+
+	dictionary_stack_init(&owner.dictionary_stack)
+	if !dictionary_stack_set_paths(&owner.dictionary_stack, config.dictionary_paths, config.dictionary_enabled) ||
+	   !dictionary_stack_load(&owner.dictionary_stack) {
+		steno_runtime_owner_destroy(owner)
+		return false
+	}
+
+	orthography_pointer: ^Orthography
+	if len(config.orthography_path) > 0 {
+		orthography_init(&owner.orthography)
+		owner.has_orthography = true
+		if !orthography_load(&owner.orthography, config.orthography_path) {
+			steno_runtime_owner_destroy(owner)
+			return false
+		}
+		orthography_pointer = &owner.orthography
+	}
+
+	phrasing_pointer: ^Phrasing
+	if len(config.phrasing_path) > 0 {
+		phrasing_ok: bool
+		owner.phrasing, phrasing_ok = phrasing_load(config.phrasing_path)
+		if !phrasing_ok {
+			steno_runtime_owner_destroy(owner)
+			return false
+		}
+		owner.has_phrasing = true
+		path_copy, path_ok := clone_string_ok(config.phrasing_path)
+		if !path_ok {
+			steno_runtime_owner_destroy(owner)
+			return false
+		}
+		owner.phrasing_path = path_copy
+		phrasing_pointer = &owner.phrasing
+	}
+
+	runtime_config := Steno_Runtime_Config {
+		dictionary_stack = &owner.dictionary_stack,
+		orthography = orthography_pointer,
+		phrasing = phrasing_pointer,
+		send_text = config.send_text,
+		delete_text = config.delete_text,
+		send_key_combination = config.send_key_combination,
+		write_trace = config.write_trace,
+		write_suggestion = config.write_suggestion,
+		write_suggestion_log = config.write_suggestion_log,
+		userdata = config.userdata,
+	}
+	if !steno_runtime_init(&owner.runtime, &runtime_config) {
+		steno_runtime_owner_destroy(owner)
+		return false
+	}
+
+	return true
+}
+
+steno_runtime_owner_destroy :: proc(owner: ^Steno_Runtime_Owner) {
+	if owner == nil {
+		return
+	}
+	steno_runtime_destroy(&owner.runtime)
+	if owner.has_phrasing {
+		phrasing_destroy(&owner.phrasing)
+	}
+	owned_string_delete(owner.phrasing_path)
+	if owner.has_orthography {
+		orthography_destroy(&owner.orthography)
+	}
+	dictionary_stack_destroy(&owner.dictionary_stack)
+	owner^ = {}
+}
+
+steno_runtime_owner_reload_dictionary :: proc(owner: ^Steno_Runtime_Owner) -> bool {
+	if owner == nil {
+		return false
+	}
+	return dictionary_stack_load(&owner.dictionary_stack)
+}
+
+steno_runtime_owner_reload_phrasing :: proc(owner: ^Steno_Runtime_Owner) -> bool {
+	if owner == nil || len(owner.phrasing_path) == 0 {
+		return false
+	}
+
+	next, ok := phrasing_load(owner.phrasing_path)
+	if !ok {
+		return false
+	}
+	if owner.has_phrasing {
+		phrasing_destroy(&owner.phrasing)
+	}
+	owner.phrasing = next
+	owner.has_phrasing = true
+	owner.runtime.phrasing = &owner.phrasing
+	return true
+}
+
+steno_runtime_owner_handle_stroke :: proc(owner: ^Steno_Runtime_Owner, stroke: Stroke_Input) -> bool {
+	if owner == nil {
+		return false
+	}
+	return steno_runtime_handle_stroke(&owner.runtime, stroke)
+}
+
+steno_runtime_owner_handle_stroke_bits :: proc(owner: ^Steno_Runtime_Owner, bits: u64) -> bool {
+	if owner == nil {
+		return false
+	}
+	return steno_runtime_handle_stroke_bits(&owner.runtime, bits)
 }
 
 steno_runtime_destroy :: proc(runtime: ^Steno_Runtime) {
