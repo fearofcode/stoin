@@ -292,6 +292,73 @@ bool dictionary_lookup_stroke(const Dictionary *dictionary, const char *stroke, 
     return true;
 }
 
+static size_t outline_key_stroke_count(const char *outline)
+{
+    if (outline == NULL || outline[0] == '\0') {
+        return 0;
+    }
+
+    size_t stroke_count = 1;
+    for (const char *p = outline; *p != '\0'; ++p) {
+        if (*p == '/') {
+            ++stroke_count;
+        }
+    }
+    return stroke_count;
+}
+
+bool dictionary_find_translation_outline(
+    const Dictionary *dictionary,
+    const char *translation,
+    const char *exclude_outline,
+    size_t max_stroke_count,
+    char *out_outline,
+    size_t out_outline_size
+)
+{
+    if (dictionary == NULL || translation == NULL || out_outline == NULL || out_outline_size == 0) {
+        return false;
+    }
+
+    const char *best_outline = NULL;
+    size_t best_stroke_count = 0;
+    size_t best_outline_length = 0;
+    for (ptrdiff_t i = 0; i < shlen(dictionary->entries); ++i) {
+        const char *outline = dictionary->entries[i].key;
+        const char *value = dictionary->entries[i].value;
+        if (outline == NULL
+            || value == NULL
+            || value[0] == '='
+            || strcmp(value, translation) != 0
+            || (exclude_outline != NULL && strcmp(outline, exclude_outline) == 0)) {
+            continue;
+        }
+
+        const size_t stroke_count = outline_key_stroke_count(outline);
+        if (stroke_count == 0 || (max_stroke_count > 0 && stroke_count > max_stroke_count)) {
+            continue;
+        }
+
+        const size_t outline_length = strlen(outline);
+        if (best_outline == NULL
+            || stroke_count < best_stroke_count
+            || (stroke_count == best_stroke_count && outline_length < best_outline_length)
+            || (stroke_count == best_stroke_count
+                && outline_length == best_outline_length
+                && strcmp(outline, best_outline) < 0)) {
+            best_outline = outline;
+            best_stroke_count = stroke_count;
+            best_outline_length = outline_length;
+        }
+    }
+
+    if (best_outline == NULL || best_outline_length >= out_outline_size) {
+        return false;
+    }
+    memcpy(out_outline, best_outline, best_outline_length + 1);
+    return true;
+}
+
 static int compare_dump_entries(const void *a, const void *b)
 {
     const Dump_Entry *entry_a = a;

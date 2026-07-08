@@ -18,6 +18,13 @@ Use a custom database or address directly:
 go run ./cmd/stoin-srs-web --db practice.sqlite3 --addr 127.0.0.1:8090
 ```
 
+The app uses `stoin-config.json` by default for review/practice hint outlines.
+Point it at another active dictionary configuration with:
+
+```sh
+go run ./cmd/stoin-srs-web --config my-stoin-config.json
+```
+
 ## Backups
 
 The app exposes a live SQL dump at `/backup`, so you can back up a running app
@@ -75,6 +82,11 @@ then choose:
   checkbox selection.
 
 Practice mode accepts a practice count before starting the session.
+
+During review or practice, `Hint` shows the current word's outline from the
+configured dictionary stack. Requesting a hint marks that item as missed for the
+session, but leaves the word active until you type it correctly. In review mode,
+that means the item is scheduled the same way as a skipped item.
 
 After a review submit, the app checks for more due words in the same review
 scope. Deck reviews continue with due words from that deck; the root review-all

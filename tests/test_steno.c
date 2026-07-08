@@ -371,23 +371,58 @@ static bool expect_orthography(
     return ok;
 }
 
-static bool expect_trace_contains(FILE *trace_file, const char *name, const char *expected)
+static bool read_file_contents(FILE *file, char *contents, size_t contents_size)
 {
-    char contents[1024] = {0};
+    if (file == NULL || contents == NULL || contents_size == 0) {
+        return false;
+    }
 
-    fflush(trace_file);
-    rewind(trace_file);
-    const size_t read = fread(contents, 1, sizeof(contents) - 1, trace_file);
+    fflush(file);
+    rewind(file);
+    const size_t read = fread(contents, 1, contents_size - 1, file);
     contents[read] = '\0';
+    return true;
+}
+
+static bool expect_file_contains(FILE *file, const char *name, const char *expected)
+{
+    char contents[2048] = {0};
+    if (!read_file_contents(file, contents, sizeof(contents))) {
+        fprintf(stderr, "test failed: %s: could not read file output\n", name);
+        return false;
+    }
     if (strstr(contents, expected) != NULL) {
         return true;
     }
 
-    fprintf(stderr, "test failed: %s: expected trace to contain '%s', got '%s'\n",
+    fprintf(stderr, "test failed: %s: expected output to contain '%s', got '%s'\n",
         name,
         expected,
         contents);
     return false;
+}
+
+static bool expect_file_not_contains(FILE *file, const char *name, const char *unexpected)
+{
+    char contents[2048] = {0};
+    if (!read_file_contents(file, contents, sizeof(contents))) {
+        fprintf(stderr, "test failed: %s: could not read file output\n", name);
+        return false;
+    }
+    if (strstr(contents, unexpected) == NULL) {
+        return true;
+    }
+
+    fprintf(stderr, "test failed: %s: expected output not to contain '%s', got '%s'\n",
+        name,
+        unexpected,
+        contents);
+    return false;
+}
+
+static bool expect_trace_contains(FILE *trace_file, const char *name, const char *expected)
+{
+    return expect_file_contains(trace_file, name, expected);
 }
 
 int main(void)
@@ -996,6 +1031,129 @@ int main(void)
             steno_destroy(trace_steno);
         }
         fclose(trace_file);
+    }
+
+    FILE *disabled_suggestions_file = tmpfile();
+    ok = ok && disabled_suggestions_file != NULL;
+    if (disabled_suggestions_file != NULL) {
+        Steno_Config disabled_suggestions_config = config;
+        disabled_suggestions_config.suggestions_file = disabled_suggestions_file;
+        Steno *disabled_suggestions_steno = steno_create(&disabled_suggestions_config);
+        ok = ok && disabled_suggestions_steno != NULL;
+        if (disabled_suggestions_steno != NULL) {
+            clear_test_output(&output);
+            ok = ok && handle_test_stroke(disabled_suggestions_steno, "TPH");
+            ok = ok && handle_test_stroke(disabled_suggestions_steno, "-T");
+            ok = ok && expect_file_not_contains(
+                disabled_suggestions_file,
+                "brevity suggestions disabled",
+                "Suggestion:");
+            steno_destroy(disabled_suggestions_steno);
+        }
+        fclose(disabled_suggestions_file);
+    }
+
+    FILE *suggestions_file = tmpfile();
+    ok = ok && suggestions_file != NULL;
+    if (suggestions_file != NULL) {
+        Steno_Config suggestions_config = config;
+        suggestions_config.suggestions_file = suggestions_file;
+        suggestions_config.print_suggestions = true;
+        Steno *suggestions_steno = steno_create(&suggestions_config);
+        ok = ok && suggestions_steno != NULL;
+        if (suggestions_steno != NULL) {
+            clear_test_output(&output);
+            ok = ok && handle_test_stroke(suggestions_steno, "KAT");
+            ok = ok && handle_test_stroke(suggestions_steno, "TPH");
+            ok = ok && handle_test_stroke(suggestions_steno, "-T");
+            ok = ok && expect_file_contains(
+                suggestions_file,
+                "brevity suggests shorter phrase",
+                "Suggestion: Use TPH-T for \"in the\"\n");
+            ok = ok && handle_test_stroke(suggestions_steno, "PW-G");
+            ok = ok && expect_file_contains(
+                suggestions_file,
+                "brevity prefers longer phrase",
+                "Suggestion: Use TPH-T/PWG for \"in the beginning\"\n");
+            ok = ok && expect_string(
+                "brevity suggestions do not change output",
+                output.text,
+                "cat in the beginning");
+            steno_destroy(suggestions_steno);
+        }
+        fclose(suggestions_file);
+    }
+
+    FILE *brief_suggestions_file = tmpfile();
+    ok = ok && brief_suggestions_file != NULL;
+    if (brief_suggestions_file != NULL) {
+        Steno_Config brief_suggestions_config = config;
+        brief_suggestions_config.suggestions_file = brief_suggestions_file;
+        brief_suggestions_config.print_suggestions = true;
+        Steno *brief_suggestions_steno = steno_create(&brief_suggestions_config);
+        ok = ok && brief_suggestions_steno != NULL;
+        if (brief_suggestions_steno != NULL) {
+            clear_test_output(&output);
+            ok = ok && handle_test_stroke(brief_suggestions_steno, "TPH-T");
+            ok = ok && expect_string("brief suggestion direct output", output.text, "in the");
+            ok = ok && expect_file_not_contains(
+                brief_suggestions_file,
+                "brevity does not suggest typed brief",
+                "Suggestion:");
+            steno_destroy(brief_suggestions_steno);
+        }
+        fclose(brief_suggestions_file);
+    }
+
+    FILE *suggestion_log_file = tmpfile();
+    FILE *silent_suggestions_file = tmpfile();
+    ok = ok && suggestion_log_file != NULL && silent_suggestions_file != NULL;
+    if (suggestion_log_file != NULL && silent_suggestions_file != NULL) {
+        Steno_Config suggestion_log_config = config;
+        suggestion_log_config.suggestions_file = silent_suggestions_file;
+        suggestion_log_config.suggestion_log_file = suggestion_log_file;
+        Steno *suggestion_log_steno = steno_create(&suggestion_log_config);
+        ok = ok && suggestion_log_steno != NULL;
+        if (suggestion_log_steno != NULL) {
+            clear_test_output(&output);
+            ok = ok && handle_test_stroke(suggestion_log_steno, "TPH");
+            ok = ok && handle_test_stroke(suggestion_log_steno, "-T");
+            ok = ok && expect_file_not_contains(
+                silent_suggestions_file,
+                "suggestion log does not print",
+                "Suggestion:");
+            ok = ok && expect_file_contains(
+                suggestion_log_file,
+                "suggestion log suggested outline",
+                "\"suggested_outline\":\"TPH-T\"");
+            ok = ok && expect_file_contains(
+                suggestion_log_file,
+                "suggestion log typed outline",
+                "\"typed_outline\":\"TPH/-T\"");
+            ok = ok && expect_file_contains(
+                suggestion_log_file,
+                "suggestion log text",
+                "\"text\":\"in the\"");
+            ok = ok && expect_file_contains(
+                suggestion_log_file,
+                "suggestion log typed strokes",
+                "\"typed_strokes\":2");
+            ok = ok && expect_file_contains(
+                suggestion_log_file,
+                "suggestion log suggested strokes",
+                "\"suggested_strokes\":1");
+            ok = ok && expect_file_contains(
+                suggestion_log_file,
+                "suggestion log saved strokes",
+                "\"saved_strokes\":1");
+            steno_destroy(suggestion_log_steno);
+        }
+    }
+    if (silent_suggestions_file != NULL) {
+        fclose(silent_suggestions_file);
+    }
+    if (suggestion_log_file != NULL) {
+        fclose(suggestion_log_file);
     }
 
     clear_test_output(&output);

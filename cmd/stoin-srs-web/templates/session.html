@@ -14,7 +14,9 @@
 			</div>
 			<div class="session-input-row">
 				<div class="session-echo" id="line_echo_{{$line.Index}}"></div>
+				<button type="button" class="session-hint-button" data-line="{{$line.Index}}" disabled>Hint</button>
 				<button type="button" class="session-skip" data-line="{{$line.Index}}" disabled>Skip</button>
+				<span class="session-hint" data-line="{{$line.Index}}" aria-live="polite"></span>
 			</div>
 			<textarea class="session-line-input" id="typing_line_{{$line.Index}}" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" disabled></textarea>
 			{{range $lineItem := $line.Items}}

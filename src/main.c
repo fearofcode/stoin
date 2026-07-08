@@ -447,6 +447,7 @@ static void print_usage(void)
     fputs("             [--multiple-inputs] [--multi-input-window-ms MS]\n", stderr);
     fputs("             [--phrase-toggle KEY] [--nonverb-phrase-toggle KEY]\n", stderr);
     fputs("             [--trace-key-events]\n", stderr);
+    fputs("             [--print-suggestions] [--suggestion-log PATH]\n", stderr);
     fputs("             [--time-translations]\n", stderr);
     fputs("             [--trace-strokes|--no-trace-strokes]\n", stderr);
     fputs("       stoin --raw-serial [--serial-port PATH] [--serial-baud BAUD]\n", stderr);
@@ -838,6 +839,8 @@ static Steno *create_steno(
     const char *word_list_path,
     const char *phrasing_path,
     const char *keymap_path,
+    bool print_suggestions,
+    FILE *suggestion_log_file,
     FILE *trace_file
 )
 {
@@ -853,6 +856,8 @@ static Steno *create_steno(
         .send_key_combination = send_key_combination,
         .send_userdata = NULL,
         .trace_file = trace_file,
+        .suggestion_log_file = suggestion_log_file,
+        .print_suggestions = print_suggestions,
     };
     return steno_create(&steno_config);
 }
@@ -872,6 +877,8 @@ int main(int argc, char **argv)
     unsigned int multi_input_window_ms = TX_BOLT_MULTIPLE_DEFAULT_WINDOW_MS;
     bool trace_strokes = true;
     bool trace_key_events = false;
+    bool print_suggestions = false;
+    const char *suggestion_log_path = NULL;
     bool time_translations = false;
     bool phrase_toggle_enabled = false;
     uint16_t phrase_toggle_keycode = 0;
@@ -953,6 +960,10 @@ int main(int argc, char **argv)
         } else if (strcmp(argv[i], "--trace-key-events") == 0
             || strcmp(argv[i], "--trace-input-events") == 0) {
             trace_key_events = true;
+        } else if (strcmp(argv[i], "--print-suggestions") == 0) {
+            print_suggestions = true;
+        } else if (strcmp(argv[i], "--suggestion-log") == 0 && i + 1 < argc) {
+            suggestion_log_path = argv[++i];
         } else if (strcmp(argv[i], "--time-translations") == 0
             || strcmp(argv[i], "--time-translation") == 0) {
             time_translations = true;
@@ -1062,6 +1073,8 @@ int main(int argc, char **argv)
             runtime_config.word_list_path,
             runtime_config.phrasing_path,
             NULL,
+            false,
+            NULL,
             NULL
         );
         if (steno == NULL) {
@@ -1087,6 +1100,8 @@ int main(int argc, char **argv)
             runtime_config.word_list_path,
             runtime_config.phrasing_path,
             NULL,
+            false,
+            NULL,
             NULL
         );
         if (steno == NULL) {
@@ -1106,6 +1121,16 @@ int main(int argc, char **argv)
         return 0;
     }
 
+    FILE *suggestion_log_file = NULL;
+    if (suggestion_log_path != NULL) {
+        suggestion_log_file = fopen(suggestion_log_path, "ab");
+        if (suggestion_log_file == NULL) {
+            fprintf(stderr, "stoin: failed to open suggestion log '%s'\n", suggestion_log_path);
+            runtime_config_destroy(&runtime_config);
+            return 1;
+        }
+    }
+
     App app = {
         .steno = create_steno(
             runtime_config.dictionary_paths,
@@ -1114,6 +1139,8 @@ int main(int argc, char **argv)
             runtime_config.word_list_path,
             runtime_config.phrasing_path,
             input_mode == INPUT_MODE_QWERTY ? "stoin.keymap" : NULL,
+            print_suggestions,
+            suggestion_log_file,
             trace_strokes ? stderr : NULL
         ),
         .time_translations = time_translations,
@@ -1127,12 +1154,18 @@ int main(int argc, char **argv)
         .nonverb_phrase_toggle_name = nonverb_phrase_toggle_name,
     };
     if (app.steno == NULL) {
+        if (suggestion_log_file != NULL) {
+            fclose(suggestion_log_file);
+        }
         runtime_config_destroy(&runtime_config);
         return 1;
     }
     if (!app_init_phrase_toggle_state(&app)) {
         fputs("stoin: failed to initialize phrase toggle state\n", stderr);
         steno_destroy(app.steno);
+        if (suggestion_log_file != NULL) {
+            fclose(suggestion_log_file);
+        }
         runtime_config_destroy(&runtime_config);
         return 1;
     }
@@ -1154,6 +1187,9 @@ int main(int argc, char **argv)
             if (!platform_init_listen_only(handle_phrase_toggle_input, &app)) {
                 app_destroy_phrase_toggle_state(&app);
                 steno_destroy(app.steno);
+                if (suggestion_log_file != NULL) {
+                    fclose(suggestion_log_file);
+                }
                 runtime_config_destroy(&runtime_config);
                 return 1;
             }
@@ -1186,6 +1222,9 @@ int main(int argc, char **argv)
 
     app_destroy_phrase_toggle_state(&app);
     steno_destroy(app.steno);
+    if (suggestion_log_file != NULL && fclose(suggestion_log_file) != 0 && status == 0) {
+        status = 1;
+    }
     runtime_config_destroy(&runtime_config);
     return status;
 }

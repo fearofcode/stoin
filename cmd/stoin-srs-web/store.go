@@ -503,6 +503,15 @@ WHERE id IN (
 	return nil
 }
 
+func (a *App) itemTextByID(ctx context.Context, itemID int64) (string, error) {
+	var text string
+	err := a.db.QueryRowContext(ctx, `
+SELECT text
+FROM items
+WHERE id = ?`, itemID).Scan(&text)
+	return text, err
+}
+
 func (a *App) itemsByID(ctx context.Context, ids []int64) ([]SessionItem, error) {
 	if len(ids) == 0 {
 		return nil, nil

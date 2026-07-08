@@ -1,5 +1,9 @@
 {
   "-T": "the",
+  "TPH": "in",
+  "PW-G": "beginning",
+  "TPH-T": "in the",
+  "TPH-T/PW-G": "in the beginning",
   "-S": "{^s}",
   "-D": "{^ed}",
   "-Z": "{^s}",

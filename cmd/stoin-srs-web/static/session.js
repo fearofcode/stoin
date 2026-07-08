@@ -14,9 +14,13 @@ const submit = document.getElementById('submit');
 const autoSubmitStatus = document.getElementById('auto-submit-status');
 const lines = Array.from(document.querySelectorAll('.session-line'));
 const lineInputs = Array.from(document.querySelectorAll('.session-line-input'));
+const hintButtons = Array.from(document.querySelectorAll('.session-hint-button'));
+const hintDisplays = Array.from(document.querySelectorAll('.session-hint'));
 const skipButtons = Array.from(document.querySelectorAll('.session-skip'));
 const tokens = Array.from(document.querySelectorAll('.session-token'));
 const lineByItem = [];
+const hinted = Array(items.length).fill(false);
+const hintTextByIndex = Array(items.length).fill('');
 lines.forEach((line, lineIndex) => {
 	const start = Number(line.dataset.start);
 	const end = Number(line.dataset.end);
@@ -144,7 +148,9 @@ function syncControls() {
 		const current = lineIndex === currentLine;
 		line.classList.toggle('current', current);
 		lineInputs[lineIndex].disabled = !current;
+		hintButtons[lineIndex].disabled = !current;
 		skipButtons[lineIndex].disabled = !current;
+		hintDisplays[lineIndex].textContent = current && index < items.length ? hintTextByIndex[index] : '';
 		if (current) {
 			if (lineInputs[lineIndex].value !== currentInput) lineInputs[lineIndex].value = currentInput;
 		} else {
@@ -184,14 +190,23 @@ function completeCurrent(correct) {
 	if (index >= items.length) return;
 	cancelCorrectTimer();
 	const answer = currentInput;
+	const missed = hinted[index] || !correct;
 	document.getElementById('answer_' + index).value = answer;
-	document.getElementById('result_' + index).value = correct ? 'correct' : 'missed';
-	results[index] = correct ? 'correct' : 'missed';
+	document.getElementById('result_' + index).value = missed ? 'missed' : 'correct';
+	results[index] = missed ? 'missed' : 'correct';
 	const oldLine = currentLineIndex();
 	if (oldLine >= 0) lineInputs[oldLine].value = '';
 	currentInput = '';
 	index++;
 	renderSession();
+}
+function setHintForIndex(itemIndex, text) {
+	if (itemIndex < 0 || itemIndex >= items.length) return;
+	hinted[itemIndex] = true;
+	hintTextByIndex[itemIndex] = text;
+	const currentLine = currentLineIndex();
+	if (itemIndex === index && currentLine >= 0) hintDisplays[currentLine].textContent = text;
+	cancelAutoSubmit();
 }
 lineInputs.forEach((input, lineIndex) => {
 	input.addEventListener('input', function() {
@@ -204,6 +219,32 @@ lineInputs.forEach((input, lineIndex) => {
 		} else {
 			renderSession({focus: false, scroll: false});
 		}
+	});
+});
+hintButtons.forEach((button, lineIndex) => {
+	button.addEventListener('click', function() {
+		if (lineIndex !== currentLineIndex() || index >= items.length) return;
+		const item = items[index];
+		const itemIndex = index;
+		setHintForIndex(itemIndex, 'Loading hint...');
+		fetch('/hint?item_id=' + encodeURIComponent(item.id), {headers: {'Accept': 'application/json'}})
+			.then(function(response) {
+				if (!response.ok) throw new Error('hint failed');
+				return response.json();
+			})
+			.then(function(data) {
+				if (!data.found || !Array.isArray(data.outlines) || data.outlines.length === 0) {
+					setHintForIndex(itemIndex, 'No outline found.');
+					return;
+				}
+				setHintForIndex(itemIndex, 'Outline: ' + data.outlines.join(' / '));
+			})
+			.catch(function() {
+				setHintForIndex(itemIndex, 'Hint unavailable.');
+			})
+			.finally(function() {
+				renderSession({focus: false, scroll: false});
+			});
 	});
 });
 skipButtons.forEach((button, lineIndex) => {

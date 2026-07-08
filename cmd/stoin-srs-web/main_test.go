@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -271,6 +273,96 @@ func TestReviewSubmitRedirectsWhenNoDueItemsRemain(t *testing.T) {
 	}
 	if location := rec.Header().Get("Location"); !strings.HasPrefix(location, fmt.Sprintf("/deck?id=%d", deckID)) {
 		t.Fatalf("unexpected redirect location %q", location)
+	}
+}
+
+func TestHintRouteUsesConfiguredDictionaryStack(t *testing.T) {
+	dir := t.TempDir()
+	firstDict := filepath.Join(dir, "first.json")
+	secondDict := filepath.Join(dir, "second.json")
+	configPath := filepath.Join(dir, "stoin-config.json")
+	if err := os.WriteFile(firstDict, []byte(`{"A": "alpha", "PW": "first only"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(secondDict, []byte(`{"A": "beta", "PW": "alpha", "SKWR": "alpha"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(configPath, []byte(fmt.Sprintf(`{"dictionaries": [%q, %q]}`, firstDict, secondDict)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	app, err := NewAppWithOptions(filepath.Join(dir, "srs.sqlite3"), "../../phrasing.json", configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.db.Close()
+
+	ctx := context.Background()
+	deckID, err := app.getOrCreateDeck(ctx, "briefs", time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = app.ingestGroups(ctx, deckID, []ImportGroup{{Name: "words", Words: []string{"alpha"}}}, "test", "one")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var itemID int64
+	if err := app.db.QueryRow(`SELECT id FROM items WHERE text = 'alpha'`).Scan(&itemID); err != nil {
+		t.Fatal(err)
+	}
+
+	mux := http.NewServeMux()
+	app.routes(mux)
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/hint?item_id=%d", itemID), nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected hint response, got %d with body %q", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `"found":true`) || !strings.Contains(body, `"PW"`) {
+		t.Fatalf("expected alpha hint from later dictionary override, got %q", body)
+	}
+	if strings.Contains(body, `"A"`) {
+		t.Fatalf("outline A should have been overridden to beta, got %q", body)
+	}
+}
+
+func TestSessionPageIncludesHintControls(t *testing.T) {
+	app := testApp(t)
+	ctx := context.Background()
+	deckID, err := app.getOrCreateDeck(ctx, "briefs", time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = app.ingestGroups(ctx, deckID, []ImportGroup{{Name: "words", Words: []string{"put"}}}, "test", "one")
+	if err != nil {
+		t.Fatal(err)
+	}
+	items, err := app.itemsForDeck(ctx, deckID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := httptest.NewRecorder()
+	app.renderSession(rec, SessionPageData{
+		Mode:       "practice",
+		DeckID:     deckID,
+		ReturnURL:  fmt.Sprintf("/deck?id=%d", deckID),
+		Items:      items,
+		IsPractice: true,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected session page, got %d", rec.Code)
+	}
+	body := rec.Body.String()
+	for _, want := range []string{
+		`class="session-hint-button"`,
+		`class="session-hint"`,
+		">Hint<",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("expected session body to contain %q, got %q", want, body)
+		}
 	}
 }
 
@@ -625,6 +717,30 @@ func TestStaticPhrasingTrainerScript(t *testing.T) {
 		!strings.Contains(body, "repeatedPromptBlocks") ||
 		!strings.Contains(body, "normalizedPromptPhrase") {
 		t.Fatalf("expected trainer script contents, got %q", rec.Body.String())
+	}
+}
+
+func TestStaticSessionScriptIncludesHints(t *testing.T) {
+	app := testApp(t)
+	mux := http.NewServeMux()
+	app.routes(mux)
+	req := httptest.NewRequest(http.MethodGet, "/static/session.js", nil)
+	rec := httptest.NewRecorder()
+
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected static session script, got %d", rec.Code)
+	}
+	body := rec.Body.String()
+	for _, want := range []string{
+		"session-hint-button",
+		"hinted[index]",
+		"fetch('/hint?item_id='",
+		"Outline: ",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("expected session script to contain %q, got %q", want, body)
+		}
 	}
 }
 

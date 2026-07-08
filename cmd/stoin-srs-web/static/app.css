@@ -257,6 +257,12 @@ button:disabled {
 	min-height: 2.6rem;
 }
 
+.session-hint {
+	color: #f1d18f;
+	font-size: 0.95em;
+	min-height: 1.4em;
+}
+
 .session-echo {
 	align-items: center;
 	color: var(--text);

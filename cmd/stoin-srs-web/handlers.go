@@ -144,6 +144,43 @@ func (a *App) handlePhrasingData(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(data)
 }
 
+func (a *App) handleHint(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		methodNotAllowed(w)
+		return
+	}
+	itemID, err := parseRequiredID(r.URL.Query().Get("item_id"), "item id")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	text, err := a.itemTextByID(r.Context(), itemID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			http.NotFound(w, r)
+			return
+		}
+		serverError(w, err)
+		return
+	}
+	outlines, err := a.hints.Lookup(r.Context(), text)
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	response := struct {
+		Found    bool     `json:"found"`
+		Text     string   `json:"text"`
+		Outlines []string `json:"outlines"`
+	}{
+		Found:    len(outlines) > 0,
+		Text:     text,
+		Outlines: outlines,
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(response)
+}
+
 func (a *App) handleImport(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		methodNotAllowed(w)

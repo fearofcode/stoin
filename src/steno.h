@@ -51,6 +51,9 @@ typedef struct Steno_Config {
     Send_Key_Combination_Fn send_key_combination;
     void *send_userdata;
     FILE *trace_file;
+    FILE *suggestions_file;
+    FILE *suggestion_log_file;
+    bool print_suggestions;
 } Steno_Config;
 
 Steno *steno_create(const Steno_Config *config);

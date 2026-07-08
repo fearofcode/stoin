@@ -16,6 +16,7 @@ import (
 const (
 	defaultDBPath       = "stoin-srs-web.sqlite3"
 	defaultAddr         = "127.0.0.1:8080"
+	defaultConfigPath   = "stoin-config.json"
 	defaultPhrasingPath = "phrasing.json"
 	introRepetitions    = 5
 	reviewAllDueLimit   = 100
@@ -31,16 +32,18 @@ var assetFS embed.FS
 type App struct {
 	db           *sql.DB
 	templates    *template.Template
+	hints        *DictionaryHints
 	phrasingPath string
 }
 
 func main() {
 	dbPath := flag.String("db", defaultDBPath, "SQLite database path")
 	addr := flag.String("addr", defaultAddr, "HTTP listen address")
+	configPath := flag.String("config", defaultConfigPath, "Stoin config path for dictionary hints")
 	phrasingPath := flag.String("phrasing", defaultPhrasingPath, "Phrasing JSON path")
 	flag.Parse()
 
-	app, err := NewAppWithPhrasing(*dbPath, *phrasingPath)
+	app, err := NewAppWithOptions(*dbPath, *phrasingPath, *configPath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -54,10 +57,14 @@ func main() {
 }
 
 func NewApp(dbPath string) (*App, error) {
-	return NewAppWithPhrasing(dbPath, defaultPhrasingPath)
+	return NewAppWithOptions(dbPath, defaultPhrasingPath, defaultConfigPath)
 }
 
 func NewAppWithPhrasing(dbPath string, phrasingPath string) (*App, error) {
+	return NewAppWithOptions(dbPath, phrasingPath, defaultConfigPath)
+}
+
+func NewAppWithOptions(dbPath string, phrasingPath string, configPath string) (*App, error) {
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, err
@@ -73,6 +80,7 @@ func NewAppWithPhrasing(dbPath string, phrasingPath string) (*App, error) {
 	app := &App{
 		db:           db,
 		templates:    templates,
+		hints:        NewDictionaryHints(configPath),
 		phrasingPath: phrasingPath,
 	}
 	if err := app.initSchema(context.Background()); err != nil {
@@ -98,6 +106,7 @@ func (a *App) routes(mux *http.ServeMux) {
 	mux.HandleFunc("/", a.handleIndex)
 	mux.HandleFunc("/deck", a.handleDeck)
 	mux.HandleFunc("/backup", a.handleBackup)
+	mux.HandleFunc("/hint", a.handleHint)
 	mux.HandleFunc("/import", a.handleImport)
 	mux.HandleFunc("/item/delete", a.handleItemDelete)
 	mux.HandleFunc("/item/edit", a.handleItemEdit)
