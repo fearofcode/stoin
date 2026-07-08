@@ -487,6 +487,94 @@ test_simple_engine_plover_modal_toggle :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_simple_engine_phrase_translation :: proc(t: ^testing.T) {
+	dictionary: Dictionary
+	dictionary_init(&dictionary)
+	defer dictionary_destroy(&dictionary)
+	testing.expect(t, dictionary_load(&dictionary, "tests/test-dictionary.json"))
+
+	phrasing, phrasing_ok := phrasing_load("tests/test-phrasing.json")
+	defer phrasing_destroy(&phrasing)
+	testing.expect(t, phrasing_ok)
+
+	engine: Simple_Engine
+	simple_engine_init(&engine, &dictionary)
+	defer simple_engine_destroy(&engine)
+
+	is_a_bits, is_a_parsed := stroke_string_to_bits("PW-B")
+	testing.expect(t, is_a_parsed)
+	testing.expect(t, simple_engine_translate_phrase_bits(&engine, &phrasing, is_a_bits, .Verbs))
+
+	is_the_bits, is_the_parsed := stroke_string_to_bits("PW-T")
+	testing.expect(t, is_the_parsed)
+	testing.expect(t, simple_engine_translate_phrase_bits(&engine, &phrasing, is_the_bits, .Verbs))
+
+	text, ok := simple_engine_render(&engine)
+	defer owned_string_delete(text)
+	testing.expect(t, ok)
+	testing.expect_value(t, text, "is a is the")
+}
+
+@(test)
+test_simple_engine_phrase_namespaces_and_fallback :: proc(t: ^testing.T) {
+	dictionary: Dictionary
+	dictionary_init(&dictionary)
+	defer dictionary_destroy(&dictionary)
+	testing.expect(t, dictionary_load(&dictionary, "tests/test-dictionary.json"))
+
+	phrasing, phrasing_ok := phrasing_load("tests/test-phrasing.json")
+	defer phrasing_destroy(&phrasing)
+	testing.expect(t, phrasing_ok)
+
+	engine: Simple_Engine
+	simple_engine_init(&engine, &dictionary)
+	defer simple_engine_destroy(&engine)
+
+	near_a_bits, near_a_parsed := stroke_string_to_bits("PW-B")
+	testing.expect(t, near_a_parsed)
+	testing.expect(t, simple_engine_translate_phrase_bits(&engine, &phrasing, near_a_bits, .Nonverbs))
+
+	raw_bits, raw_parsed := stroke_string_to_bits("#KW")
+	testing.expect(t, raw_parsed)
+	testing.expect(t, simple_engine_translate_phrase_bits(&engine, &phrasing, raw_bits, .All))
+
+	text, ok := simple_engine_render(&engine)
+	defer owned_string_delete(text)
+	testing.expect(t, ok)
+	testing.expect_value(t, text, "near a #KW")
+}
+
+@(test)
+test_simple_engine_phrases_interleave_with_dictionary :: proc(t: ^testing.T) {
+	dictionary: Dictionary
+	dictionary_init(&dictionary)
+	defer dictionary_destroy(&dictionary)
+	testing.expect(t, dictionary_load(&dictionary, "tests/test-dictionary.json"))
+
+	phrasing, phrasing_ok := phrasing_load("tests/test-phrasing.json")
+	defer phrasing_destroy(&phrasing)
+	testing.expect(t, phrasing_ok)
+
+	engine: Simple_Engine
+	simple_engine_init(&engine, &dictionary)
+	defer simple_engine_destroy(&engine)
+
+	phrase_bits, phrase_parsed := stroke_string_to_bits("PW-B")
+	testing.expect(t, phrase_parsed)
+	testing.expect(t, simple_engine_translate_phrase_bits(&engine, &phrasing, phrase_bits, .Verbs))
+
+	dict_bits, dict_parsed := stroke_string_to_bits("#KW")
+	testing.expect(t, dict_parsed)
+	testing.expect(t, simple_engine_translate_bits(&engine, dict_bits))
+	testing.expect(t, simple_engine_translate_bits(&engine, phrase_bits))
+
+	text, ok := simple_engine_render(&engine)
+	defer owned_string_delete(text)
+	testing.expect(t, ok)
+	testing.expect_value(t, text, "is a test dictionary is a")
+}
+
+@(test)
 test_simple_engine_brevity_suggestions :: proc(t: ^testing.T) {
 	dictionary: Dictionary
 	dictionary_init(&dictionary)

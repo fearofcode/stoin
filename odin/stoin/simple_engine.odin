@@ -1119,6 +1119,58 @@ simple_engine_translate_bits :: proc(engine: ^Simple_Engine, bits: u64) -> bool 
 	return simple_engine_apply_match(engine, &match)
 }
 
+simple_engine_apply_single_stroke_translation :: proc(engine: ^Simple_Engine, bits: u64, translation: string) -> bool {
+	strokes := [?]u64{bits}
+	outline, outline_ok := stroke_sequence_to_string_alloc(strokes[:])
+	if !outline_ok {
+		return false
+	}
+	match := Translation_Match {
+		translation = translation,
+		strokes = make([dynamic]u64),
+		replaced_count = 0,
+		outline = outline,
+		found = true,
+	}
+	append(&match.strokes, bits)
+	defer translation_match_destroy(&match)
+	return simple_engine_apply_match(engine, &match)
+}
+
+phrase_namespace_should_fallback_to_dictionary :: proc(bits: u64) -> bool {
+	star_bits := steno_bit(.Star)
+	allowed_bits := star_bits | steno_bit(.Num)
+	return (bits & star_bits) != 0 && (bits & ~allowed_bits) == 0
+}
+
+simple_engine_translate_phrase_bits :: proc(engine: ^Simple_Engine, phrasing: ^Phrasing, bits: u64, mode: Phrase_Lookup_Mode) -> bool {
+	if bits == 0 {
+		return true
+	}
+
+	text, result := phrasing_lookup_mode(phrasing, bits, mode)
+	defer owned_string_delete(text)
+	switch result {
+	case .Hit:
+		return simple_engine_apply_single_stroke_translation(engine, bits, text)
+	case .Error:
+		return false
+	case .Miss:
+	}
+
+	if phrase_namespace_should_fallback_to_dictionary(bits) {
+		return simple_engine_translate_bits(engine, bits)
+	}
+
+	strokes := [?]u64{bits}
+	raw, raw_ok := stroke_sequence_to_string_alloc(strokes[:])
+	if !raw_ok {
+		return false
+	}
+	defer owned_string_delete(raw)
+	return simple_engine_apply_single_stroke_translation(engine, bits, raw)
+}
+
 simple_engine_render :: proc(engine: ^Simple_Engine) -> (string, bool) {
 	buffer := make([dynamic]byte)
 	defer delete(buffer)
