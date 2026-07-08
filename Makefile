@@ -40,7 +40,10 @@ COMMON_SOURCES := \
 	src/runtime_config.c \
 	src/stentura.c \
 	src/steno.c \
+	src/steno_apply.c \
+	src/steno_suggestions.c \
 	src/steno_stroke.c \
+	src/steno_translate.c \
 	src/stroke_merge.c \
 	src/stb_ds_impl.c \
 	src/stitch.c \
