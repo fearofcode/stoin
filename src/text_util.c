@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../stb_ds.h"
+#include "../third_party/stb_ds.h"
 
 bool text_append_char(char **out, char c)
 {

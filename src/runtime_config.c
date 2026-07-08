@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../stb_ds.h"
+#include "../third_party/stb_ds.h"
 #include "../third_party/cjson/cJSON.h"
 
 static void print_json_parse_error(const char *label, const char *path, const char *file, const char *parse_end)

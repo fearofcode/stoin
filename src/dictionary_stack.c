@@ -8,7 +8,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "../stb_ds.h"
+#include "../third_party/stb_ds.h"
 
 static bool file_stamps_equal(Platform_File_Stamp a, Platform_File_Stamp b)
 {

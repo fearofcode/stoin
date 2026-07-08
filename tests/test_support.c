@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../stb_ds.h"
+#include "../third_party/stb_ds.h"
 
 Steno_Config test_steno_config(Test_Output *output)
 {

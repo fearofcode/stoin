@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../stb_ds.h"
+#include "../third_party/stb_ds.h"
 
 typedef bool (*Orthography_Rule_Fn)(const char *word, const char *suffix, char *out, size_t out_size);
 

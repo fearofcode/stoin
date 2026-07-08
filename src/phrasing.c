@@ -10,7 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../stb_ds.h"
+#include "../third_party/stb_ds.h"
 #include "../third_party/cjson/cJSON.h"
 
 typedef enum Fv_Agreement {

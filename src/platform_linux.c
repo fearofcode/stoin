@@ -15,7 +15,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "../stb_ds.h"
+#include "../third_party/stb_ds.h"
 
 #ifndef O_CLOEXEC
 #define O_CLOEXEC 0

@@ -13,7 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../stb_ds.h"
+#include "../third_party/stb_ds.h"
 
 #define STOIN_WINDOWS_EXTRA_INFO ((ULONG_PTR)0x73746f696eULL)
 #define WINDOWS_FILE_WATCH_POLL_MS 250

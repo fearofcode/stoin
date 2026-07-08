@@ -5,7 +5,7 @@
 
 #include <string.h>
 
-#include "../stb_ds.h"
+#include "../third_party/stb_ds.h"
 
 static const char *retro_spacing(const Retro_Context *retro)
 {

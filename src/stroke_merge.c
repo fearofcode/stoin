@@ -3,7 +3,7 @@
 #include <stddef.h>
 #include <string.h>
 
-#include "../stb_ds.h"
+#include "../third_party/stb_ds.h"
 
 static bool time_reached(uint64_t now_ms, uint64_t deadline_ms)
 {

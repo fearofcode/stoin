@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "../stb_ds.h"
+#include "../third_party/stb_ds.h"
 
 bool steno_set_spacing(Steno *steno, const char *spacing)
 {

@@ -7,7 +7,7 @@
 #include <string.h>
 #include <time.h>
 
-#include "../stb_ds.h"
+#include "../third_party/stb_ds.h"
 #include "../third_party/cjson/cJSON.h"
 
 enum {

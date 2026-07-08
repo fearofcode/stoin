@@ -5,11 +5,19 @@ This is the known-good setup used to run a ProCAT Flash Writer as a realtime ste
 ## Working Hardware Chain
 
 - ProCAT Flash Writer machine.
-- FlashWriter realtime cable and plug set from StenoDoctor:
-  <https://stenodoctor.com/shop/ols/products/flashwriter-realtime-cable-and-plug>
 - RS-232 to USB adapter with FTDI chipset, tested with the OIKWAN adapter:
   <https://www.amazon.com/dp/B0759HSLP1?th=1>
 - Cheap USB-A to USB-C adapter into the Mac.
+
+Two RJ11-to-RS-232 paths have worked:
+
+- Official/proprietary FlashWriter realtime cable and plug set from StenoDoctor:
+  <https://stenodoctor.com/shop/ols/products/flashwriter-realtime-cable-and-plug>
+- Cheaper tested path: generic RJ11 cable plus Tripp Lite `P450-000` null modem serial RS-232 modular adapter kit:
+  <https://www.amazon.com/dp/B08YS39DGC>
+  <https://www.amazon.com/dp/B0029L0V48>
+
+The generic RJ11 plus Tripp Lite setup is not an officially supported option; it is only documented here because it worked on the tested hardware. The Tripp Lite null modem modular adapter appears to be the key part of that cheaper setup.
 
 Both tested RS-232-to-USB adapters worked once the machine baud rate and FTDI driver were correct. The confirmed FTDI adapter currently appears as:
 
@@ -58,7 +66,7 @@ Install the current FTDI VCP driver from:
 
 <https://ftdichip.com/drivers/vcp-drivers/>
 
-The version installed for this setup was `1.6.0`, the current Mac OS 26 / macOS 15 / macOS 11/12 driver at the time of testing. FTDI notes that the DEXT installer should be run from `/Applications`, and that old `FTDIUSBSerialVCPDextInstaller` entries should be removed from `/Applications` before installing the new driver.
+The version installed for this setup was `1.6.0`, the current ARM Mac driver at the time of testing. The setup was not tested without the FTDI driver installed. FTDI notes that the DEXT installer should be run from `/Applications`, and that old `FTDIUSBSerialVCPDextInstaller` entries should be removed from `/Applications` before installing the new driver.
 
 Approve or manage the driver in:
 
@@ -122,6 +130,6 @@ If raw mode prints repeated `FF` bytes for different keys, the app is receiving 
 These did not work:
 
 - Generic RJ11 to USB adapter.
-- Generic RJ11 to RS-232 cable.
+- Generic RJ11 to RS-232 cable by itself.
 
-The working path is not "RJ11 directly to USB"; it is the Flash Writer realtime cable/plug into a real RS-232 path, then RS-232 to USB with a working FTDI VCP driver.
+The working path is not "RJ11 directly to USB"; it is RJ11 into a real RS-232 path, then RS-232 to USB with a working FTDI VCP driver. That RJ11-to-RS-232 segment can be the StenoDoctor realtime cable/plug set or the tested generic RJ11 plus Tripp Lite null modem modular adapter setup above.
