@@ -194,11 +194,25 @@ simple_engine_build_text :: proc(old_text: string, previous: ^Applied_Translatio
 	defer delete(buffer)
 
 	if formatted.attach_prev {
-		formatted_append_string(&buffer, old_text)
+		if len(formatted.ortho_suffix) > 0 {
+			word_start, word_end := last_word_bounds(old_text)
+			formatted_append_string(&buffer, old_text[:word_start])
+			joined, joined_ok := orthography_apply_basic(old_text[word_start:word_end], formatted.ortho_suffix)
+			if !joined_ok {
+				return "", false
+			}
+			formatted_append_string(&buffer, joined)
+			owned_string_delete(joined)
+			formatted_append_string(&buffer, old_text[word_end:])
+		} else {
+			formatted_append_string(&buffer, old_text)
+		}
 	} else if simple_engine_should_prepend_spacing(previous, formatted) {
 		append(&buffer, ' ')
 	}
-	formatted_append_string(&buffer, formatted.text)
+	if len(formatted.ortho_suffix) == 0 {
+		formatted_append_string(&buffer, formatted.text)
+	}
 	return clone_bytes_to_string(buffer[:])
 }
 

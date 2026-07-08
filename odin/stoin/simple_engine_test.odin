@@ -23,6 +23,7 @@ test_basic_format_translation_text :: proc(t: ^testing.T) {
 
 	testing.expect(t, ok)
 	testing.expect_value(t, formatted.text, "ly")
+	testing.expect_value(t, formatted.ortho_suffix, "ly")
 	testing.expect(t, formatted.attach_prev)
 	testing.expect(t, !formatted.attach_next)
 }
@@ -88,4 +89,35 @@ test_simple_engine_translation :: proc(t: ^testing.T) {
 
 	punctuation := [?]string{"KAT", "KW-BG", "KAT"}
 	test_translate_sequence(t, &dictionary, punctuation[:], "cat, cat")
+
+	cherries := [?]string{"KHER", "-Z"}
+	test_translate_sequence(t, &dictionary, cherries[:], "cherries")
+
+	reddish := [?]string{"RED", "EURB"}
+	test_translate_sequence(t, &dictionary, reddish[:], "reddish")
+}
+
+@(test)
+test_orthography_basic_rules :: proc(t: ^testing.T) {
+	cases := [?]struct{word: string, suffix: string, expected: string} {
+		{word = "artistic", suffix = "ly", expected = "artistically"},
+		{word = "speech", suffix = "s", expected = "speeches"},
+		{word = "beach", suffix = "s", expected = "beaches"},
+		{word = "stomach", suffix = "s", expected = "stomachs"},
+		{word = "monarch", suffix = "s", expected = "monarchs"},
+		{word = "cherry", suffix = "s", expected = "cherries"},
+		{word = "day", suffix = "s", expected = "days"},
+		{word = "pharmacy", suffix = "ist", expected = "pharmacist"},
+		{word = "similar", suffix = "ish", expected = "similarish"},
+		{word = "red", suffix = "ish", expected = "reddish"},
+		{word = "stymie", suffix = "ed", expected = "stymied"},
+		{word = "tie", suffix = "ed", expected = "tied"},
+	}
+
+	for c in cases {
+		actual, ok := orthography_apply_basic(c.word, c.suffix)
+		testing.expect(t, ok)
+		testing.expect_value(t, actual, c.expected)
+		owned_string_delete(actual)
+	}
 }

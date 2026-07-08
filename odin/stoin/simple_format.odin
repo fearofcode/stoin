@@ -3,14 +3,16 @@ package stoin
 import "core:strings"
 
 Formatted_Text :: struct {
-	text:        string,
-	attach_prev: bool,
-	attach_next: bool,
-	glue:        bool,
+	text:         string,
+	ortho_suffix: string,
+	attach_prev:  bool,
+	attach_next:  bool,
+	glue:         bool,
 }
 
 formatted_text_destroy :: proc(formatted: ^Formatted_Text) {
 	delete(formatted.text)
+	owned_string_delete(formatted.ortho_suffix)
 	formatted^ = {}
 }
 
@@ -57,6 +59,14 @@ formatted_parse_attach_meta :: proc(formatted: ^Formatted_Text, buffer: ^[dynami
 	if pending_attach_prev^ {
 		formatted.attach_prev = true
 		pending_attach_prev^ = false
+	}
+	if begin && !end {
+		suffix, suffix_ok := clone_string_ok(meta[start:end_index])
+		if !suffix_ok {
+			return false
+		}
+		owned_string_delete(formatted.ortho_suffix)
+		formatted.ortho_suffix = suffix
 	}
 	return formatted_append_string(buffer, meta[start:end_index])
 }
