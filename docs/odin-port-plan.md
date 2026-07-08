@@ -100,6 +100,11 @@ Acceptance:
 
 ## Phase 2: Dictionary And Formatting Core
 
+Status: started. Dictionary JSON loading, canonical outline storage, layered
+loading, exact lookup, and native Odin dictionary tests are implemented.
+Formatting, orthography, history, retro, stitch, and suggestions are still on
+the C side.
+
 Port the pure translation data path:
 
 - JSON dictionary loading using `core:encoding/json`.
