@@ -135,6 +135,10 @@ Acceptance:
 
 ## Phase 3: Phrasing Core
 
+Status: started. The Odin phrasing loader parses and validates the current JSON
+schema into owned IV, FV, and NV tables, including duplicate-stroke validation
+and tail/verb reference checks. Phrase lookup/generation is still on the C side.
+
 Port the phrasing system before platform pedals:
 
 - `phrasing.json` loader.
