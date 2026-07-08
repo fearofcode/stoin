@@ -537,3 +537,86 @@ test_orthography_basic_rules :: proc(t: ^testing.T) {
 		owned_string_delete(actual)
 	}
 }
+
+test_expect_orthography :: proc(t: ^testing.T, orthography: ^Orthography, word: string, suffix: string, expected: string) {
+	actual, ok := orthography_apply(orthography, word, suffix)
+	defer owned_string_delete(actual)
+	testing.expect(t, ok)
+	testing.expect_value(t, actual, expected)
+}
+
+@(test)
+test_orthography_word_list_rules :: proc(t: ^testing.T) {
+	orthography: Orthography
+	orthography_init(&orthography)
+	defer orthography_destroy(&orthography)
+
+	testing.expect(t, orthography_load(&orthography, "tests/test-words.txt"))
+	testing.expect(t, orthography_word_count(&orthography) > 0)
+
+	test_expect_orthography(t, &orthography, "artistic", "ly", "artistically")
+	test_expect_orthography(t, &orthography, "cosmetic", "ly", "cosmetically")
+	test_expect_orthography(t, &orthography, "establish", "s", "establishes")
+	test_expect_orthography(t, &orthography, "speech", "s", "speeches")
+	test_expect_orthography(t, &orthography, "approach", "s", "approaches")
+	test_expect_orthography(t, &orthography, "beach", "s", "beaches")
+	test_expect_orthography(t, &orthography, "arch", "s", "arches")
+	test_expect_orthography(t, &orthography, "larch", "s", "larches")
+	test_expect_orthography(t, &orthography, "march", "s", "marches")
+	test_expect_orthography(t, &orthography, "search", "s", "searches")
+	test_expect_orthography(t, &orthography, "starch", "s", "starches")
+	test_expect_orthography(t, &orthography, "stomach", "s", "stomachs")
+	test_expect_orthography(t, &orthography, "monarch", "s", "monarchs")
+	test_expect_orthography(t, &orthography, "patriarch", "s", "patriarchs")
+	test_expect_orthography(t, &orthography, "oligarch", "s", "oligarchs")
+	test_expect_orthography(t, &orthography, "cherry", "s", "cherries")
+	test_expect_orthography(t, &orthography, "day", "s", "days")
+	test_expect_orthography(t, &orthography, "penny", "s", "pennies")
+	test_expect_orthography(t, &orthography, "pharmacy", "ist", "pharmacist")
+	test_expect_orthography(t, &orthography, "melody", "ist", "melodist")
+	test_expect_orthography(t, &orthography, "pacify", "ist", "pacifist")
+	test_expect_orthography(t, &orthography, "geology", "ist", "geologist")
+	test_expect_orthography(t, &orthography, "metallurgy", "ist", "metallurgist")
+	test_expect_orthography(t, &orthography, "anarchy", "ist", "anarchist")
+	test_expect_orthography(t, &orthography, "monopoly", "ist", "monopolist")
+	test_expect_orthography(t, &orthography, "alchemy", "ist", "alchemist")
+	test_expect_orthography(t, &orthography, "similar", "ish", "similarish")
+	test_expect_orthography(t, &orthography, "red", "ish", "reddish")
+	test_expect_orthography(t, &orthography, "tinker", "er", "tinkerer")
+	test_expect_orthography(t, &orthography, "filter", "er", "filterer")
+	test_expect_orthography(t, &orthography, "stymie", "ed", "stymied")
+	test_expect_orthography(t, &orthography, "tie", "ed", "tied")
+	test_expect_orthography(t, &orthography, "die", "ed", "died")
+}
+
+@(test)
+test_simple_engine_word_list_orthography :: proc(t: ^testing.T) {
+	dictionary: Dictionary
+	dictionary_init(&dictionary)
+	defer dictionary_destroy(&dictionary)
+	testing.expect(t, dictionary_put(&dictionary, "TEUPBG", 1, "tinker"))
+	testing.expect(t, dictionary_put(&dictionary, "*ER", 1, "{^er}"))
+
+	orthography: Orthography
+	orthography_init(&orthography)
+	defer orthography_destroy(&orthography)
+	testing.expect(t, orthography_load(&orthography, "tests/test-words.txt"))
+
+	engine: Simple_Engine
+	simple_engine_init(&engine, &dictionary)
+	defer simple_engine_destroy(&engine)
+	simple_engine_set_orthography(&engine, &orthography)
+
+	tinker_bits, tinker_parsed := stroke_string_to_bits("TEUPBG")
+	testing.expect(t, tinker_parsed)
+	testing.expect(t, simple_engine_translate_bits(&engine, tinker_bits))
+
+	er_bits, er_parsed := stroke_string_to_bits("*ER")
+	testing.expect(t, er_parsed)
+	testing.expect(t, simple_engine_translate_bits(&engine, er_bits))
+
+	text, ok := simple_engine_render(&engine)
+	defer owned_string_delete(text)
+	testing.expect(t, ok)
+	testing.expect_value(t, text, "tinkerer")
+}

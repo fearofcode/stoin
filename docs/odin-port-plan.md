@@ -110,9 +110,9 @@ same-stroke suffix-key fallback. It also handles `=undo`,
 `=repeat_last_translation`, and `--print-suggestions` brevity hints with JSONL
 logging. Basic stitch and stitch-last-word commands, key-combo command modeling,
 case/carry formatting commands, layered dictionary loading, and modal dictionary
-toggle commands are also implemented. Remaining formatting edge cases,
-word-list-backed orthography, platform key-combo output, and other plover
-side-effect commands are still on the C side.
+toggle commands are also implemented. Word-list-backed orthography is wired into
+the simple engine. Remaining formatting edge cases, platform key-combo output,
+and other plover side-effect commands are still on the C side.
 
 Port the pure translation data path:
 

@@ -31,6 +31,7 @@ Translation_Match :: struct {
 Simple_Engine :: struct {
 	dictionary: ^Dictionary,
 	dictionary_stack: ^Dictionary_Stack,
+	orthography: ^Orthography,
 	history:    [dynamic]Applied_Translation,
 	key_combos: [dynamic]string,
 	case_mode:  Case_Mode,
@@ -49,6 +50,10 @@ simple_engine_init :: proc(engine: ^Simple_Engine, dictionary: ^Dictionary) {
 simple_engine_init_with_stack :: proc(engine: ^Simple_Engine, stack: ^Dictionary_Stack) {
 	simple_engine_init(engine, &stack.dictionary)
 	engine.dictionary_stack = stack
+}
+
+simple_engine_set_orthography :: proc(engine: ^Simple_Engine, orthography: ^Orthography) {
+	engine.orthography = orthography
 }
 
 simple_engine_destroy :: proc(engine: ^Simple_Engine) {
@@ -500,7 +505,13 @@ simple_engine_build_text :: proc(engine: ^Simple_Engine, old_text: string, previ
 		if len(formatted.ortho_suffix) > 0 {
 			word_start, word_end := last_word_bounds(old_text)
 			formatted_append_string(&buffer, old_text[:word_start])
-			joined, joined_ok := orthography_apply_basic(old_text[word_start:word_end], formatted.ortho_suffix)
+			joined: string
+			joined_ok: bool
+			if engine.orthography != nil {
+				joined, joined_ok = orthography_apply(engine.orthography, old_text[word_start:word_end], formatted.ortho_suffix)
+			} else {
+				joined, joined_ok = orthography_apply_basic(old_text[word_start:word_end], formatted.ortho_suffix)
+			}
 			if !joined_ok {
 				return "", false
 			}
