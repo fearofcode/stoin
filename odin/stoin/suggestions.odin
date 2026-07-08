@@ -1,5 +1,9 @@
 package stoin
 
+import "core:encoding/json"
+import "core:os"
+import "core:time"
+
 BREVITY_MAX_TRANSLATIONS :: 5
 
 Brevity_Suggestion :: struct {
@@ -9,6 +13,16 @@ Brevity_Suggestion :: struct {
 	typed_strokes:     int,
 	suggested_strokes: int,
 	saved_strokes:     int,
+}
+
+Suggestion_Log_Entry :: struct {
+	unix_time:          i64,
+	suggested_outline:  string,
+	typed_outline:      string,
+	text:               string,
+	typed_strokes:      int,
+	suggested_strokes:  int,
+	saved_strokes:      int,
 }
 
 brevity_suggestion_destroy :: proc(suggestion: ^Brevity_Suggestion) {
@@ -135,4 +149,44 @@ brevity_suggest :: proc(engine: ^Simple_Engine) -> (suggestion: Brevity_Suggesti
 	}
 
 	return {}, false
+}
+
+brevity_suggestion_log_line :: proc(suggestion: ^Brevity_Suggestion, unix_time: i64) -> (line: string, ok: bool) {
+	entry := Suggestion_Log_Entry {
+		unix_time = unix_time,
+		suggested_outline = suggestion.suggested_outline,
+		typed_outline = suggestion.typed_outline,
+		text = suggestion.text,
+		typed_strokes = suggestion.typed_strokes,
+		suggested_strokes = suggestion.suggested_strokes,
+		saved_strokes = suggestion.saved_strokes,
+	}
+	data, marshal_err := json.marshal(entry, json.Marshal_Options{spec = .JSON})
+	if marshal_err != nil {
+		return "", false
+	}
+	defer delete(data)
+	return clone_bytes_to_string(data)
+}
+
+brevity_log_suggestion :: proc(file: ^os.File, suggestion: ^Brevity_Suggestion) -> bool {
+	if file == nil {
+		return false
+	}
+
+	line, line_ok := brevity_suggestion_log_line(suggestion, time.time_to_unix(time.now()))
+	if !line_ok {
+		return false
+	}
+	defer owned_string_delete(line)
+
+	_, write_err := os.write_string(file, line)
+	if write_err != nil {
+		return false
+	}
+	_, write_newline_err := os.write_string(file, "\n")
+	if write_newline_err != nil {
+		return false
+	}
+	return true
 }

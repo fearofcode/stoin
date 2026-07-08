@@ -53,6 +53,18 @@ test_parse_cli_args_print_suggestions :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_parse_cli_args_suggestion_log :: proc(t: ^testing.T) {
+	args := [?]string{APP_NAME, "--dict", "tests/test-dictionary.json", "--suggestion-log", "suggestions.jsonl", "--translate", "TPH", "-T"}
+	config, ok := parse_cli_args(args[:])
+	defer cli_config_destroy(&config)
+
+	testing.expect(t, ok)
+	testing.expect_value(t, config.mode, Cli_Mode.Translate)
+	testing.expect_value(t, config.suggestion_log_path, "suggestions.jsonl")
+	testing.expect_value(t, len(config.translates), 2)
+}
+
+@(test)
 test_parse_cli_args_requires_dictionary_for_lookup :: proc(t: ^testing.T) {
 	args := [?]string{APP_NAME, "--lookup", "SA-P"}
 	config, ok := parse_cli_args(args[:])

@@ -18,6 +18,7 @@ Cli_Config :: struct {
 	lookups:       [dynamic]string,
 	translates:     [dynamic]string,
 	print_suggestions: bool,
+	suggestion_log_path: string,
 	error_message: string,
 }
 
@@ -48,6 +49,13 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 			i += 1
 		case "--print-suggestions":
 			config.print_suggestions = true
+		case "--suggestion-log":
+			if i + 1 >= len(args) {
+				config.error_message = "--suggestion-log requires a path"
+				return config, false
+			}
+			config.suggestion_log_path = args[i + 1]
+			i += 1
 		case "--translate":
 			if i + 1 >= len(args) {
 				config.error_message = "--translate requires at least one outline"
@@ -133,20 +141,44 @@ run_translate_cli :: proc(config: ^Cli_Config) -> bool {
 	simple_engine_init(&engine, &dictionary)
 	defer simple_engine_destroy(&engine)
 
+	suggestion_log_file: ^os.File
+	if len(config.suggestion_log_path) > 0 {
+		open_file, open_err := os.open(
+			config.suggestion_log_path,
+			os.File_Flags{.Write, .Create, .Append},
+			os.Permissions_Default_File,
+		)
+		if open_err != nil {
+			fmt.eprintln("stoin: failed to open suggestion log")
+			return false
+		}
+		suggestion_log_file = open_file
+	}
+	defer if suggestion_log_file != nil {
+		os.close(suggestion_log_file)
+	}
+
 	for outline in config.translates {
 		bits, parsed := stroke_string_to_bits(outline)
 		if !parsed || !simple_engine_translate_bits(&engine, bits) {
 			fmt.eprintln("stoin: failed to translate outline sequence")
 			return false
 		}
-		if config.print_suggestions {
+		if config.print_suggestions || suggestion_log_file != nil {
 			suggestion, found := brevity_suggest(&engine)
 			if found {
-				cli_write("Suggestion: Use ")
-				cli_write(suggestion.suggested_outline)
-				cli_write(" for \"")
-				cli_write(suggestion.text)
-				cli_write_line("\"")
+				if suggestion_log_file != nil && !brevity_log_suggestion(suggestion_log_file, &suggestion) {
+					brevity_suggestion_destroy(&suggestion)
+					fmt.eprintln("stoin: failed to write suggestion log")
+					return false
+				}
+				if config.print_suggestions {
+					cli_write("Suggestion: Use ")
+					cli_write(suggestion.suggested_outline)
+					cli_write(" for \"")
+					cli_write(suggestion.text)
+					cli_write_line("\"")
+				}
 				brevity_suggestion_destroy(&suggestion)
 			}
 		}
