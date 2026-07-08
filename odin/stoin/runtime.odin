@@ -29,6 +29,7 @@ Steno_Runtime_Config :: struct {
 	dictionary_stack:     ^Dictionary_Stack,
 	orthography:          ^Orthography,
 	phrasing:             ^Phrasing,
+	keymap:               ^Keymap,
 	send_text:            Send_Text_Callback,
 	delete_text:          Delete_Text_Callback,
 	send_key_combination: Send_Key_Combination_Callback,
@@ -41,6 +42,7 @@ Steno_Runtime_Config :: struct {
 Steno_Runtime_Load_Config :: struct {
 	dictionary_paths:     []string,
 	dictionary_enabled:   []bool,
+	keymap_path:          string,
 	orthography_path:     string,
 	phrasing_path:        string,
 	send_text:            Send_Text_Callback,
@@ -55,6 +57,7 @@ Steno_Runtime_Load_Config :: struct {
 Steno_Runtime :: struct {
 	engine:                   Simple_Engine,
 	phrasing:                 ^Phrasing,
+	keymap:                   ^Keymap,
 	send_text:                Send_Text_Callback,
 	delete_text:              Delete_Text_Callback,
 	send_key_combination:     Send_Key_Combination_Callback,
@@ -64,12 +67,22 @@ Steno_Runtime :: struct {
 	userdata:                 rawptr,
 	session_active:           bool,
 	phrase_namespace_enabled: bool,
+	enabled:                  bool,
 	phrase_mode:              Steno_Phrase_Mode,
 	strokes_since_compaction: int,
+	down_keycodes:            u64,
+	chord_bits:               u64,
+	chord_phrase_mode:        Steno_Phrase_Mode,
+	toggle_esc_down:          bool,
+	command_down:             bool,
+	option_down:              bool,
+	control_down:             bool,
 }
 
 Steno_Runtime_Owner :: struct {
 	dictionary_stack: Dictionary_Stack,
+	keymap:           Keymap,
+	has_keymap:       bool,
 	orthography:      Orthography,
 	has_orthography:  bool,
 	phrasing:         Phrasing,
@@ -77,6 +90,23 @@ Steno_Runtime_Owner :: struct {
 	phrasing_path:    string,
 	runtime:          Steno_Runtime,
 }
+
+Input_Event :: struct {
+	keycode:   u16,
+	is_down:   bool,
+	is_repeat: bool,
+	command:   bool,
+	option:    bool,
+	control:   bool,
+}
+
+KEYCODE_ESCAPE :: u16(53)
+KEYCODE_LEFT_COMMAND :: u16(55)
+KEYCODE_RIGHT_COMMAND :: u16(54)
+KEYCODE_LEFT_OPTION :: u16(58)
+KEYCODE_RIGHT_OPTION :: u16(61)
+KEYCODE_LEFT_CONTROL :: u16(59)
+KEYCODE_RIGHT_CONTROL :: u16(62)
 
 Trace_Stroke_Mode :: enum {
 	Normal,
@@ -100,6 +130,7 @@ steno_runtime_init :: proc(runtime: ^Steno_Runtime, config: ^Steno_Runtime_Confi
 		simple_engine_set_orthography(&runtime.engine, config.orthography)
 	}
 	runtime.phrasing = config.phrasing
+	runtime.keymap = config.keymap
 	runtime.send_text = config.send_text
 	runtime.delete_text = config.delete_text
 	runtime.send_key_combination = config.send_key_combination
@@ -107,6 +138,7 @@ steno_runtime_init :: proc(runtime: ^Steno_Runtime, config: ^Steno_Runtime_Confi
 	runtime.write_suggestion = config.write_suggestion
 	runtime.write_suggestion_log = config.write_suggestion_log
 	runtime.userdata = config.userdata
+	runtime.enabled = true
 	runtime.session_active = true
 	return true
 }
@@ -122,6 +154,17 @@ steno_runtime_owner_init :: proc(owner: ^Steno_Runtime_Owner, config: ^Steno_Run
 	   !dictionary_stack_load(&owner.dictionary_stack) {
 		steno_runtime_owner_destroy(owner)
 		return false
+	}
+
+	keymap_pointer: ^Keymap
+	if len(config.keymap_path) > 0 {
+		keymap_init(&owner.keymap)
+		owner.has_keymap = true
+		if !keymap_load(&owner.keymap, config.keymap_path) {
+			steno_runtime_owner_destroy(owner)
+			return false
+		}
+		keymap_pointer = &owner.keymap
 	}
 
 	orthography_pointer: ^Orthography
@@ -155,6 +198,7 @@ steno_runtime_owner_init :: proc(owner: ^Steno_Runtime_Owner, config: ^Steno_Run
 
 	runtime_config := Steno_Runtime_Config {
 		dictionary_stack = &owner.dictionary_stack,
+		keymap = keymap_pointer,
 		orthography = orthography_pointer,
 		phrasing = phrasing_pointer,
 		send_text = config.send_text,
@@ -184,6 +228,9 @@ steno_runtime_owner_destroy :: proc(owner: ^Steno_Runtime_Owner) {
 	owned_string_delete(owner.phrasing_path)
 	if owner.has_orthography {
 		orthography_destroy(&owner.orthography)
+	}
+	if owner.has_keymap {
+		keymap_destroy(&owner.keymap)
 	}
 	dictionary_stack_destroy(&owner.dictionary_stack)
 	owner^ = {}
@@ -228,6 +275,13 @@ steno_runtime_owner_handle_stroke_bits :: proc(owner: ^Steno_Runtime_Owner, bits
 	return steno_runtime_handle_stroke_bits(&owner.runtime, bits)
 }
 
+steno_runtime_owner_handle_event :: proc(owner: ^Steno_Runtime_Owner, event: Input_Event) -> bool {
+	if owner == nil {
+		return false
+	}
+	return steno_runtime_handle_event(&owner.runtime, event)
+}
+
 steno_runtime_destroy :: proc(runtime: ^Steno_Runtime) {
 	if runtime == nil {
 		return
@@ -243,6 +297,7 @@ steno_runtime_set_session_active :: proc(runtime: ^Steno_Runtime, active: bool) 
 	runtime.session_active = active
 	if !active {
 		runtime.phrase_mode = .None
+		steno_runtime_reset_chord(runtime)
 	}
 }
 
@@ -253,6 +308,7 @@ steno_runtime_set_phrase_namespace_enabled :: proc(runtime: ^Steno_Runtime, enab
 	runtime.phrase_namespace_enabled = enabled
 	if !enabled {
 		runtime.phrase_mode = .None
+		runtime.chord_phrase_mode = .None
 	}
 }
 
@@ -261,6 +317,96 @@ steno_runtime_set_phrase_mode :: proc(runtime: ^Steno_Runtime, mode: Steno_Phras
 		return
 	}
 	runtime.phrase_mode = mode
+	if mode != .None && runtime.down_keycodes != 0 {
+		runtime.chord_phrase_mode = mode
+	}
+}
+
+steno_runtime_reset_chord :: proc(runtime: ^Steno_Runtime) {
+	if runtime == nil {
+		return
+	}
+	runtime.down_keycodes = 0
+	runtime.chord_bits = 0
+	runtime.chord_phrase_mode = .None
+}
+
+keycode_physical_bit :: proc(keycode: u16) -> u64 {
+	if keycode >= 64 {
+		return 0
+	}
+	return u64(1) << uint(keycode)
+}
+
+steno_runtime_update_shortcut_modifier_state :: proc(runtime: ^Steno_Runtime, event: Input_Event) -> bool {
+	switch event.keycode {
+	case KEYCODE_LEFT_COMMAND, KEYCODE_RIGHT_COMMAND:
+		runtime.command_down = event.is_down
+		return true
+	case KEYCODE_LEFT_OPTION, KEYCODE_RIGHT_OPTION:
+		runtime.option_down = event.is_down
+		return true
+	case KEYCODE_LEFT_CONTROL, KEYCODE_RIGHT_CONTROL:
+		runtime.control_down = event.is_down
+		return true
+	}
+	return false
+}
+
+steno_runtime_handle_event :: proc(runtime: ^Steno_Runtime, event: Input_Event) -> bool {
+	if runtime == nil || !runtime.session_active {
+		return false
+	}
+
+	modifier_key_event := steno_runtime_update_shortcut_modifier_state(runtime, event)
+	shortcut_modifier_down := event.command || event.control || event.option ||
+		runtime.command_down || runtime.control_down || runtime.option_down
+
+	toggle_event := event.keycode == KEYCODE_ESCAPE && (event.control || runtime.control_down || runtime.toggle_esc_down)
+	if toggle_event {
+		if event.is_down && !runtime.toggle_esc_down {
+			runtime.enabled = !runtime.enabled
+			steno_runtime_reset_chord(runtime)
+		}
+		runtime.toggle_esc_down = event.is_down
+		return true
+	}
+
+	if modifier_key_event || !runtime.enabled || shortcut_modifier_down {
+		return false
+	}
+	if runtime.keymap == nil {
+		return false
+	}
+	binding := keymap_find_binding(runtime.keymap, event.keycode)
+	if binding == nil || event.keycode >= 64 {
+		return false
+	}
+
+	physical_bit := keycode_physical_bit(event.keycode)
+	if event.is_down {
+		if (runtime.down_keycodes & physical_bit) == 0 && !event.is_repeat {
+			runtime.down_keycodes |= physical_bit
+			runtime.chord_bits |= binding.bits
+			if runtime.phrase_mode != .None {
+				runtime.chord_phrase_mode = runtime.phrase_mode
+			}
+		}
+		return true
+	}
+
+	runtime.down_keycodes &= ~physical_bit
+	if runtime.down_keycodes == 0 {
+		stroke := Stroke_Input {
+			bits = runtime.chord_bits,
+			phrase_namespace = runtime.phrase_namespace_enabled,
+			phrase_mode = runtime.chord_phrase_mode,
+		}
+		handled := steno_runtime_handle_stroke(runtime, stroke)
+		steno_runtime_reset_chord(runtime)
+		return handled
+	}
+	return true
 }
 
 steno_runtime_translation_history_stroke_count :: proc(runtime: ^Steno_Runtime) -> int {

@@ -203,6 +203,20 @@ runtime_test_write_file :: proc(path: string, contents: string) -> bool {
 	return write_err == nil && close_err == nil
 }
 
+runtime_test_send_key_event :: proc(owner: ^Steno_Runtime_Owner, key_name: string, is_down: bool) -> bool {
+	keycode, ok := keycode_from_name(key_name)
+	if !ok {
+		return false
+	}
+	return steno_runtime_owner_handle_event(owner, Input_Event{keycode = keycode, is_down = is_down})
+}
+
+runtime_test_reset_owner :: proc(owner: ^Steno_Runtime_Owner, config: ^Steno_Runtime_Load_Config, output: ^Runtime_Test_Output) -> bool {
+	steno_runtime_owner_destroy(owner)
+	runtime_test_output_clear(output)
+	return steno_runtime_owner_init(owner, config)
+}
+
 @(test)
 test_steno_runtime_emits_minimal_text_replacements :: proc(t: ^testing.T) {
 	dictionary: Dictionary
@@ -535,4 +549,110 @@ test_steno_runtime_owner_keeps_phrasing_after_failed_reload :: proc(t: ^testing.
 		phrase_mode = .Verbs,
 	}))
 	runtime_test_expect_output(t, &output, "is a")
+}
+
+@(test)
+test_keymap_loads_fixture :: proc(t: ^testing.T) {
+	keymap: Keymap
+	keymap_init(&keymap)
+	defer keymap_destroy(&keymap)
+
+	testing.expect(t, keymap_load(&keymap, "tests/test.keymap"))
+	testing.expect_value(t, keymap_binding_count(&keymap), 37)
+
+	e_keycode, e_ok := keycode_from_name("e")
+	d_keycode, d_ok := keycode_from_name("d")
+	k_keycode, k_ok := keycode_from_name("k")
+	testing.expect(t, e_ok && d_ok && k_ok)
+	e := keymap_find_binding(&keymap, e_keycode)
+	d := keymap_find_binding(&keymap, d_keycode)
+	k := keymap_find_binding(&keymap, k_keycode)
+	testing.expect(t, e != nil && d != nil && k != nil)
+
+	outline, outline_ok := steno_runtime_single_stroke_outline(e.bits | d.bits | k.bits)
+	defer owned_string_delete(outline)
+	testing.expect(t, outline_ok)
+	testing.expect_value(t, outline, "PWB")
+}
+
+@(test)
+test_steno_runtime_qwerty_chord_gathering :: proc(t: ^testing.T) {
+	output: Runtime_Test_Output
+	runtime_test_output_init(&output)
+	defer runtime_test_output_destroy(&output)
+
+	paths := [?]string{"tests/test-dictionary.json"}
+	config := runtime_test_load_config(paths[:], nil, &output)
+	config.keymap_path = "tests/test.keymap"
+	config.phrasing_path = "tests/test-phrasing.json"
+
+	owner: Steno_Runtime_Owner
+	testing.expect(t, runtime_test_reset_owner(&owner, &config, &output))
+	defer steno_runtime_owner_destroy(&owner)
+
+	testing.expect(t, runtime_test_send_key_event(&owner, "e", true))
+	testing.expect(t, runtime_test_send_key_event(&owner, "d", true))
+	testing.expect(t, runtime_test_send_key_event(&owner, "k", true))
+	testing.expect(t, runtime_test_send_key_event(&owner, "e", false))
+	testing.expect(t, runtime_test_send_key_event(&owner, "d", false))
+	testing.expect(t, runtime_test_send_key_event(&owner, "k", false))
+	runtime_test_expect_output(t, &output, "dictionary is a")
+
+	testing.expect(t, runtime_test_reset_owner(&owner, &config, &output))
+	steno_runtime_set_phrase_namespace_enabled(&owner.runtime, true)
+	testing.expect(t, runtime_test_send_key_event(&owner, "e", true))
+	testing.expect(t, runtime_test_send_key_event(&owner, "d", true))
+	testing.expect(t, runtime_test_send_key_event(&owner, "k", true))
+	testing.expect(t, runtime_test_send_key_event(&owner, "e", false))
+	testing.expect(t, runtime_test_send_key_event(&owner, "d", false))
+	testing.expect(t, runtime_test_send_key_event(&owner, "k", false))
+	runtime_test_expect_output(t, &output, "dictionary is a")
+
+	testing.expect(t, runtime_test_reset_owner(&owner, &config, &output))
+	steno_runtime_set_phrase_namespace_enabled(&owner.runtime, true)
+	testing.expect(t, runtime_test_send_key_event(&owner, "e", true))
+	steno_runtime_set_phrase_mode(&owner.runtime, .All)
+	steno_runtime_set_phrase_mode(&owner.runtime, .None)
+	testing.expect(t, runtime_test_send_key_event(&owner, "d", true))
+	testing.expect(t, runtime_test_send_key_event(&owner, "k", true))
+	testing.expect(t, runtime_test_send_key_event(&owner, "e", false))
+	testing.expect(t, runtime_test_send_key_event(&owner, "d", false))
+	testing.expect(t, runtime_test_send_key_event(&owner, "k", false))
+	runtime_test_expect_output(t, &output, "is a")
+
+	testing.expect(t, runtime_test_reset_owner(&owner, &config, &output))
+	steno_runtime_set_phrase_namespace_enabled(&owner.runtime, true)
+	testing.expect(t, runtime_test_send_key_event(&owner, "e", true))
+	steno_runtime_set_phrase_mode(&owner.runtime, .Nonverbs)
+	steno_runtime_set_phrase_mode(&owner.runtime, .None)
+	testing.expect(t, runtime_test_send_key_event(&owner, "d", true))
+	testing.expect(t, runtime_test_send_key_event(&owner, "k", true))
+	testing.expect(t, runtime_test_send_key_event(&owner, "e", false))
+	testing.expect(t, runtime_test_send_key_event(&owner, "d", false))
+	testing.expect(t, runtime_test_send_key_event(&owner, "k", false))
+	runtime_test_expect_output(t, &output, "near a")
+
+	testing.expect(t, runtime_test_reset_owner(&owner, &config, &output))
+	testing.expect(t, !runtime_test_send_key_event(&owner, "left_shift", true))
+	testing.expect(t, !runtime_test_send_key_event(&owner, "left_shift", false))
+	testing.expect(t, runtime_test_send_key_event(&owner, "u", true))
+	testing.expect(t, runtime_test_send_key_event(&owner, "u", false))
+	runtime_test_expect_output(t, &output, "fee")
+
+	testing.expect(t, runtime_test_reset_owner(&owner, &config, &output))
+	testing.expect(t, !steno_runtime_owner_handle_event(&owner, Input_Event{keycode = KEYCODE_LEFT_CONTROL, is_down = true}))
+	testing.expect(t, steno_runtime_owner_handle_event(&owner, Input_Event{keycode = KEYCODE_ESCAPE, is_down = true}))
+	testing.expect(t, steno_runtime_owner_handle_event(&owner, Input_Event{keycode = KEYCODE_ESCAPE, is_down = false}))
+	testing.expect(t, !steno_runtime_owner_handle_event(&owner, Input_Event{keycode = KEYCODE_LEFT_CONTROL, is_down = false}))
+	testing.expect(t, !runtime_test_send_key_event(&owner, "u", true))
+	testing.expect(t, !runtime_test_send_key_event(&owner, "u", false))
+	runtime_test_expect_output(t, &output, "")
+
+	testing.expect(t, !steno_runtime_owner_handle_event(&owner, Input_Event{keycode = KEYCODE_LEFT_CONTROL, is_down = true}))
+	testing.expect(t, steno_runtime_owner_handle_event(&owner, Input_Event{keycode = KEYCODE_ESCAPE, is_down = true}))
+	testing.expect(t, steno_runtime_owner_handle_event(&owner, Input_Event{keycode = KEYCODE_ESCAPE, is_down = false}))
+	testing.expect(t, !steno_runtime_owner_handle_event(&owner, Input_Event{keycode = KEYCODE_LEFT_CONTROL, is_down = false}))
+	testing.expect(t, runtime_test_send_key_event(&owner, "u", true))
+	testing.expect(t, runtime_test_send_key_event(&owner, "u", false))
+	runtime_test_expect_output(t, &output, "fee")
 }

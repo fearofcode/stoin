@@ -193,6 +193,12 @@ Acceptance:
 
 ## Phase 5: macOS QWERTY And Output
 
+Status: started. The Odin port now has a keymap loader and synthetic qwerty
+event/chord-gathering path wired into the runtime, including Ctrl+Esc capture
+toggle, shortcut-modifier pass-through, phrase-mode latching during a chord, and
+phrase namespace gating. Live macOS event taps, text/key-combo emission, and file
+watching are still pending.
+
 Implement the first real platform layer on macOS:
 
 - QWERTY keymap loader.
