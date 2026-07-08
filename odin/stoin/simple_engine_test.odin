@@ -100,6 +100,25 @@ test_format_translation_retro_commands :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_format_translation_case_metadata :: proc(t: ^testing.T) {
+	case_next, case_ok := format_translation_text_basic("{}{:case:cap_first_word}")
+	defer formatted_text_destroy(&case_next)
+	testing.expect(t, case_ok)
+	testing.expect_value(t, case_next.text, "")
+	testing.expect_value(t, case_next.next_case, Case_Mode.Cap_First_Word)
+
+	period, period_ok := format_translation_text_basic("{.}")
+	defer formatted_text_destroy(&period)
+	testing.expect(t, period_ok)
+	testing.expect_value(t, period.next_case, Case_Mode.Cap_First_Word)
+
+	retro, retro_ok := format_translation_text_basic("{:retro_case:lower_first_char}")
+	defer formatted_text_destroy(&retro)
+	testing.expect(t, retro_ok)
+	testing.expect_value(t, retro.retro_case, Case_Mode.Lower_First_Char)
+}
+
+@(test)
 test_build_text_does_not_alias_old_text :: proc(t: ^testing.T) {
 	old_text, old_ok := clone_string_ok("quick")
 	testing.expect(t, old_ok)
@@ -264,6 +283,38 @@ test_simple_engine_retro_commands :: proc(t: ^testing.T) {
 
 	insert_space := [?]string{"PWA", "PWAL", "SP-LS", "S-PD"}
 	test_translate_sequence(t, &dictionary, insert_space[:], "basket ball")
+}
+
+@(test)
+test_simple_engine_case_formatting :: proc(t: ^testing.T) {
+	dictionary: Dictionary
+	dictionary_init(&dictionary)
+	defer dictionary_destroy(&dictionary)
+	testing.expect(t, dictionary_load(&dictionary, "tests/test-dictionary.json"))
+
+	period_capitalizes := [?]string{"KAT", "TP-PL", "KAT"}
+	test_translate_sequence(t, &dictionary, period_capitalizes[:], "cat. Cat")
+
+	period_space_capitalizes := [?]string{"KAT", "PH-FP", "KAT"}
+	test_translate_sequence(t, &dictionary, period_space_capitalizes[:], "cat. Cat")
+
+	comma_does_not_capitalize := [?]string{"KAT", "KW-BG", "KAT"}
+	test_translate_sequence(t, &dictionary, comma_does_not_capitalize[:], "cat, cat")
+
+	cap_next := [?]string{"KPA", "KAT"}
+	test_translate_sequence(t, &dictionary, cap_next[:], "Cat")
+
+	upper_next := [?]string{"KPA*L", "KAT"}
+	test_translate_sequence(t, &dictionary, upper_next[:], "CAT")
+
+	lower_next := [?]string{"HRO*ER", "PHROF"}
+	test_translate_sequence(t, &dictionary, lower_next[:], "plover")
+
+	retro_lower_previous := [?]string{"PHROF", "HRO*ERD"}
+	test_translate_sequence(t, &dictionary, retro_lower_previous[:], "plover")
+
+	undo_restores_pending_case := [?]string{"KAT", "TP-PL", "KAT", "-R", "KAT"}
+	test_translate_sequence(t, &dictionary, undo_restores_pending_case[:], "cat. Cat")
 }
 
 @(test)

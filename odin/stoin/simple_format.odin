@@ -9,6 +9,16 @@ Retro_Command :: enum {
 	Insert_Space,
 }
 
+Case_Mode :: enum {
+	Normal,
+	Cap_First_Word,
+	Upper_First_Word,
+	Lower_First_Char,
+	Upper,
+	Lower,
+	Title,
+}
+
 Formatted_Text :: struct {
 	text:         string,
 	ortho_suffix: string,
@@ -22,6 +32,9 @@ Formatted_Text :: struct {
 	stitch_count: int,
 	stitch_delimiter: string,
 	retro_command: Retro_Command,
+	text_case: Case_Mode,
+	next_case: Case_Mode,
+	retro_case: Case_Mode,
 }
 
 formatted_text_destroy :: proc(formatted: ^Formatted_Text) {
@@ -147,6 +160,42 @@ formatted_parse_stitch_meta :: proc(formatted: ^Formatted_Text, buffer: ^[dynami
 	return formatted_set_stitch_delimiter(formatted, delimiter)
 }
 
+formatted_parse_case_name :: proc(name: string) -> (Case_Mode, bool) {
+	switch name {
+	case "cap_first_word":
+		return .Cap_First_Word, true
+	case "upper_first_word":
+		return .Upper_First_Word, true
+	case "lower_first_char":
+		return .Lower_First_Char, true
+	}
+	return .Normal, false
+}
+
+formatted_parse_case_meta :: proc(formatted: ^Formatted_Text, buffer: ^[dynamic]byte, meta: string) -> bool {
+	if len(meta) > 6 && meta[:6] == ":case:" {
+		mode, ok := formatted_parse_case_name(meta[6:])
+		if !ok {
+			return false
+		}
+		if len(buffer^) == 0 && formatted.text_case == .Normal {
+			formatted.text_case = mode
+		} else {
+			formatted.next_case = mode
+		}
+		return true
+	}
+	if len(meta) > 12 && meta[:12] == ":retro_case:" {
+		mode, ok := formatted_parse_case_name(meta[12:])
+		if !ok {
+			return false
+		}
+		formatted.retro_case = mode
+		return true
+	}
+	return false
+}
+
 formatted_parse_attach_meta :: proc(formatted: ^Formatted_Text, buffer: ^[dynamic]byte, meta: string, pending_attach_prev: ^bool) -> bool {
 	begin := len(meta) > 0 && meta[0] == '^'
 	end := len(meta) > 0 && meta[len(meta) - 1] == '^'
@@ -202,6 +251,9 @@ formatted_apply_meta :: proc(formatted: ^Formatted_Text, buffer: ^[dynamic]byte,
 		case '.', ',', ':', ';', '?', '!':
 			formatted.attach_prev = true
 			append(buffer, meta[0])
+			if meta[0] == '.' || meta[0] == '?' || meta[0] == '!' {
+				formatted.next_case = .Cap_First_Word
+			}
 			return true
 		case '#':
 			return true
@@ -213,6 +265,10 @@ formatted_apply_meta :: proc(formatted: ^Formatted_Text, buffer: ^[dynamic]byte,
 	}
 
 	if formatted_parse_stitch_meta(formatted, buffer, meta) {
+		return true
+	}
+
+	if formatted_parse_case_meta(formatted, buffer, meta) {
 		return true
 	}
 
@@ -245,12 +301,6 @@ formatted_apply_meta :: proc(formatted: ^Formatted_Text, buffer: ^[dynamic]byte,
 		return true
 	}
 	if len(meta) >= 7 && (meta[:7] == "PLOVER:" || meta[:7] == "plover:") {
-		return true
-	}
-	if len(meta) >= 6 && meta[:6] == ":case:" {
-		return true
-	}
-	if len(meta) >= 12 && meta[:12] == ":retro_case:" {
 		return true
 	}
 	if meta[0] == '#' {
@@ -333,6 +383,10 @@ format_translation_text_basic :: proc(translation: string) -> (formatted: Format
 	if pending_attach_prev {
 		formatted.attach_prev = true
 		formatted.attach_next = true
+	}
+	if len(buffer) == 0 && formatted.text_case != .Normal {
+		formatted.next_case = formatted.text_case
+		formatted.text_case = .Normal
 	}
 
 	text, clone_err := strings.clone(string(buffer[:]))
