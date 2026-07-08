@@ -101,9 +101,9 @@ Acceptance:
 ## Phase 2: Dictionary And Formatting Core
 
 Status: started. Dictionary JSON loading, canonical outline storage, layered
-loading, exact lookup, and native Odin dictionary tests are implemented.
-Formatting, orthography, history, retro, stitch, and suggestions are still on
-the C side.
+loading, exact lookup, native Odin dictionary tests, and a temporary manual
+`--dict PATH --lookup OUTLINE` checkpoint are implemented. Formatting,
+orthography, history, retro, stitch, and suggestions are still on the C side.
 
 Port the pure translation data path:
 
