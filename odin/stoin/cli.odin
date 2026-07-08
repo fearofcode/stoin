@@ -19,7 +19,22 @@ Cli_Config :: struct {
 	translates:     [dynamic]string,
 	print_suggestions: bool,
 	suggestion_log_path: string,
+	phrasing_path: string,
+	phrase_mode: Phrase_Lookup_Mode,
+	phrase_mode_enabled: bool,
 	error_message: string,
+}
+
+parse_cli_phrase_mode :: proc(text: string) -> (Phrase_Lookup_Mode, bool) {
+	switch text {
+	case "all":
+		return .All, true
+	case "verbs", "verb":
+		return .Verbs, true
+	case "nonverbs", "nonverb":
+		return .Nonverbs, true
+	}
+	return .All, false
 }
 
 parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
@@ -27,6 +42,7 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 	config.dict_paths = make([dynamic]string)
 	config.lookups = make([dynamic]string)
 	config.translates = make([dynamic]string)
+	config.phrase_mode = .All
 
 	for i := 1; i < len(args); i += 1 {
 		arg := args[i]
@@ -55,6 +71,26 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 				return config, false
 			}
 			config.suggestion_log_path = args[i + 1]
+			i += 1
+		case "--phrasing":
+			if i + 1 >= len(args) {
+				config.error_message = "--phrasing requires a path"
+				return config, false
+			}
+			config.phrasing_path = args[i + 1]
+			i += 1
+		case "--phrase-mode":
+			if i + 1 >= len(args) {
+				config.error_message = "--phrase-mode requires all, verbs, or nonverbs"
+				return config, false
+			}
+			phrase_mode, phrase_mode_ok := parse_cli_phrase_mode(args[i + 1])
+			if !phrase_mode_ok {
+				config.error_message = "--phrase-mode requires all, verbs, or nonverbs"
+				return config, false
+			}
+			config.phrase_mode = phrase_mode
+			config.phrase_mode_enabled = true
 			i += 1
 		case "--translate":
 			if i + 1 >= len(args) {
@@ -86,6 +122,10 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 		config.mode = .Translate
 		if len(config.dict_paths) == 0 {
 			config.error_message = "--translate requires at least one --dict"
+			return config, false
+		}
+		if config.phrase_mode_enabled && len(config.phrasing_path) == 0 {
+			config.error_message = "--phrase-mode requires --phrasing"
 			return config, false
 		}
 	} else if len(config.dict_paths) > 0 {
@@ -137,6 +177,19 @@ run_translate_cli :: proc(config: ^Cli_Config) -> bool {
 		return false
 	}
 
+	phrasing: Phrasing
+	if config.phrase_mode_enabled {
+		phrasing_ok: bool
+		phrasing, phrasing_ok = phrasing_load(config.phrasing_path)
+		if !phrasing_ok {
+			fmt.eprintln("stoin: failed to load phrasing")
+			return false
+		}
+	}
+	defer if config.phrase_mode_enabled {
+		phrasing_destroy(&phrasing)
+	}
+
 	engine: Simple_Engine
 	simple_engine_init(&engine, &dictionary)
 	defer simple_engine_destroy(&engine)
@@ -160,7 +213,15 @@ run_translate_cli :: proc(config: ^Cli_Config) -> bool {
 
 	for outline in config.translates {
 		bits, parsed := stroke_string_to_bits(outline)
-		if !parsed || !simple_engine_translate_bits(&engine, bits) {
+		translated := false
+		if parsed {
+			if config.phrase_mode_enabled {
+				translated = simple_engine_translate_phrase_bits(&engine, &phrasing, bits, config.phrase_mode)
+			} else {
+				translated = simple_engine_translate_bits(&engine, bits)
+			}
+		}
+		if !parsed || !translated {
 			fmt.eprintln("stoin: failed to translate outline sequence")
 			return false
 		}

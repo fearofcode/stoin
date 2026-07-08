@@ -65,6 +65,25 @@ test_parse_cli_args_suggestion_log :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_parse_cli_args_phrase_mode :: proc(t: ^testing.T) {
+	args := [?]string {
+		APP_NAME,
+		"--dict", "tests/test-dictionary.json",
+		"--phrasing", "tests/test-phrasing.json",
+		"--phrase-mode", "verbs",
+		"--translate", "PW-B",
+	}
+	config, ok := parse_cli_args(args[:])
+	defer cli_config_destroy(&config)
+
+	testing.expect(t, ok)
+	testing.expect_value(t, config.mode, Cli_Mode.Translate)
+	testing.expect(t, config.phrase_mode_enabled)
+	testing.expect_value(t, config.phrasing_path, "tests/test-phrasing.json")
+	testing.expect_value(t, config.phrase_mode, Phrase_Lookup_Mode.Verbs)
+}
+
+@(test)
 test_parse_cli_args_requires_dictionary_for_lookup :: proc(t: ^testing.T) {
 	args := [?]string{APP_NAME, "--lookup", "SA-P"}
 	config, ok := parse_cli_args(args[:])
@@ -82,4 +101,14 @@ test_parse_cli_args_requires_dictionary_for_translate :: proc(t: ^testing.T) {
 
 	testing.expect(t, !ok)
 	testing.expect_value(t, config.error_message, "--translate requires at least one --dict")
+}
+
+@(test)
+test_parse_cli_args_phrase_mode_requires_phrasing :: proc(t: ^testing.T) {
+	args := [?]string{APP_NAME, "--dict", "tests/test-dictionary.json", "--phrase-mode", "verbs", "--translate", "PW-B"}
+	config, ok := parse_cli_args(args[:])
+	defer cli_config_destroy(&config)
+
+	testing.expect(t, !ok)
+	testing.expect_value(t, config.error_message, "--phrase-mode requires --phrasing")
 }
