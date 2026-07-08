@@ -62,3 +62,64 @@ test_phrasing_rejects_duplicate_tail_strokes :: proc(t: ^testing.T) {
 	defer phrasing_destroy(&phrasing)
 	testing.expect(t, !ok)
 }
+
+test_expect_phrase_lookup :: proc(t: ^testing.T, phrasing: ^Phrasing, outline: string, mode: Phrase_Lookup_Mode, expected: string) {
+	bits, parsed := stroke_string_to_bits(outline)
+	testing.expect(t, parsed)
+	text, result := phrasing_lookup_mode(phrasing, bits, mode)
+	defer owned_string_delete(text)
+	testing.expect_value(t, result, Phrase_Lookup_Result.Hit)
+	testing.expect_value(t, text, expected)
+}
+
+test_expect_phrase_miss :: proc(t: ^testing.T, phrasing: ^Phrasing, outline: string, mode: Phrase_Lookup_Mode) {
+	bits, parsed := stroke_string_to_bits(outline)
+	testing.expect(t, parsed)
+	text, result := phrasing_lookup_mode(phrasing, bits, mode)
+	defer owned_string_delete(text)
+	testing.expect_value(t, result, Phrase_Lookup_Result.Miss)
+}
+
+@(test)
+test_phrasing_lookup_initial_verbs :: proc(t: ^testing.T) {
+	phrasing, ok := phrasing_load("tests/test-phrasing.json")
+	defer phrasing_destroy(&phrasing)
+	testing.expect(t, ok)
+
+	test_expect_phrase_lookup(t, &phrasing, "PW-B", .Verbs, "is a")
+	test_expect_phrase_lookup(t, &phrasing, "PW-BD", .Verbs, "was a")
+	test_expect_phrase_lookup(t, &phrasing, "PWE-BD", .Verbs, "were a")
+	test_expect_phrase_lookup(t, &phrasing, "PWU-B", .Verbs, "to be a")
+	test_expect_phrase_lookup(t, &phrasing, "THRA-S", .Verbs, "can tell us")
+	test_expect_phrase_lookup(t, &phrasing, "KPA-P", .Verbs, "can keep it")
+	test_expect_phrase_lookup(t, &phrasing, "KHR-PG", .Verbs, "calling it")
+}
+
+@(test)
+test_phrasing_lookup_nonverbs :: proc(t: ^testing.T) {
+	phrasing, ok := phrasing_load("tests/test-phrasing.json")
+	defer phrasing_destroy(&phrasing)
+	testing.expect(t, ok)
+
+	test_expect_phrase_lookup(t, &phrasing, "TW-B", .Nonverbs, "with a")
+	test_expect_phrase_lookup(t, &phrasing, "TW-S", .Nonverbs, "with us")
+	test_expect_phrase_lookup(t, &phrasing, "TKPWH*-RT", .Nonverbs, "anything that")
+	test_expect_phrase_lookup(t, &phrasing, "TKPWH*-LS", .Nonverbs, "anything else")
+	test_expect_phrase_lookup(t, &phrasing, "S*-F", .Nonverbs, "as if")
+	test_expect_phrase_lookup(t, &phrasing, "S*-GT", .Nonverbs, "as though")
+	test_expect_phrase_lookup(t, &phrasing, "SRAO*E-S", .Nonverbs, "even us")
+	test_expect_phrase_lookup(t, &phrasing, "SRAO*E-RT", .Nonverbs, "even that")
+	test_expect_phrase_lookup(t, &phrasing, "SRAO*E-GT", .Nonverbs, "even though")
+}
+
+@(test)
+test_phrasing_lookup_namespaces :: proc(t: ^testing.T) {
+	phrasing, ok := phrasing_load("tests/test-phrasing.json")
+	defer phrasing_destroy(&phrasing)
+	testing.expect(t, ok)
+
+	test_expect_phrase_lookup(t, &phrasing, "PW-B", .Verbs, "is a")
+	test_expect_phrase_lookup(t, &phrasing, "PW-B", .Nonverbs, "near a")
+	test_expect_phrase_lookup(t, &phrasing, "PW-B", .All, "is a")
+	test_expect_phrase_miss(t, &phrasing, "TW-B", .Verbs)
+}

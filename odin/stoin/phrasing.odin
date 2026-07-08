@@ -30,6 +30,18 @@ Fv_Verb_Kind :: enum {
 	Do,
 }
 
+Phrase_Lookup_Result :: enum {
+	Miss,
+	Hit,
+	Error,
+}
+
+Phrase_Lookup_Mode :: enum {
+	All,
+	Verbs,
+	Nonverbs,
+}
+
 Phrase_Form :: struct {
 	bits: u64,
 	text: string,
@@ -691,4 +703,90 @@ phrasing_load :: proc(path: string) -> (phrasing: Phrasing, ok: bool) {
 		return {}, false
 	}
 	return phrasing, true
+}
+
+phrase_append_word :: proc(buffer: ^[dynamic]byte, word: string) -> bool {
+	if len(word) == 0 {
+		return true
+	}
+	if len(buffer^) > 0 {
+		formatted_append_string(buffer, " ")
+	}
+	return formatted_append_string(buffer, word)
+}
+
+phrase_copy_words :: proc(first: string, second: string) -> (string, bool) {
+	buffer := make([dynamic]byte)
+	defer delete(buffer)
+	if !phrase_append_word(&buffer, first) || !phrase_append_word(&buffer, second) {
+		return "", false
+	}
+	return clone_bytes_to_string(buffer[:])
+}
+
+phrasing_lookup_initial_verb :: proc(phrasing: ^Phrasing, bits: u64) -> (string, Phrase_Lookup_Result) {
+	for stem in phrasing.iv_stems {
+		for form in stem.forms {
+			for tail in phrasing.iv_tails {
+				if bits == (stem.bits | form.bits | tail.bits) {
+					text, ok := phrase_copy_words(form.text, tail.text)
+					return text, ok ? .Hit : .Error
+				}
+			}
+		}
+	}
+	return "", .Miss
+}
+
+phrasing_lookup_nonverb :: proc(phrasing: ^Phrasing, bits: u64) -> (string, Phrase_Lookup_Result) {
+	for prefix in phrasing.nv_prefixes {
+		for tail_id in prefix.tail_ids {
+			tail_index := phrasing_find_tail(phrasing.nv_tails[:], tail_id)
+			if tail_index < 0 {
+				return "", .Error
+			}
+			tail := phrasing.nv_tails[tail_index]
+			if bits == (prefix.bits | tail.bits) {
+				text, ok := phrase_copy_words(prefix.text, tail.text)
+				return text, ok ? .Hit : .Error
+			}
+		}
+	}
+	return "", .Miss
+}
+
+phrasing_lookup_final_verb :: proc(phrasing: ^Phrasing, bits: u64) -> (string, Phrase_Lookup_Result) {
+	return "", .Miss
+}
+
+phrasing_lookup_mode :: proc(phrasing: ^Phrasing, bits: u64, mode: Phrase_Lookup_Mode) -> (string, Phrase_Lookup_Result) {
+	if phrasing == nil {
+		return "", .Miss
+	}
+
+	if mode == .All || mode == .Verbs {
+		text, result := phrasing_lookup_initial_verb(phrasing, bits)
+		if result != .Miss {
+			return text, result
+		}
+		if mode == .Verbs {
+			return phrasing_lookup_final_verb(phrasing, bits)
+		}
+	}
+
+	if mode == .All || mode == .Nonverbs {
+		text, result := phrasing_lookup_nonverb(phrasing, bits)
+		if result != .Miss || mode == .Nonverbs {
+			return text, result
+		}
+	}
+
+	if mode == .All {
+		return phrasing_lookup_final_verb(phrasing, bits)
+	}
+	return "", .Miss
+}
+
+phrasing_lookup :: proc(phrasing: ^Phrasing, bits: u64) -> (string, Phrase_Lookup_Result) {
+	return phrasing_lookup_mode(phrasing, bits, .All)
 }
