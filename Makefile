@@ -87,12 +87,17 @@ endif
 CFLAGS := $(BASE_CFLAGS) $(PLATFORM_CFLAGS)
 RELEASE_CFLAGS := $(BASE_RELEASE_CFLAGS) $(PLATFORM_CFLAGS)
 LDFLAGS := $(PLATFORM_LDFLAGS)
+ODIN ?= odin
 
 BUILD_DIR := build/$(PLATFORM)
 RELEASE_DIR := $(BUILD_DIR)/release
 TARGET := $(BUILD_DIR)/stoin$(EXE_EXT)
 RELEASE_TARGET := $(RELEASE_DIR)/stoin$(EXE_EXT)
 TEST_TARGET := $(BUILD_DIR)/test_steno$(EXE_EXT)
+ODIN_SOURCE_DIR := odin/stoin
+ODIN_BUILD_DIR := $(BUILD_DIR)/odin
+ODIN_TARGET := $(ODIN_BUILD_DIR)/stoin$(EXE_EXT)
+ODIN_RELEASE_TARGET := $(RELEASE_DIR)/odin/stoin$(EXE_EXT)
 
 CORE_SOURCES := $(COMMON_SOURCES) $(PLATFORM_SOURCES)
 CORE_OBJECTS := $(patsubst src/%.c,$(BUILD_DIR)/%.o,$(CORE_SOURCES)) \
@@ -104,7 +109,7 @@ RELEASE_CORE_OBJECTS := $(patsubst src/%.c,$(RELEASE_DIR)/%.o,$(CORE_SOURCES)) \
 	$(patsubst third_party/%.c,$(RELEASE_DIR)/third_party/%.o,$(VENDOR_SOURCES))
 RELEASE_APP_OBJECTS := $(RELEASE_DIR)/main.o $(RELEASE_CORE_OBJECTS)
 
-.PHONY: all clean linux macos release run srs-web test windows
+.PHONY: all clean linux macos odin odin-release odin-test release run srs-web test windows
 
 all: $(TARGET)
 
@@ -119,6 +124,10 @@ windows:
 
 release: $(RELEASE_TARGET)
 
+odin: $(ODIN_TARGET)
+
+odin-release: $(ODIN_RELEASE_TARGET)
+
 $(TARGET): $(APP_OBJECTS) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(APP_OBJECTS) $(LDFLAGS) -o $@
 
@@ -128,10 +137,22 @@ $(RELEASE_TARGET): $(RELEASE_APP_OBJECTS) | $(RELEASE_DIR)
 $(TEST_TARGET): $(TEST_OBJECTS) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(TEST_OBJECTS) $(LDFLAGS) -o $@
 
+$(ODIN_TARGET): $(wildcard $(ODIN_SOURCE_DIR)/*.odin) | $(ODIN_BUILD_DIR)
+	$(ODIN) build $(ODIN_SOURCE_DIR) -out:$@
+
+$(ODIN_RELEASE_TARGET): $(wildcard $(ODIN_SOURCE_DIR)/*.odin) | $(RELEASE_DIR)/odin
+	$(ODIN) build $(ODIN_SOURCE_DIR) -o:speed -out:$@
+
 $(BUILD_DIR):
 	mkdir -p $@
 
 $(RELEASE_DIR):
+	mkdir -p $@
+
+$(ODIN_BUILD_DIR):
+	mkdir -p $@
+
+$(RELEASE_DIR)/odin:
 	mkdir -p $@
 
 $(BUILD_DIR)/third_party/cjson:
@@ -164,6 +185,9 @@ srs-web:
 test: $(TEST_TARGET)
 	./$(TEST_TARGET)
 	go test ./...
+
+odin-test:
+	$(ODIN) test $(ODIN_SOURCE_DIR)
 
 clean:
 	rm -rf build

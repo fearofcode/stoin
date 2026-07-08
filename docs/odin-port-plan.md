@@ -53,6 +53,14 @@ pure logic separate from platform code so Linux/Windows catch-up is possible.
 
 ## Phase 0: Tooling And Skeleton
 
+Status: implemented as the initial Odin scaffold.
+
+Current commands:
+
+- `make odin`
+- `make odin-test`
+- `make odin-release`
+
 - Add build targets without replacing C targets:
   - `make odin`
   - `make odin-test`
