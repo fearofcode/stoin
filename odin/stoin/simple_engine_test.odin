@@ -139,6 +139,13 @@ test_format_translation_case_metadata :: proc(t: ^testing.T) {
 	defer formatted_text_destroy(&cancel)
 	testing.expect(t, cancel_ok)
 	testing.expect(t, cancel.cancel_formatting)
+	testing.expect_value(t, cancel.next_case, Case_Mode.Normal)
+
+	cancel_pending_case, cancel_pending_ok := format_translation_text_basic("{<}{}")
+	defer formatted_text_destroy(&cancel_pending_case)
+	testing.expect(t, cancel_pending_ok)
+	testing.expect(t, cancel_pending_case.cancel_formatting)
+	testing.expect_value(t, cancel_pending_case.next_case, Case_Mode.Normal)
 
 	lower_shortcut, lower_ok := format_translation_text_basic("{>}")
 	defer formatted_text_destroy(&lower_shortcut)

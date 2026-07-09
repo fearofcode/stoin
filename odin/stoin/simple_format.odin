@@ -404,6 +404,8 @@ formatted_parse_attach_meta :: proc(formatted: ^Formatted_Text, buffer: ^[dynami
 formatted_apply_meta :: proc(formatted: ^Formatted_Text, buffer: ^[dynamic]byte, translation: string, meta: string, pending_attach_prev: ^bool) -> bool {
 	if len(meta) == 0 {
 		formatted.cancel_formatting = true
+		formatted.text_case = .Normal
+		formatted.next_case = .Normal
 		return true
 	}
 
