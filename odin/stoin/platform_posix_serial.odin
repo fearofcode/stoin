@@ -243,6 +243,21 @@ platform_serial_flush :: proc(port: ^Platform_Serial_Port) {
 	posix.tcflush(port.fd, .TCIOFLUSH)
 }
 
+platform_serial_drain :: proc(port: ^Platform_Serial_Port) -> bool {
+	if port == nil || c.int(port.fd) < 0 {
+		if port != nil {
+			port.had_error = true
+		}
+		posix.set_errno(.EBADF)
+		return false
+	}
+	if posix.tcdrain(port.fd) != .OK {
+		port.had_error = true
+		return false
+	}
+	return true
+}
+
 platform_serial_read_byte :: proc(port: ^Platform_Serial_Port, timeout_ms: uint) -> (value: byte, result: Platform_Serial_Read_Result) {
 	if port == nil || c.int(port.fd) < 0 {
 		if port != nil {
@@ -333,5 +348,5 @@ platform_serial_write_all :: proc(port: ^Platform_Serial_Port, bytes: []byte, ti
 		return false
 	}
 
-	return true
+	return platform_serial_drain(port)
 }

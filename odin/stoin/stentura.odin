@@ -31,7 +31,9 @@ Stentura_Status :: enum {
 	Response_Sequence_Mismatch,
 	Response_Action_Mismatch,
 	Open_Handshake_Failed,
+	Open_Handshake_Timeout,
 	Initial_Drain_Failed,
+	Initial_Drain_Timeout,
 	Realtime_Read_Failed,
 	Realtime_Response_Mismatch,
 	Stroke_Decode_Failed,
@@ -132,8 +134,12 @@ stentura_status_message :: proc(stentura: ^Stentura) -> string {
 		return "response action mismatch"
 	case .Open_Handshake_Failed:
 		return "OPEN handshake failed"
+	case .Open_Handshake_Timeout:
+		return "OPEN handshake timed out"
 	case .Initial_Drain_Failed:
 		return "initial realtime drain failed"
+	case .Initial_Drain_Timeout:
+		return "initial realtime drain timed out"
 	case .Realtime_Read_Failed:
 		return "realtime read failed"
 	case .Realtime_Response_Mismatch:
@@ -532,7 +538,9 @@ stentura_open :: proc(stentura: ^Stentura, port_path: string, baud_rate: int) ->
 	_, ok := stentura_send_receive(stentura, request[:request_size], response[:])
 	if !ok {
 		status := stentura.status
-		if status == .Ok {
+		if status == .Response_Timeout {
+			status = .Open_Handshake_Timeout
+		} else if status == .Ok {
 			status = .Open_Handshake_Failed
 		}
 		stentura_close_with_status(stentura, status)
@@ -540,7 +548,9 @@ stentura_open :: proc(stentura: ^Stentura, port_path: string, baud_rate: int) ->
 	}
 	if !stentura_drain_realtime_file(stentura) {
 		status := stentura.status
-		if status == .Ok {
+		if status == .Response_Timeout {
+			status = .Initial_Drain_Timeout
+		} else if status == .Ok {
 			status = .Initial_Drain_Failed
 		}
 		stentura_close_with_status(stentura, status)
