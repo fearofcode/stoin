@@ -142,6 +142,26 @@ test_parse_cli_args_suggestion_log :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_parse_cli_args_trace_strokes_default :: proc(t: ^testing.T) {
+	args := [?]string{APP_NAME, "--input", "tx-bolt", "--dict", "tests/test-dictionary.json"}
+	config, ok := parse_cli_args(args[:])
+	defer cli_config_destroy(&config)
+
+	testing.expect(t, ok)
+	testing.expect(t, config.trace_strokes)
+}
+
+@(test)
+test_parse_cli_args_no_trace_strokes :: proc(t: ^testing.T) {
+	args := [?]string{APP_NAME, "--input", "tx-bolt", "--dict", "tests/test-dictionary.json", "--no-trace-strokes"}
+	config, ok := parse_cli_args(args[:])
+	defer cli_config_destroy(&config)
+
+	testing.expect(t, ok)
+	testing.expect(t, !config.trace_strokes)
+}
+
+@(test)
 test_parse_cli_args_qwerty_defaults_keymap :: proc(t: ^testing.T) {
 	args := [?]string{APP_NAME, "--input", "qwerty", "--dict", "tests/test-dictionary.json"}
 	config, ok := parse_cli_args(args[:])

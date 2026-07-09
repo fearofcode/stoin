@@ -57,6 +57,7 @@ Cli_Config :: struct {
 	nonverb_phrase_toggle_name: string,
 	print_suggestions: bool,
 	suggestion_log_path: string,
+	trace_strokes: bool,
 	orthography_path: string,
 	phrasing_path: string,
 	phrase_mode: Phrase_Lookup_Mode,
@@ -85,6 +86,7 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 	config.phrase_mode = .All
 	config.serial_baud_rate = PLATFORM_SERIAL_DEFAULT_BAUD
 	config.multi_input_window_ms = TX_BOLT_MULTIPLE_DEFAULT_WINDOW_MS
+	config.trace_strokes = true
 
 	raw_serial_requested := false
 	for i := 1; i < len(args); i += 1 {
@@ -257,6 +259,10 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 			}
 			config.suggestion_log_path = args[i + 1]
 			i += 1
+		case "--trace-strokes":
+			config.trace_strokes = true
+		case "--no-trace-strokes":
+			config.trace_strokes = false
 		case "--word-list", "--orthography":
 			if i + 1 >= len(args) {
 				config.error_message = "--word-list requires a path"
@@ -734,8 +740,10 @@ run_qwerty_cli :: proc(config: ^Cli_Config) -> bool {
 			send_text = macos_runtime_send_text,
 			delete_text = macos_runtime_delete_text,
 			send_key_combination = macos_runtime_send_key_combination,
-			write_trace = cli_runtime_write_line,
 			userdata = rawptr(&output),
+		}
+		if config.trace_strokes {
+			runtime_config.write_trace = cli_runtime_write_line
 		}
 		if len(config.phrasing_path) > 0 {
 			runtime_config.phrasing_path = config.phrasing_path
@@ -1156,8 +1164,10 @@ run_tx_bolt_cli :: proc(config: ^Cli_Config) -> bool {
 			send_text = macos_runtime_send_text,
 			delete_text = macos_runtime_delete_text,
 			send_key_combination = macos_runtime_send_key_combination,
-			write_trace = cli_runtime_write_line,
 			userdata = rawptr(&output),
+		}
+		if config.trace_strokes {
+			runtime_config.write_trace = cli_runtime_write_line
 		}
 		if len(config.phrasing_path) > 0 {
 			runtime_config.phrasing_path = config.phrasing_path
@@ -1309,8 +1319,10 @@ run_gemini_pr_cli :: proc(config: ^Cli_Config) -> bool {
 			send_text = macos_runtime_send_text,
 			delete_text = macos_runtime_delete_text,
 			send_key_combination = macos_runtime_send_key_combination,
-			write_trace = cli_runtime_write_line,
 			userdata = rawptr(&output),
+		}
+		if config.trace_strokes {
+			runtime_config.write_trace = cli_runtime_write_line
 		}
 		if len(config.phrasing_path) > 0 {
 			runtime_config.phrasing_path = config.phrasing_path
@@ -1466,8 +1478,10 @@ run_stentura_cli :: proc(config: ^Cli_Config) -> bool {
 			send_text = macos_runtime_send_text,
 			delete_text = macos_runtime_delete_text,
 			send_key_combination = macos_runtime_send_key_combination,
-			write_trace = cli_runtime_write_line,
 			userdata = rawptr(&output),
+		}
+		if config.trace_strokes {
+			runtime_config.write_trace = cli_runtime_write_line
 		}
 		if len(config.phrasing_path) > 0 {
 			runtime_config.phrasing_path = config.phrasing_path

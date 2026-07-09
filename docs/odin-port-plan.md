@@ -241,11 +241,12 @@ basic baud validation on Darwin/Linux. The Odin CLI also has a macOS
 `--input tx-bolt`, `--input gemini-pr`, and `--input stentura` checkpoints that
 load the runtime, reconnect to serial devices, decode strokes, consume
 phrase/nonverb pedal latches from a background listen-only keyboard tap, and
-emit through the macOS output callbacks. Raw serial diagnostics are wired behind
-`--raw-serial`. Dictionary and phrasing hot reload are polled in the serial
-loops. TX Bolt multi-input mode scans serial devices, runs a separate decoder
-per source, and applies the existing stroke-merge window when 2+ devices are
-connected.
+emit through the macOS output callbacks. Stroke tracing defaults on and can be
+disabled with `--no-trace-strokes`, matching the C CLI. Raw serial diagnostics
+are wired behind `--raw-serial`. Dictionary and phrasing hot reload are polled
+in the serial loops. TX Bolt multi-input mode scans serial devices, runs a
+separate decoder per source, and applies the existing stroke-merge window when
+2+ devices are connected.
 
 Port the current real-machine path:
 
