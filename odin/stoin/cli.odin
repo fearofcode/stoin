@@ -746,7 +746,7 @@ cli_platform_translation_timing_set_enabled :: proc(enabled: bool) {
 }
 
 cli_platform_keyboard_listener_supported :: proc() -> bool {
-	when ODIN_OS == .Darwin || ODIN_OS == .Linux {
+	when ODIN_OS == .Darwin || ODIN_OS == .Linux || ODIN_OS == .Windows {
 		return true
 	} else {
 		return false
@@ -758,6 +758,8 @@ cli_platform_keyboard_listener_start :: proc(owner: ^Steno_Runtime_Owner) -> boo
 		return macos_keyboard_listen_start(owner)
 	} else when ODIN_OS == .Linux {
 		return linux_keyboard_listen_start(owner)
+	} else when ODIN_OS == .Windows {
+		return windows_keyboard_listen_start(owner)
 	} else {
 		_ = owner
 		return false
@@ -769,6 +771,8 @@ cli_platform_keyboard_listener_stop :: proc() {
 		macos_keyboard_listen_stop()
 	} else when ODIN_OS == .Linux {
 		linux_keyboard_listen_stop()
+	} else when ODIN_OS == .Windows {
+		windows_keyboard_listen_stop()
 	}
 }
 
@@ -777,6 +781,8 @@ cli_platform_qwerty_name :: proc() -> string {
 		return "macOS Odin qwerty event tap"
 	} else when ODIN_OS == .Linux {
 		return "Linux Odin qwerty evdev capture"
+	} else when ODIN_OS == .Windows {
+		return "Windows Odin qwerty keyboard hook"
 	} else {
 		return "platform qwerty capture"
 	}
@@ -787,6 +793,8 @@ cli_platform_qwerty_start :: proc(owner: ^Steno_Runtime_Owner) -> bool {
 		return macos_qwerty_start(owner)
 	} else when ODIN_OS == .Linux {
 		return linux_qwerty_start(owner)
+	} else when ODIN_OS == .Windows {
+		return windows_qwerty_start(owner)
 	} else {
 		_ = owner
 		return false
@@ -798,6 +806,8 @@ cli_platform_qwerty_run :: proc() {
 		macos_qwerty_run()
 	} else when ODIN_OS == .Linux {
 		linux_qwerty_run()
+	} else when ODIN_OS == .Windows {
+		windows_qwerty_run()
 	}
 }
 
@@ -806,6 +816,8 @@ cli_platform_qwerty_stop :: proc() {
 		macos_qwerty_stop()
 	} else when ODIN_OS == .Linux {
 		linux_qwerty_stop()
+	} else when ODIN_OS == .Windows {
+		windows_qwerty_stop()
 	}
 }
 
@@ -890,9 +902,9 @@ run_translate_cli :: proc(config: ^Cli_Config) -> bool {
 }
 
 run_qwerty_cli :: proc(config: ^Cli_Config) -> bool {
-	when ODIN_OS != .Darwin && ODIN_OS != .Linux {
+	when ODIN_OS != .Darwin && ODIN_OS != .Linux && ODIN_OS != .Windows {
 		_ = config
-		fmt.eprintln("stoin: qwerty input is currently implemented only on macOS and Linux in the Odin port")
+		fmt.eprintln("stoin: qwerty input is currently implemented only on macOS, Linux, and Windows in the Odin port")
 		return false
 	} else {
 		suggestion_log_file: ^os.File
