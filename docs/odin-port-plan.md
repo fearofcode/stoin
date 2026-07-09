@@ -199,8 +199,8 @@ event/chord-gathering path wired into the runtime, including Ctrl+Esc capture
 toggle, shortcut-modifier pass-through, phrase-mode latching during a chord, and
 phrase namespace gating. Darwin-only CoreGraphics output bindings are started
 for text, delete, key-combo emission, generated-event marking, and a live macOS
-qwerty event tap behind `--input qwerty`. File watching and real pedal
-integration are still pending.
+qwerty event tap behind `--input qwerty`, including normal outline/translation
+trace output. File watching and real pedal integration are still pending.
 
 Implement the first real platform layer on macOS:
 
@@ -234,8 +234,8 @@ Status: started. A POSIX serial layer now handles serial device discovery,
 basic baud validation on Darwin/Linux. The Odin CLI also has a macOS
 `--input tx-bolt` checkpoint that loads the runtime, reconnects to serial TX
 Bolt devices, decodes strokes, and emits through the macOS output callbacks.
-Pedal polling, hot reload, raw serial diagnostics, and multi-input merge are
-still pending.
+Raw serial diagnostics are wired behind `--raw-serial`. Pedal polling, hot
+reload, and multi-input merge are still pending.
 
 Port the current real-machine path:
 

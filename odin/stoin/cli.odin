@@ -7,6 +7,7 @@ import "core:time"
 APP_NAME :: "stoin"
 INPUT_EVENT_POLL_SLEEP_MS :: 10
 TX_BOLT_STROKE_IDLE_FLUSH_MS :: 100
+RAW_SERIAL_BURST_CAPACITY :: 256
 
 Cli_Mode :: enum {
 	Scaffold,
@@ -15,6 +16,7 @@ Cli_Mode :: enum {
 	Translate,
 	Qwerty,
 	Tx_Bolt,
+	Raw_Serial,
 }
 
 Cli_Config :: struct {
@@ -24,6 +26,7 @@ Cli_Config :: struct {
 	translates:     [dynamic]string,
 	input_qwerty:   bool,
 	input_tx_bolt:  bool,
+	raw_serial:     bool,
 	keymap_path:    string,
 	serial_port_path: string,
 	serial_baud_rate: int,
@@ -75,6 +78,8 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 			}
 			append(&config.lookups, args[i + 1])
 			i += 1
+		case "--raw-serial", "--dump-serial":
+			config.raw_serial = true
 		case "--input":
 			if i + 1 >= len(args) {
 				config.error_message = "--input requires qwerty"
@@ -180,12 +185,17 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 	if config.input_tx_bolt {
 		selected_modes += 1
 	}
+	if config.raw_serial {
+		selected_modes += 1
+	}
 	if selected_modes > 1 {
-		config.error_message = "--lookup, --translate, and --input cannot be combined"
+		config.error_message = "--lookup, --translate, --input, and --raw-serial cannot be combined"
 		return config, false
 	}
 
-	if config.input_qwerty {
+	if config.raw_serial {
+		config.mode = .Raw_Serial
+	} else if config.input_qwerty {
 		config.mode = .Qwerty
 		if len(config.dict_paths) == 0 {
 			config.error_message = "--input qwerty requires at least one --dict"
@@ -441,6 +451,7 @@ run_qwerty_cli :: proc(config: ^Cli_Config) -> bool {
 			send_text = macos_runtime_send_text,
 			delete_text = macos_runtime_delete_text,
 			send_key_combination = macos_runtime_send_key_combination,
+			write_trace = cli_runtime_write_line,
 			userdata = rawptr(&output),
 		}
 		if len(config.phrasing_path) > 0 {
@@ -473,14 +484,20 @@ run_qwerty_cli :: proc(config: ^Cli_Config) -> bool {
 		defer macos_qwerty_stop()
 
 		fmt.eprintln("stoin: macOS Odin qwerty event tap running")
-		fmt.eprintln("stoin: loaded keymap from", config.keymap_path)
+		fmt.eprintln(
+			"stoin: loaded",
+			keymap_binding_count(&owner.keymap),
+			"key bindings and",
+			dictionary_count(&owner.dictionary_stack.dictionary),
+			"dictionary entries",
+		)
 		fmt.eprintln("stoin: press Ctrl+Esc to toggle capture; press Ctrl+C in this terminal to quit")
 		macos_qwerty_run()
 		return true
 	}
 }
 
-tx_bolt_cli_resolve_serial_port :: proc(requested_port: string) -> (path: string, owned: bool, ok: bool) {
+serial_cli_resolve_serial_port :: proc(requested_port: string) -> (path: string, owned: bool, ok: bool) {
 	if len(requested_port) > 0 {
 		return requested_port, false, true
 	}
@@ -618,7 +635,7 @@ run_tx_bolt_cli :: proc(config: ^Cli_Config) -> bool {
 
 		for {
 			if !connected {
-				resolved_port_path, resolved_path_owned, resolved := tx_bolt_cli_resolve_serial_port(config.serial_port_path)
+				resolved_port_path, resolved_path_owned, resolved := serial_cli_resolve_serial_port(config.serial_port_path)
 				if !resolved {
 					if !announced_disconnected {
 						if len(config.serial_port_path) > 0 {
@@ -669,6 +686,116 @@ run_tx_bolt_cli :: proc(config: ^Cli_Config) -> bool {
 			} else if !made_progress {
 				cli_sleep_ms(INPUT_EVENT_POLL_SLEEP_MS)
 			}
+		}
+	}
+}
+
+raw_serial_byte_is_printable :: proc(value: byte) -> bool {
+	return value >= 32 && value <= 126
+}
+
+raw_serial_print_burst :: proc(bytes: []byte) {
+	if len(bytes) == 0 {
+		return
+	}
+
+	suffix := "s"
+	if len(bytes) == 1 {
+		suffix = ""
+	}
+	fmt.printf("stoin: raw %d byte%s:", len(bytes), suffix)
+	for value in bytes {
+		fmt.printf(" %02X", value)
+	}
+	fmt.print(" | ")
+	for value in bytes {
+		if raw_serial_byte_is_printable(value) {
+			fmt.printf("%c", value)
+		} else {
+			fmt.print(".")
+		}
+	}
+	fmt.println()
+}
+
+raw_serial_flush_burst :: proc(burst: ^[RAW_SERIAL_BURST_CAPACITY]byte, burst_count: ^int) {
+	if burst_count^ == 0 {
+		return
+	}
+	raw_serial_print_burst(burst[:burst_count^])
+	burst_count^ = 0
+}
+
+run_raw_serial_cli :: proc(config: ^Cli_Config) -> bool {
+	baud_rate := config.serial_baud_rate
+	if baud_rate == 0 {
+		baud_rate = PLATFORM_SERIAL_DEFAULT_BAUD
+	}
+	fmt.println("stoin: raw serial dump starting at", baud_rate, "baud 8N1")
+	fmt.println("stoin: dictionary, text output, and keyboard capture are disabled in this mode")
+	fmt.println("stoin: press Ctrl+C in this terminal to quit")
+
+	serial: Platform_Serial_Port
+	connected := false
+	announced_disconnected := false
+	burst: [RAW_SERIAL_BURST_CAPACITY]byte
+	burst_count := 0
+
+	for {
+		if !connected {
+			resolved_port_path, resolved_path_owned, resolved := serial_cli_resolve_serial_port(config.serial_port_path)
+			if !resolved {
+				if !announced_disconnected {
+					if len(config.serial_port_path) > 0 {
+						fmt.eprintln("stoin: raw serial disconnected; waiting for", config.serial_port_path)
+					} else {
+						fmt.eprintln("stoin: raw serial disconnected; waiting for a platform default serial device")
+					}
+					announced_disconnected = true
+				}
+				cli_sleep_ms(1000)
+				continue
+			}
+
+			if !platform_serial_open(&serial, resolved_port_path, baud_rate) {
+				if !announced_disconnected {
+					fmt.eprintln("stoin: raw serial disconnected; waiting for", resolved_port_path)
+					announced_disconnected = true
+				}
+				if resolved_path_owned {
+					owned_string_delete(resolved_port_path)
+				}
+				cli_sleep_ms(1000)
+				continue
+			}
+			if resolved_path_owned {
+				owned_string_delete(resolved_port_path)
+			}
+
+			connected = true
+			announced_disconnected = false
+			burst_count = 0
+			fmt.println("stoin: raw serial connected on", serial.port_path)
+		}
+
+		value, read_result := platform_serial_read_byte(&serial, 100)
+		switch read_result {
+		case .Byte:
+			if burst_count == len(burst) {
+				raw_serial_flush_burst(&burst, &burst_count)
+			}
+			burst[burst_count] = value
+			burst_count += 1
+		case .None:
+			raw_serial_flush_burst(&burst, &burst_count)
+		case .Error:
+			raw_serial_flush_burst(&burst, &burst_count)
+			if platform_serial_had_error(&serial) {
+				fmt.println("stoin: raw serial disconnected from", serial.port_path, "; waiting for reconnect")
+			}
+			platform_serial_close(&serial)
+			connected = false
+			cli_sleep_ms(1000)
 		}
 	}
 }

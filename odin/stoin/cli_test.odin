@@ -108,6 +108,24 @@ test_parse_cli_args_tx_bolt :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_parse_cli_args_raw_serial :: proc(t: ^testing.T) {
+	args := [?]string {
+		APP_NAME,
+		"--raw-serial",
+		"--serial-port", "/dev/cu.usbserial-test",
+		"--serial-baud", "9600",
+	}
+	config, ok := parse_cli_args(args[:])
+	defer cli_config_destroy(&config)
+
+	testing.expect(t, ok)
+	testing.expect_value(t, config.mode, Cli_Mode.Raw_Serial)
+	testing.expect(t, config.raw_serial)
+	testing.expect_value(t, config.serial_port_path, "/dev/cu.usbserial-test")
+	testing.expect_value(t, config.serial_baud_rate, 9600)
+}
+
+@(test)
 test_parse_cli_args_orthography :: proc(t: ^testing.T) {
 	args := [?]string{APP_NAME, "--dict", "tests/test-dictionary.json", "--orthography", "tests/test-words.txt", "--translate", "STOER", "-Z"}
 	config, ok := parse_cli_args(args[:])
@@ -185,7 +203,17 @@ test_parse_cli_args_rejects_combined_modes :: proc(t: ^testing.T) {
 	defer cli_config_destroy(&config)
 
 	testing.expect(t, !ok)
-	testing.expect_value(t, config.error_message, "--lookup, --translate, and --input cannot be combined")
+	testing.expect_value(t, config.error_message, "--lookup, --translate, --input, and --raw-serial cannot be combined")
+}
+
+@(test)
+test_parse_cli_args_rejects_raw_serial_combined_with_translate :: proc(t: ^testing.T) {
+	args := [?]string{APP_NAME, "--raw-serial", "--dict", "tests/test-dictionary.json", "--translate", "SA-P"}
+	config, ok := parse_cli_args(args[:])
+	defer cli_config_destroy(&config)
+
+	testing.expect(t, !ok)
+	testing.expect_value(t, config.error_message, "--lookup, --translate, --input, and --raw-serial cannot be combined")
 }
 
 @(test)
