@@ -12,7 +12,7 @@ print_help :: proc() {
 	fmt.println("  stoin --dict PATH [--dict PATH...] --dump-dictionary [OUTPUT_PATH]")
 	fmt.println("  stoin --dict PATH [--dict PATH...] [--orthography PATH] [--phrasing PATH --phrase-mode all|verbs|nonverbs] [--print-suggestions] [--suggestion-log PATH] --translate OUTLINE [OUTLINE...]")
 	fmt.println("  stoin --input qwerty --dict PATH [--dict PATH...] [--keymap PATH] [--orthography PATH] [--phrasing PATH [--phrase-mode all|verbs|nonverbs] [--phrase-toggle KEY] [--nonverb-phrase-toggle KEY]] [--print-suggestions] [--suggestion-log PATH]")
-	fmt.println("  stoin --input tx-bolt|gemini-pr|stentura --dict PATH [--dict PATH...] [--serial-port PATH] [--serial-baud BAUD] [--orthography PATH] [--phrasing PATH [--phrase-mode all|verbs|nonverbs] [--phrase-toggle KEY] [--nonverb-phrase-toggle KEY]] [--print-suggestions] [--suggestion-log PATH]")
+	fmt.println("  stoin --input tx-bolt|gemini-pr|stentura --dict PATH [--dict PATH...] [--serial-port PATH] [--serial-baud BAUD] [--multiple-inputs] [--multi-input-window-ms MS] [--orthography PATH] [--phrasing PATH [--phrase-mode all|verbs|nonverbs] [--phrase-toggle KEY] [--nonverb-phrase-toggle KEY]] [--print-suggestions] [--suggestion-log PATH]")
 	fmt.println("  stoin --raw-serial [--serial-port PATH] [--serial-baud BAUD]")
 	fmt.println("")
 	fmt.println("This binary is Phase 0 of the Odin port. Use the C binary for stenography until parity is complete.")

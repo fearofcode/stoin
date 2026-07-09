@@ -7,6 +7,10 @@ import "core:time"
 APP_NAME :: "stoin"
 INPUT_EVENT_POLL_SLEEP_MS :: 10
 TX_BOLT_STROKE_IDLE_FLUSH_MS :: 100
+TX_BOLT_MULTIPLE_DEFAULT_WINDOW_MS :: 150
+TX_BOLT_MULTIPLE_MAX_DEVICES :: 16
+TX_BOLT_MULTIPLE_SCAN_INTERVAL_MS :: 1000
+TX_BOLT_MULTIPLE_LOOP_SLEEP_MS :: 1
 RELOAD_POLL_INTERVAL_MS :: 250
 RAW_SERIAL_BURST_CAPACITY :: 256
 
@@ -35,6 +39,8 @@ Cli_Config :: struct {
 	input_gemini_pr: bool,
 	input_stentura: bool,
 	raw_serial:     bool,
+	multiple_inputs: bool,
+	multi_input_window_ms: uint,
 	keymap_path:    string,
 	serial_port_path: string,
 	serial_baud_rate: int,
@@ -72,6 +78,7 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 	config.translates = make([dynamic]string)
 	config.phrase_mode = .All
 	config.serial_baud_rate = PLATFORM_SERIAL_DEFAULT_BAUD
+	config.multi_input_window_ms = TX_BOLT_MULTIPLE_DEFAULT_WINDOW_MS
 
 	for i := 1; i < len(args); i += 1 {
 		arg := args[i]
@@ -144,6 +151,20 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 				return config, false
 			}
 			config.serial_baud_rate = baud_rate
+			i += 1
+		case "--multiple-inputs":
+			config.multiple_inputs = true
+		case "--multi-input-window-ms":
+			if i + 1 >= len(args) {
+				config.error_message = "--multi-input-window-ms requires milliseconds"
+				return config, false
+			}
+			window_ms, window_ok := parse_cli_milliseconds(args[i + 1])
+			if !window_ok {
+				config.error_message = "--multi-input-window-ms requires 0..60000 milliseconds"
+				return config, false
+			}
+			config.multi_input_window_ms = window_ms
 			i += 1
 		case "--phrase-toggle", "--phase-toggle":
 			if i + 1 >= len(args) {
@@ -256,6 +277,11 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 		return config, false
 	}
 
+	if config.multiple_inputs && !config.input_tx_bolt {
+		config.error_message = "--multiple-inputs currently only supports --input tx-bolt"
+		return config, false
+	}
+
 	if config.phrase_toggle_enabled &&
 	   config.nonverb_phrase_toggle_enabled &&
 	   config.phrase_toggle_keycode == config.nonverb_phrase_toggle_keycode {
@@ -352,6 +378,22 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 	}
 
 	return config, true
+}
+
+parse_cli_milliseconds :: proc(text: string) -> (value: uint, ok: bool) {
+	if len(text) == 0 {
+		return 0, false
+	}
+	for i in 0..<len(text) {
+		if text[i] < '0' || text[i] > '9' {
+			return 0, false
+		}
+		value = value * 10 + uint(text[i] - '0')
+		if value > 60000 {
+			return 0, false
+		}
+	}
+	return value, true
 }
 
 cli_phrase_toggles_enabled :: proc(config: ^Cli_Config) -> bool {
@@ -688,6 +730,134 @@ tx_bolt_cli_handle_stroke :: proc(owner: ^Steno_Runtime_Owner, bits: u64) -> boo
 	return steno_runtime_owner_handle_active_stroke_bits(owner, bits)
 }
 
+Multi_Tx_Bolt_Device :: struct {
+	tx_bolt:      Tx_Bolt,
+	serial:       Platform_Serial_Port,
+	source_id:    int,
+	last_byte_ms: u64,
+}
+
+multi_tx_bolt_path_connected :: proc(devices: []Multi_Tx_Bolt_Device, path: string) -> bool {
+	for device in devices {
+		if device.serial.port_path == path {
+			return true
+		}
+	}
+	return false
+}
+
+multi_tx_bolt_close_device :: proc(device: ^Multi_Tx_Bolt_Device) {
+	if device == nil {
+		return
+	}
+	platform_serial_close(&device.serial)
+	device^ = {}
+}
+
+multi_tx_bolt_close_devices :: proc(devices: ^[dynamic]Multi_Tx_Bolt_Device) {
+	if devices == nil {
+		return
+	}
+	for i in 0..<len(devices^) {
+		multi_tx_bolt_close_device(&devices^[i])
+	}
+	clear(devices)
+}
+
+multi_tx_bolt_connect_device :: proc(
+	devices: ^[dynamic]Multi_Tx_Bolt_Device,
+	path: string,
+	baud_rate: int,
+	next_source_id: ^int,
+) -> bool {
+	if devices == nil || next_source_id == nil || len(path) == 0 {
+		return false
+	}
+	if len(devices^) >= TX_BOLT_MULTIPLE_MAX_DEVICES ||
+	   multi_tx_bolt_path_connected(devices^[:], path) {
+		return false
+	}
+
+	device: Multi_Tx_Bolt_Device
+	if !platform_serial_open(&device.serial, path, baud_rate) {
+		return false
+	}
+	device.source_id = next_source_id^
+	next_source_id^ += 1
+	append(devices, device)
+	fmt.println("stoin: TX Bolt connected on", path)
+	return true
+}
+
+multi_tx_bolt_scan_devices :: proc(
+	config: ^Cli_Config,
+	devices: ^[dynamic]Multi_Tx_Bolt_Device,
+	baud_rate: int,
+	next_source_id: ^int,
+	announced_disconnected: ^bool,
+) {
+	if config == nil || devices == nil || next_source_id == nil {
+		return
+	}
+
+	if len(config.serial_port_path) > 0 {
+		if !multi_tx_bolt_path_connected(devices^[:], config.serial_port_path) {
+			_ = multi_tx_bolt_connect_device(devices, config.serial_port_path, baud_rate, next_source_id)
+		}
+	} else {
+		paths := platform_serial_find_devices()
+		defer platform_serial_device_paths_destroy(&paths)
+		for path in paths {
+			if len(devices^) >= TX_BOLT_MULTIPLE_MAX_DEVICES {
+				break
+			}
+			_ = multi_tx_bolt_connect_device(devices, path, baud_rate, next_source_id)
+		}
+	}
+
+	if len(devices^) == 0 {
+		if announced_disconnected != nil && !announced_disconnected^ {
+			if len(config.serial_port_path) > 0 {
+				fmt.eprintln("stoin: TX Bolt disconnected; waiting for", config.serial_port_path)
+			} else {
+				fmt.eprintln("stoin: TX Bolt disconnected; waiting for platform serial devices")
+			}
+			announced_disconnected^ = true
+		}
+	} else if announced_disconnected != nil {
+		announced_disconnected^ = false
+	}
+}
+
+tx_bolt_cli_process_merge_outputs :: proc(owner: ^Steno_Runtime_Owner, merge: ^Stroke_Merge) {
+	if owner == nil || merge == nil {
+		return
+	}
+	for {
+		bits, ok := stroke_merge_next_output(merge)
+		if !ok {
+			return
+		}
+		_ = tx_bolt_cli_handle_stroke(owner, bits)
+	}
+}
+
+tx_bolt_cli_push_merged_stroke :: proc(
+	owner: ^Steno_Runtime_Owner,
+	merge: ^Stroke_Merge,
+	source_id: int,
+	bits: u64,
+	window_ms: uint,
+	now_ms: u64,
+) {
+	if owner == nil || merge == nil {
+		return
+	}
+	stroke_merge_set_window_ms(merge, window_ms)
+	_ = stroke_merge_push(merge, source_id, bits, now_ms)
+	tx_bolt_cli_process_merge_outputs(owner, merge)
+}
+
 tx_bolt_cli_read_available :: proc(owner: ^Steno_Runtime_Owner, tx_bolt: ^Tx_Bolt, serial: ^Platform_Serial_Port, last_byte_ms: ^u64) -> (made_progress: bool) {
 	for {
 		value, read_result := platform_serial_read_byte(serial, 0)
@@ -722,6 +892,130 @@ tx_bolt_cli_flush_idle_stroke :: proc(owner: ^Steno_Runtime_Owner, tx_bolt: ^Tx_
 		return true
 	}
 	return false
+}
+
+run_tx_bolt_multiple_cli :: proc(config: ^Cli_Config, owner: ^Steno_Runtime_Owner, baud_rate: int) -> bool {
+	fmt.println("stoin: TX Bolt multiple-input serial capture starting at", baud_rate, "baud 8N1")
+	fmt.println("stoin: multiple-input merge window is", config.multi_input_window_ms, "ms when 2+ devices are connected")
+	fmt.println("stoin: loaded", dictionary_count(&owner.dictionary_stack.dictionary), "dictionary entries")
+	cli_print_phrase_toggle_status(config)
+	fmt.println("stoin: press Ctrl+C in this terminal to quit")
+	if len(config.serial_port_path) > 0 {
+		fmt.eprintln("stoin: --serial-port limits multiple-input mode to that single port")
+	}
+
+	devices := make([dynamic]Multi_Tx_Bolt_Device)
+	defer {
+		multi_tx_bolt_close_devices(&devices)
+		delete(devices)
+	}
+
+	merge: Stroke_Merge
+	stroke_merge_init(&merge, config.multi_input_window_ms)
+	defer stroke_merge_destroy(&merge)
+
+	next_source_id := 1
+	announced_disconnected := false
+	next_scan_ms: u64
+	last_reload_poll_ms: u64
+
+	for {
+		cli_poll_runtime_reloads(owner, &last_reload_poll_ms)
+		now_ms := cli_monotonic_ms()
+
+		if now_ms >= next_scan_ms {
+			multi_tx_bolt_scan_devices(
+				config,
+				&devices,
+				baud_rate,
+				&next_source_id,
+				&announced_disconnected,
+			)
+			next_scan_ms = now_ms + TX_BOLT_MULTIPLE_SCAN_INTERVAL_MS
+		}
+
+		active_window_ms: uint
+		if len(devices) > 1 {
+			active_window_ms = config.multi_input_window_ms
+		}
+		stroke_merge_set_window_ms(&merge, active_window_ms)
+		_ = stroke_merge_poll(&merge, now_ms)
+		tx_bolt_cli_process_merge_outputs(owner, &merge)
+
+		made_progress := false
+		for i := 0; i < len(devices); {
+			device := &devices[i]
+			remove_device := false
+
+			for {
+				value, read_result := platform_serial_read_byte(&device.serial, 0)
+				switch read_result {
+				case .Byte:
+					now_ms = cli_monotonic_ms()
+					device.last_byte_ms = now_ms
+					made_progress = true
+					if bits, decoded := tx_bolt_decode_byte(&device.tx_bolt, value); decoded {
+						tx_bolt_cli_push_merged_stroke(
+							owner,
+							&merge,
+							device.source_id,
+							bits,
+							active_window_ms,
+							now_ms,
+						)
+					}
+					continue
+				case .None:
+				case .Error:
+					remove_device = true
+				}
+				break
+			}
+
+			if !remove_device && !platform_serial_had_error(&device.serial) {
+				now_ms = cli_monotonic_ms()
+				if tx_bolt_has_partial_stroke(&device.tx_bolt) &&
+				   device.last_byte_ms != 0 &&
+				   now_ms - device.last_byte_ms >= TX_BOLT_STROKE_IDLE_FLUSH_MS {
+					device.last_byte_ms = 0
+					if bits, flushed := tx_bolt_flush_stroke(&device.tx_bolt); flushed {
+						tx_bolt_cli_push_merged_stroke(
+							owner,
+							&merge,
+							device.source_id,
+							bits,
+							active_window_ms,
+							now_ms,
+						)
+						made_progress = true
+					}
+				}
+			}
+
+			if remove_device || platform_serial_had_error(&device.serial) || device.tx_bolt.had_error {
+				fmt.println("stoin: TX Bolt disconnected from", device.serial.port_path, "; waiting for reconnect")
+				multi_tx_bolt_close_device(device)
+				ordered_remove(&devices, i)
+				active_window_ms = 0
+				if len(devices) > 1 {
+					active_window_ms = config.multi_input_window_ms
+				}
+				stroke_merge_set_window_ms(&merge, active_window_ms)
+				made_progress = true
+				continue
+			}
+
+			i += 1
+		}
+
+		now_ms = cli_monotonic_ms()
+		_ = stroke_merge_poll(&merge, now_ms)
+		tx_bolt_cli_process_merge_outputs(owner, &merge)
+
+		if !made_progress {
+			cli_sleep_ms(TX_BOLT_MULTIPLE_LOOP_SLEEP_MS)
+		}
+	}
 }
 
 gemini_pr_cli_read_available :: proc(owner: ^Steno_Runtime_Owner, gemini: ^Gemini_Pr, serial: ^Platform_Serial_Port) -> (made_progress: bool) {
@@ -840,6 +1134,10 @@ run_tx_bolt_cli :: proc(config: ^Cli_Config) -> bool {
 		if baud_rate == 0 {
 			baud_rate = PLATFORM_SERIAL_DEFAULT_BAUD
 		}
+		if config.multiple_inputs {
+			return run_tx_bolt_multiple_cli(config, &owner, baud_rate)
+		}
+
 		fmt.println("stoin: TX Bolt serial capture starting at", baud_rate, "baud 8N1")
 		fmt.println("stoin: loaded", dictionary_count(&owner.dictionary_stack.dictionary), "dictionary entries")
 		cli_print_phrase_toggle_status(config)

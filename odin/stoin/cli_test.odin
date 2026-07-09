@@ -120,6 +120,40 @@ test_parse_cli_args_tx_bolt :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_parse_cli_args_tx_bolt_multiple_inputs :: proc(t: ^testing.T) {
+	args := [?]string {
+		APP_NAME,
+		"--input", "tx-bolt",
+		"--dict", "tests/test-dictionary.json",
+		"--multiple-inputs",
+		"--multi-input-window-ms", "75",
+	}
+	config, ok := parse_cli_args(args[:])
+	defer cli_config_destroy(&config)
+
+	testing.expect(t, ok)
+	testing.expect_value(t, config.mode, Cli_Mode.Tx_Bolt)
+	testing.expect(t, config.multiple_inputs)
+	testing.expect_value(t, config.multi_input_window_ms, uint(75))
+}
+
+@(test)
+test_parse_cli_args_tx_bolt_multiple_inputs_allows_zero_window :: proc(t: ^testing.T) {
+	args := [?]string {
+		APP_NAME,
+		"--input", "tx-bolt",
+		"--dict", "tests/test-dictionary.json",
+		"--multiple-inputs",
+		"--multi-input-window-ms", "0",
+	}
+	config, ok := parse_cli_args(args[:])
+	defer cli_config_destroy(&config)
+
+	testing.expect(t, ok)
+	testing.expect_value(t, config.multi_input_window_ms, uint(0))
+}
+
+@(test)
 test_parse_cli_args_gemini_pr :: proc(t: ^testing.T) {
 	args := [?]string {
 		APP_NAME,
@@ -352,4 +386,35 @@ test_parse_cli_args_phrase_toggles_must_be_distinct :: proc(t: ^testing.T) {
 
 	testing.expect(t, !ok)
 	testing.expect_value(t, config.error_message, "--phrase-toggle and --nonverb-phrase-toggle must use distinct keys")
+}
+
+@(test)
+test_parse_cli_args_rejects_multiple_inputs_without_tx_bolt :: proc(t: ^testing.T) {
+	args := [?]string {
+		APP_NAME,
+		"--input", "gemini-pr",
+		"--dict", "tests/test-dictionary.json",
+		"--multiple-inputs",
+	}
+	config, ok := parse_cli_args(args[:])
+	defer cli_config_destroy(&config)
+
+	testing.expect(t, !ok)
+	testing.expect_value(t, config.error_message, "--multiple-inputs currently only supports --input tx-bolt")
+}
+
+@(test)
+test_parse_cli_args_rejects_invalid_multi_input_window :: proc(t: ^testing.T) {
+	args := [?]string {
+		APP_NAME,
+		"--input", "tx-bolt",
+		"--dict", "tests/test-dictionary.json",
+		"--multiple-inputs",
+		"--multi-input-window-ms", "60001",
+	}
+	config, ok := parse_cli_args(args[:])
+	defer cli_config_destroy(&config)
+
+	testing.expect(t, !ok)
+	testing.expect_value(t, config.error_message, "--multi-input-window-ms requires 0..60000 milliseconds")
 }
