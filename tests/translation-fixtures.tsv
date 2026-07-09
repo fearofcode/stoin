@@ -1,0 +1,16 @@
+# name	expected	outlines
+plain-word	cat	KAT
+suffix-attach	quickly	KWEUBG -L
+orthography-plural	cherries	KHER -Z
+multi-stroke-replacement	stories	STOER -Z
+longest-history-replacement	histories	HEU STOER -Z
+direct-multi-stroke-brief	in the beginning	TPH-T PW-G
+comma-spacing	cat, cat	KAT KW-BG KAT
+period-capitalization	cat. Cat	KAT TP-PL KAT
+cap-next	Cat	KPA KAT
+upper-next	CAT	KPA*L KAT
+prefix-attach	preport	PRAOE PORT
+retro-delete-space	basketball	PWA PWAL SP-LS
+retro-insert-space	basket ball	PWA PWAL SP-LS S-PD
+repeat-last	cat cat	KAT SKWR
+stitch-letters	A-B-C	A PW KR

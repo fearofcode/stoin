@@ -9,6 +9,7 @@
 
 bool test_core_units(void);
 bool test_dictionary_runtime(void);
+bool test_translation_fixtures(void);
 
 int main(void)
 {
@@ -18,6 +19,7 @@ int main(void)
 
     ok = ok && test_core_units();
     ok = ok && test_dictionary_runtime();
+    ok = ok && test_translation_fixtures();
 
     Steno *steno = steno_create(&config);
     if (steno == NULL) {
