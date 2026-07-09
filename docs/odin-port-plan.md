@@ -175,9 +175,8 @@ matches over the retained suffix. A path-owning runtime wrapper loads dictionary
 stacks, orthography, and phrasing, and supports explicit dictionary/phrasing
 reloads while keeping previous phrasing after failed reloads. It is covered by
 fake-output tests. The temporary `--translate` CLI now uses the runtime callback
-path. C/Odin shared final-output fixture parity now covers representative
-dictionary, suffix, retroactive, formatting, and command cases. Exhaustive
-callback-event log parity is still pending.
+path. C/Odin shared fixture parity now covers representative dictionary,
+suffix, retroactive, formatting, command, and callback event cases.
 
 Assemble the Odin `Steno` runtime around callback-style output:
 
@@ -199,7 +198,7 @@ Acceptance:
 - The C and Odin engines produce identical final output on the shared
   translation fixture stroke sequences.
 - The C and Odin engines produce identical fake-output logs on the same fixture
-  stroke sequences before declaring full runtime parity.
+  stroke sequences.
 
 ## Phase 5: macOS QWERTY And Output
 

@@ -301,7 +301,7 @@ test_parse_cli_args_gemini_pr :: proc(t: ^testing.T) {
 test_parse_cli_args_stentura :: proc(t: ^testing.T) {
 	args := [?]string {
 		APP_NAME,
-		"--input", "stentura",
+		"--input", "stenograph-8000",
 		"--dict", "tests/test-dictionary.json",
 		"--stentura-port", "/dev/cu.KeySerial1",
 		"--stentura-baud", "9600",
@@ -314,6 +314,20 @@ test_parse_cli_args_stentura :: proc(t: ^testing.T) {
 	testing.expect(t, config.input_stentura)
 	testing.expect_value(t, config.serial_port_path, "/dev/cu.KeySerial1")
 	testing.expect_value(t, config.serial_baud_rate, 9600)
+}
+
+@(test)
+test_parse_cli_args_stentura_aliases :: proc(t: ^testing.T) {
+	input_modes := [?]string{"stentura", "stentura-8000", "stenograph", "stenograph-8000", "8000"}
+	for input_mode in input_modes {
+		args := [?]string{APP_NAME, "--input", input_mode, "--dict", "tests/test-dictionary.json"}
+		config, ok := parse_cli_args(args[:])
+
+		testing.expect(t, ok)
+		testing.expect_value(t, config.mode, Cli_Mode.Stentura)
+		testing.expect(t, config.input_stentura)
+		cli_config_destroy(&config)
+	}
 }
 
 @(test)

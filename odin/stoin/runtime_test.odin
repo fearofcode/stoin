@@ -9,6 +9,7 @@ Runtime_Test_Output :: struct {
 	sends:      [dynamic]string,
 	deletes:    [dynamic]string,
 	key_combos: [dynamic]string,
+	events:     [dynamic]string,
 	traces:     [dynamic]string,
 	suggestions: [dynamic]string,
 	suggestion_logs: [dynamic]string,
@@ -23,6 +24,7 @@ runtime_test_output_init :: proc(output: ^Runtime_Test_Output) {
 	output.sends = make([dynamic]string)
 	output.deletes = make([dynamic]string)
 	output.key_combos = make([dynamic]string)
+	output.events = make([dynamic]string)
 	output.traces = make([dynamic]string)
 	output.suggestions = make([dynamic]string)
 	output.suggestion_logs = make([dynamic]string)
@@ -41,6 +43,7 @@ runtime_test_output_destroy :: proc(output: ^Runtime_Test_Output) {
 	runtime_test_output_destroy_string_list(&output.sends)
 	runtime_test_output_destroy_string_list(&output.deletes)
 	runtime_test_output_destroy_string_list(&output.key_combos)
+	runtime_test_output_destroy_string_list(&output.events)
 	runtime_test_output_destroy_string_list(&output.traces)
 	runtime_test_output_destroy_string_list(&output.suggestions)
 	runtime_test_output_destroy_string_list(&output.suggestion_logs)
@@ -60,6 +63,10 @@ runtime_test_output_reset_events :: proc(output: ^Runtime_Test_Output) {
 		owned_string_delete(value)
 	}
 	clear(&output.key_combos)
+	for value in output.events {
+		owned_string_delete(value)
+	}
+	clear(&output.events)
 	for value in output.traces {
 		owned_string_delete(value)
 	}
@@ -91,12 +98,29 @@ runtime_test_record :: proc(values: ^[dynamic]string, text: string) -> bool {
 	return true
 }
 
+runtime_test_record_prefixed :: proc(values: ^[dynamic]string, prefix: string, text: string) -> bool {
+	buffer := make([dynamic]byte)
+	defer delete(buffer)
+	formatted_append_string(&buffer, prefix)
+	formatted_append_string(&buffer, text)
+
+	copy, ok := clone_bytes_to_string(buffer[:])
+	if !ok {
+		return false
+	}
+	append(values, copy)
+	return true
+}
+
 runtime_test_send_text :: proc(text: string, userdata: rawptr) -> bool {
 	output := (^Runtime_Test_Output)(userdata)
 	if output == nil {
 		return false
 	}
 	if !runtime_test_record(&output.sends, text) {
+		return false
+	}
+	if !runtime_test_record_prefixed(&output.events, "S:", text) {
 		return false
 	}
 	for b in transmute([]byte)text {
@@ -124,6 +148,9 @@ runtime_test_delete_text :: proc(text: string, userdata: rawptr) -> bool {
 	if !runtime_test_record(&output.deletes, text) {
 		return false
 	}
+	if !runtime_test_record_prefixed(&output.events, "D:", text) {
+		return false
+	}
 	resize(&output.text, start)
 	return true
 }
@@ -133,7 +160,8 @@ runtime_test_send_key_combination :: proc(combo: string, userdata: rawptr) -> bo
 	if output == nil {
 		return false
 	}
-	return runtime_test_record(&output.key_combos, combo)
+	return runtime_test_record(&output.key_combos, combo) &&
+		runtime_test_record_prefixed(&output.events, "K:", combo)
 }
 
 runtime_test_write_trace :: proc(line: string, userdata: rawptr) -> bool {

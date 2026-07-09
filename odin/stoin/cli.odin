@@ -175,7 +175,11 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 				config.input_tx_bolt = true
 			} else if input_mode == "gemini-pr" || input_mode == "gemini" {
 				config.input_gemini_pr = true
-			} else if input_mode == "stentura" || input_mode == "stentura-8000" {
+			} else if input_mode == "stentura" ||
+			          input_mode == "stentura-8000" ||
+			          input_mode == "stenograph" ||
+			          input_mode == "stenograph-8000" ||
+			          input_mode == "8000" {
 				config.input_stentura = true
 			} else {
 				config.error_message = "--input currently supports qwerty, tx-bolt, gemini-pr, or stentura"

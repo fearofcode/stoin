@@ -1,16 +1,17 @@
-# name	expected	outlines
-plain-word	cat	KAT
-suffix-attach	quickly	KWEUBG -L
-orthography-plural	cherries	KHER -Z
-multi-stroke-replacement	stories	STOER -Z
-longest-history-replacement	histories	HEU STOER -Z
-direct-multi-stroke-brief	in the beginning	TPH-T PW-G
-comma-spacing	cat, cat	KAT KW-BG KAT
-period-capitalization	cat. Cat	KAT TP-PL KAT
-cap-next	Cat	KPA KAT
-upper-next	CAT	KPA*L KAT
-prefix-attach	preport	PRAOE PORT
-retro-delete-space	basketball	PWA PWAL SP-LS
-retro-insert-space	basket ball	PWA PWAL SP-LS S-PD
-repeat-last	cat cat	KAT SKWR
-stitch-letters	A-B-C	A PW KR
+# name	expected	outlines	events
+plain-word	cat	KAT	S:cat
+suffix-attach	quickly	KWEUBG -L	S:quick|S:ly
+orthography-plural	cherries	KHER -Z	S:cherry|D:y|S:ies
+multi-stroke-replacement	stories	STOER -Z	S:story|D:y|S:ies
+longest-history-replacement	histories	HEU STOER -Z	S:HEU|S: story|D:HEU story|S:histories
+direct-multi-stroke-brief	in the beginning	TPH-T PW-G	S:in the|S: beginning
+comma-spacing	cat, cat	KAT KW-BG KAT	S:cat|S:,|S: cat
+period-capitalization	cat. Cat	KAT TP-PL KAT	S:cat|S:.|S: Cat
+cap-next	Cat	KPA KAT	S:Cat
+upper-next	CAT	KPA*L KAT	S:CAT
+prefix-attach	preport	PRAOE PORT	S:pre|S:port
+retro-delete-space	basketball	PWA PWAL SP-LS	S:basket|S: ball|D: ball|S:ball
+retro-insert-space	basket ball	PWA PWAL SP-LS S-PD	S:basket|S: ball|D: ball|S:ball|D:ball|S: ball
+repeat-last	cat cat	KAT SKWR	S:cat|S: cat
+stitch-letters	A-B-C	A PW KR	S:A|S:-B|S:-C
+key-combo		STPH-G	K:Right

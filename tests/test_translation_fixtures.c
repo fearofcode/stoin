@@ -4,21 +4,85 @@
 #include <stdio.h>
 #include <string.h>
 
-static bool run_translation_fixture(const char *name, const char *expected, char *outlines)
+typedef struct Translation_Fixture_Output {
+    char text[4096];
+    char events[8192];
+} Translation_Fixture_Output;
+
+static bool fixture_append(char *buffer, size_t buffer_size, const char *text)
 {
-    Test_Output output = {0};
-    Steno_Config config = test_steno_config(&output);
+    const size_t length = strlen(buffer);
+    const size_t text_length = strlen(text);
+    if (length + text_length >= buffer_size) {
+        return false;
+    }
+    memcpy(buffer + length, text, text_length + 1);
+    return true;
+}
+
+static bool fixture_append_event(Translation_Fixture_Output *output, const char *prefix, const char *text)
+{
+    return (output->events[0] == '\0' || fixture_append(output->events, sizeof(output->events), "|"))
+        && fixture_append(output->events, sizeof(output->events), prefix)
+        && fixture_append(output->events, sizeof(output->events), text);
+}
+
+static bool fixture_send_text(const char *utf8, void *userdata)
+{
+    Translation_Fixture_Output *output = userdata;
+    return output != NULL
+        && fixture_append(output->text, sizeof(output->text), utf8)
+        && fixture_append_event(output, "S:", utf8);
+}
+
+static bool fixture_delete_text(const char *utf8, void *userdata)
+{
+    Translation_Fixture_Output *output = userdata;
+    if (output == NULL) {
+        return false;
+    }
+
+    const size_t delete_length = strlen(utf8);
+    const size_t length = strlen(output->text);
+    if (delete_length > length || memcmp(output->text + length - delete_length, utf8, delete_length) != 0) {
+        return false;
+    }
+
+    output->text[length - delete_length] = '\0';
+    return fixture_append_event(output, "D:", utf8);
+}
+
+static bool fixture_send_key_combination(const char *combo, void *userdata)
+{
+    Translation_Fixture_Output *output = userdata;
+    return output != NULL && fixture_append_event(output, "K:", combo);
+}
+
+static bool run_translation_fixture(
+    const char *name,
+    const char *expected,
+    char *outlines,
+    const char *expected_events
+)
+{
+    Translation_Fixture_Output output = {0};
+    Steno_Config config = {
+        .keymap_path = "tests/test.keymap",
+        .dictionary_path = "tests/test-dictionary.json",
+        .word_list_path = "tests/test-words.txt",
+        .phrasing_path = "tests/test-phrasing.json",
+        .send_text = fixture_send_text,
+        .delete_text = fixture_delete_text,
+        .send_key_combination = fixture_send_key_combination,
+        .send_userdata = &output,
+    };
     Steno *steno = steno_create(&config);
     bool ok = true;
 
     if (steno == NULL) {
         fprintf(stderr, "test failed: %s: could not create steno engine\n", name);
-        test_output_destroy(&output);
         return false;
     }
-
-    clear_test_output(&output);
-    reset_output_log(&output);
 
     size_t stroke_count = 0;
     for (char *token = strtok(outlines, " "); token != NULL; token = strtok(NULL, " ")) {
@@ -34,11 +98,12 @@ static bool run_translation_fixture(const char *name, const char *expected, char
         ok = false;
     }
 
-    const char *actual = output.text == NULL ? "" : output.text;
-    ok = expect_string(name, actual, expected) && ok;
+    char event_name[256] = {0};
+    snprintf(event_name, sizeof(event_name), "%s events", name);
+    ok = expect_string(name, output.text, expected) && ok;
+    ok = expect_string(event_name, output.events, expected_events) && ok;
 
     steno_destroy(steno);
-    test_output_destroy(&output);
     return ok;
 }
 
@@ -80,10 +145,19 @@ bool test_translation_fixtures(void)
         }
         *second_tab = '\0';
 
-        char *name = line;
         char *outlines = second_tab + 1;
+        char *third_tab = strchr(outlines, '\t');
+        if (third_tab == NULL) {
+            fprintf(stderr, "test failed: translation fixture line %zu has no event column\n", line_number);
+            ok = false;
+            continue;
+        }
+        *third_tab = '\0';
+
+        char *name = line;
+        char *expected_events = third_tab + 1;
         ++fixture_count;
-        ok = run_translation_fixture(name, expected, outlines) && ok;
+        ok = run_translation_fixture(name, expected, outlines, expected_events) && ok;
     }
 
     if (fixture_count == 0) {

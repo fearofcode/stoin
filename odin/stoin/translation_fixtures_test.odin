@@ -22,7 +22,7 @@ translation_fixture_next_line :: proc(text: string, cursor: ^int) -> (line: stri
 	return line, true
 }
 
-translation_fixture_split :: proc(line: string) -> (name: string, expected: string, outlines: string, ok: bool) {
+translation_fixture_split :: proc(line: string) -> (name: string, expected: string, outlines: string, events: string, ok: bool) {
 	first_tab := -1
 	for i in 0..<len(line) {
 		if line[i] == '\t' {
@@ -31,7 +31,7 @@ translation_fixture_split :: proc(line: string) -> (name: string, expected: stri
 		}
 	}
 	if first_tab < 0 {
-		return "", "", "", false
+		return "", "", "", "", false
 	}
 
 	second_tab := -1
@@ -42,10 +42,35 @@ translation_fixture_split :: proc(line: string) -> (name: string, expected: stri
 		}
 	}
 	if second_tab < 0 {
-		return "", "", "", false
+		return "", "", "", "", false
 	}
 
-	return line[:first_tab], line[first_tab + 1:second_tab], line[second_tab + 1:], true
+	third_tab := -1
+	for i in second_tab + 1..<len(line) {
+		if line[i] == '\t' {
+			third_tab = i
+			break
+		}
+	}
+	if third_tab < 0 {
+		return "", "", "", "", false
+	}
+
+	return line[:first_tab], line[first_tab + 1:second_tab], line[second_tab + 1:third_tab], line[third_tab + 1:], true
+}
+
+translation_fixture_event_log :: proc(output: ^Runtime_Test_Output) -> (text: string, ok: bool) {
+	buffer := make([dynamic]byte)
+	defer delete(buffer)
+
+	for event, index in output.events {
+		if index > 0 {
+			formatted_append_string(&buffer, "|")
+		}
+		formatted_append_string(&buffer, event)
+	}
+
+	return clone_bytes_to_string(buffer[:])
 }
 
 translation_fixture_next_outline :: proc(outlines: string, cursor: ^int) -> (outline: string, ok: bool) {
@@ -63,12 +88,17 @@ translation_fixture_next_outline :: proc(outlines: string, cursor: ^int) -> (out
 	return outlines[start:cursor^], true
 }
 
-translation_fixture_run :: proc(t: ^testing.T, dictionary: ^Dictionary, name: string, expected: string, outlines: string) {
+translation_fixture_run :: proc(t: ^testing.T, dictionary: ^Dictionary, name: string, expected: string, outlines: string, expected_events: string) {
 	testing.expect(t, len(name) > 0)
 
-	engine: Simple_Engine
-	simple_engine_init(&engine, dictionary)
-	defer simple_engine_destroy(&engine)
+	output: Runtime_Test_Output
+	runtime_test_output_init(&output)
+	defer runtime_test_output_destroy(&output)
+
+	runtime: Steno_Runtime
+	config := runtime_test_config(dictionary, nil, nil, &output)
+	testing.expect(t, steno_runtime_init(&runtime, &config))
+	defer steno_runtime_destroy(&runtime)
 
 	cursor := 0
 	stroke_count := 0
@@ -84,14 +114,16 @@ translation_fixture_run :: proc(t: ^testing.T, dictionary: ^Dictionary, name: st
 		if !parsed {
 			return
 		}
-		testing.expect(t, simple_engine_translate_bits(&engine, bits))
+		testing.expect(t, steno_runtime_handle_stroke_bits(&runtime, bits))
 	}
 	testing.expect(t, stroke_count > 0)
 
-	text, render_ok := simple_engine_render(&engine)
-	defer owned_string_delete(text)
-	testing.expect(t, render_ok)
-	testing.expect_value(t, text, expected)
+	testing.expect_value(t, string(output.text[:]), expected)
+
+	events, events_ok := translation_fixture_event_log(&output)
+	defer owned_string_delete(events)
+	testing.expect(t, events_ok)
+	testing.expect_value(t, events, expected_events)
 }
 
 @(test)
@@ -121,14 +153,14 @@ test_shared_translation_fixtures :: proc(t: ^testing.T) {
 			continue
 		}
 
-		name, expected, outlines, split_ok := translation_fixture_split(line)
+		name, expected, outlines, events, split_ok := translation_fixture_split(line)
 		testing.expect(t, split_ok)
 		if !split_ok {
 			continue
 		}
 
 		fixture_count += 1
-		translation_fixture_run(t, &dictionary, name, expected, outlines)
+		translation_fixture_run(t, &dictionary, name, expected, outlines, events)
 	}
 
 	testing.expect(t, fixture_count > 0)
