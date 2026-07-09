@@ -4,7 +4,7 @@ import "core:fmt"
 import "core:os"
 
 print_help :: proc() {
-	fmt.println("stoin Odin port checkpoint")
+	fmt.println("stoin")
 	fmt.println("")
 	fmt.println("Usage:")
 	fmt.println("  stoin [--help]")
@@ -15,7 +15,7 @@ print_help :: proc() {
 	fmt.println("  stoin --input tx-bolt|gemini-pr|stentura [--config PATH] [--dictionary PATH...] [--serial-port PATH] [--serial-baud BAUD] [--multiple-inputs] [--multi-input-window-ms MS] [--word-list PATH] [--phrasing PATH [--phrase-mode all|verbs|nonverbs] [--phrase-toggle KEY] [--nonverb-phrase-toggle KEY]] [--print-suggestions] [--suggestion-log PATH] [--trace-key-events] [--time-translations] [--trace-strokes|--no-trace-strokes]")
 	fmt.println("  stoin --raw-serial [--serial-port PATH] [--serial-baud BAUD]")
 	fmt.println("")
-	fmt.println("The Odin port is not the default release yet, but the listed lookup, translate, macOS qwerty, macOS serial, and raw serial paths are implemented checkpoints.")
+	fmt.println("Dictionary lookup, translation, qwerty input, serial steno input, raw serial diagnostics, phrasing, and suggestions are supported.")
 }
 
 main :: proc() {
@@ -75,6 +75,6 @@ main :: proc() {
 	case .Scaffold:
 	}
 
-	fmt.println("stoin Odin port checkpoint")
-	fmt.println("Use --help for implemented Odin-port checkpoints.")
+	fmt.println("stoin")
+	fmt.println("Use --help for usage.")
 }

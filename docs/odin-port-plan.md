@@ -1,8 +1,9 @@
 # Odin Port Plan
 
 This is the migration plan for a full 1:1 Odin port of the stoin core app. The
-C implementation remains the source of truth until the Odin implementation has
-feature parity, matching tests, and working platform builds.
+Odin implementation now owns the default build/test path. The C implementation
+can remain temporarily as a legacy reference, but build scripts no longer depend
+on it.
 
 Current local Odin toolchain:
 
@@ -14,9 +15,10 @@ Current local Odin toolchain:
 
 ## Migration Rules
 
-- No functionality loss. Every C feature either lands in Odin or remains served
-  by the C binary until the Odin path is complete.
-- Keep the C implementation and tests runnable throughout the port.
+- No functionality loss. Every C feature either lands in Odin or is explicitly
+  tracked before the legacy C tree is removed.
+- Keep the legacy C implementation available only as long as it is useful for
+  comparison.
 - Port logic in layers, starting with pure deterministic modules before
   touching platform input/output.
 - Use Odin's built-in maps and dynamic arrays instead of `stb_ds`.
@@ -27,7 +29,7 @@ Current local Odin toolchain:
 - Use normal long-lived allocators for dictionary stacks, phrasing tables,
   keymaps, translation history, and platform state.
 - Use Odin `@(test)` tests and `odin test`; keep golden behavior parallel to
-  the current C tests.
+  legacy C fixtures while they remain useful.
 - Use Odin foreign bindings only where the core/vendor packages do not already
   provide the needed OS API.
 
@@ -57,11 +59,17 @@ Status: implemented as the initial Odin scaffold.
 
 Current commands:
 
+- `make`
+- `make release`
+- `make test`
 - `make odin`
 - `make odin-test`
 - `make odin-release`
 
-- Add build targets without replacing C targets:
+- Add Odin build targets:
+  - `make`
+  - `make release`
+  - `make test`
   - `make odin`
   - `make odin-test`
   - optional `make odin-release`
@@ -73,7 +81,8 @@ Current commands:
 
 Acceptance:
 
-- C `make test` still passes.
+- Default `make` and `make release` build Odin binaries.
+- `make test` runs Odin tests and Go tests.
 - Odin smoke binary builds.
 - Odin smoke tests run.
 
@@ -115,8 +124,8 @@ the simple engine and temporary CLI, and `--dump-dictionary` writes stable
 canonical JSON. Default `stoin-config.json`, default word-list/phrasing paths,
 fallback default dictionary, explicit `--config` JSON loading, disabled
 dictionary layers, and the `--dictionary`/`--word-list` C aliases are supported.
-Some rarer formatting edge cases and other plover side-effect commands are
-still on the C side.
+Some rarer formatting edge cases and other plover side-effect commands may
+still need targeted parity checks before the legacy C tree is removed.
 
 Port the pure translation data path:
 
@@ -309,19 +318,21 @@ Acceptance:
 
 ## Phase 8: Cutover
 
-Only after full parity:
+Status: started. `make`, `make release`, `make test`, and `build.bat` are now
+Odin-first and do not depend on `src/`, C tests, `stb_ds`, or cJSON. Linux and
+Windows live device testing is still deferred until those platforms are
+available.
 
-- Make Odin binary the default build artifact.
-- Keep C binary buildable for at least one transition period, or archive it on a
-  dedicated legacy path.
-- Remove `stb_ds` only when no C build needs it.
+- Delete or archive the legacy C tree once any desired final comparison checks
+  are complete.
+- Remove legacy vendored C-only dependencies when the C tree goes away.
 - Update setup docs, README/help output, and troubleshooting docs.
 - Keep dictionary data format compatible with existing Plover/Lapwing/Stoin
   dictionaries.
 
 Acceptance:
 
-- `make test`, `make odin-test`, and all platform smoke tests pass.
+- `make test`, `make odin-test`, and all available platform smoke tests pass.
 - User-facing behavior is unchanged except for deliberately documented bug fixes.
 - No feature from the current C app is missing.
 
@@ -363,6 +374,6 @@ Start with `stroke` plus Odin test plumbing:
 2. Add `odin/stoin_core/stroke_test.odin` with the current stroke formatting
    and number-bar cases.
 3. Add `make odin-test` using `ODIN ?= odin`.
-4. Keep all C tests running unchanged.
+4. Keep the then-current C tests running unchanged during the first slice.
 
 This creates a low-risk Odin foothold without touching platform behavior.

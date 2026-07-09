@@ -2,9 +2,9 @@
 
 The Windows port uses Win32 `SendInput` for keyboard output, a low-level keyboard hook for qwerty capture, and normal COM ports for serial steno machines.
 
-## Build With MSVC
+## Build With Odin
 
-Open a **Visual Studio Developer Command Prompt** so `cl.exe` is on `PATH`.
+Make sure `odin.exe` is on `PATH`, or set `ODIN` to the compiler path.
 
 From the repo:
 
@@ -20,7 +20,7 @@ The binaries are written under `build\windows\`, for example:
 build\windows\stoin.exe --input stentura
 ```
 
-`build.bat test` runs the C test binary. If `go.exe` is available, it also runs the Go tests.
+`build.bat test` runs the Odin tests. If `go.exe` is available, it also runs the Go tests.
 
 ## Build With Make
 
@@ -29,7 +29,7 @@ make PLATFORM=windows
 make PLATFORM=windows test
 ```
 
-This path is intended for a make-capable Windows shell. `build.bat` is the simpler option for a plain MSVC setup.
+This path is intended for a make-capable Windows shell. `build.bat` is the simpler option for a plain Windows setup.
 
 ## Serial devices
 
