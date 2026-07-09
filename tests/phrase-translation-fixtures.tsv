@@ -1,0 +1,13 @@
+# name	mode	expected	outlines	events
+verb-is-a	verbs	is a	PW-B	S:is a
+verb-was-a	verbs	was a	PW-BD	S:was a
+verb-were-a	verbs	were a	PWE-BD	S:were a
+verb-to-be-a	verbs	to be a	PWU-B	S:to be a
+verb-can-tell-us	verbs	can tell us	THRA-S	S:can tell us
+verb-call-it	verbs	calling it	KHR-PG	S:calling it
+nonverb-near-a	nonverbs	near a	PW-B	S:near a
+nonverb-with-us	nonverbs	with us	TW-S	S:with us
+nonverb-anything-that	nonverbs	anything that	TKPWH*-RT	S:anything that
+all-prefers-verb	all	is a	PW-B	S:is a
+all-miss-raw	all	SAO	SAO	S:SAO
+all-dictionary-miss-raw	all	#KW	#KW	S:#KW
