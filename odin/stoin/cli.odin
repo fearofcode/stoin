@@ -729,7 +729,7 @@ cli_platform_translation_timing_set_enabled :: proc(enabled: bool) {
 }
 
 cli_platform_keyboard_listener_supported :: proc() -> bool {
-	when ODIN_OS == .Darwin {
+	when ODIN_OS == .Darwin || ODIN_OS == .Linux {
 		return true
 	} else {
 		return false
@@ -739,6 +739,8 @@ cli_platform_keyboard_listener_supported :: proc() -> bool {
 cli_platform_keyboard_listener_start :: proc(owner: ^Steno_Runtime_Owner) -> bool {
 	when ODIN_OS == .Darwin {
 		return macos_keyboard_listen_start(owner)
+	} else when ODIN_OS == .Linux {
+		return linux_keyboard_listen_start(owner)
 	} else {
 		_ = owner
 		return false
@@ -748,6 +750,45 @@ cli_platform_keyboard_listener_start :: proc(owner: ^Steno_Runtime_Owner) -> boo
 cli_platform_keyboard_listener_stop :: proc() {
 	when ODIN_OS == .Darwin {
 		macos_keyboard_listen_stop()
+	} else when ODIN_OS == .Linux {
+		linux_keyboard_listen_stop()
+	}
+}
+
+cli_platform_qwerty_name :: proc() -> string {
+	when ODIN_OS == .Darwin {
+		return "macOS Odin qwerty event tap"
+	} else when ODIN_OS == .Linux {
+		return "Linux Odin qwerty evdev capture"
+	} else {
+		return "platform qwerty capture"
+	}
+}
+
+cli_platform_qwerty_start :: proc(owner: ^Steno_Runtime_Owner) -> bool {
+	when ODIN_OS == .Darwin {
+		return macos_qwerty_start(owner)
+	} else when ODIN_OS == .Linux {
+		return linux_qwerty_start(owner)
+	} else {
+		_ = owner
+		return false
+	}
+}
+
+cli_platform_qwerty_run :: proc() {
+	when ODIN_OS == .Darwin {
+		macos_qwerty_run()
+	} else when ODIN_OS == .Linux {
+		linux_qwerty_run()
+	}
+}
+
+cli_platform_qwerty_stop :: proc() {
+	when ODIN_OS == .Darwin {
+		macos_qwerty_stop()
+	} else when ODIN_OS == .Linux {
+		linux_qwerty_stop()
 	}
 }
 
@@ -832,9 +873,9 @@ run_translate_cli :: proc(config: ^Cli_Config) -> bool {
 }
 
 run_qwerty_cli :: proc(config: ^Cli_Config) -> bool {
-	when ODIN_OS != .Darwin {
+	when ODIN_OS != .Darwin && ODIN_OS != .Linux {
 		_ = config
-		fmt.eprintln("stoin: qwerty input is currently implemented only on macOS in the Odin port")
+		fmt.eprintln("stoin: qwerty input is currently implemented only on macOS and Linux in the Odin port")
 		return false
 	} else {
 		suggestion_log_file: ^os.File
@@ -864,18 +905,12 @@ run_qwerty_cli :: proc(config: ^Cli_Config) -> bool {
 			dictionary_enabled = config.dict_enabled[:],
 			keymap_path = config.keymap_path,
 			orthography_path = config.orthography_path,
-			send_text = macos_runtime_send_text,
-			delete_text = macos_runtime_delete_text,
-			send_key_combination = macos_runtime_send_key_combination,
 			userdata = rawptr(&output),
 		}
 		if config.trace_strokes {
 			runtime_config.write_trace = cli_runtime_write_line
 		}
-		if config.time_translations {
-			runtime_config.begin_translation_timing = macos_translation_timing_begin
-			runtime_config.cancel_translation_timing = macos_translation_timing_cancel
-		}
+		_ = cli_platform_configure_runtime_output(&runtime_config, config)
 		if len(config.phrasing_path) > 0 {
 			runtime_config.phrasing_path = config.phrasing_path
 		}
@@ -899,16 +934,16 @@ run_qwerty_cli :: proc(config: ^Cli_Config) -> bool {
 		}
 		cli_configure_runtime_input_options(config, &owner.runtime)
 
-		if !macos_qwerty_start(&owner) {
-			fmt.eprintln("stoin: failed to start macOS qwerty event tap; confirm Accessibility permission")
+		if !cli_platform_qwerty_start(&owner) {
+			fmt.eprintln("stoin: failed to start", cli_platform_qwerty_name())
 			return false
 		}
-		macos_translation_timing_set_enabled(config.time_translations)
-		defer macos_output_shutdown()
-		defer macos_translation_timing_set_enabled(false)
-		defer macos_qwerty_stop()
+		cli_platform_translation_timing_set_enabled(config.time_translations)
+		defer cli_platform_output_shutdown()
+		defer cli_platform_translation_timing_set_enabled(false)
+		defer cli_platform_qwerty_stop()
 
-		fmt.eprintln("stoin: macOS Odin qwerty event tap running")
+		fmt.eprintln("stoin:", cli_platform_qwerty_name(), "running")
 		fmt.eprintln(
 			"stoin: loaded",
 			keymap_binding_count(&owner.keymap),
@@ -919,7 +954,7 @@ run_qwerty_cli :: proc(config: ^Cli_Config) -> bool {
 		cli_print_phrase_toggle_status(config)
 		cli_print_translation_timing_status(config)
 		fmt.eprintln("stoin: press Ctrl+Esc to toggle capture; press Ctrl+C in this terminal to quit")
-		macos_qwerty_run()
+		cli_platform_qwerty_run()
 		return true
 	}
 }
