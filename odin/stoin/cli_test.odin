@@ -157,6 +157,27 @@ test_parse_cli_args_phrase_mode :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_parse_cli_args_phrase_toggles :: proc(t: ^testing.T) {
+	args := [?]string {
+		APP_NAME,
+		"--input", "tx-bolt",
+		"--dict", "tests/test-dictionary.json",
+		"--phrasing", "tests/test-phrasing.json",
+		"--phrase-toggle", "F13",
+		"--nonverb-phrase-toggle", "F14",
+	}
+	config, ok := parse_cli_args(args[:])
+	defer cli_config_destroy(&config)
+
+	testing.expect(t, ok)
+	testing.expect_value(t, config.mode, Cli_Mode.Tx_Bolt)
+	testing.expect(t, config.phrase_toggle_enabled)
+	testing.expect(t, config.nonverb_phrase_toggle_enabled)
+	testing.expect_value(t, config.phrase_toggle_keycode, u16(105))
+	testing.expect_value(t, config.nonverb_phrase_toggle_keycode, u16(107))
+}
+
+@(test)
 test_parse_cli_args_requires_dictionary_for_lookup :: proc(t: ^testing.T) {
 	args := [?]string{APP_NAME, "--lookup", "SA-P"}
 	config, ok := parse_cli_args(args[:])
@@ -224,4 +245,31 @@ test_parse_cli_args_phrase_mode_requires_phrasing :: proc(t: ^testing.T) {
 
 	testing.expect(t, !ok)
 	testing.expect_value(t, config.error_message, "--phrase-mode requires --phrasing")
+}
+
+@(test)
+test_parse_cli_args_phrase_toggle_requires_phrasing :: proc(t: ^testing.T) {
+	args := [?]string{APP_NAME, "--input", "qwerty", "--dict", "tests/test-dictionary.json", "--phrase-toggle", "F13"}
+	config, ok := parse_cli_args(args[:])
+	defer cli_config_destroy(&config)
+
+	testing.expect(t, !ok)
+	testing.expect_value(t, config.error_message, "--phrase-toggle requires --phrasing")
+}
+
+@(test)
+test_parse_cli_args_phrase_toggles_must_be_distinct :: proc(t: ^testing.T) {
+	args := [?]string {
+		APP_NAME,
+		"--input", "qwerty",
+		"--dict", "tests/test-dictionary.json",
+		"--phrasing", "tests/test-phrasing.json",
+		"--phrase-toggle", "F13",
+		"--nonverb-phrase-toggle", "F13",
+	}
+	config, ok := parse_cli_args(args[:])
+	defer cli_config_destroy(&config)
+
+	testing.expect(t, !ok)
+	testing.expect_value(t, config.error_message, "--phrase-toggle and --nonverb-phrase-toggle must use distinct keys")
 }

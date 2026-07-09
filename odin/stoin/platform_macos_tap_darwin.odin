@@ -1,6 +1,8 @@
 package stoin
 
 import "base:runtime"
+import "core:sync"
+import "core:thread"
 import CF "core:sys/darwin/CoreFoundation"
 
 foreign import CoreFoundation "system:CoreFoundation.framework"
@@ -22,6 +24,12 @@ foreign CoreFoundation {
 macos_tap: CFMachPortRef
 macos_run_loop_source: CFRunLoopSourceRef
 macos_run_loop: CFRunLoopRef
+macos_tap_listen_only: bool
+macos_tap_thread: ^thread.Thread
+macos_tap_thread_mutex: sync.Mutex
+macos_tap_thread_condition: sync.Cond
+macos_tap_thread_ready: bool
+macos_tap_thread_ok: bool
 
 macos_run_loop_mode :: proc() -> CF.String {
 	return CF.STR("kCFRunLoopDefaultMode")
@@ -84,53 +92,14 @@ macos_keyboard_tap_callback :: proc "c" (proxy: CGEventTapProxy, event_type: CGE
 
 	owner := (^Steno_Runtime_Owner)(user_info)
 	if owner != nil && steno_runtime_owner_handle_event(owner, input) {
-		return nil
+		if !macos_tap_listen_only {
+			return nil
+		}
 	}
 	return event
 }
 
-macos_qwerty_start :: proc(owner: ^Steno_Runtime_Owner) -> bool {
-	if owner == nil {
-		return false
-	}
-	if macos_tap != nil {
-		return true
-	}
-	if !macos_output_init() {
-		return false
-	}
-
-	events := macos_event_mask_bit(KCG_EVENT_KEY_DOWN) |
-		macos_event_mask_bit(KCG_EVENT_KEY_UP) |
-		macos_event_mask_bit(KCG_EVENT_FLAGS_CHANGED)
-	macos_tap = CGEventTapCreate(
-		KCG_SESSION_EVENT_TAP,
-		KCG_HEAD_INSERT_EVENT_TAP,
-		KCG_EVENT_TAP_OPTION_DEFAULT,
-		events,
-		macos_keyboard_tap_callback,
-		rawptr(owner),
-	)
-	if macos_tap == nil {
-		return false
-	}
-
-	macos_run_loop_source = CFMachPortCreateRunLoopSource(nil, macos_tap, 0)
-	if macos_run_loop_source == nil {
-		macos_qwerty_stop()
-		return false
-	}
-	macos_run_loop = CFRunLoopGetCurrent()
-	CFRunLoopAddSource(macos_run_loop, macos_run_loop_source, macos_run_loop_mode())
-	CGEventTapEnable(macos_tap, true)
-	return true
-}
-
-macos_qwerty_run :: proc() {
-	CFRunLoopRun()
-}
-
-macos_qwerty_stop :: proc() {
+macos_keyboard_tap_clear :: proc() {
 	if macos_tap != nil {
 		CGEventTapEnable(macos_tap, false)
 	}
@@ -148,4 +117,128 @@ macos_qwerty_stop :: proc() {
 		macos_tap = nil
 	}
 	macos_run_loop = nil
+	macos_tap_listen_only = false
+}
+
+macos_keyboard_tap_start :: proc(owner: ^Steno_Runtime_Owner, listen_only: bool) -> bool {
+	if owner == nil {
+		return false
+	}
+	if macos_tap != nil {
+		return true
+	}
+	if !listen_only && !macos_output_init() {
+		return false
+	}
+	macos_tap_listen_only = listen_only
+
+	events := macos_event_mask_bit(KCG_EVENT_KEY_DOWN) |
+		macos_event_mask_bit(KCG_EVENT_KEY_UP) |
+		macos_event_mask_bit(KCG_EVENT_FLAGS_CHANGED)
+	tap_option := KCG_EVENT_TAP_OPTION_DEFAULT
+	if listen_only {
+		tap_option = KCG_EVENT_TAP_OPTION_LISTEN_ONLY
+	}
+	macos_tap = CGEventTapCreate(
+		KCG_SESSION_EVENT_TAP,
+		KCG_HEAD_INSERT_EVENT_TAP,
+		tap_option,
+		events,
+		macos_keyboard_tap_callback,
+		rawptr(owner),
+	)
+	if macos_tap == nil {
+		macos_tap_listen_only = false
+		return false
+	}
+
+	macos_run_loop_source = CFMachPortCreateRunLoopSource(nil, macos_tap, 0)
+	if macos_run_loop_source == nil {
+		macos_keyboard_tap_clear()
+		return false
+	}
+	macos_run_loop = CFRunLoopGetCurrent()
+	CFRunLoopAddSource(macos_run_loop, macos_run_loop_source, macos_run_loop_mode())
+	CGEventTapEnable(macos_tap, true)
+	return true
+}
+
+macos_qwerty_start :: proc(owner: ^Steno_Runtime_Owner) -> bool {
+	return macos_keyboard_tap_start(owner, false)
+}
+
+macos_qwerty_run :: proc() {
+	CFRunLoopRun()
+}
+
+macos_keyboard_listen_signal_ready :: proc(ok: bool) {
+	sync.mutex_lock(&macos_tap_thread_mutex)
+	macos_tap_thread_ok = ok
+	macos_tap_thread_ready = true
+	sync.cond_signal(&macos_tap_thread_condition)
+	sync.mutex_unlock(&macos_tap_thread_mutex)
+}
+
+macos_keyboard_listen_thread_main :: proc(data: rawptr) {
+	context = runtime.default_context()
+	owner := (^Steno_Runtime_Owner)(data)
+	ok := macos_keyboard_tap_start(owner, true)
+	macos_keyboard_listen_signal_ready(ok)
+	if ok {
+		CFRunLoopRun()
+		macos_keyboard_tap_clear()
+	}
+}
+
+macos_keyboard_listen_start :: proc(owner: ^Steno_Runtime_Owner) -> bool {
+	if owner == nil {
+		return false
+	}
+	if macos_tap_thread != nil {
+		return true
+	}
+
+	sync.mutex_lock(&macos_tap_thread_mutex)
+	macos_tap_thread_ready = false
+	macos_tap_thread_ok = false
+	sync.mutex_unlock(&macos_tap_thread_mutex)
+
+	macos_tap_thread = thread.create_and_start_with_data(rawptr(owner), macos_keyboard_listen_thread_main)
+	if macos_tap_thread == nil {
+		return false
+	}
+
+	sync.mutex_lock(&macos_tap_thread_mutex)
+	for !macos_tap_thread_ready {
+		sync.cond_wait(&macos_tap_thread_condition, &macos_tap_thread_mutex)
+	}
+	ok := macos_tap_thread_ok
+	sync.mutex_unlock(&macos_tap_thread_mutex)
+
+	if !ok {
+		thread.destroy(macos_tap_thread)
+		macos_tap_thread = nil
+		return false
+	}
+	return true
+}
+
+macos_keyboard_tap_stop :: proc() {
+	if macos_tap_thread != nil {
+		if macos_run_loop != nil {
+			CFRunLoopStop(macos_run_loop)
+		}
+		thread.destroy(macos_tap_thread)
+		macos_tap_thread = nil
+		return
+	}
+	macos_keyboard_tap_clear()
+}
+
+macos_keyboard_listen_stop :: proc() {
+	macos_keyboard_tap_stop()
+}
+
+macos_qwerty_stop :: proc() {
+	macos_keyboard_tap_stop()
 }

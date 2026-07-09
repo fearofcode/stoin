@@ -30,6 +30,12 @@ Cli_Config :: struct {
 	keymap_path:    string,
 	serial_port_path: string,
 	serial_baud_rate: int,
+	phrase_toggle_enabled: bool,
+	phrase_toggle_keycode: u16,
+	phrase_toggle_name: string,
+	nonverb_phrase_toggle_enabled: bool,
+	nonverb_phrase_toggle_keycode: u16,
+	nonverb_phrase_toggle_name: string,
 	print_suggestions: bool,
 	suggestion_log_path: string,
 	orthography_path: string,
@@ -121,6 +127,36 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 			}
 			config.serial_baud_rate = baud_rate
 			i += 1
+		case "--phrase-toggle", "--phase-toggle":
+			if i + 1 >= len(args) {
+				config.error_message = "--phrase-toggle requires a key"
+				return config, false
+			}
+			key_name := args[i + 1]
+			keycode, keycode_ok := keycode_from_name(key_name)
+			if !keycode_ok {
+				config.error_message = "unknown phrase toggle key"
+				return config, false
+			}
+			config.phrase_toggle_enabled = true
+			config.phrase_toggle_keycode = keycode
+			config.phrase_toggle_name = key_name
+			i += 1
+		case "--nonverb-phrase-toggle", "--nonverb-phase-toggle", "--nonverb-toggle":
+			if i + 1 >= len(args) {
+				config.error_message = "--nonverb-phrase-toggle requires a key"
+				return config, false
+			}
+			key_name := args[i + 1]
+			keycode, keycode_ok := keycode_from_name(key_name)
+			if !keycode_ok {
+				config.error_message = "unknown nonverb phrase toggle key"
+				return config, false
+			}
+			config.nonverb_phrase_toggle_enabled = true
+			config.nonverb_phrase_toggle_keycode = keycode
+			config.nonverb_phrase_toggle_name = key_name
+			i += 1
 		case "--print-suggestions":
 			config.print_suggestions = true
 		case "--suggestion-log":
@@ -193,6 +229,13 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 		return config, false
 	}
 
+	if config.phrase_toggle_enabled &&
+	   config.nonverb_phrase_toggle_enabled &&
+	   config.phrase_toggle_keycode == config.nonverb_phrase_toggle_keycode {
+		config.error_message = "--phrase-toggle and --nonverb-phrase-toggle must use distinct keys"
+		return config, false
+	}
+
 	if config.raw_serial {
 		config.mode = .Raw_Serial
 	} else if config.input_qwerty {
@@ -208,6 +251,10 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 			config.error_message = "--phrase-mode requires --phrasing"
 			return config, false
 		}
+		if cli_phrase_toggles_enabled(&config) && len(config.phrasing_path) == 0 {
+			config.error_message = "--phrase-toggle requires --phrasing"
+			return config, false
+		}
 	} else if config.input_tx_bolt {
 		config.mode = .Tx_Bolt
 		if len(config.dict_paths) == 0 {
@@ -216,6 +263,10 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 		}
 		if config.phrase_mode_enabled && len(config.phrasing_path) == 0 {
 			config.error_message = "--phrase-mode requires --phrasing"
+			return config, false
+		}
+		if cli_phrase_toggles_enabled(&config) && len(config.phrasing_path) == 0 {
+			config.error_message = "--phrase-toggle requires --phrasing"
 			return config, false
 		}
 	} else if len(config.lookups) > 0 {
@@ -240,6 +291,48 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 	}
 
 	return config, true
+}
+
+cli_phrase_toggles_enabled :: proc(config: ^Cli_Config) -> bool {
+	return config != nil && (config.phrase_toggle_enabled || config.nonverb_phrase_toggle_enabled)
+}
+
+cli_configure_phrase_toggles :: proc(config: ^Cli_Config, runtime: ^Steno_Runtime) {
+	if config == nil || runtime == nil {
+		return
+	}
+	steno_runtime_configure_phrase_toggles(
+		runtime,
+		config.phrase_toggle_enabled,
+		config.phrase_toggle_keycode,
+		config.nonverb_phrase_toggle_enabled,
+		config.nonverb_phrase_toggle_keycode,
+	)
+}
+
+cli_print_phrase_toggle_status :: proc(config: ^Cli_Config) {
+	if config == nil {
+		return
+	}
+	if config.phrase_toggle_enabled {
+		prefix := ""
+		if config.nonverb_phrase_toggle_enabled {
+			prefix = "verb "
+		}
+		fmt.printf(
+			"stoin: %sphrase toggle %s enabled (keycode %d)\n",
+			prefix,
+			config.phrase_toggle_name,
+			config.phrase_toggle_keycode,
+		)
+	}
+	if config.nonverb_phrase_toggle_enabled {
+		fmt.printf(
+			"stoin: nonverb phrase toggle %s enabled (keycode %d)\n",
+			config.nonverb_phrase_toggle_name,
+			config.nonverb_phrase_toggle_keycode,
+		)
+	}
 }
 
 cli_config_destroy :: proc(config: ^Cli_Config) {
@@ -475,6 +568,7 @@ run_qwerty_cli :: proc(config: ^Cli_Config) -> bool {
 			steno_runtime_set_phrase_namespace_enabled(&owner.runtime, true)
 			steno_runtime_set_phrase_mode(&owner.runtime, steno_phrase_mode_from_lookup_mode(config.phrase_mode))
 		}
+		cli_configure_phrase_toggles(config, &owner.runtime)
 
 		if !macos_qwerty_start(&owner) {
 			fmt.eprintln("stoin: failed to start macOS qwerty event tap; confirm Accessibility permission")
@@ -491,6 +585,7 @@ run_qwerty_cli :: proc(config: ^Cli_Config) -> bool {
 			dictionary_count(&owner.dictionary_stack.dictionary),
 			"dictionary entries",
 		)
+		cli_print_phrase_toggle_status(config)
 		fmt.eprintln("stoin: press Ctrl+Esc to toggle capture; press Ctrl+C in this terminal to quit")
 		macos_qwerty_run()
 		return true
@@ -506,7 +601,7 @@ serial_cli_resolve_serial_port :: proc(requested_port: string) -> (path: string,
 }
 
 tx_bolt_cli_handle_stroke :: proc(owner: ^Steno_Runtime_Owner, bits: u64) -> bool {
-	return steno_runtime_owner_handle_stroke_bits(owner, bits)
+	return steno_runtime_owner_handle_active_stroke_bits(owner, bits)
 }
 
 tx_bolt_cli_read_available :: proc(owner: ^Steno_Runtime_Owner, tx_bolt: ^Tx_Bolt, serial: ^Platform_Serial_Port, last_byte_ms: ^u64) -> (made_progress: bool) {
@@ -612,12 +707,20 @@ run_tx_bolt_cli :: proc(config: ^Cli_Config) -> bool {
 			steno_runtime_set_phrase_namespace_enabled(&owner.runtime, true)
 			steno_runtime_set_phrase_mode(&owner.runtime, steno_phrase_mode_from_lookup_mode(config.phrase_mode))
 		}
+		cli_configure_phrase_toggles(config, &owner.runtime)
 
 		if !macos_output_init() {
 			fmt.eprintln("stoin: failed to initialize macOS text output")
 			return false
 		}
 		defer macos_output_shutdown()
+		if cli_phrase_toggles_enabled(config) {
+			if !macos_keyboard_listen_start(&owner) {
+				fmt.eprintln("stoin: failed to start macOS phrase toggle listener; confirm Accessibility permission")
+				return false
+			}
+			defer macos_keyboard_listen_stop()
+		}
 
 		baud_rate := config.serial_baud_rate
 		if baud_rate == 0 {
@@ -625,6 +728,7 @@ run_tx_bolt_cli :: proc(config: ^Cli_Config) -> bool {
 		}
 		fmt.println("stoin: TX Bolt serial capture starting at", baud_rate, "baud 8N1")
 		fmt.println("stoin: loaded", dictionary_count(&owner.dictionary_stack.dictionary), "dictionary entries")
+		cli_print_phrase_toggle_status(config)
 		fmt.println("stoin: press Ctrl+C in this terminal to quit")
 
 		tx_bolt: Tx_Bolt

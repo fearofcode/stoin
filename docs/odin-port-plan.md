@@ -140,8 +140,8 @@ schema into owned IV, FV, and NV tables, including duplicate-stroke validation
 and tail/verb reference checks. Initial-verb, nonverb, and final-verb lookup are
 implemented, and the simple engine can apply phrase-mode strokes with raw-miss
 fallback. The temporary `--translate` CLI can load phrasing data and run all,
-verb, or nonverb phrase mode. Platform/runtime pedal integration and hot reload
-are still on the C side.
+verb, or nonverb phrase mode. Runtime pedal integration is started for macOS
+qwerty and TX Bolt checkpoints; hot reload is still pending.
 
 Port the phrasing system before platform pedals:
 
@@ -196,11 +196,12 @@ Acceptance:
 
 Status: started. The Odin port now has a keymap loader and synthetic qwerty
 event/chord-gathering path wired into the runtime, including Ctrl+Esc capture
-toggle, shortcut-modifier pass-through, phrase-mode latching during a chord, and
-phrase namespace gating. Darwin-only CoreGraphics output bindings are started
-for text, delete, key-combo emission, generated-event marking, and a live macOS
-qwerty event tap behind `--input qwerty`, including normal outline/translation
-trace output. File watching and real pedal integration are still pending.
+toggle, shortcut-modifier pass-through, phrase-mode latching during a chord,
+phrase namespace gating, and phrase/nonverb pedal toggles. Darwin-only
+CoreGraphics output bindings are started for text, delete, key-combo emission,
+generated-event marking, and a live macOS qwerty event tap behind `--input
+qwerty`, including normal outline/translation trace output. File watching is
+still pending.
 
 Implement the first real platform layer on macOS:
 
@@ -233,9 +234,10 @@ Status: started. A POSIX serial layer now handles serial device discovery,
 8N1-style termios setup, nonblocking byte reads, writes, flush, close, and
 basic baud validation on Darwin/Linux. The Odin CLI also has a macOS
 `--input tx-bolt` checkpoint that loads the runtime, reconnects to serial TX
-Bolt devices, decodes strokes, and emits through the macOS output callbacks.
-Raw serial diagnostics are wired behind `--raw-serial`. Pedal polling, hot
-reload, and multi-input merge are still pending.
+Bolt devices, decodes strokes, consumes phrase/nonverb pedal latches from a
+background listen-only keyboard tap, and emits through the macOS output
+callbacks. Raw serial diagnostics are wired behind `--raw-serial`. Hot reload
+and multi-input merge are still pending.
 
 Port the current real-machine path:
 

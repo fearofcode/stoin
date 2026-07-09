@@ -1,6 +1,7 @@
 package stoin
 
 import "core:time"
+import "core:sync"
 
 TRANSLATION_COMPACT_INTERVAL_STROKES :: 1000
 TRANSLATION_HISTORY_STROKE_LIMIT :: 1000
@@ -69,6 +70,14 @@ Steno_Runtime :: struct {
 	phrase_namespace_enabled: bool,
 	enabled:                  bool,
 	phrase_mode:              Steno_Phrase_Mode,
+	phrase_toggle_enabled:    bool,
+	phrase_toggle_keycode:    u16,
+	phrase_toggle_down:       bool,
+	phrase_toggle_latched:    bool,
+	nonverb_phrase_toggle_enabled: bool,
+	nonverb_phrase_toggle_keycode: u16,
+	nonverb_phrase_toggle_down:    bool,
+	nonverb_phrase_toggle_latched: bool,
 	strokes_since_compaction: int,
 	down_keycodes:            u64,
 	chord_bits:               u64,
@@ -275,6 +284,13 @@ steno_runtime_owner_handle_stroke_bits :: proc(owner: ^Steno_Runtime_Owner, bits
 	return steno_runtime_handle_stroke_bits(&owner.runtime, bits)
 }
 
+steno_runtime_owner_handle_active_stroke_bits :: proc(owner: ^Steno_Runtime_Owner, bits: u64) -> bool {
+	if owner == nil {
+		return false
+	}
+	return steno_runtime_handle_active_stroke_bits(&owner.runtime, bits)
+}
+
 steno_runtime_owner_handle_event :: proc(owner: ^Steno_Runtime_Owner, event: Input_Event) -> bool {
 	if owner == nil {
 		return false
@@ -320,6 +336,144 @@ steno_runtime_set_phrase_mode :: proc(runtime: ^Steno_Runtime, mode: Steno_Phras
 	if mode != .None && runtime.down_keycodes != 0 {
 		runtime.chord_phrase_mode = mode
 	}
+}
+
+steno_runtime_configure_phrase_toggles :: proc(
+	runtime: ^Steno_Runtime,
+	phrase_enabled: bool,
+	phrase_keycode: u16,
+	nonverb_enabled: bool,
+	nonverb_keycode: u16,
+) {
+	if runtime == nil {
+		return
+	}
+	runtime.phrase_toggle_enabled = phrase_enabled
+	runtime.phrase_toggle_keycode = phrase_keycode
+	runtime.nonverb_phrase_toggle_enabled = nonverb_enabled
+	runtime.nonverb_phrase_toggle_keycode = nonverb_keycode
+	sync.atomic_store(&runtime.phrase_toggle_down, false)
+	sync.atomic_store(&runtime.phrase_toggle_latched, false)
+	sync.atomic_store(&runtime.nonverb_phrase_toggle_down, false)
+	sync.atomic_store(&runtime.nonverb_phrase_toggle_latched, false)
+	runtime.chord_phrase_mode = .None
+}
+
+steno_runtime_phrase_toggles_enabled :: proc(runtime: ^Steno_Runtime) -> bool {
+	return runtime != nil && (runtime.phrase_toggle_enabled || runtime.nonverb_phrase_toggle_enabled)
+}
+
+steno_runtime_phrase_namespace_active :: proc(runtime: ^Steno_Runtime) -> bool {
+	return runtime != nil && (runtime.phrase_namespace_enabled || steno_runtime_phrase_toggles_enabled(runtime))
+}
+
+steno_runtime_toggle_active :: proc(down: ^bool, latched: ^bool, consume_latch: bool) -> bool {
+	is_down := sync.atomic_load(down)
+	was_latched: bool
+	if consume_latch {
+		was_latched = sync.atomic_exchange(latched, false)
+	} else {
+		was_latched = sync.atomic_load(latched)
+	}
+	return is_down || was_latched
+}
+
+steno_runtime_phrase_mode_from_active :: proc(runtime: ^Steno_Runtime, phrase_active: bool, nonverb_active: bool) -> Steno_Phrase_Mode {
+	if phrase_active && nonverb_active {
+		return .All
+	}
+	if phrase_active {
+		if runtime != nil && runtime.nonverb_phrase_toggle_enabled {
+			return .Verbs
+		}
+		return .All
+	}
+	if nonverb_active {
+		return .Nonverbs
+	}
+	return .None
+}
+
+steno_runtime_current_toggle_phrase_mode :: proc(runtime: ^Steno_Runtime, consume_latches: bool) -> Steno_Phrase_Mode {
+	if runtime == nil {
+		return .None
+	}
+	phrase_active := runtime.phrase_toggle_enabled &&
+		steno_runtime_toggle_active(&runtime.phrase_toggle_down, &runtime.phrase_toggle_latched, consume_latches)
+	nonverb_active := runtime.nonverb_phrase_toggle_enabled &&
+		steno_runtime_toggle_active(
+			&runtime.nonverb_phrase_toggle_down,
+			&runtime.nonverb_phrase_toggle_latched,
+			consume_latches,
+		)
+	return steno_runtime_phrase_mode_from_active(runtime, phrase_active, nonverb_active)
+}
+
+steno_runtime_current_phrase_mode :: proc(runtime: ^Steno_Runtime, consume_latches: bool) -> Steno_Phrase_Mode {
+	toggle_mode := steno_runtime_current_toggle_phrase_mode(runtime, consume_latches)
+	if toggle_mode != .None {
+		return toggle_mode
+	}
+	if runtime == nil {
+		return .None
+	}
+	return runtime.phrase_mode
+}
+
+steno_runtime_current_phrase_down_mode :: proc(runtime: ^Steno_Runtime) -> Steno_Phrase_Mode {
+	if runtime == nil {
+		return .None
+	}
+	phrase_active := runtime.phrase_toggle_enabled && sync.atomic_load(&runtime.phrase_toggle_down)
+	nonverb_active := runtime.nonverb_phrase_toggle_enabled && sync.atomic_load(&runtime.nonverb_phrase_toggle_down)
+	toggle_mode := steno_runtime_phrase_mode_from_active(runtime, phrase_active, nonverb_active)
+	if toggle_mode != .None {
+		return toggle_mode
+	}
+	return runtime.phrase_mode
+}
+
+steno_runtime_update_phrase_toggle_state :: proc(down: ^bool, latched: ^bool, event: Input_Event) {
+	if event.is_repeat {
+		return
+	}
+	sync.atomic_store(down, event.is_down)
+	if event.is_down {
+		sync.atomic_store(latched, true)
+	}
+}
+
+steno_runtime_update_phrase_toggle_from_event :: proc(runtime: ^Steno_Runtime, event: Input_Event) -> bool {
+	if runtime == nil {
+		return false
+	}
+	handled := false
+	if runtime.phrase_toggle_enabled && event.keycode == runtime.phrase_toggle_keycode {
+		steno_runtime_update_phrase_toggle_state(&runtime.phrase_toggle_down, &runtime.phrase_toggle_latched, event)
+		handled = true
+	} else if runtime.nonverb_phrase_toggle_enabled && event.keycode == runtime.nonverb_phrase_toggle_keycode {
+		steno_runtime_update_phrase_toggle_state(
+			&runtime.nonverb_phrase_toggle_down,
+			&runtime.nonverb_phrase_toggle_latched,
+			event,
+		)
+		handled = true
+	}
+	if handled && runtime.down_keycodes != 0 {
+		mode := steno_runtime_current_phrase_down_mode(runtime)
+		if mode != .None {
+			runtime.chord_phrase_mode = mode
+		}
+	}
+	return handled
+}
+
+steno_runtime_consume_phrase_latches :: proc(runtime: ^Steno_Runtime) {
+	if runtime == nil {
+		return
+	}
+	_ = sync.atomic_exchange(&runtime.phrase_toggle_latched, false)
+	_ = sync.atomic_exchange(&runtime.nonverb_phrase_toggle_latched, false)
 }
 
 steno_runtime_reset_chord :: proc(runtime: ^Steno_Runtime) {
@@ -372,6 +526,10 @@ steno_runtime_handle_event :: proc(runtime: ^Steno_Runtime, event: Input_Event) 
 		return true
 	}
 
+	if steno_runtime_update_phrase_toggle_from_event(runtime, event) {
+		return true
+	}
+
 	if modifier_key_event || !runtime.enabled || shortcut_modifier_down {
 		return false
 	}
@@ -388,8 +546,9 @@ steno_runtime_handle_event :: proc(runtime: ^Steno_Runtime, event: Input_Event) 
 		if (runtime.down_keycodes & physical_bit) == 0 && !event.is_repeat {
 			runtime.down_keycodes |= physical_bit
 			runtime.chord_bits |= binding.bits
-			if runtime.phrase_mode != .None {
-				runtime.chord_phrase_mode = runtime.phrase_mode
+			mode := steno_runtime_current_phrase_down_mode(runtime)
+			if mode != .None {
+				runtime.chord_phrase_mode = mode
 			}
 		}
 		return true
@@ -399,9 +558,10 @@ steno_runtime_handle_event :: proc(runtime: ^Steno_Runtime, event: Input_Event) 
 	if runtime.down_keycodes == 0 {
 		stroke := Stroke_Input {
 			bits = runtime.chord_bits,
-			phrase_namespace = runtime.phrase_namespace_enabled,
+			phrase_namespace = steno_runtime_phrase_namespace_active(runtime),
 			phrase_mode = runtime.chord_phrase_mode,
 		}
+		steno_runtime_consume_phrase_latches(runtime)
 		handled := steno_runtime_handle_stroke(runtime, stroke)
 		steno_runtime_reset_chord(runtime)
 		return handled
@@ -592,12 +752,12 @@ steno_runtime_translate_phrase_namespace_bits :: proc(runtime: ^Steno_Runtime, b
 }
 
 steno_runtime_translate_stroke :: proc(runtime: ^Steno_Runtime, stroke: Stroke_Input) -> (ok: bool, maybe_suggest: bool) {
-	phrase_namespace := stroke.phrase_namespace || runtime.phrase_namespace_enabled
+	phrase_namespace := stroke.phrase_namespace || steno_runtime_phrase_namespace_active(runtime)
 	if !phrase_namespace {
 		return steno_runtime_translate_dictionary_bits(runtime, stroke.bits, .Normal)
 	}
 
-	phrase_mode := steno_normalize_stroke_phrase_mode(stroke, runtime.phrase_mode)
+	phrase_mode := steno_normalize_stroke_phrase_mode(stroke, steno_runtime_current_phrase_mode(runtime, false))
 	if phrase_mode == .None {
 		return steno_runtime_translate_dictionary_bits(runtime, stroke.bits, .Normal)
 	}
@@ -743,4 +903,12 @@ steno_runtime_handle_stroke :: proc(runtime: ^Steno_Runtime, stroke: Stroke_Inpu
 
 steno_runtime_handle_stroke_bits :: proc(runtime: ^Steno_Runtime, bits: u64) -> bool {
 	return steno_runtime_handle_stroke(runtime, Stroke_Input{bits = bits})
+}
+
+steno_runtime_handle_active_stroke_bits :: proc(runtime: ^Steno_Runtime, bits: u64) -> bool {
+	return steno_runtime_handle_stroke(runtime, Stroke_Input {
+		bits = bits,
+		phrase_namespace = steno_runtime_phrase_namespace_active(runtime),
+		phrase_mode = steno_runtime_current_phrase_mode(runtime, true),
+	})
 }
