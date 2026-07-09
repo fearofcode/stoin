@@ -94,6 +94,18 @@ parse_positive_int :: proc(text: string) -> (value: int, ok: bool) {
 	return value, value > 0
 }
 
+formatted_is_digit_string :: proc(text: string) -> bool {
+	if len(text) == 0 {
+		return false
+	}
+	for c in text {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 formatted_set_stitch_delimiter :: proc(formatted: ^Formatted_Text, delimiter: string) -> bool {
 	copy, copy_ok := clone_string_ok(delimiter)
 	if !copy_ok {
@@ -470,6 +482,10 @@ formatted_apply_meta :: proc(formatted: ^Formatted_Text, buffer: ^[dynamic]byte,
 format_translation_text_basic :: proc(translation: string) -> (formatted: Formatted_Text, ok: bool) {
 	buffer := make([dynamic]byte)
 	defer delete(buffer)
+
+	if formatted_is_digit_string(translation) {
+		formatted.glue = true
+	}
 
 	pending_attach_prev := false
 	for i := 0; i < len(translation); {

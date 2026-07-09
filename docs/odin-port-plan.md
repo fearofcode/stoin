@@ -202,7 +202,7 @@ Acceptance:
 
 ## Phase 5: macOS QWERTY And Output
 
-Status: started. The Odin port now has a keymap loader and synthetic qwerty
+Status: implemented for the macOS checkpoint. The Odin port now has a keymap loader and synthetic qwerty
 event/chord-gathering path wired into the runtime, including Ctrl+Esc capture
 toggle, shortcut-modifier pass-through, phrase-mode latching during a chord,
 phrase namespace gating, and phrase/nonverb pedal toggles. Darwin-only
@@ -210,6 +210,7 @@ CoreGraphics output bindings are started for text, delete, key-combo emission,
 generated-event marking, and a live macOS qwerty event tap behind `--input
 qwerty`, including normal outline/translation trace output. Dictionary and
 phrasing reload checks now run through the runtime owner during input handling.
+Live qwerty translation and hot reload have been manually verified on macOS.
 
 Implement the first real platform layer on macOS:
 
@@ -238,7 +239,7 @@ Acceptance:
 
 ## Phase 6: Serial And Pedals On macOS
 
-Status: started. A POSIX serial layer now handles serial device discovery,
+Status: implemented for the macOS checkpoint. A POSIX serial layer now handles serial device discovery,
 8N1-style termios setup, nonblocking byte reads, writes, flush, close, and
 basic baud validation on Darwin/Linux. The Odin CLI also has a macOS
 `--input tx-bolt`, `--input gemini-pr`, and `--input stentura` checkpoints that
@@ -251,7 +252,8 @@ disabled with `--no-trace-strokes`, trace key events are available with
 behind `--raw-serial`. Dictionary and phrasing hot reload are polled in the
 serial loops. TX Bolt multi-input mode scans serial devices, runs a separate
 decoder per source, and applies the existing stroke-merge window when 2+
-devices are connected.
+devices are connected. Basic live connectivity and translation have been
+manually verified for TX Bolt, Gemini PR, and Stentura on macOS.
 
 Port the current real-machine path:
 
