@@ -277,8 +277,8 @@ Acceptance:
 Port features that are not needed for the first macOS qwerty/TX Bolt loop but
 must exist before declaring parity:
 
-- Gemini PR runtime input beyond the macOS serial checkpoint.
 - Stentura archive/import parity beyond the macOS realtime serial checkpoint.
+- Gemini PR platform parity outside the macOS serial checkpoint.
 - Linux qwerty/input/output/file watcher.
 - Linux serial path.
 - Windows qwerty/input/output/file watcher.

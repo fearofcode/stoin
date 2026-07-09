@@ -554,18 +554,18 @@ run_lookup_cli :: proc(config: ^Cli_Config) -> bool {
 		return false
 	}
 
-	all_ok := true
 	for outline in config.lookups {
 		if translation, found := dictionary_lookup_stroke(&stack.dictionary, outline); found {
 			cli_write(outline)
 			cli_write(" -> ")
 			cli_write_line(translation)
 		} else {
-			fmt.eprintln("stoin: no exact dictionary entry for", outline)
-			all_ok = false
+			cli_write(outline)
+			cli_write(" -> ")
+			cli_write_line("[untranslated]")
 		}
 	}
-	return all_ok
+	return true
 }
 
 run_dump_dictionary_cli :: proc(config: ^Cli_Config) -> bool {
