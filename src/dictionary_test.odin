@@ -58,7 +58,7 @@ test_dictionary_dump_json :: proc(t: ^testing.T) {
 	defer dictionary_destroy(&dictionary)
 	testing.expect(t, dictionary_load(&dictionary, "tests/test-dictionary.json"))
 
-	path := "build/odin-test-dictionary-dump.json"
+	path := "build/test-dictionary-dump.json"
 	defer os.remove(path)
 	testing.expect(t, dictionary_dump_json(&dictionary, path))
 

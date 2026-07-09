@@ -44,7 +44,7 @@ test_parse_cli_args_config_file :: proc(t: ^testing.T) {
 	mkdir_err := os.make_directory("build")
 	testing.expect(t, mkdir_err == nil || mkdir_err == .Exist)
 
-	path := "build/odin-cli-config.json"
+	path := "build/cli-config.json"
 	defer os.remove(path)
 	testing.expect(t, runtime_test_write_file(path, `{
   "word_list": "tests/test-words.txt",
@@ -78,7 +78,7 @@ test_parse_cli_args_dictionary_overrides_config_dictionaries :: proc(t: ^testing
 	mkdir_err := os.make_directory("build")
 	testing.expect(t, mkdir_err == nil || mkdir_err == .Exist)
 
-	path := "build/odin-cli-config-override.json"
+	path := "build/cli-config-override.json"
 	defer os.remove(path)
 	testing.expect(t, runtime_test_write_file(path, `{
   "dictionaries": [

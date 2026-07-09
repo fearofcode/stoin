@@ -33,8 +33,3 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
-
-## Vendored C Libraries
-
-- `third_party/stb_ds.h` is Sean Barrett's `stb_ds.h`, public domain / MIT licensed; see the header for the full notice.
-- `third_party/cjson` is cJSON; see `third_party/cjson/LICENSE` and `third_party/cjson/UPSTREAM`.

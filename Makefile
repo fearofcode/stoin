@@ -13,8 +13,9 @@ endif
 
 PLATFORM ?= $(HOST_PLATFORM)
 ODIN ?= odin
-ODIN_SOURCE_DIR := odin/stoin
-ODIN_CHECK_TARGETS ?= linux_arm64 linux_amd64 windows_amd64
+SOURCE_DIR := src
+CHECK_TARGETS ?= linux_arm64 linux_amd64 windows_amd64
+RELEASE_FLAGS ?= -o:speed -disable-assert
 
 EXE_EXT :=
 ifeq ($(PLATFORM),windows)
@@ -29,12 +30,9 @@ BUILD_DIR := build/$(PLATFORM)
 RELEASE_DIR := $(BUILD_DIR)/release
 TARGET := $(BUILD_DIR)/stoin$(EXE_EXT)
 RELEASE_TARGET := $(RELEASE_DIR)/stoin$(EXE_EXT)
-ODIN_BUILD_DIR := $(BUILD_DIR)/odin
-ODIN_TARGET := $(ODIN_BUILD_DIR)/stoin$(EXE_EXT)
-ODIN_RELEASE_TARGET := $(RELEASE_DIR)/odin/stoin$(EXE_EXT)
-ODIN_SOURCES := $(wildcard $(ODIN_SOURCE_DIR)/*.odin)
+SOURCES := $(wildcard $(SOURCE_DIR)/*.odin)
 
-.PHONY: all clean go-test linux macos odin odin-check odin-release odin-test release run srs-web test windows
+.PHONY: all check clean go-test linux macos release run srs-web test windows
 
 all: $(TARGET)
 
@@ -49,32 +47,16 @@ windows:
 
 release: $(RELEASE_TARGET)
 
-odin: $(ODIN_TARGET)
+$(TARGET): $(SOURCES) Makefile | $(BUILD_DIR)
+	$(ODIN) build $(SOURCE_DIR) -out:$@
 
-odin-release: $(ODIN_RELEASE_TARGET)
-
-$(TARGET): $(ODIN_SOURCES) Makefile | $(BUILD_DIR)
-	$(ODIN) build $(ODIN_SOURCE_DIR) -out:$@
-
-$(RELEASE_TARGET): $(ODIN_SOURCES) Makefile | $(RELEASE_DIR)
-	$(ODIN) build $(ODIN_SOURCE_DIR) -o:speed -out:$@
-
-$(ODIN_TARGET): $(ODIN_SOURCES) Makefile | $(ODIN_BUILD_DIR)
-	$(ODIN) build $(ODIN_SOURCE_DIR) -out:$@
-
-$(ODIN_RELEASE_TARGET): $(ODIN_SOURCES) Makefile | $(RELEASE_DIR)/odin
-	$(ODIN) build $(ODIN_SOURCE_DIR) -o:speed -out:$@
+$(RELEASE_TARGET): $(SOURCES) Makefile | $(RELEASE_DIR)
+	$(ODIN) build $(SOURCE_DIR) $(RELEASE_FLAGS) -out:$@
 
 $(BUILD_DIR):
 	mkdir -p $@
 
 $(RELEASE_DIR):
-	mkdir -p $@
-
-$(ODIN_BUILD_DIR):
-	mkdir -p $@
-
-$(RELEASE_DIR)/odin:
 	mkdir -p $@
 
 run: $(TARGET)
@@ -83,19 +65,18 @@ run: $(TARGET)
 srs-web:
 	go run ./cmd/stoin-srs-web
 
-test: odin-test go-test
-
-odin-test:
-	$(ODIN) test $(ODIN_SOURCE_DIR)
+test:
+	$(ODIN) test $(SOURCE_DIR)
+	$(MAKE) go-test
 
 go-test:
 	go test ./...
 
-odin-check:
-	$(ODIN) check $(ODIN_SOURCE_DIR)
-	@for target in $(ODIN_CHECK_TARGETS); do \
-		echo "$(ODIN) check $(ODIN_SOURCE_DIR) -target:$$target"; \
-		$(ODIN) check $(ODIN_SOURCE_DIR) -target:$$target || exit $$?; \
+check:
+	$(ODIN) check $(SOURCE_DIR)
+	@for target in $(CHECK_TARGETS); do \
+		echo "$(ODIN) check $(SOURCE_DIR) -target:$$target"; \
+		$(ODIN) check $(SOURCE_DIR) -target:$$target || exit $$?; \
 	done
 
 clean:

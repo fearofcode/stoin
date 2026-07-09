@@ -6,9 +6,11 @@ if "%MODE%"=="" set "MODE=build"
 
 set "BUILD_DIR=build\windows"
 set "RELEASE_DIR=%BUILD_DIR%\release"
-set "ODIN_SOURCE_DIR=odin\stoin"
+set "SOURCE_DIR=src"
 set "ODIN_BIN=%ODIN%"
 if "%ODIN_BIN%"=="" set "ODIN_BIN=odin"
+set "RELEASE_FLAGS=%RELEASE_FLAGS%"
+if "%RELEASE_FLAGS%"=="" set "RELEASE_FLAGS=-o:speed -disable-assert"
 
 if /I "%MODE%"=="clean" (
     if exist "%BUILD_DIR%" rmdir /S /Q "%BUILD_DIR%"
@@ -23,12 +25,12 @@ if errorlevel 1 (
 
 if /I "%MODE%"=="release" (
     if not exist "%RELEASE_DIR%" mkdir "%RELEASE_DIR%"
-    "%ODIN_BIN%" build "%ODIN_SOURCE_DIR%" -o:speed -out:"%RELEASE_DIR%\stoin.exe"
+    "%ODIN_BIN%" build "%SOURCE_DIR%" %RELEASE_FLAGS% -out:"%RELEASE_DIR%\stoin.exe"
     exit /B %ERRORLEVEL%
 )
 
 if /I "%MODE%"=="test" (
-    "%ODIN_BIN%" test "%ODIN_SOURCE_DIR%"
+    "%ODIN_BIN%" test "%SOURCE_DIR%"
     if errorlevel 1 exit /B 1
     where go >NUL 2>NUL
     if not errorlevel 1 (
@@ -46,5 +48,5 @@ if /I not "%MODE%"=="build" (
 )
 
 if not exist "%BUILD_DIR%" mkdir "%BUILD_DIR%"
-"%ODIN_BIN%" build "%ODIN_SOURCE_DIR%" -out:"%BUILD_DIR%\stoin.exe"
+"%ODIN_BIN%" build "%SOURCE_DIR%" -out:"%BUILD_DIR%\stoin.exe"
 exit /B %ERRORLEVEL%

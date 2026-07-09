@@ -904,7 +904,7 @@ run_translate_cli :: proc(config: ^Cli_Config) -> bool {
 run_qwerty_cli :: proc(config: ^Cli_Config) -> bool {
 	when ODIN_OS != .Darwin && ODIN_OS != .Linux && ODIN_OS != .Windows {
 		_ = config
-		fmt.eprintln("stoin: qwerty input is currently implemented only on macOS, Linux, and Windows in the Odin port")
+		fmt.eprintln("stoin: qwerty input is currently implemented only on macOS, Linux, and Windows")
 		return false
 	} else {
 		suggestion_log_file: ^os.File
@@ -1339,7 +1339,7 @@ cli_sleep_ms :: proc(ms: int) {
 run_tx_bolt_cli :: proc(config: ^Cli_Config) -> bool {
 	when ODIN_OS != .Darwin && ODIN_OS != .Linux && ODIN_OS != .Windows {
 		_ = config
-		fmt.eprintln("stoin: TX Bolt input is currently implemented only on macOS, Linux, and Windows in the Odin port")
+		fmt.eprintln("stoin: TX Bolt input is currently implemented only on macOS, Linux, and Windows")
 		return false
 	} else {
 		suggestion_log_file: ^os.File
@@ -1499,7 +1499,7 @@ run_tx_bolt_cli :: proc(config: ^Cli_Config) -> bool {
 run_gemini_pr_cli :: proc(config: ^Cli_Config) -> bool {
 	when ODIN_OS != .Darwin && ODIN_OS != .Linux && ODIN_OS != .Windows {
 		_ = config
-		fmt.eprintln("stoin: Gemini PR input is currently implemented only on macOS, Linux, and Windows in the Odin port")
+		fmt.eprintln("stoin: Gemini PR input is currently implemented only on macOS, Linux, and Windows")
 		return false
 	} else {
 		suggestion_log_file: ^os.File
@@ -1663,7 +1663,7 @@ stentura_cli_open :: proc(config: ^Cli_Config, stentura: ^Stentura, baud_rate: i
 run_stentura_cli :: proc(config: ^Cli_Config) -> bool {
 	when ODIN_OS != .Darwin && ODIN_OS != .Linux && ODIN_OS != .Windows {
 		_ = config
-		fmt.eprintln("stoin: Stentura input is currently implemented only on macOS, Linux, and Windows in the Odin port")
+		fmt.eprintln("stoin: Stentura input is currently implemented only on macOS, Linux, and Windows")
 		return false
 	} else {
 		suggestion_log_file: ^os.File
