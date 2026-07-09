@@ -112,8 +112,10 @@ logging. Basic stitch and stitch-last-word commands, key-combo command modeling,
 case/carry formatting commands, layered dictionary loading, and modal dictionary
 toggle commands are also implemented. Word-list-backed orthography is wired into
 the simple engine and temporary CLI, and `--dump-dictionary` writes stable
-canonical JSON. Remaining formatting edge cases, platform key-combo output, and
-other plover side-effect commands are still on the C side.
+canonical JSON. Explicit `--config` JSON loading, disabled dictionary layers,
+and the `--dictionary`/`--word-list` C aliases are supported. Remaining
+formatting edge cases, platform key-combo output, and other plover side-effect
+commands are still on the C side.
 
 Port the pure translation data path:
 

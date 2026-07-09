@@ -1,5 +1,6 @@
 package stoin
 
+import "core:os"
 import "core:testing"
 
 @(test)
@@ -36,6 +37,70 @@ test_parse_cli_args_dump_dictionary :: proc(t: ^testing.T) {
 	testing.expect_value(t, config.mode, Cli_Mode.Dump_Dictionary)
 	testing.expect(t, config.dump_dictionary)
 	testing.expect_value(t, config.dump_path, "build/odin-dump.json")
+}
+
+@(test)
+test_parse_cli_args_config_file :: proc(t: ^testing.T) {
+	mkdir_err := os.make_directory("build")
+	testing.expect(t, mkdir_err == nil || mkdir_err == .Exist)
+
+	path := "build/odin-cli-config.json"
+	defer os.remove(path)
+	testing.expect(t, runtime_test_write_file(path, `{
+  "word_list": "tests/test-words.txt",
+  "phrasing": "tests/test-phrasing.json",
+  "dictionaries": [
+    "tests/test-dictionary.json",
+    {"path": "tests/test-modal-dictionary.json", "enabled": false},
+    "tests/test-custom-dictionary.json"
+  ]
+}`))
+
+	args := [?]string{APP_NAME, "--config", path, "--lookup", "KAT"}
+	config, ok := parse_cli_args(args[:])
+	defer cli_config_destroy(&config)
+
+	testing.expect(t, ok)
+	testing.expect_value(t, config.mode, Cli_Mode.Lookup)
+	testing.expect_value(t, config.orthography_path, "tests/test-words.txt")
+	testing.expect_value(t, config.phrasing_path, "tests/test-phrasing.json")
+	testing.expect_value(t, len(config.dict_paths), 3)
+	testing.expect_value(t, config.dict_paths[0], "tests/test-dictionary.json")
+	testing.expect_value(t, config.dict_paths[1], "tests/test-modal-dictionary.json")
+	testing.expect_value(t, config.dict_paths[2], "tests/test-custom-dictionary.json")
+	testing.expect_value(t, config.dict_enabled[0], true)
+	testing.expect_value(t, config.dict_enabled[1], false)
+	testing.expect_value(t, config.dict_enabled[2], true)
+}
+
+@(test)
+test_parse_cli_args_dictionary_overrides_config_dictionaries :: proc(t: ^testing.T) {
+	mkdir_err := os.make_directory("build")
+	testing.expect(t, mkdir_err == nil || mkdir_err == .Exist)
+
+	path := "build/odin-cli-config-override.json"
+	defer os.remove(path)
+	testing.expect(t, runtime_test_write_file(path, `{
+  "dictionaries": [
+    "tests/test-dictionary.json",
+    {"path": "tests/test-modal-dictionary.json", "enabled": false}
+  ]
+}`))
+
+	args := [?]string {
+		APP_NAME,
+		"--config", path,
+		"--dictionary", "tests/test-custom-dictionary.json",
+		"--lookup", "KAT",
+	}
+	config, ok := parse_cli_args(args[:])
+	defer cli_config_destroy(&config)
+
+	testing.expect(t, ok)
+	testing.expect_value(t, len(config.dict_paths), 1)
+	testing.expect_value(t, config.dict_paths[0], "tests/test-custom-dictionary.json")
+	testing.expect_value(t, len(config.dict_enabled), 1)
+	testing.expect_value(t, config.dict_enabled[0], true)
 }
 
 @(test)

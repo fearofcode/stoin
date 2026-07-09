@@ -30,6 +30,7 @@ Cli_Mode :: enum {
 Cli_Config :: struct {
 	mode:          Cli_Mode,
 	dict_paths:    [dynamic]string,
+	dict_enabled:  [dynamic]bool,
 	dump_dictionary: bool,
 	dump_path:     string,
 	lookups:       [dynamic]string,
@@ -74,23 +75,55 @@ parse_cli_phrase_mode :: proc(text: string) -> (Phrase_Lookup_Mode, bool) {
 parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 	config.mode = .Scaffold
 	config.dict_paths = make([dynamic]string)
+	config.dict_enabled = make([dynamic]bool)
 	config.lookups = make([dynamic]string)
 	config.translates = make([dynamic]string)
 	config.phrase_mode = .All
 	config.serial_baud_rate = PLATFORM_SERIAL_DEFAULT_BAUD
 	config.multi_input_window_ms = TX_BOLT_MULTIPLE_DEFAULT_WINDOW_MS
 
+	raw_serial_requested := false
+	for i := 1; i < len(args); i += 1 {
+		if args[i] == "--raw-serial" || args[i] == "--dump-serial" {
+			raw_serial_requested = true
+		}
+	}
+	if !raw_serial_requested {
+		for i := 1; i < len(args); i += 1 {
+			if args[i] == "--config" && i + 1 < len(args) {
+				if !cli_config_load_runtime_config(&config, args[i + 1]) {
+					return config, false
+				}
+				i += 1
+			}
+		}
+	}
+
+	cli_dictionary_paths := false
 	for i := 1; i < len(args); i += 1 {
 		arg := args[i]
 		switch arg {
 		case "--help", "-h":
 			config.mode = .Help
-		case "--dict":
+		case "--config":
 			if i + 1 >= len(args) {
-				config.error_message = "--dict requires a path"
+				config.error_message = "--config requires a path"
 				return config, false
 			}
-			append(&config.dict_paths, args[i + 1])
+			i += 1
+		case "--dict", "--dictionary":
+			if i + 1 >= len(args) {
+				config.error_message = "--dictionary requires a path"
+				return config, false
+			}
+			if !cli_dictionary_paths {
+				cli_config_clear_dictionary_paths(&config)
+				cli_dictionary_paths = true
+			}
+			if !cli_config_add_dictionary_path(&config, args[i + 1], true) {
+				config.error_message = "failed to store dictionary path"
+				return config, false
+			}
 			i += 1
 		case "--lookup":
 			if i + 1 >= len(args) {
@@ -205,19 +238,25 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 			}
 			config.suggestion_log_path = args[i + 1]
 			i += 1
-		case "--orthography":
+		case "--word-list", "--orthography":
 			if i + 1 >= len(args) {
-				config.error_message = "--orthography requires a path"
+				config.error_message = "--word-list requires a path"
 				return config, false
 			}
-			config.orthography_path = args[i + 1]
+			if !cli_config_set_orthography_path(&config, args[i + 1]) {
+				config.error_message = "failed to store word-list path"
+				return config, false
+			}
 			i += 1
 		case "--phrasing":
 			if i + 1 >= len(args) {
 				config.error_message = "--phrasing requires a path"
 				return config, false
 			}
-			config.phrasing_path = args[i + 1]
+			if !cli_config_set_phrasing_path(&config, args[i + 1]) {
+				config.error_message = "failed to store phrasing path"
+				return config, false
+			}
 			i += 1
 		case "--phrase-mode":
 			if i + 1 >= len(args) {
@@ -439,25 +478,30 @@ cli_print_phrase_toggle_status :: proc(config: ^Cli_Config) {
 }
 
 cli_config_destroy :: proc(config: ^Cli_Config) {
+	cli_config_clear_dictionary_paths(config)
 	delete(config.dict_paths)
+	delete(config.dict_enabled)
 	delete(config.lookups)
 	delete(config.translates)
+	owned_string_delete(config.orthography_path)
+	owned_string_delete(config.phrasing_path)
 	config^ = {}
 }
 
 run_lookup_cli :: proc(config: ^Cli_Config) -> bool {
-	dictionary: Dictionary
-	dictionary_init(&dictionary)
-	defer dictionary_destroy(&dictionary)
+	stack: Dictionary_Stack
+	dictionary_stack_init(&stack)
+	defer dictionary_stack_destroy(&stack)
 
-	if !dictionary_load_many(&dictionary, config.dict_paths[:]) {
+	if !dictionary_stack_set_paths(&stack, config.dict_paths[:], config.dict_enabled[:]) ||
+	   !dictionary_stack_load(&stack) {
 		fmt.eprintln("stoin: failed to load dictionary")
 		return false
 	}
 
 	all_ok := true
 	for outline in config.lookups {
-		if translation, found := dictionary_lookup_stroke(&dictionary, outline); found {
+		if translation, found := dictionary_lookup_stroke(&stack.dictionary, outline); found {
 			cli_write(outline)
 			cli_write(" -> ")
 			cli_write_line(translation)
@@ -474,7 +518,7 @@ run_dump_dictionary_cli :: proc(config: ^Cli_Config) -> bool {
 	dictionary_stack_init(&stack)
 	defer dictionary_stack_destroy(&stack)
 
-	if !dictionary_stack_set_paths(&stack, config.dict_paths[:], nil) ||
+	if !dictionary_stack_set_paths(&stack, config.dict_paths[:], config.dict_enabled[:]) ||
 	   !dictionary_stack_load(&stack) {
 		fmt.eprintln("stoin: failed to load dictionary")
 		return false
@@ -581,6 +625,7 @@ run_translate_cli :: proc(config: ^Cli_Config) -> bool {
 
 	runtime_config := Steno_Runtime_Load_Config {
 		dictionary_paths = config.dict_paths[:],
+		dictionary_enabled = config.dict_enabled[:],
 		orthography_path = config.orthography_path,
 		send_text = cli_runtime_send_text,
 		delete_text = cli_runtime_delete_text,
@@ -665,6 +710,7 @@ run_qwerty_cli :: proc(config: ^Cli_Config) -> bool {
 
 		runtime_config := Steno_Runtime_Load_Config {
 			dictionary_paths = config.dict_paths[:],
+			dictionary_enabled = config.dict_enabled[:],
 			keymap_path = config.keymap_path,
 			orthography_path = config.orthography_path,
 			send_text = macos_runtime_send_text,
@@ -1087,6 +1133,7 @@ run_tx_bolt_cli :: proc(config: ^Cli_Config) -> bool {
 
 		runtime_config := Steno_Runtime_Load_Config {
 			dictionary_paths = config.dict_paths[:],
+			dictionary_enabled = config.dict_enabled[:],
 			orthography_path = config.orthography_path,
 			send_text = macos_runtime_send_text,
 			delete_text = macos_runtime_delete_text,
@@ -1239,6 +1286,7 @@ run_gemini_pr_cli :: proc(config: ^Cli_Config) -> bool {
 
 		runtime_config := Steno_Runtime_Load_Config {
 			dictionary_paths = config.dict_paths[:],
+			dictionary_enabled = config.dict_enabled[:],
 			orthography_path = config.orthography_path,
 			send_text = macos_runtime_send_text,
 			delete_text = macos_runtime_delete_text,
@@ -1395,6 +1443,7 @@ run_stentura_cli :: proc(config: ^Cli_Config) -> bool {
 
 		runtime_config := Steno_Runtime_Load_Config {
 			dictionary_paths = config.dict_paths[:],
+			dictionary_enabled = config.dict_enabled[:],
 			orthography_path = config.orthography_path,
 			send_text = macos_runtime_send_text,
 			delete_text = macos_runtime_delete_text,
