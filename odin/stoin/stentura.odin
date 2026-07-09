@@ -1,12 +1,34 @@
 package stoin
 
+import "core:time"
+
+STENTURA_RESPONSE_TIMEOUT_MS :: 1000
+STENTURA_MAX_SEND_TRIES :: 3
 STENTURA_READ_SIZE :: 512
 STENTURA_STROKES_PER_READ :: STENTURA_READ_SIZE / 4
+STENTURA_PACKET_BUFFER_SIZE :: 1024
 
 Stentura_Action :: enum u16 {
 	Open  = 0x0A,
 	ReadC = 0x0B,
 	Reset = 0x14,
+}
+
+Stentura_Read_Result :: enum {
+	Ok,
+	Timeout,
+	Error,
+}
+
+Stentura :: struct {
+	serial:              Platform_Serial_Port,
+	serial_open:         bool,
+	next_sequence_value: byte,
+	block:               u16,
+	byte_offset:         u16,
+	queued_strokes:      [STENTURA_STROKES_PER_READ]u64,
+	queued_stroke_count: int,
+	had_error:           bool,
 }
 
 STENTURA_BITS := [?]u64 {
@@ -46,6 +68,29 @@ write_u16le :: proc(out: []byte, value: u16) {
 
 read_u16le :: proc(data: []byte) -> u16 {
 	return u16(data[0]) | (u16(data[1]) << 8)
+}
+
+stentura_monotonic_ms :: proc() -> u64 {
+	tick := time.tick_now()
+	return u64(tick._nsec / 1_000_000)
+}
+
+stentura_next_sequence :: proc(stentura: ^Stentura) -> byte {
+	sequence := stentura.next_sequence_value
+	stentura.next_sequence_value += 1
+	return sequence
+}
+
+stentura_dequeue_stroke :: proc(stentura: ^Stentura) -> (bits: u64, ok: bool) {
+	if stentura == nil || stentura.queued_stroke_count == 0 {
+		return 0, false
+	}
+	bits = stentura.queued_strokes[0]
+	stentura.queued_stroke_count -= 1
+	for i in 0..<stentura.queued_stroke_count {
+		stentura.queued_strokes[i] = stentura.queued_strokes[i + 1]
+	}
+	return bits, true
 }
 
 stentura_crc16 :: proc(data: []byte) -> u16 {
@@ -191,4 +236,255 @@ stentura_validate_response :: proc(packet: []byte) -> bool {
 	}
 
 	return true
+}
+
+stentura_read_bytes :: proc(stentura: ^Stentura, out_bytes: []byte, timeout_ms: uint) -> Stentura_Read_Result {
+	if stentura == nil || !stentura.serial_open {
+		if stentura != nil {
+			stentura.had_error = true
+		}
+		return .Error
+	}
+
+	started_ms := stentura_monotonic_ms()
+	deadline_ms := started_ms + u64(timeout_ms)
+	for i in 0..<len(out_bytes) {
+		now_ms := stentura_monotonic_ms()
+		if timeout_ms != 0 && now_ms >= deadline_ms {
+			return .Timeout
+		}
+		remaining_ms := timeout_ms
+		if timeout_ms != 0 {
+			remaining := deadline_ms - now_ms
+			if remaining > u64(max(uint)) {
+				remaining_ms = max(uint)
+			} else {
+				remaining_ms = uint(remaining)
+			}
+		}
+
+		value, read_result := platform_serial_read_byte(&stentura.serial, remaining_ms)
+		switch read_result {
+		case .Byte:
+			out_bytes[i] = value
+		case .None:
+			return .Timeout
+		case .Error:
+			stentura.had_error = true
+			return .Error
+		}
+	}
+
+	return .Ok
+}
+
+stentura_read_packet :: proc(stentura: ^Stentura, out_packet: []byte) -> (packet_size: int, result: Stentura_Read_Result) {
+	if len(out_packet) < 14 {
+		if stentura != nil {
+			stentura.had_error = true
+		}
+		return 0, .Error
+	}
+
+	header_result := stentura_read_bytes(stentura, out_packet[:4], STENTURA_RESPONSE_TIMEOUT_MS)
+	if header_result != .Ok {
+		return 0, header_result
+	}
+
+	declared_size := int(read_u16le(out_packet[2:4]))
+	if declared_size < 14 || declared_size > len(out_packet) {
+		stentura.had_error = true
+		return 0, .Error
+	}
+
+	body_result := stentura_read_bytes(stentura, out_packet[4:declared_size], STENTURA_RESPONSE_TIMEOUT_MS)
+	if body_result != .Ok {
+		return 0, body_result
+	}
+
+	if !stentura_validate_response(out_packet[:declared_size]) {
+		stentura.had_error = true
+		return 0, .Error
+	}
+
+	return declared_size, .Ok
+}
+
+stentura_send_receive :: proc(stentura: ^Stentura, request: []byte, response: []byte) -> (response_size: int, ok: bool) {
+	if stentura == nil || !stentura.serial_open || len(request) < 6 || len(response) < 14 {
+		if stentura != nil {
+			stentura.had_error = true
+		}
+		return 0, false
+	}
+
+	request_sequence := request[1]
+	request_action := read_u16le(request[4:6])
+	for _ in 0..<STENTURA_MAX_SEND_TRIES {
+		if !platform_serial_write_all(&stentura.serial, request, STENTURA_RESPONSE_TIMEOUT_MS) {
+			stentura.had_error = true
+			return 0, false
+		}
+
+		received_size, read_result := stentura_read_packet(stentura, response)
+		if read_result == .Timeout {
+			continue
+		}
+		if read_result != .Ok {
+			stentura.had_error = true
+			return 0, false
+		}
+		if response[1] != request_sequence {
+			continue
+		}
+		if read_u16le(response[4:6]) != request_action {
+			stentura.had_error = true
+			return 0, false
+		}
+
+		return received_size, true
+	}
+
+	stentura.had_error = true
+	return 0, false
+}
+
+stentura_read_realtime_data :: proc(stentura: ^Stentura, out_data: []byte) -> (read_size: int, ok: bool) {
+	if stentura == nil || len(out_data) < STENTURA_READ_SIZE {
+		if stentura != nil {
+			stentura.had_error = true
+		}
+		return 0, false
+	}
+
+	request: [32]byte
+	response: [STENTURA_PACKET_BUFFER_SIZE]byte
+	request_size := stentura_make_read(
+		request[:],
+		stentura_next_sequence(stentura),
+		stentura.block,
+		stentura.byte_offset,
+		STENTURA_READ_SIZE,
+	)
+	if request_size == 0 {
+		stentura.had_error = true
+		return 0, false
+	}
+
+	response_size, received := stentura_send_receive(stentura, request[:request_size], response[:])
+	if !received {
+		return 0, false
+	}
+
+	p1 := read_u16le(response[8:10])
+	response_data_size := 0
+	if response_size > 14 {
+		response_data_size = response_size - 16
+	}
+	if !((p1 == 0 && response_size == 14) || int(p1) == response_data_size) ||
+	   response_data_size > len(out_data) {
+		stentura.had_error = true
+		return 0, false
+	}
+
+	if response_data_size > 0 {
+		copy(out_data[:response_data_size], response[14:14 + response_data_size])
+	}
+
+	next_byte := u32(stentura.byte_offset) + u32(p1)
+	stentura.block = u16(u32(stentura.block) + (next_byte / STENTURA_READ_SIZE))
+	stentura.byte_offset = u16(next_byte % STENTURA_READ_SIZE)
+	return response_data_size, true
+}
+
+stentura_drain_realtime_file :: proc(stentura: ^Stentura) -> bool {
+	stroke_data: [STENTURA_READ_SIZE]byte
+	for {
+		read_size, ok := stentura_read_realtime_data(stentura, stroke_data[:])
+		if !ok {
+			return false
+		}
+		if read_size == 0 {
+			return true
+		}
+	}
+}
+
+stentura_open :: proc(stentura: ^Stentura, port_path: string, baud_rate: int) -> bool {
+	if stentura == nil {
+		return false
+	}
+	stentura^ = {}
+	resolved_baud_rate := baud_rate
+	if resolved_baud_rate == 0 {
+		resolved_baud_rate = PLATFORM_SERIAL_DEFAULT_BAUD
+	}
+	if !platform_serial_open(&stentura.serial, port_path, resolved_baud_rate) {
+		return false
+	}
+	stentura.serial_open = true
+
+	time.sleep(time.Duration(STENTURA_RESPONSE_TIMEOUT_MS) * time.Millisecond)
+	platform_serial_flush(&stentura.serial)
+
+	request: [64]byte
+	response: [STENTURA_PACKET_BUFFER_SIZE]byte
+	request_size := stentura_make_open(request[:], stentura_next_sequence(stentura), 'A', "REALTIME.000")
+	if request_size == 0 {
+		stentura_close(stentura)
+		return false
+	}
+
+	_, ok := stentura_send_receive(stentura, request[:request_size], response[:])
+	if !ok || !stentura_drain_realtime_file(stentura) {
+		stentura_close(stentura)
+		return false
+	}
+
+	return true
+}
+
+stentura_close :: proc(stentura: ^Stentura) {
+	if stentura == nil {
+		return
+	}
+	if stentura.serial_open {
+		platform_serial_close(&stentura.serial)
+	}
+	stentura^ = {}
+}
+
+stentura_port_path :: proc(stentura: ^Stentura) -> string {
+	if stentura == nil || !stentura.serial_open {
+		return ""
+	}
+	return stentura.serial.port_path
+}
+
+stentura_had_error :: proc(stentura: ^Stentura) -> bool {
+	return stentura != nil && (stentura.had_error || (stentura.serial_open && platform_serial_had_error(&stentura.serial)))
+}
+
+stentura_read_stroke :: proc(stentura: ^Stentura) -> (bits: u64, ok: bool) {
+	if stentura == nil || !stentura.serial_open {
+		return 0, false
+	}
+
+	if bits, dequeued := stentura_dequeue_stroke(stentura); dequeued {
+		return bits, true
+	}
+
+	stroke_data: [STENTURA_READ_SIZE]byte
+	read_size, read_ok := stentura_read_realtime_data(stentura, stroke_data[:])
+	if !read_ok || read_size == 0 {
+		return 0, false
+	}
+
+	decoded_count, decoded := stentura_decode_strokes(stroke_data[:read_size], stentura.queued_strokes[:])
+	if !decoded {
+		stentura.had_error = true
+		return 0, false
+	}
+	stentura.queued_stroke_count = decoded_count
+	return stentura_dequeue_stroke(stentura)
 }

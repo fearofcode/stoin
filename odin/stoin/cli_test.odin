@@ -127,6 +127,25 @@ test_parse_cli_args_gemini_pr :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_parse_cli_args_stentura :: proc(t: ^testing.T) {
+	args := [?]string {
+		APP_NAME,
+		"--input", "stentura",
+		"--dict", "tests/test-dictionary.json",
+		"--stentura-port", "/dev/cu.KeySerial1",
+		"--stentura-baud", "9600",
+	}
+	config, ok := parse_cli_args(args[:])
+	defer cli_config_destroy(&config)
+
+	testing.expect(t, ok)
+	testing.expect_value(t, config.mode, Cli_Mode.Stentura)
+	testing.expect(t, config.input_stentura)
+	testing.expect_value(t, config.serial_port_path, "/dev/cu.KeySerial1")
+	testing.expect_value(t, config.serial_baud_rate, 9600)
+}
+
+@(test)
 test_parse_cli_args_raw_serial :: proc(t: ^testing.T) {
 	args := [?]string {
 		APP_NAME,
@@ -244,6 +263,16 @@ test_parse_cli_args_requires_dictionary_for_gemini_pr :: proc(t: ^testing.T) {
 
 	testing.expect(t, !ok)
 	testing.expect_value(t, config.error_message, "--input gemini-pr requires at least one --dict")
+}
+
+@(test)
+test_parse_cli_args_requires_dictionary_for_stentura :: proc(t: ^testing.T) {
+	args := [?]string{APP_NAME, "--input", "stentura"}
+	config, ok := parse_cli_args(args[:])
+	defer cli_config_destroy(&config)
+
+	testing.expect(t, !ok)
+	testing.expect_value(t, config.error_message, "--input stentura requires at least one --dict")
 }
 
 @(test)

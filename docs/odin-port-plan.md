@@ -233,11 +233,11 @@ Acceptance:
 Status: started. A POSIX serial layer now handles serial device discovery,
 8N1-style termios setup, nonblocking byte reads, writes, flush, close, and
 basic baud validation on Darwin/Linux. The Odin CLI also has a macOS
-`--input tx-bolt` and `--input gemini-pr` checkpoints that load the runtime,
-reconnect to serial devices, decode strokes, consume phrase/nonverb pedal
-latches from a background listen-only keyboard tap, and emit through the macOS
-output callbacks. Raw serial diagnostics are wired behind `--raw-serial`. Hot
-reload and multi-input merge are still pending.
+`--input tx-bolt`, `--input gemini-pr`, and `--input stentura` checkpoints that
+load the runtime, reconnect to serial devices, decode strokes, consume
+phrase/nonverb pedal latches from a background listen-only keyboard tap, and
+emit through the macOS output callbacks. Raw serial diagnostics are wired behind
+`--raw-serial`. Hot reload and multi-input merge are still pending.
 
 Port the current real-machine path:
 
@@ -264,7 +264,7 @@ Port features that are not needed for the first macOS qwerty/TX Bolt loop but
 must exist before declaring parity:
 
 - Gemini PR runtime input beyond the macOS serial checkpoint.
-- Stentura realtime/archive path.
+- Stentura archive/import parity beyond the macOS realtime serial checkpoint.
 - Linux qwerty/input/output/file watcher.
 - Linux serial path.
 - Windows qwerty/input/output/file watcher.

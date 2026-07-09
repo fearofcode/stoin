@@ -17,6 +17,7 @@ Cli_Mode :: enum {
 	Qwerty,
 	Tx_Bolt,
 	Gemini_Pr,
+	Stentura,
 	Raw_Serial,
 }
 
@@ -28,6 +29,7 @@ Cli_Config :: struct {
 	input_qwerty:   bool,
 	input_tx_bolt:  bool,
 	input_gemini_pr: bool,
+	input_stentura: bool,
 	raw_serial:     bool,
 	keymap_path:    string,
 	serial_port_path: string,
@@ -100,8 +102,10 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 				config.input_tx_bolt = true
 			} else if input_mode == "gemini-pr" || input_mode == "gemini" {
 				config.input_gemini_pr = true
+			} else if input_mode == "stentura" || input_mode == "stentura-8000" {
+				config.input_stentura = true
 			} else {
-				config.error_message = "--input currently supports qwerty, tx-bolt, or gemini-pr"
+				config.error_message = "--input currently supports qwerty, tx-bolt, gemini-pr, or stentura"
 				return config, false
 			}
 			i += 1
@@ -112,14 +116,14 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 			}
 			config.keymap_path = args[i + 1]
 			i += 1
-		case "--serial-port", "--port", "--tx-bolt-port", "--gemini-port":
+		case "--serial-port", "--port", "--tx-bolt-port", "--gemini-port", "--stentura-port":
 			if i + 1 >= len(args) {
 				config.error_message = "--serial-port requires a path"
 				return config, false
 			}
 			config.serial_port_path = args[i + 1]
 			i += 1
-		case "--serial-baud", "--baud", "--tx-bolt-baud", "--gemini-baud":
+		case "--serial-baud", "--baud", "--tx-bolt-baud", "--gemini-baud", "--stentura-baud":
 			if i + 1 >= len(args) {
 				config.error_message = "--serial-baud requires a baud rate"
 				return config, false
@@ -228,6 +232,9 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 	if config.input_gemini_pr {
 		selected_modes += 1
 	}
+	if config.input_stentura {
+		selected_modes += 1
+	}
 	if config.raw_serial {
 		selected_modes += 1
 	}
@@ -280,6 +287,20 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 		config.mode = .Gemini_Pr
 		if len(config.dict_paths) == 0 {
 			config.error_message = "--input gemini-pr requires at least one --dict"
+			return config, false
+		}
+		if config.phrase_mode_enabled && len(config.phrasing_path) == 0 {
+			config.error_message = "--phrase-mode requires --phrasing"
+			return config, false
+		}
+		if cli_phrase_toggles_enabled(&config) && len(config.phrasing_path) == 0 {
+			config.error_message = "--phrase-toggle requires --phrasing"
+			return config, false
+		}
+	} else if config.input_stentura {
+		config.mode = .Stentura
+		if len(config.dict_paths) == 0 {
+			config.error_message = "--input stentura requires at least one --dict"
 			return config, false
 		}
 		if config.phrase_mode_enabled && len(config.phrasing_path) == 0 {
@@ -965,6 +986,141 @@ run_gemini_pr_cli :: proc(config: ^Cli_Config) -> bool {
 				connected = false
 				cli_sleep_ms(1000)
 			} else if !made_progress {
+				cli_sleep_ms(INPUT_EVENT_POLL_SLEEP_MS)
+			}
+		}
+	}
+}
+
+stentura_cli_open :: proc(config: ^Cli_Config, stentura: ^Stentura, baud_rate: int) -> bool {
+	if len(config.serial_port_path) > 0 {
+		return stentura_open(stentura, config.serial_port_path, baud_rate)
+	}
+
+	paths := platform_serial_find_devices()
+	defer platform_serial_device_paths_destroy(&paths)
+	for path in paths {
+		if stentura_open(stentura, path, baud_rate) {
+			return true
+		}
+	}
+	return false
+}
+
+run_stentura_cli :: proc(config: ^Cli_Config) -> bool {
+	when ODIN_OS != .Darwin {
+		_ = config
+		fmt.eprintln("stoin: Stentura input is currently implemented only on macOS in the Odin port")
+		return false
+	} else {
+		suggestion_log_file: ^os.File
+		if len(config.suggestion_log_path) > 0 {
+			open_file, open_err := os.open(
+				config.suggestion_log_path,
+				os.File_Flags{.Write, .Create, .Append},
+				os.Permissions_Default_File,
+			)
+			if open_err != nil {
+				fmt.eprintln("stoin: failed to open suggestion log")
+				return false
+			}
+			suggestion_log_file = open_file
+		}
+		defer if suggestion_log_file != nil {
+			os.close(suggestion_log_file)
+		}
+
+		output: Cli_Runtime_Output
+		cli_runtime_output_init(&output)
+		output.suggestion_log_file = suggestion_log_file
+		defer cli_runtime_output_destroy(&output)
+
+		runtime_config := Steno_Runtime_Load_Config {
+			dictionary_paths = config.dict_paths[:],
+			orthography_path = config.orthography_path,
+			send_text = macos_runtime_send_text,
+			delete_text = macos_runtime_delete_text,
+			send_key_combination = macos_runtime_send_key_combination,
+			write_trace = cli_runtime_write_line,
+			userdata = rawptr(&output),
+		}
+		if len(config.phrasing_path) > 0 {
+			runtime_config.phrasing_path = config.phrasing_path
+		}
+		if config.print_suggestions {
+			runtime_config.write_suggestion = cli_runtime_write_suggestion
+		}
+		if suggestion_log_file != nil {
+			runtime_config.write_suggestion_log = cli_runtime_write_suggestion_log
+		}
+
+		owner: Steno_Runtime_Owner
+		if !steno_runtime_owner_init(&owner, &runtime_config) {
+			fmt.eprintln("stoin: failed to initialize runtime")
+			return false
+		}
+		defer steno_runtime_owner_destroy(&owner)
+
+		if config.phrase_mode_enabled {
+			steno_runtime_set_phrase_namespace_enabled(&owner.runtime, true)
+			steno_runtime_set_phrase_mode(&owner.runtime, steno_phrase_mode_from_lookup_mode(config.phrase_mode))
+		}
+		cli_configure_phrase_toggles(config, &owner.runtime)
+
+		if !macos_output_init() {
+			fmt.eprintln("stoin: failed to initialize macOS text output")
+			return false
+		}
+		defer macos_output_shutdown()
+		if cli_phrase_toggles_enabled(config) {
+			if !macos_keyboard_listen_start(&owner) {
+				fmt.eprintln("stoin: failed to start macOS phrase toggle listener; confirm Accessibility permission")
+				return false
+			}
+			defer macos_keyboard_listen_stop()
+		}
+
+		baud_rate := config.serial_baud_rate
+		if baud_rate == 0 {
+			baud_rate = PLATFORM_SERIAL_DEFAULT_BAUD
+		}
+		fmt.println("stoin: Stentura serial capture starting at", baud_rate, "baud 8N1")
+		fmt.println("stoin: loaded", dictionary_count(&owner.dictionary_stack.dictionary), "dictionary entries")
+		cli_print_phrase_toggle_status(config)
+		fmt.println("stoin: press Ctrl+C in this terminal to quit")
+
+		stentura: Stentura
+		connected := false
+		announced_disconnected := false
+
+		for {
+			if !connected {
+				if !stentura_cli_open(config, &stentura, baud_rate) {
+					if !announced_disconnected {
+						if len(config.serial_port_path) > 0 {
+							fmt.eprintln("stoin: Stentura disconnected; waiting for", config.serial_port_path)
+						} else {
+							fmt.eprintln("stoin: Stentura disconnected; waiting for a Stentura-compatible serial device")
+						}
+						announced_disconnected = true
+					}
+					cli_sleep_ms(1000)
+					continue
+				}
+
+				connected = true
+				announced_disconnected = false
+				fmt.println("stoin: Stentura connected on", stentura_port_path(&stentura))
+			}
+
+			if bits, read := stentura_read_stroke(&stentura); read {
+				_ = steno_runtime_owner_handle_active_stroke_bits(&owner, bits)
+			} else if stentura_had_error(&stentura) {
+				fmt.println("stoin: Stentura disconnected from", stentura_port_path(&stentura), "; waiting for reconnect")
+				stentura_close(&stentura)
+				connected = false
+				cli_sleep_ms(1000)
+			} else {
 				cli_sleep_ms(INPUT_EVENT_POLL_SLEEP_MS)
 			}
 		}
