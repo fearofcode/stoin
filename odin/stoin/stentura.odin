@@ -20,6 +20,24 @@ Stentura_Read_Result :: enum {
 	Error,
 }
 
+Stentura_Status :: enum {
+	Ok,
+	Serial_Open_Failed,
+	Build_Open_Request_Failed,
+	Build_Read_Request_Failed,
+	Write_Failed,
+	Response_Timeout,
+	Response_Error,
+	Response_Sequence_Mismatch,
+	Response_Action_Mismatch,
+	Open_Handshake_Failed,
+	Initial_Drain_Failed,
+	Realtime_Read_Failed,
+	Realtime_Response_Mismatch,
+	Stroke_Decode_Failed,
+	Internal_Error,
+}
+
 Stentura :: struct {
 	serial:              Platform_Serial_Port,
 	serial_open:         bool,
@@ -29,6 +47,7 @@ Stentura :: struct {
 	queued_strokes:      [STENTURA_STROKES_PER_READ]u64,
 	queued_stroke_count: int,
 	had_error:           bool,
+	status:              Stentura_Status,
 }
 
 STENTURA_BITS := [?]u64 {
@@ -79,6 +98,58 @@ stentura_next_sequence :: proc(stentura: ^Stentura) -> byte {
 	sequence := stentura.next_sequence_value
 	stentura.next_sequence_value += 1
 	return sequence
+}
+
+stentura_set_status :: proc(stentura: ^Stentura, status: Stentura_Status) {
+	if stentura != nil {
+		stentura.status = status
+	}
+}
+
+stentura_status_message :: proc(stentura: ^Stentura) -> string {
+	if stentura == nil {
+		return "unknown Stentura error"
+	}
+
+	switch stentura.status {
+	case .Ok:
+		return ""
+	case .Serial_Open_Failed:
+		return "serial open failed"
+	case .Build_Open_Request_Failed:
+		return "failed to build OPEN request"
+	case .Build_Read_Request_Failed:
+		return "failed to build READ request"
+	case .Write_Failed:
+		return "serial write failed"
+	case .Response_Timeout:
+		return "timed out waiting for response"
+	case .Response_Error:
+		return "invalid or unreadable response"
+	case .Response_Sequence_Mismatch:
+		return "response sequence mismatch"
+	case .Response_Action_Mismatch:
+		return "response action mismatch"
+	case .Open_Handshake_Failed:
+		return "OPEN handshake failed"
+	case .Initial_Drain_Failed:
+		return "initial realtime drain failed"
+	case .Realtime_Read_Failed:
+		return "realtime read failed"
+	case .Realtime_Response_Mismatch:
+		return "realtime response size mismatch"
+	case .Stroke_Decode_Failed:
+		return "stroke decode failed"
+	case .Internal_Error:
+		return "internal Stentura error"
+	}
+
+	return "unknown Stentura error"
+}
+
+stentura_close_with_status :: proc(stentura: ^Stentura, status: Stentura_Status) {
+	stentura_close(stentura)
+	stentura_set_status(stentura, status)
 }
 
 stentura_dequeue_stroke :: proc(stentura: ^Stentura) -> (bits: u64, ok: bool) {
@@ -242,6 +313,7 @@ stentura_read_bytes :: proc(stentura: ^Stentura, out_bytes: []byte, timeout_ms: 
 	if stentura == nil || !stentura.serial_open {
 		if stentura != nil {
 			stentura.had_error = true
+			stentura.status = .Internal_Error
 		}
 		return .Error
 	}
@@ -271,6 +343,7 @@ stentura_read_bytes :: proc(stentura: ^Stentura, out_bytes: []byte, timeout_ms: 
 			return .Timeout
 		case .Error:
 			stentura.had_error = true
+			stentura.status = .Response_Error
 			return .Error
 		}
 	}
@@ -282,6 +355,7 @@ stentura_read_packet :: proc(stentura: ^Stentura, out_packet: []byte) -> (packet
 	if len(out_packet) < 14 {
 		if stentura != nil {
 			stentura.had_error = true
+			stentura.status = .Internal_Error
 		}
 		return 0, .Error
 	}
@@ -294,6 +368,7 @@ stentura_read_packet :: proc(stentura: ^Stentura, out_packet: []byte) -> (packet
 	declared_size := int(read_u16le(out_packet[2:4]))
 	if declared_size < 14 || declared_size > len(out_packet) {
 		stentura.had_error = true
+		stentura.status = .Response_Error
 		return 0, .Error
 	}
 
@@ -304,6 +379,7 @@ stentura_read_packet :: proc(stentura: ^Stentura, out_packet: []byte) -> (packet
 
 	if !stentura_validate_response(out_packet[:declared_size]) {
 		stentura.had_error = true
+		stentura.status = .Response_Error
 		return 0, .Error
 	}
 
@@ -314,38 +390,49 @@ stentura_send_receive :: proc(stentura: ^Stentura, request: []byte, response: []
 	if stentura == nil || !stentura.serial_open || len(request) < 6 || len(response) < 14 {
 		if stentura != nil {
 			stentura.had_error = true
+			stentura.status = .Internal_Error
 		}
 		return 0, false
 	}
 
 	request_sequence := request[1]
 	request_action := read_u16le(request[4:6])
+	last_status := Stentura_Status.Response_Timeout
 	for _ in 0..<STENTURA_MAX_SEND_TRIES {
 		if !platform_serial_write_all(&stentura.serial, request, STENTURA_RESPONSE_TIMEOUT_MS) {
 			stentura.had_error = true
+			stentura.status = .Write_Failed
 			return 0, false
 		}
 
 		received_size, read_result := stentura_read_packet(stentura, response)
 		if read_result == .Timeout {
+			last_status = .Response_Timeout
 			continue
 		}
 		if read_result != .Ok {
 			stentura.had_error = true
+			if stentura.status == .Ok {
+				stentura.status = .Response_Error
+			}
 			return 0, false
 		}
 		if response[1] != request_sequence {
+			last_status = .Response_Sequence_Mismatch
 			continue
 		}
 		if read_u16le(response[4:6]) != request_action {
 			stentura.had_error = true
+			stentura.status = .Response_Action_Mismatch
 			return 0, false
 		}
 
+		stentura.status = .Ok
 		return received_size, true
 	}
 
 	stentura.had_error = true
+	stentura.status = last_status
 	return 0, false
 }
 
@@ -353,6 +440,7 @@ stentura_read_realtime_data :: proc(stentura: ^Stentura, out_data: []byte) -> (r
 	if stentura == nil || len(out_data) < STENTURA_READ_SIZE {
 		if stentura != nil {
 			stentura.had_error = true
+			stentura.status = .Internal_Error
 		}
 		return 0, false
 	}
@@ -368,11 +456,15 @@ stentura_read_realtime_data :: proc(stentura: ^Stentura, out_data: []byte) -> (r
 	)
 	if request_size == 0 {
 		stentura.had_error = true
+		stentura.status = .Build_Read_Request_Failed
 		return 0, false
 	}
 
 	response_size, received := stentura_send_receive(stentura, request[:request_size], response[:])
 	if !received {
+		if stentura.status == .Ok {
+			stentura.status = .Realtime_Read_Failed
+		}
 		return 0, false
 	}
 
@@ -384,6 +476,7 @@ stentura_read_realtime_data :: proc(stentura: ^Stentura, out_data: []byte) -> (r
 	if !((p1 == 0 && response_size == 14) || int(p1) == response_data_size) ||
 	   response_data_size > len(out_data) {
 		stentura.had_error = true
+		stentura.status = .Realtime_Response_Mismatch
 		return 0, false
 	}
 
@@ -420,6 +513,7 @@ stentura_open :: proc(stentura: ^Stentura, port_path: string, baud_rate: int) ->
 		resolved_baud_rate = PLATFORM_SERIAL_DEFAULT_BAUD
 	}
 	if !platform_serial_open(&stentura.serial, port_path, resolved_baud_rate) {
+		stentura.status = .Serial_Open_Failed
 		return false
 	}
 	stentura.serial_open = true
@@ -431,16 +525,29 @@ stentura_open :: proc(stentura: ^Stentura, port_path: string, baud_rate: int) ->
 	response: [STENTURA_PACKET_BUFFER_SIZE]byte
 	request_size := stentura_make_open(request[:], stentura_next_sequence(stentura), 'A', "REALTIME.000")
 	if request_size == 0 {
-		stentura_close(stentura)
+		stentura_close_with_status(stentura, .Build_Open_Request_Failed)
 		return false
 	}
 
 	_, ok := stentura_send_receive(stentura, request[:request_size], response[:])
-	if !ok || !stentura_drain_realtime_file(stentura) {
-		stentura_close(stentura)
+	if !ok {
+		status := stentura.status
+		if status == .Ok {
+			status = .Open_Handshake_Failed
+		}
+		stentura_close_with_status(stentura, status)
+		return false
+	}
+	if !stentura_drain_realtime_file(stentura) {
+		status := stentura.status
+		if status == .Ok {
+			status = .Initial_Drain_Failed
+		}
+		stentura_close_with_status(stentura, status)
 		return false
 	}
 
+	stentura.status = .Ok
 	return true
 }
 
@@ -483,6 +590,7 @@ stentura_read_stroke :: proc(stentura: ^Stentura) -> (bits: u64, ok: bool) {
 	decoded_count, decoded := stentura_decode_strokes(stroke_data[:read_size], stentura.queued_strokes[:])
 	if !decoded {
 		stentura.had_error = true
+		stentura.status = .Stroke_Decode_Failed
 		return 0, false
 	}
 	stentura.queued_stroke_count = decoded_count

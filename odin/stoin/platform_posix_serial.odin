@@ -7,6 +7,10 @@ import "core:sys/posix"
 
 PLATFORM_SERIAL_DEFAULT_BAUD :: 9600
 
+when ODIN_OS == .Darwin {
+	PLATFORM_SERIAL_DARWIN_CRTSCTS :: transmute(posix.CControl_Flags)posix.tcflag_t(0x00030000)
+}
+
 Platform_Serial_Read_Result :: enum {
 	Error,
 	None,
@@ -156,12 +160,17 @@ platform_serial_configure :: proc(fd: posix.FD, baud_rate: int) -> bool {
 		.IGNCR,
 		.ICRNL,
 		.IXON,
+		.IXOFF,
+		.IXANY,
 	}
 	options.c_oflag -= {.OPOST}
 	options.c_lflag -= {.ECHO, .ECHONL, .ICANON, .ISIG, .IEXTEN}
 	options.c_cflag -= posix.CSIZE
 	options.c_cflag -= {.PARENB, .CSTOPB}
 	options.c_cflag += {.CS8, .CLOCAL, .CREAD}
+	when ODIN_OS == .Darwin {
+		options.c_cflag -= PLATFORM_SERIAL_DARWIN_CRTSCTS
+	}
 	options.c_cc[.VMIN] = posix.cc_t(0)
 	options.c_cc[.VTIME] = posix.cc_t(1)
 

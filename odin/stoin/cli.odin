@@ -1138,6 +1138,10 @@ run_stentura_cli :: proc(config: ^Cli_Config) -> bool {
 			if !connected {
 				if !stentura_cli_open(config, &stentura, baud_rate) {
 					if !announced_disconnected {
+						reason := stentura_status_message(&stentura)
+						if len(reason) > 0 {
+							fmt.eprintln("stoin: Stentura connection failed:", reason)
+						}
 						if len(config.serial_port_path) > 0 {
 							fmt.eprintln("stoin: Stentura disconnected; waiting for", config.serial_port_path)
 						} else {
