@@ -655,6 +655,102 @@ cli_runtime_write_suggestion_log :: proc(line: string, userdata: rawptr) -> bool
 	return write_err == nil
 }
 
+cli_platform_live_output_supported :: proc() -> bool {
+	when ODIN_OS == .Darwin || ODIN_OS == .Linux {
+		return true
+	} else {
+		return false
+	}
+}
+
+cli_platform_live_output_name :: proc() -> string {
+	when ODIN_OS == .Darwin {
+		return "macOS text output"
+	} else when ODIN_OS == .Linux {
+		return "Linux uinput text output"
+	} else {
+		return "platform text output"
+	}
+}
+
+cli_platform_configure_runtime_output :: proc(runtime_config: ^Steno_Runtime_Load_Config, config: ^Cli_Config) -> bool {
+	if runtime_config == nil {
+		return false
+	}
+	when ODIN_OS == .Darwin {
+		runtime_config.send_text = macos_runtime_send_text
+		runtime_config.delete_text = macos_runtime_delete_text
+		runtime_config.send_key_combination = macos_runtime_send_key_combination
+		if config != nil && config.time_translations {
+			runtime_config.begin_translation_timing = macos_translation_timing_begin
+			runtime_config.cancel_translation_timing = macos_translation_timing_cancel
+		}
+		return true
+	} else when ODIN_OS == .Linux {
+		runtime_config.send_text = linux_runtime_send_text
+		runtime_config.delete_text = linux_runtime_delete_text
+		runtime_config.send_key_combination = linux_runtime_send_key_combination
+		if config != nil && config.time_translations {
+			runtime_config.begin_translation_timing = linux_translation_timing_begin
+			runtime_config.cancel_translation_timing = linux_translation_timing_cancel
+		}
+		return true
+	} else {
+		return false
+	}
+}
+
+cli_platform_output_init :: proc() -> bool {
+	when ODIN_OS == .Darwin {
+		return macos_output_init()
+	} else when ODIN_OS == .Linux {
+		return linux_output_init()
+	} else {
+		return false
+	}
+}
+
+cli_platform_output_shutdown :: proc() {
+	when ODIN_OS == .Darwin {
+		macos_output_shutdown()
+	} else when ODIN_OS == .Linux {
+		linux_output_shutdown()
+	}
+}
+
+cli_platform_translation_timing_set_enabled :: proc(enabled: bool) {
+	when ODIN_OS == .Darwin {
+		macos_translation_timing_set_enabled(enabled)
+	} else when ODIN_OS == .Linux {
+		linux_translation_timing_set_enabled(enabled)
+	} else {
+		_ = enabled
+	}
+}
+
+cli_platform_keyboard_listener_supported :: proc() -> bool {
+	when ODIN_OS == .Darwin {
+		return true
+	} else {
+		return false
+	}
+}
+
+cli_platform_keyboard_listener_start :: proc(owner: ^Steno_Runtime_Owner) -> bool {
+	when ODIN_OS == .Darwin {
+		return macos_keyboard_listen_start(owner)
+	} else {
+		_ = owner
+		return false
+	}
+}
+
+cli_platform_keyboard_listener_stop :: proc() {
+	when ODIN_OS == .Darwin {
+		macos_keyboard_listen_stop()
+	}
+}
+
 run_translate_cli :: proc(config: ^Cli_Config) -> bool {
 	suggestion_log_file: ^os.File
 	if len(config.suggestion_log_path) > 0 {
@@ -1177,9 +1273,9 @@ cli_sleep_ms :: proc(ms: int) {
 }
 
 run_tx_bolt_cli :: proc(config: ^Cli_Config) -> bool {
-	when ODIN_OS != .Darwin {
+	when ODIN_OS != .Darwin && ODIN_OS != .Linux {
 		_ = config
-		fmt.eprintln("stoin: TX Bolt input is currently implemented only on macOS in the Odin port")
+		fmt.eprintln("stoin: TX Bolt input is currently implemented only on macOS and Linux in the Odin port")
 		return false
 	} else {
 		suggestion_log_file: ^os.File
@@ -1208,18 +1304,12 @@ run_tx_bolt_cli :: proc(config: ^Cli_Config) -> bool {
 			dictionary_paths = config.dict_paths[:],
 			dictionary_enabled = config.dict_enabled[:],
 			orthography_path = config.orthography_path,
-			send_text = macos_runtime_send_text,
-			delete_text = macos_runtime_delete_text,
-			send_key_combination = macos_runtime_send_key_combination,
 			userdata = rawptr(&output),
 		}
 		if config.trace_strokes {
 			runtime_config.write_trace = cli_runtime_write_line
 		}
-		if config.time_translations {
-			runtime_config.begin_translation_timing = macos_translation_timing_begin
-			runtime_config.cancel_translation_timing = macos_translation_timing_cancel
-		}
+		_ = cli_platform_configure_runtime_output(&runtime_config, config)
 		if len(config.phrasing_path) > 0 {
 			runtime_config.phrasing_path = config.phrasing_path
 		}
@@ -1243,19 +1333,23 @@ run_tx_bolt_cli :: proc(config: ^Cli_Config) -> bool {
 		}
 		cli_configure_runtime_input_options(config, &owner.runtime)
 
-		if !macos_output_init() {
-			fmt.eprintln("stoin: failed to initialize macOS text output")
+		if !cli_platform_output_init() {
+			fmt.eprintln("stoin: failed to initialize", cli_platform_live_output_name())
 			return false
 		}
-		macos_translation_timing_set_enabled(config.time_translations)
-		defer macos_output_shutdown()
-		defer macos_translation_timing_set_enabled(false)
+		cli_platform_translation_timing_set_enabled(config.time_translations)
+		defer cli_platform_output_shutdown()
+		defer cli_platform_translation_timing_set_enabled(false)
 		if cli_keyboard_listener_enabled(config) {
-			if !macos_keyboard_listen_start(&owner) {
-				fmt.eprintln("stoin: failed to start macOS keyboard listener; confirm Accessibility permission")
+			if !cli_platform_keyboard_listener_supported() {
+				fmt.eprintln("stoin: phrase-toggle and trace-key-events keyboard listening are not implemented on this platform yet")
 				return false
 			}
-			defer macos_keyboard_listen_stop()
+			if !cli_platform_keyboard_listener_start(&owner) {
+				fmt.eprintln("stoin: failed to start platform keyboard listener")
+				return false
+			}
+			defer cli_platform_keyboard_listener_stop()
 		}
 
 		baud_rate := config.serial_baud_rate
@@ -1339,9 +1433,9 @@ run_tx_bolt_cli :: proc(config: ^Cli_Config) -> bool {
 }
 
 run_gemini_pr_cli :: proc(config: ^Cli_Config) -> bool {
-	when ODIN_OS != .Darwin {
+	when ODIN_OS != .Darwin && ODIN_OS != .Linux {
 		_ = config
-		fmt.eprintln("stoin: Gemini PR input is currently implemented only on macOS in the Odin port")
+		fmt.eprintln("stoin: Gemini PR input is currently implemented only on macOS and Linux in the Odin port")
 		return false
 	} else {
 		suggestion_log_file: ^os.File
@@ -1370,18 +1464,12 @@ run_gemini_pr_cli :: proc(config: ^Cli_Config) -> bool {
 			dictionary_paths = config.dict_paths[:],
 			dictionary_enabled = config.dict_enabled[:],
 			orthography_path = config.orthography_path,
-			send_text = macos_runtime_send_text,
-			delete_text = macos_runtime_delete_text,
-			send_key_combination = macos_runtime_send_key_combination,
 			userdata = rawptr(&output),
 		}
 		if config.trace_strokes {
 			runtime_config.write_trace = cli_runtime_write_line
 		}
-		if config.time_translations {
-			runtime_config.begin_translation_timing = macos_translation_timing_begin
-			runtime_config.cancel_translation_timing = macos_translation_timing_cancel
-		}
+		_ = cli_platform_configure_runtime_output(&runtime_config, config)
 		if len(config.phrasing_path) > 0 {
 			runtime_config.phrasing_path = config.phrasing_path
 		}
@@ -1405,19 +1493,23 @@ run_gemini_pr_cli :: proc(config: ^Cli_Config) -> bool {
 		}
 		cli_configure_runtime_input_options(config, &owner.runtime)
 
-		if !macos_output_init() {
-			fmt.eprintln("stoin: failed to initialize macOS text output")
+		if !cli_platform_output_init() {
+			fmt.eprintln("stoin: failed to initialize", cli_platform_live_output_name())
 			return false
 		}
-		macos_translation_timing_set_enabled(config.time_translations)
-		defer macos_output_shutdown()
-		defer macos_translation_timing_set_enabled(false)
+		cli_platform_translation_timing_set_enabled(config.time_translations)
+		defer cli_platform_output_shutdown()
+		defer cli_platform_translation_timing_set_enabled(false)
 		if cli_keyboard_listener_enabled(config) {
-			if !macos_keyboard_listen_start(&owner) {
-				fmt.eprintln("stoin: failed to start macOS keyboard listener; confirm Accessibility permission")
+			if !cli_platform_keyboard_listener_supported() {
+				fmt.eprintln("stoin: phrase-toggle and trace-key-events keyboard listening are not implemented on this platform yet")
 				return false
 			}
-			defer macos_keyboard_listen_stop()
+			if !cli_platform_keyboard_listener_start(&owner) {
+				fmt.eprintln("stoin: failed to start platform keyboard listener")
+				return false
+			}
+			defer cli_platform_keyboard_listener_stop()
 		}
 
 		baud_rate := config.serial_baud_rate
@@ -1505,9 +1597,9 @@ stentura_cli_open :: proc(config: ^Cli_Config, stentura: ^Stentura, baud_rate: i
 }
 
 run_stentura_cli :: proc(config: ^Cli_Config) -> bool {
-	when ODIN_OS != .Darwin {
+	when ODIN_OS != .Darwin && ODIN_OS != .Linux {
 		_ = config
-		fmt.eprintln("stoin: Stentura input is currently implemented only on macOS in the Odin port")
+		fmt.eprintln("stoin: Stentura input is currently implemented only on macOS and Linux in the Odin port")
 		return false
 	} else {
 		suggestion_log_file: ^os.File
@@ -1536,18 +1628,12 @@ run_stentura_cli :: proc(config: ^Cli_Config) -> bool {
 			dictionary_paths = config.dict_paths[:],
 			dictionary_enabled = config.dict_enabled[:],
 			orthography_path = config.orthography_path,
-			send_text = macos_runtime_send_text,
-			delete_text = macos_runtime_delete_text,
-			send_key_combination = macos_runtime_send_key_combination,
 			userdata = rawptr(&output),
 		}
 		if config.trace_strokes {
 			runtime_config.write_trace = cli_runtime_write_line
 		}
-		if config.time_translations {
-			runtime_config.begin_translation_timing = macos_translation_timing_begin
-			runtime_config.cancel_translation_timing = macos_translation_timing_cancel
-		}
+		_ = cli_platform_configure_runtime_output(&runtime_config, config)
 		if len(config.phrasing_path) > 0 {
 			runtime_config.phrasing_path = config.phrasing_path
 		}
@@ -1571,19 +1657,23 @@ run_stentura_cli :: proc(config: ^Cli_Config) -> bool {
 		}
 		cli_configure_runtime_input_options(config, &owner.runtime)
 
-		if !macos_output_init() {
-			fmt.eprintln("stoin: failed to initialize macOS text output")
+		if !cli_platform_output_init() {
+			fmt.eprintln("stoin: failed to initialize", cli_platform_live_output_name())
 			return false
 		}
-		macos_translation_timing_set_enabled(config.time_translations)
-		defer macos_output_shutdown()
-		defer macos_translation_timing_set_enabled(false)
+		cli_platform_translation_timing_set_enabled(config.time_translations)
+		defer cli_platform_output_shutdown()
+		defer cli_platform_translation_timing_set_enabled(false)
 		if cli_keyboard_listener_enabled(config) {
-			if !macos_keyboard_listen_start(&owner) {
-				fmt.eprintln("stoin: failed to start macOS keyboard listener; confirm Accessibility permission")
+			if !cli_platform_keyboard_listener_supported() {
+				fmt.eprintln("stoin: phrase-toggle and trace-key-events keyboard listening are not implemented on this platform yet")
 				return false
 			}
-			defer macos_keyboard_listen_stop()
+			if !cli_platform_keyboard_listener_start(&owner) {
+				fmt.eprintln("stoin: failed to start platform keyboard listener")
+				return false
+			}
+			defer cli_platform_keyboard_listener_stop()
 		}
 
 		baud_rate := config.serial_baud_rate
