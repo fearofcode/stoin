@@ -656,7 +656,7 @@ cli_runtime_write_suggestion_log :: proc(line: string, userdata: rawptr) -> bool
 }
 
 cli_platform_live_output_supported :: proc() -> bool {
-	when ODIN_OS == .Darwin || ODIN_OS == .Linux {
+	when ODIN_OS == .Darwin || ODIN_OS == .Linux || ODIN_OS == .Windows {
 		return true
 	} else {
 		return false
@@ -668,6 +668,8 @@ cli_platform_live_output_name :: proc() -> string {
 		return "macOS text output"
 	} else when ODIN_OS == .Linux {
 		return "Linux uinput text output"
+	} else when ODIN_OS == .Windows {
+		return "Windows SendInput text output"
 	} else {
 		return "platform text output"
 	}
@@ -695,6 +697,15 @@ cli_platform_configure_runtime_output :: proc(runtime_config: ^Steno_Runtime_Loa
 			runtime_config.cancel_translation_timing = linux_translation_timing_cancel
 		}
 		return true
+	} else when ODIN_OS == .Windows {
+		runtime_config.send_text = windows_runtime_send_text
+		runtime_config.delete_text = windows_runtime_delete_text
+		runtime_config.send_key_combination = windows_runtime_send_key_combination
+		if config != nil && config.time_translations {
+			runtime_config.begin_translation_timing = windows_translation_timing_begin
+			runtime_config.cancel_translation_timing = windows_translation_timing_cancel
+		}
+		return true
 	} else {
 		return false
 	}
@@ -705,6 +716,8 @@ cli_platform_output_init :: proc() -> bool {
 		return macos_output_init()
 	} else when ODIN_OS == .Linux {
 		return linux_output_init()
+	} else when ODIN_OS == .Windows {
+		return windows_output_init()
 	} else {
 		return false
 	}
@@ -715,6 +728,8 @@ cli_platform_output_shutdown :: proc() {
 		macos_output_shutdown()
 	} else when ODIN_OS == .Linux {
 		linux_output_shutdown()
+	} else when ODIN_OS == .Windows {
+		windows_output_shutdown()
 	}
 }
 
@@ -723,6 +738,8 @@ cli_platform_translation_timing_set_enabled :: proc(enabled: bool) {
 		macos_translation_timing_set_enabled(enabled)
 	} else when ODIN_OS == .Linux {
 		linux_translation_timing_set_enabled(enabled)
+	} else when ODIN_OS == .Windows {
+		windows_translation_timing_set_enabled(enabled)
 	} else {
 		_ = enabled
 	}
@@ -1308,9 +1325,9 @@ cli_sleep_ms :: proc(ms: int) {
 }
 
 run_tx_bolt_cli :: proc(config: ^Cli_Config) -> bool {
-	when ODIN_OS != .Darwin && ODIN_OS != .Linux {
+	when ODIN_OS != .Darwin && ODIN_OS != .Linux && ODIN_OS != .Windows {
 		_ = config
-		fmt.eprintln("stoin: TX Bolt input is currently implemented only on macOS and Linux in the Odin port")
+		fmt.eprintln("stoin: TX Bolt input is currently implemented only on macOS, Linux, and Windows in the Odin port")
 		return false
 	} else {
 		suggestion_log_file: ^os.File
@@ -1468,9 +1485,9 @@ run_tx_bolt_cli :: proc(config: ^Cli_Config) -> bool {
 }
 
 run_gemini_pr_cli :: proc(config: ^Cli_Config) -> bool {
-	when ODIN_OS != .Darwin && ODIN_OS != .Linux {
+	when ODIN_OS != .Darwin && ODIN_OS != .Linux && ODIN_OS != .Windows {
 		_ = config
-		fmt.eprintln("stoin: Gemini PR input is currently implemented only on macOS and Linux in the Odin port")
+		fmt.eprintln("stoin: Gemini PR input is currently implemented only on macOS, Linux, and Windows in the Odin port")
 		return false
 	} else {
 		suggestion_log_file: ^os.File
@@ -1632,9 +1649,9 @@ stentura_cli_open :: proc(config: ^Cli_Config, stentura: ^Stentura, baud_rate: i
 }
 
 run_stentura_cli :: proc(config: ^Cli_Config) -> bool {
-	when ODIN_OS != .Darwin && ODIN_OS != .Linux {
+	when ODIN_OS != .Darwin && ODIN_OS != .Linux && ODIN_OS != .Windows {
 		_ = config
-		fmt.eprintln("stoin: Stentura input is currently implemented only on macOS and Linux in the Odin port")
+		fmt.eprintln("stoin: Stentura input is currently implemented only on macOS, Linux, and Windows in the Odin port")
 		return false
 	} else {
 		suggestion_log_file: ^os.File
