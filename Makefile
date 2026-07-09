@@ -98,6 +98,7 @@ ODIN_SOURCE_DIR := odin/stoin
 ODIN_BUILD_DIR := $(BUILD_DIR)/odin
 ODIN_TARGET := $(ODIN_BUILD_DIR)/stoin$(EXE_EXT)
 ODIN_RELEASE_TARGET := $(RELEASE_DIR)/odin/stoin$(EXE_EXT)
+ODIN_CHECK_TARGETS ?= linux_arm64 linux_amd64 windows_amd64
 
 CORE_SOURCES := $(COMMON_SOURCES) $(PLATFORM_SOURCES)
 CORE_OBJECTS := $(patsubst src/%.c,$(BUILD_DIR)/%.o,$(CORE_SOURCES)) \
@@ -109,7 +110,7 @@ RELEASE_CORE_OBJECTS := $(patsubst src/%.c,$(RELEASE_DIR)/%.o,$(CORE_SOURCES)) \
 	$(patsubst third_party/%.c,$(RELEASE_DIR)/third_party/%.o,$(VENDOR_SOURCES))
 RELEASE_APP_OBJECTS := $(RELEASE_DIR)/main.o $(RELEASE_CORE_OBJECTS)
 
-.PHONY: all clean linux macos odin odin-release odin-test release run srs-web test windows
+.PHONY: all clean linux macos odin odin-check odin-release odin-test release run srs-web test windows
 
 all: $(TARGET)
 
@@ -188,6 +189,13 @@ test: $(TEST_TARGET)
 
 odin-test:
 	$(ODIN) test $(ODIN_SOURCE_DIR)
+
+odin-check:
+	$(ODIN) check $(ODIN_SOURCE_DIR)
+	@for target in $(ODIN_CHECK_TARGETS); do \
+		echo "$(ODIN) check $(ODIN_SOURCE_DIR) -target:$$target"; \
+		$(ODIN) check $(ODIN_SOURCE_DIR) -target:$$target || exit $$?; \
+	done
 
 clean:
 	rm -rf build
