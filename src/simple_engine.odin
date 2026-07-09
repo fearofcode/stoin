@@ -10,6 +10,8 @@ Applied_Translation :: struct {
 	text:         string,
 	next_attach:  bool,
 	glue:         bool,
+	split_prefix_text: string,
+	split_prefix_stroke_count: int,
 	replaced:     [dynamic]Applied_Translation,
 	retro_space_command: bool,
 	previous_case_mode: Case_Mode,
@@ -25,6 +27,8 @@ Translation_Match :: struct {
 	strokes:         [dynamic]u64,
 	replaced_count:  int,
 	outline:         string,
+	partial_prefix_text: string,
+	partial_prefix_stroke_count: int,
 	found:           bool,
 }
 
@@ -82,6 +86,7 @@ simple_engine_set_spacing :: proc(engine: ^Simple_Engine, spacing: string) -> bo
 applied_translation_destroy :: proc(translation: ^Applied_Translation) {
 	delete(translation.strokes)
 	owned_string_delete(translation.text)
+	owned_string_delete(translation.split_prefix_text)
 	for i in 0..<len(translation.replaced) {
 		applied_translation_destroy(&translation.replaced[i])
 	}
@@ -92,6 +97,7 @@ applied_translation_destroy :: proc(translation: ^Applied_Translation) {
 applied_translation_destroy_without_replaced :: proc(translation: ^Applied_Translation) {
 	delete(translation.strokes)
 	owned_string_delete(translation.text)
+	owned_string_delete(translation.split_prefix_text)
 	delete(translation.replaced)
 	translation^ = {}
 }
@@ -99,7 +105,50 @@ applied_translation_destroy_without_replaced :: proc(translation: ^Applied_Trans
 translation_match_destroy :: proc(match: ^Translation_Match) {
 	delete(match.strokes)
 	owned_string_delete(match.outline)
+	owned_string_delete(match.partial_prefix_text)
 	match^ = {}
+}
+
+translation_match_clear_partial_prefix :: proc(match: ^Translation_Match) {
+	owned_string_delete(match.partial_prefix_text)
+	match.partial_prefix_text = ""
+	match.partial_prefix_stroke_count = 0
+}
+
+translation_match_set_partial_prefix :: proc(match: ^Translation_Match, text: string, stroke_count: int) -> bool {
+	translation_match_clear_partial_prefix(match)
+	if len(text) == 0 {
+		match.partial_prefix_stroke_count = stroke_count
+		return true
+	}
+	copy, ok := clone_string_ok(text)
+	if !ok {
+		return false
+	}
+	match.partial_prefix_text = copy
+	match.partial_prefix_stroke_count = stroke_count
+	return true
+}
+
+applied_translation_set_split_prefix :: proc(translation: ^Applied_Translation, text: string, stroke_count: int) -> bool {
+	owned_string_delete(translation.split_prefix_text)
+	translation.split_prefix_text = ""
+	translation.split_prefix_stroke_count = 0
+
+	if stroke_count <= 0 {
+		return true
+	}
+	if len(text) == 0 {
+		translation.split_prefix_stroke_count = stroke_count
+		return true
+	}
+	copy, ok := clone_string_ok(text)
+	if !ok {
+		return false
+	}
+	translation.split_prefix_text = copy
+	translation.split_prefix_stroke_count = stroke_count
+	return true
 }
 
 clone_bytes_to_string :: proc(data: []byte) -> (string, bool) {
@@ -332,6 +381,9 @@ simple_engine_try_suffix_match :: proc(dictionary: ^Dictionary, candidate: []u64
 
 	suffix_keys := [?]Steno_Key{.Right_Z, .Right_D, .Right_S, .Right_G}
 	last_stroke := candidate[len(candidate) - 1]
+	if _, found := dictionary_lookup_bits(dictionary, last_stroke); found {
+		return false, true
+	}
 	for suffix_key in suffix_keys {
 		suffix_bit := steno_bit(suffix_key)
 		if (last_stroke & suffix_bit) == 0 || (last_stroke & bits_after_steno_key(suffix_key)) != 0 {
@@ -372,6 +424,95 @@ simple_engine_try_suffix_match :: proc(dictionary: ^Dictionary, candidate: []u64
 	return false, true
 }
 
+simple_engine_try_candidate_match :: proc(
+	dictionary: ^Dictionary,
+	candidate: []u64,
+	replaced_count: int,
+	match: ^Translation_Match,
+	best_candidate: ^[dynamic]u64,
+	partial_prefix_text: string = "",
+	partial_prefix_stroke_count: int = 0,
+) -> (found: bool, ok: bool) {
+	if translation, dictionary_found := dictionary_lookup_strokes(dictionary, candidate); dictionary_found {
+		if len(translation) == 0 || translation[0] != '=' {
+			match.translation = translation
+			match.suffix_base_translation = ""
+			match.suffix_translation = ""
+			match.suffix_match = false
+			match.replaced_count = replaced_count
+			match.found = true
+			if partial_prefix_stroke_count > 0 {
+				if !translation_match_set_partial_prefix(match, partial_prefix_text, partial_prefix_stroke_count) {
+					return false, false
+				}
+			} else {
+				translation_match_clear_partial_prefix(match)
+			}
+			resize(best_candidate, 0)
+			append_strokes(best_candidate, candidate)
+			return true, true
+		}
+		return false, true
+	}
+
+	suffix_found, suffix_ok := simple_engine_try_suffix_match(dictionary, candidate, replaced_count, match, best_candidate)
+	if !suffix_ok {
+		return false, false
+	}
+	if suffix_found {
+		if partial_prefix_stroke_count > 0 {
+			if !translation_match_set_partial_prefix(match, partial_prefix_text, partial_prefix_stroke_count) {
+				return false, false
+			}
+		} else {
+			translation_match_clear_partial_prefix(match)
+		}
+	}
+	return suffix_found, true
+}
+
+simple_engine_text_has_prefix :: proc(text: string, prefix: string) -> bool {
+	return len(prefix) <= len(text) && text[:len(prefix)] == prefix
+}
+
+simple_engine_try_partial_candidate_match :: proc(
+	engine: ^Simple_Engine,
+	previous: ^Applied_Translation,
+	candidate: []u64,
+	replaced_count: int,
+	match: ^Translation_Match,
+	best_candidate: ^[dynamic]u64,
+	max_strokes: int,
+) -> (ok: bool) {
+	prefix_stroke_count := previous.split_prefix_stroke_count
+	if prefix_stroke_count <= 0 ||
+	   prefix_stroke_count >= len(previous.strokes) ||
+	   !simple_engine_text_has_prefix(previous.text, previous.split_prefix_text) {
+		return true
+	}
+
+	suffix := previous.strokes[prefix_stroke_count:]
+	if len(suffix) == 0 || len(suffix) + len(candidate) > max_strokes {
+		return true
+	}
+
+	partial_candidate := make([dynamic]u64)
+	defer delete(partial_candidate)
+	append_strokes(&partial_candidate, suffix)
+	append_strokes(&partial_candidate, candidate)
+
+	_, candidate_ok := simple_engine_try_candidate_match(
+		engine.dictionary,
+		partial_candidate[:],
+		replaced_count + 1,
+		match,
+		best_candidate,
+		previous.split_prefix_text,
+		prefix_stroke_count,
+	)
+	return candidate_ok
+}
+
 simple_engine_find_match :: proc(engine: ^Simple_Engine, bits: u64) -> (match: Translation_Match, ok: bool) {
 	max_strokes := simple_engine_lookup_stroke_limit(engine.dictionary)
 	candidate := make([dynamic]u64)
@@ -381,26 +522,23 @@ simple_engine_find_match :: proc(engine: ^Simple_Engine, bits: u64) -> (match: T
 	defer delete(best_candidate)
 
 	replaced_count := 0
-	if translation, found := dictionary_lookup_strokes(engine.dictionary, candidate[:]); found {
-		if len(translation) == 0 || translation[0] != '=' {
-			match.translation = translation
-			match.suffix_base_translation = ""
-			match.suffix_translation = ""
-			match.suffix_match = false
-			match.replaced_count = replaced_count
-			match.found = true
-			append_strokes(&best_candidate, candidate[:])
-		}
-	} else {
-		if _, suffix_ok := simple_engine_try_suffix_match(engine.dictionary, candidate[:], replaced_count, &match, &best_candidate); !suffix_ok {
-			return {}, false
-		}
+	if _, candidate_ok := simple_engine_try_candidate_match(engine.dictionary, candidate[:], replaced_count, &match, &best_candidate); !candidate_ok {
+		return {}, false
 	}
 
 	for i := len(engine.history); i > 0 && len(candidate) < max_strokes; {
 		i -= 1
 		previous := &engine.history[i]
-		if len(previous.strokes) == 0 || len(candidate) + len(previous.strokes) > max_strokes {
+		if len(previous.strokes) == 0 {
+			break
+		}
+
+		if !simple_engine_try_partial_candidate_match(engine, previous, candidate[:], replaced_count, &match, &best_candidate, max_strokes) {
+			translation_match_destroy(&match)
+			return {}, false
+		}
+
+		if len(candidate) + len(previous.strokes) > max_strokes {
 			break
 		}
 
@@ -411,22 +549,9 @@ simple_engine_find_match :: proc(engine: ^Simple_Engine, bits: u64) -> (match: T
 		candidate = next_candidate
 		replaced_count += 1
 
-		if translation, found := dictionary_lookup_strokes(engine.dictionary, candidate[:]); found {
-			if len(translation) == 0 || translation[0] != '=' {
-				match.translation = translation
-				match.suffix_base_translation = ""
-				match.suffix_translation = ""
-				match.suffix_match = false
-				match.replaced_count = replaced_count
-				match.found = true
-				resize(&best_candidate, 0)
-				append_strokes(&best_candidate, candidate[:])
-			}
-		} else {
-			if _, suffix_ok := simple_engine_try_suffix_match(engine.dictionary, candidate[:], replaced_count, &match, &best_candidate); !suffix_ok {
-				translation_match_destroy(&match)
-				return {}, false
-			}
+		if _, candidate_ok := simple_engine_try_candidate_match(engine.dictionary, candidate[:], replaced_count, &match, &best_candidate); !candidate_ok {
+			translation_match_destroy(&match)
+			return {}, false
 		}
 	}
 
@@ -576,6 +701,30 @@ simple_engine_build_text :: proc(engine: ^Simple_Engine, old_text: string, previ
 	return clone_bytes_to_string(buffer[:])
 }
 
+simple_engine_match_has_partial_prefix :: proc(match: ^Translation_Match) -> bool {
+	return match.partial_prefix_stroke_count > 0
+}
+
+simple_engine_build_partial_replacement_text :: proc(engine: ^Simple_Engine, prefix_text: string, previous: ^Applied_Translation, formatted: ^Formatted_Text) -> (string, bool) {
+	if formatted.attach_prev {
+		return simple_engine_build_text(engine, prefix_text, previous, formatted)
+	}
+
+	synthetic_previous := Applied_Translation{text = prefix_text}
+	previous_for_suffix := len(prefix_text) > 0 ? &synthetic_previous : previous
+	suffix_text, suffix_ok := simple_engine_build_text(engine, "", previous_for_suffix, formatted)
+	if !suffix_ok {
+		return "", false
+	}
+	defer owned_string_delete(suffix_text)
+
+	buffer := make([dynamic]byte)
+	defer delete(buffer)
+	formatted_append_string(&buffer, prefix_text)
+	formatted_append_string(&buffer, suffix_text)
+	return clone_bytes_to_string(buffer[:])
+}
+
 simple_engine_apply_match :: proc(engine: ^Simple_Engine, match: ^Translation_Match) -> bool {
 	if match.suffix_match {
 		return simple_engine_apply_suffix_match(engine, match)
@@ -624,8 +773,7 @@ simple_engine_apply_match :: proc(engine: ^Simple_Engine, match: ^Translation_Ma
 
 	translation_count := len(engine.history)
 	replaced_count := match.replaced_count
-	strokes := make([dynamic]u64)
-	defer delete(strokes)
+	auto_split_prefix := false
 
 	if replaced_count == 0 && translation_count > 0 && (formatted.attach_prev || formatted.glue && engine.history[translation_count - 1].glue) {
 		if formatted.stitch && engine.history[translation_count - 1].glue {
@@ -635,9 +783,8 @@ simple_engine_apply_match :: proc(engine: ^Simple_Engine, match: ^Translation_Ma
 		}
 		replaced_count = 1
 		formatted.attach_prev = true
-		append_strokes(&strokes, engine.history[translation_count - 1].strokes[:])
+		auto_split_prefix = true
 	}
-	append_strokes(&strokes, match.strokes[:])
 
 	if replaced_count > translation_count {
 		return false
@@ -658,11 +805,17 @@ simple_engine_apply_match :: proc(engine: ^Simple_Engine, match: ^Translation_Ma
 	}
 
 	previous := simple_engine_previous_visible(engine, replace_start)
-	next_text, next_text_ok := simple_engine_build_text(engine, old_text, previous, &formatted)
-	if old_text_owned {
-		owned_string_delete(old_text_alloc)
+	next_text: string
+	next_text_ok: bool
+	if simple_engine_match_has_partial_prefix(match) {
+		next_text, next_text_ok = simple_engine_build_partial_replacement_text(engine, match.partial_prefix_text, previous, &formatted)
+	} else {
+		next_text, next_text_ok = simple_engine_build_text(engine, old_text, previous, &formatted)
 	}
 	if !next_text_ok {
+		if old_text_owned {
+			owned_string_delete(old_text_alloc)
+		}
 		return false
 	}
 
@@ -675,7 +828,46 @@ simple_engine_apply_match :: proc(engine: ^Simple_Engine, match: ^Translation_Ma
 		previous_next_case = previous_next_case,
 		has_case_state = true,
 	}
+
+	strokes := make([dynamic]u64)
+	defer delete(strokes)
+	if simple_engine_match_has_partial_prefix(match) {
+		if replace_start >= translation_count || match.partial_prefix_stroke_count > len(engine.history[replace_start].strokes) {
+			applied_translation_destroy(&next)
+			if old_text_owned {
+				owned_string_delete(old_text_alloc)
+			}
+			return false
+		}
+		append_strokes(&strokes, engine.history[replace_start].strokes[:match.partial_prefix_stroke_count])
+	} else if auto_split_prefix {
+		for i := replace_start; i < translation_count; i += 1 {
+			append_strokes(&strokes, engine.history[i].strokes[:])
+		}
+	}
 	append_strokes(&next.strokes, strokes[:])
+	split_prefix_stroke_count := len(strokes)
+	append_strokes(&next.strokes, match.strokes[:])
+	if simple_engine_match_has_partial_prefix(match) {
+		if !applied_translation_set_split_prefix(&next, match.partial_prefix_text, match.partial_prefix_stroke_count) {
+			applied_translation_destroy(&next)
+			if old_text_owned {
+				owned_string_delete(old_text_alloc)
+			}
+			return false
+		}
+	} else if auto_split_prefix && simple_engine_text_has_prefix(next.text, old_text) {
+		if !applied_translation_set_split_prefix(&next, old_text, split_prefix_stroke_count) {
+			applied_translation_destroy(&next)
+			if old_text_owned {
+				owned_string_delete(old_text_alloc)
+			}
+			return false
+		}
+	}
+	if old_text_owned {
+		owned_string_delete(old_text_alloc)
+	}
 	if replaced_count > 0 {
 		next.replaced = make([dynamic]Applied_Translation)
 		for i := replace_start; i < translation_count; i += 1 {
@@ -1075,9 +1267,11 @@ simple_engine_apply_suffix_match :: proc(engine: ^Simple_Engine, match: ^Transla
 	if replaced_count > translation_count {
 		return false
 	}
+	auto_split_prefix := false
 	if replaced_count == 0 && translation_count > 0 && (base.attach_prev || base.glue && engine.history[translation_count - 1].glue) {
 		replaced_count = 1
 		base.attach_prev = true
+		auto_split_prefix = true
 	}
 
 	previous_case_mode := engine.case_mode
@@ -1101,28 +1295,45 @@ simple_engine_apply_suffix_match :: proc(engine: ^Simple_Engine, match: ^Transla
 	}
 
 	previous := simple_engine_previous_visible(engine, replace_start)
-	base_text, base_text_ok := simple_engine_build_text(engine, old_text, previous, &base)
-	if old_text_owned {
-		owned_string_delete(old_text_alloc)
+	base_text: string
+	base_text_ok: bool
+	if simple_engine_match_has_partial_prefix(match) {
+		base_text, base_text_ok = simple_engine_build_partial_replacement_text(engine, match.partial_prefix_text, previous, &base)
+	} else {
+		base_text, base_text_ok = simple_engine_build_text(engine, old_text, previous, &base)
 	}
 	if !base_text_ok {
+		if old_text_owned {
+			owned_string_delete(old_text_alloc)
+		}
 		return false
 	}
 
 	final_text, final_text_ok := simple_engine_build_text(engine, base_text, nil, &suffix)
 	owned_string_delete(base_text)
 	if !final_text_ok {
+		if old_text_owned {
+			owned_string_delete(old_text_alloc)
+		}
 		return false
 	}
 
 	strokes := make([dynamic]u64)
 	defer delete(strokes)
-	if replaced_count != match.replaced_count {
+	if simple_engine_match_has_partial_prefix(match) {
+		if replace_start >= translation_count || match.partial_prefix_stroke_count > len(engine.history[replace_start].strokes) {
+			owned_string_delete(final_text)
+			if old_text_owned {
+				owned_string_delete(old_text_alloc)
+			}
+			return false
+		}
+		append_strokes(&strokes, engine.history[replace_start].strokes[:match.partial_prefix_stroke_count])
+	} else if auto_split_prefix {
 		for i := replace_start; i < translation_count; i += 1 {
 			append_strokes(&strokes, engine.history[i].strokes[:])
 		}
 	}
-	append_strokes(&strokes, match.strokes[:])
 
 	next := Applied_Translation {
 		strokes = make([dynamic]u64),
@@ -1134,6 +1345,28 @@ simple_engine_apply_suffix_match :: proc(engine: ^Simple_Engine, match: ^Transla
 		has_case_state = true,
 	}
 	append_strokes(&next.strokes, strokes[:])
+	split_prefix_stroke_count := len(strokes)
+	append_strokes(&next.strokes, match.strokes[:])
+	if simple_engine_match_has_partial_prefix(match) {
+		if !applied_translation_set_split_prefix(&next, match.partial_prefix_text, match.partial_prefix_stroke_count) {
+			applied_translation_destroy(&next)
+			if old_text_owned {
+				owned_string_delete(old_text_alloc)
+			}
+			return false
+		}
+	} else if auto_split_prefix && simple_engine_text_has_prefix(next.text, old_text) {
+		if !applied_translation_set_split_prefix(&next, old_text, split_prefix_stroke_count) {
+			applied_translation_destroy(&next)
+			if old_text_owned {
+				owned_string_delete(old_text_alloc)
+			}
+			return false
+		}
+	}
+	if old_text_owned {
+		owned_string_delete(old_text_alloc)
+	}
 	if replaced_count > 0 {
 		next.replaced = make([dynamic]Applied_Translation)
 		for i := replace_start; i < translation_count; i += 1 {

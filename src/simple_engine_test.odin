@@ -280,6 +280,25 @@ test_simple_engine_translation :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_simple_engine_multi_stroke_match_after_attached_prefix :: proc(t: ^testing.T) {
+	dictionary: Dictionary
+	dictionary_init(&dictionary)
+	defer dictionary_destroy(&dictionary)
+
+	testing.expect(t, dictionary_put(&dictionary, "KAT", 1, "cat"))
+	testing.expect(t, dictionary_put(&dictionary, "ET", 1, "{^et}"))
+	testing.expect(t, dictionary_put(&dictionary, "SET", 1, "set"))
+	testing.expect(t, dictionary_put(&dictionary, "RA", 1, "are a"))
+	testing.expect(t, dictionary_put(&dictionary, "ET/SET/RA", 3, "et cetera"))
+
+	fresh := [?]string{"ET", "SET", "RA"}
+	test_translate_sequence(t, &dictionary, fresh[:], "et cetera")
+
+	after_previous := [?]string{"KAT", "ET", "SET", "RA"}
+	test_translate_sequence(t, &dictionary, after_previous[:], "cat et cetera")
+}
+
+@(test)
 test_simple_engine_suffix_key_matches :: proc(t: ^testing.T) {
 	dictionary: Dictionary
 	dictionary_init(&dictionary)
@@ -312,6 +331,33 @@ test_simple_engine_suffix_key_matches :: proc(t: ^testing.T) {
 
 	nonfinal_g := [?]string{"KAURBGS"}
 	test_translate_sequence(t, &dictionary, nonfinal_g[:], "KAURBGS")
+}
+
+@(test)
+test_simple_engine_suffix_key_fallback_does_not_steal_exact_final_stroke :: proc(t: ^testing.T) {
+	dictionary: Dictionary
+	dictionary_init(&dictionary)
+	defer dictionary_destroy(&dictionary)
+
+	testing.expect(t, dictionary_put(&dictionary, "KU", 1, "can you"))
+	testing.expect(t, dictionary_put(&dictionary, "KUS", 1, "can you say"))
+	testing.expect(t, dictionary_put(&dictionary, "KU/KU", 2, "cuckoo"))
+	testing.expect(t, dictionary_put(&dictionary, "-S", 1, "is"))
+
+	can_you_say := [?]string{"KU", "KUS"}
+	test_translate_sequence(t, &dictionary, can_you_say[:], "can you can you say")
+
+	engine: Simple_Engine
+	simple_engine_init(&engine, &dictionary)
+	defer simple_engine_destroy(&engine)
+	for outline in can_you_say {
+		bits, parsed := stroke_string_to_bits(outline)
+		testing.expect(t, parsed)
+		testing.expect(t, simple_engine_translate_bits(&engine, bits))
+	}
+	suggestion, found := brevity_suggest(&engine)
+	defer brevity_suggestion_destroy(&suggestion)
+	testing.expect(t, !found)
 }
 
 @(test)
