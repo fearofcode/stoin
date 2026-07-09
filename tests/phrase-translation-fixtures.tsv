@@ -1,0 +1,42 @@
+# name	mode	expected	outlines	events
+verb-is-a	verbs	is a	PW-B	S:is a
+verb-was-a	verbs	was a	PW-BD	S:was a
+verb-were-a	verbs	were a	PWE-BD	S:were a
+verb-to-be-a	verbs	to be a	PWU-B	S:to be a
+verb-can-tell-us	verbs	can tell us	THRA-S	S:can tell us
+verb-call-it	verbs	calling it	KHR-PG	S:calling it
+final-she-is	verbs	she is	SKWHR-B	S:she is
+final-she-was	verbs	she was	SKWHR-BD	S:she was
+final-she-is-not	verbs	she is not	SKWHR*E	S:she is not
+final-she-was-not	verbs	she was not	SKWHR*ED	S:she was not
+final-i-have	verbs	I have	SWR-F	S:I have
+final-i-had	verbs	I had	SWR-FD	S:I had
+final-you-went	verbs	you went	KPWR-GD	S:you went
+final-she-will-go	verbs	she will go	SKWHRAO-G	S:she will go
+final-she-will-not-go	verbs	she will not go	SKWHRAO*G	S:she will not go
+final-she-is-going	verbs	she is going	SKWHREG	S:she is going
+final-she-has-gone	verbs	she has gone	SKWHR-FG	S:she has gone
+final-you-know-that	verbs	you know that	KPWR-PBT	S:you know that
+final-she-thinks	verbs	she thinks	SKWHR-PBG	S:she thinks
+final-she-thought	verbs	she thought	SKWHR-PBGD	S:she thought
+final-she-says	verbs	she says	SKWHR-BS	S:she says
+final-she-said	verbs	she said	SKWHR-BSD	S:she said
+final-she-tells	verbs	she tells	SKWHR-RLT	S:she tells
+final-she-told	verbs	she told	SKWHR-RLTD	S:she told
+final-she-keeps	verbs	she keeps	SKWHR-RPBTS	S:she keeps
+final-she-kept	verbs	she kept	SKWHR-RPBTSD	S:she kept
+final-they-have-to	verbs	they have to	TWH-TS	S:they have to
+contract-she-is	verbs	she's	#SKWHR-B	S:she's
+contract-she-is-not	verbs	she isn't	#SKWHR*E	S:she isn't
+contract-she-was-not	verbs	she wasn't	#SKWHR*ED	S:she wasn't
+contract-she-will-go	verbs	she'll go	#SKWHRAO-G	S:she'll go
+contract-she-will-not-go	verbs	she won't go	#SKWHRAO*G	S:she won't go
+contract-i-have	verbs	I've	#SWR-F	S:I've
+contract-he-has-gone	verbs	he's gone	#KWHR-FG	S:he's gone
+contract-they-will-go	verbs	they'll go	#TWHAO-G	S:they'll go
+nonverb-near-a	nonverbs	near a	PW-B	S:near a
+nonverb-with-us	nonverbs	with us	TW-S	S:with us
+nonverb-anything-that	nonverbs	anything that	TKPWH*-RT	S:anything that
+all-prefers-verb	all	is a	PW-B	S:is a
+all-miss-raw	all	SAO	SAO	S:SAO
+all-dictionary-miss-raw	all	#KW	#KW	S:#KW

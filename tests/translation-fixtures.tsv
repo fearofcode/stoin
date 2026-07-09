@@ -1,0 +1,39 @@
+# name	expected	outlines	events
+plain-word	cat	KAT	S:cat
+suffix-attach	quickly	KWEUBG -L	S:quick|S:ly
+attach-suffix	cats	KAT -S	S:cat|S:s
+undo-attach-suffix	cat	KAT -S -R	S:cat|S:s|D:s
+orthography-ed	catted	KAT -D	S:cat|S:ted
+orthography-ish	reddish	RED EURB	S:red|S:dish
+raw-attach-ish	redish	RED R-R	S:red|S:ish
+orthography-plural	cherries	KHER -Z	S:cherry|D:y|S:ies
+orthography-doubled-consonant	deferred	TKEFR -D	S:defer|S:red
+multi-stroke-replacement	stories	STOER -Z	S:story|D:y|S:ies
+longest-history-replacement	histories	HEU STOER -Z	S:HEU|S: story|D:HEU story|S:histories
+direct-multi-stroke-brief	in the beginning	TPH-T PW-G	S:in the|S: beginning
+comma-spacing	cat, cat	KAT KW-BG KAT	S:cat|S:,|S: cat
+period-capitalization	cat. Cat	KAT TP-PL KAT	S:cat|S:.|S: Cat
+period-literal-space	cat. Cat	KAT PH-FP KAT	S:cat|S:. |S:Cat
+cap-next	Cat	KPA KAT	S:Cat
+upper-next	CAT	KPA*L KAT	S:CAT
+lower-next	plover	HRO*ER PHROF	S:plover
+retro-lower-previous	plover	PHROF HRO*ERD	S:Plover|D:Plover|S:plover
+prefix-attach	preport	PRAOE PORT	S:pre|S:port
+delete-space-next	basketball	PWA TK-LS PWAL	S:basket|S:ball
+force-space-next	pre port	PRAOE S-P PORT	S:pre|S: |S:port
+retro-delete-space	basketball	PWA PWAL SP-LS	S:basket|S: ball|D: ball|S:ball
+retro-insert-space	basket ball	PWA PWAL SP-LS S-PD	S:basket|S: ball|D: ball|S:ball|D:ball|S: ball
+star-toggle	kitty	KAT #*	S:cat|D:cat|S:kitty
+caps-mode	CAT	KA*PS KAT	S:CAT
+caps-preserve-spacing	cat BALL	KAT KA*PS PWAL	S:cat|S: BALL
+lower-mode	plover	WRE PHROF	S:plover
+title-mode	Cat	WRU KAT	S:Cat
+snake-mode	cat_ball	R*EFT WRA KAT PWAL	S:cat|S:_ball
+empty-space-mode	catball	R*EFT TPHA KAT PWAL	S:cat|S:ball
+camel-mode	catBall	R*EFT WRO KAT PWAL	S:cat|S:Ball
+digit-glue	12	#S #T	S:1|S:2
+explicit-glue	PP	P*P P*P	S:P|S:P
+repeat-last	cat cat	KAT SKWR	S:cat|S: cat
+stitch-letters	A-B-C	A PW KR	S:A|S:-B|S:-C
+stitch-last-word	t-e-s-t	TEFT -RBGS	S:test|D:est|S:-e-s-t
+key-combo		STPH-G	K:Right
