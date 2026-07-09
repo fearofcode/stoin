@@ -39,6 +39,60 @@ macos_event_mask_bit :: proc(event_type: CGEventType) -> CGEventMask {
 	return CGEventMask(u64(1) << uint(event_type))
 }
 
+macos_keycode_to_us_qwerty_printable :: proc(keycode: u16) -> byte {
+	switch keycode {
+	case 0: return 'a'
+	case 11: return 'b'
+	case 8: return 'c'
+	case 2: return 'd'
+	case 14: return 'e'
+	case 3: return 'f'
+	case 5: return 'g'
+	case 4: return 'h'
+	case 34: return 'i'
+	case 38: return 'j'
+	case 40: return 'k'
+	case 37: return 'l'
+	case 46: return 'm'
+	case 45: return 'n'
+	case 31: return 'o'
+	case 35: return 'p'
+	case 12: return 'q'
+	case 15: return 'r'
+	case 1: return 's'
+	case 17: return 't'
+	case 32: return 'u'
+	case 9: return 'v'
+	case 13: return 'w'
+	case 7: return 'x'
+	case 16: return 'y'
+	case 6: return 'z'
+	case 18: return '1'
+	case 19: return '2'
+	case 20: return '3'
+	case 21: return '4'
+	case 23: return '5'
+	case 22: return '6'
+	case 26: return '7'
+	case 28: return '8'
+	case 25: return '9'
+	case 29: return '0'
+	case 50: return '`'
+	case 27: return '-'
+	case 24: return '='
+	case 33: return '['
+	case 30: return ']'
+	case 42: return '\\'
+	case 41: return ';'
+	case 39: return '\''
+	case 43: return ','
+	case 47: return '.'
+	case 44: return '/'
+	case 49: return ' '
+	}
+	return 0
+}
+
 macos_flags_key_is_down :: proc(keycode: u16, flags: CGEventFlags) -> bool {
 	switch keycode {
 	case 56, 60:
@@ -89,6 +143,7 @@ macos_keyboard_tap_callback :: proc "c" (proxy: CGEventTapProxy, event_type: CGE
 		control = (flags & KCG_EVENT_FLAG_MASK_CONTROL) != 0,
 		option = (flags & KCG_EVENT_FLAG_MASK_ALTERNATE) != 0,
 		command = (flags & KCG_EVENT_FLAG_MASK_COMMAND) != 0,
+		printable = macos_keycode_to_us_qwerty_printable(keycode),
 	}
 
 	owner := (^Steno_Runtime_Owner)(user_info)

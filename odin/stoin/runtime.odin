@@ -131,6 +131,7 @@ Input_Event :: struct {
 	command:   bool,
 	option:    bool,
 	control:   bool,
+	printable: byte,
 }
 
 KEYCODE_ESCAPE :: u16(53)
@@ -687,9 +688,15 @@ steno_runtime_print_key_event :: proc(event: Input_Event) {
 		return
 	}
 	fmt.printf(
-		"stoin: key event keycode=%d %s shift=%d control=%d option=%d command=%d\n",
+		"stoin: key event keycode=%d %s",
 		event.keycode,
 		event.is_down ? "down" : "up",
+	)
+	if event.printable != 0 {
+		fmt.printf(" printable='%c'", event.printable)
+	}
+	fmt.printf(
+		" shift=%d control=%d option=%d command=%d\n",
 		event.shift ? 1 : 0,
 		event.control ? 1 : 0,
 		event.option ? 1 : 0,
