@@ -1,7 +1,9 @@
 package stoin
 
-import "core:time"
+import "core:fmt"
+import "core:os"
 import "core:sync"
+import "core:time"
 
 TRANSLATION_COMPACT_INTERVAL_STROKES :: 1000
 TRANSLATION_HISTORY_STROKE_LIMIT :: 1000
@@ -10,6 +12,12 @@ Send_Text_Callback :: proc(text: string, userdata: rawptr) -> bool
 Delete_Text_Callback :: proc(text: string, userdata: rawptr) -> bool
 Send_Key_Combination_Callback :: proc(combo: string, userdata: rawptr) -> bool
 Line_Output_Callback :: proc(line: string, userdata: rawptr) -> bool
+
+File_Stamp :: struct {
+	exists:           bool,
+	size:             i64,
+	modified_time_ns: i64,
+}
 
 Steno_Phrase_Mode :: enum {
 	None,
@@ -97,6 +105,11 @@ Steno_Runtime_Owner :: struct {
 	phrasing:         Phrasing,
 	has_phrasing:     bool,
 	phrasing_path:    string,
+	dictionary_stamps: [dynamic]File_Stamp,
+	dictionary_reload_error_reported: bool,
+	phrasing_stamp:   File_Stamp,
+	phrasing_stamp_valid: bool,
+	phrasing_reload_error_reported: bool,
 	runtime:          Steno_Runtime,
 }
 
@@ -222,6 +235,8 @@ steno_runtime_owner_init :: proc(owner: ^Steno_Runtime_Owner, config: ^Steno_Run
 		steno_runtime_owner_destroy(owner)
 		return false
 	}
+	_ = steno_runtime_owner_refresh_dictionary_stamps(owner)
+	_ = steno_runtime_owner_refresh_phrasing_stamp(owner)
 
 	return true
 }
@@ -235,6 +250,7 @@ steno_runtime_owner_destroy :: proc(owner: ^Steno_Runtime_Owner) {
 		phrasing_destroy(&owner.phrasing)
 	}
 	owned_string_delete(owner.phrasing_path)
+	delete(owner.dictionary_stamps)
 	if owner.has_orthography {
 		orthography_destroy(&owner.orthography)
 	}
@@ -245,20 +261,164 @@ steno_runtime_owner_destroy :: proc(owner: ^Steno_Runtime_Owner) {
 	owner^ = {}
 }
 
+file_stamp_read :: proc(path: string) -> (stamp: File_Stamp, ok: bool) {
+	if len(path) == 0 {
+		return {}, false
+	}
+
+	info, stat_err := os.stat(path, context.allocator)
+	if stat_err != nil {
+		if stat_err == .Not_Exist {
+			return {}, true
+		}
+		return {}, false
+	}
+	defer os.file_info_delete(info, context.allocator)
+
+	return File_Stamp {
+		exists = true,
+		size = info.size,
+		modified_time_ns = time.time_to_unix_nano(info.modification_time),
+	}, true
+}
+
+file_stamps_equal :: proc(a: File_Stamp, b: File_Stamp) -> bool {
+	return a.exists == b.exists &&
+		a.size == b.size &&
+		a.modified_time_ns == b.modified_time_ns
+}
+
+steno_runtime_owner_refresh_dictionary_stamps :: proc(owner: ^Steno_Runtime_Owner) -> bool {
+	if owner == nil {
+		return false
+	}
+
+	clear(&owner.dictionary_stamps)
+	for path in owner.dictionary_stack.paths {
+		stamp, ok := file_stamp_read(path)
+		if !ok {
+			clear(&owner.dictionary_stamps)
+			return false
+		}
+		append(&owner.dictionary_stamps, stamp)
+	}
+	return true
+}
+
+steno_runtime_owner_dictionary_files_changed :: proc(owner: ^Steno_Runtime_Owner) -> (changed: bool, ok: bool) {
+	if owner == nil {
+		return false, false
+	}
+	if len(owner.dictionary_stamps) != len(owner.dictionary_stack.paths) {
+		return true, true
+	}
+
+	for path, i in owner.dictionary_stack.paths {
+		stamp, stamp_ok := file_stamp_read(path)
+		if !stamp_ok {
+			return false, false
+		}
+		if !file_stamps_equal(stamp, owner.dictionary_stamps[i]) {
+			return true, true
+		}
+	}
+
+	return false, true
+}
+
 steno_runtime_owner_reload_dictionary :: proc(owner: ^Steno_Runtime_Owner) -> bool {
 	if owner == nil {
 		return false
 	}
-	return dictionary_stack_load(&owner.dictionary_stack)
+	if !dictionary_stack_load(&owner.dictionary_stack) {
+		_ = steno_runtime_owner_refresh_dictionary_stamps(owner)
+		if !owner.dictionary_reload_error_reported {
+			fmt.eprintln("stoin: dictionary changed but reload failed; keeping previous dictionary")
+			owner.dictionary_reload_error_reported = true
+		}
+		return false
+	}
+	if !steno_runtime_owner_refresh_dictionary_stamps(owner) {
+		fmt.eprintln("stoin: warning: reloaded dictionary, but failed to refresh dictionary file stamps")
+	}
+	owner.dictionary_reload_error_reported = false
+	fmt.eprintln("stoin: reloaded", dictionary_count(&owner.dictionary_stack.dictionary), "dictionary entries")
+	return true
+}
+
+steno_runtime_owner_reload_dictionary_if_changed :: proc(owner: ^Steno_Runtime_Owner) -> bool {
+	if owner == nil {
+		return false
+	}
+	changed, ok := steno_runtime_owner_dictionary_files_changed(owner)
+	if !ok {
+		if !owner.dictionary_reload_error_reported {
+			fmt.eprintln("stoin: failed to check dictionary files for changes")
+			owner.dictionary_reload_error_reported = true
+		}
+		return false
+	}
+	if !changed {
+		return true
+	}
+	owner.dictionary_reload_error_reported = false
+	return steno_runtime_owner_reload_dictionary(owner)
+}
+
+steno_runtime_owner_refresh_phrasing_stamp :: proc(owner: ^Steno_Runtime_Owner) -> bool {
+	if owner == nil || len(owner.phrasing_path) == 0 {
+		if owner != nil {
+			owner.phrasing_stamp_valid = false
+		}
+		return true
+	}
+
+	stamp, ok := file_stamp_read(owner.phrasing_path)
+	if !ok {
+		owner.phrasing_stamp_valid = false
+		return false
+	}
+
+	owner.phrasing_stamp = stamp
+	owner.phrasing_stamp_valid = true
+	return true
+}
+
+steno_runtime_owner_phrasing_file_changed :: proc(owner: ^Steno_Runtime_Owner) -> (changed: bool, ok: bool) {
+	if owner == nil {
+		return false, false
+	}
+	if len(owner.phrasing_path) == 0 {
+		return false, true
+	}
+	if !owner.phrasing_stamp_valid {
+		return true, true
+	}
+
+	stamp, stamp_ok := file_stamp_read(owner.phrasing_path)
+	if !stamp_ok {
+		owner.phrasing_stamp_valid = false
+		return false, false
+	}
+
+	return !file_stamps_equal(stamp, owner.phrasing_stamp), true
 }
 
 steno_runtime_owner_reload_phrasing :: proc(owner: ^Steno_Runtime_Owner) -> bool {
-	if owner == nil || len(owner.phrasing_path) == 0 {
+	if owner == nil {
 		return false
+	}
+	if len(owner.phrasing_path) == 0 {
+		return true
 	}
 
 	next, ok := phrasing_load(owner.phrasing_path)
 	if !ok {
+		_ = steno_runtime_owner_refresh_phrasing_stamp(owner)
+		if !owner.phrasing_reload_error_reported {
+			fmt.eprintln("stoin: phrasing changed but reload failed; keeping previous phrasing")
+			owner.phrasing_reload_error_reported = true
+		}
 		return false
 	}
 	if owner.has_phrasing {
@@ -267,13 +427,44 @@ steno_runtime_owner_reload_phrasing :: proc(owner: ^Steno_Runtime_Owner) -> bool
 	owner.phrasing = next
 	owner.has_phrasing = true
 	owner.runtime.phrasing = &owner.phrasing
+	if !steno_runtime_owner_refresh_phrasing_stamp(owner) {
+		fmt.eprintln("stoin: warning: reloaded phrasing, but failed to refresh phrasing file stamp")
+	}
+	owner.phrasing_reload_error_reported = false
+	fmt.eprintln("stoin: reloaded phrasing from", owner.phrasing_path)
 	return true
+}
+
+steno_runtime_owner_reload_phrasing_if_changed :: proc(owner: ^Steno_Runtime_Owner) -> bool {
+	if owner == nil {
+		return false
+	}
+	changed, ok := steno_runtime_owner_phrasing_file_changed(owner)
+	if !ok {
+		if !owner.phrasing_reload_error_reported {
+			fmt.eprintln("stoin: failed to check phrasing file for changes")
+			owner.phrasing_reload_error_reported = true
+		}
+		return false
+	}
+	if !changed {
+		return true
+	}
+	owner.phrasing_reload_error_reported = false
+	return steno_runtime_owner_reload_phrasing(owner)
+}
+
+steno_runtime_owner_reload_files_if_changed :: proc(owner: ^Steno_Runtime_Owner) -> bool {
+	dictionary_ok := steno_runtime_owner_reload_dictionary_if_changed(owner)
+	phrasing_ok := steno_runtime_owner_reload_phrasing_if_changed(owner)
+	return dictionary_ok && phrasing_ok
 }
 
 steno_runtime_owner_handle_stroke :: proc(owner: ^Steno_Runtime_Owner, stroke: Stroke_Input) -> bool {
 	if owner == nil {
 		return false
 	}
+	_ = steno_runtime_owner_reload_files_if_changed(owner)
 	return steno_runtime_handle_stroke(&owner.runtime, stroke)
 }
 
@@ -281,20 +472,25 @@ steno_runtime_owner_handle_stroke_bits :: proc(owner: ^Steno_Runtime_Owner, bits
 	if owner == nil {
 		return false
 	}
-	return steno_runtime_handle_stroke_bits(&owner.runtime, bits)
+	return steno_runtime_owner_handle_stroke(owner, Stroke_Input{bits = bits})
 }
 
 steno_runtime_owner_handle_active_stroke_bits :: proc(owner: ^Steno_Runtime_Owner, bits: u64) -> bool {
 	if owner == nil {
 		return false
 	}
-	return steno_runtime_handle_active_stroke_bits(&owner.runtime, bits)
+	return steno_runtime_owner_handle_stroke(owner, Stroke_Input {
+		bits = bits,
+		phrase_namespace = steno_runtime_phrase_namespace_active(&owner.runtime),
+		phrase_mode = steno_runtime_current_phrase_mode(&owner.runtime, true),
+	})
 }
 
 steno_runtime_owner_handle_event :: proc(owner: ^Steno_Runtime_Owner, event: Input_Event) -> bool {
 	if owner == nil {
 		return false
 	}
+	_ = steno_runtime_owner_reload_files_if_changed(owner)
 	return steno_runtime_handle_event(&owner.runtime, event)
 }
 

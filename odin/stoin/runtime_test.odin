@@ -2,6 +2,7 @@ package stoin
 
 import "core:os"
 import "core:testing"
+import "core:time"
 
 Runtime_Test_Output :: struct {
 	text:       [dynamic]byte,
@@ -516,6 +517,77 @@ test_steno_runtime_owner_reloads_dictionary :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_steno_runtime_owner_auto_reloads_changed_dictionary :: proc(t: ^testing.T) {
+	mkdir_err := os.make_directory("build")
+	testing.expect(t, mkdir_err == nil || mkdir_err == .Exist)
+
+	path := "build/odin-runtime-auto-reload-dictionary.json"
+	defer os.remove(path)
+	testing.expect(t, runtime_test_write_file(path, "{\"KAT\":\"cat\"}\n"))
+
+	output: Runtime_Test_Output
+	runtime_test_output_init(&output)
+	defer runtime_test_output_destroy(&output)
+
+	paths := [?]string{path}
+	config := runtime_test_load_config(paths[:], nil, &output)
+
+	owner: Steno_Runtime_Owner
+	testing.expect(t, steno_runtime_owner_init(&owner, &config))
+	defer steno_runtime_owner_destroy(&owner)
+
+	time.sleep(2 * time.Millisecond)
+	testing.expect(t, runtime_test_write_file(path, "{\"KAT\":\"kitten\"}\n"))
+	testing.expect(t, steno_runtime_owner_handle_stroke_bits(&owner, runtime_test_bits(t, "KAT")))
+	runtime_test_expect_output(t, &output, "kitten")
+
+	time.sleep(2 * time.Millisecond)
+	testing.expect(t, runtime_test_write_file(path, "not json\n"))
+	runtime_test_output_clear(&output)
+	testing.expect(t, steno_runtime_owner_handle_stroke_bits(&owner, runtime_test_bits(t, "KAT")))
+	runtime_test_expect_output(t, &output, " kitten")
+}
+
+runtime_test_minimal_phrasing :: proc(verb_text: string) -> string {
+	switch verb_text {
+	case "was":
+		return `{
+  "initial_verbs": {
+    "tails": [{"id": "a", "stroke": "-B", "text": "a"}],
+    "stems": [{"stroke": "PW", "forms": [{"stroke": "", "text": "was"}]}]
+  },
+  "nonverbs": {"tails": [], "prefixes": []},
+  "final_verbs": {
+    "contraction_stroke": "*",
+    "starters": [],
+    "operators": [],
+    "structures": [],
+    "verbs": [],
+    "enders": []
+  }
+}
+`
+	case:
+		return `{
+  "initial_verbs": {
+    "tails": [{"id": "a", "stroke": "-B", "text": "a"}],
+    "stems": [{"stroke": "PW", "forms": [{"stroke": "", "text": "is"}]}]
+  },
+  "nonverbs": {"tails": [], "prefixes": []},
+  "final_verbs": {
+    "contraction_stroke": "*",
+    "starters": [],
+    "operators": [],
+    "structures": [],
+    "verbs": [],
+    "enders": []
+  }
+}
+`
+	}
+}
+
+@(test)
 test_steno_runtime_owner_keeps_phrasing_after_failed_reload :: proc(t: ^testing.T) {
 	mkdir_err := os.make_directory("build")
 	testing.expect(t, mkdir_err == nil || mkdir_err == .Exist)
@@ -549,6 +621,47 @@ test_steno_runtime_owner_keeps_phrasing_after_failed_reload :: proc(t: ^testing.
 		phrase_mode = .Verbs,
 	}))
 	runtime_test_expect_output(t, &output, "is a")
+}
+
+@(test)
+test_steno_runtime_owner_auto_reloads_changed_phrasing :: proc(t: ^testing.T) {
+	mkdir_err := os.make_directory("build")
+	testing.expect(t, mkdir_err == nil || mkdir_err == .Exist)
+
+	path := "build/odin-runtime-auto-reload-phrasing.json"
+	defer os.remove(path)
+	testing.expect(t, runtime_test_write_file(path, runtime_test_minimal_phrasing("is")))
+
+	output: Runtime_Test_Output
+	runtime_test_output_init(&output)
+	defer runtime_test_output_destroy(&output)
+
+	paths := [?]string{"tests/test-dictionary.json"}
+	config := runtime_test_load_config(paths[:], nil, &output)
+	config.phrasing_path = path
+
+	owner: Steno_Runtime_Owner
+	testing.expect(t, steno_runtime_owner_init(&owner, &config))
+	defer steno_runtime_owner_destroy(&owner)
+
+	time.sleep(2 * time.Millisecond)
+	testing.expect(t, runtime_test_write_file(path, runtime_test_minimal_phrasing("was")))
+	testing.expect(t, steno_runtime_owner_handle_stroke(&owner, Stroke_Input {
+		bits = runtime_test_bits(t, "PW-B"),
+		phrase_namespace = true,
+		phrase_mode = .Verbs,
+	}))
+	runtime_test_expect_output(t, &output, "was a")
+
+	time.sleep(2 * time.Millisecond)
+	testing.expect(t, runtime_test_write_file(path, "not json\n"))
+	runtime_test_output_clear(&output)
+	testing.expect(t, steno_runtime_owner_handle_stroke(&owner, Stroke_Input {
+		bits = runtime_test_bits(t, "PW-B"),
+		phrase_namespace = true,
+		phrase_mode = .Verbs,
+	}))
+	runtime_test_expect_output(t, &output, " was a")
 }
 
 @(test)

@@ -142,7 +142,8 @@ and tail/verb reference checks. Initial-verb, nonverb, and final-verb lookup are
 implemented, and the simple engine can apply phrase-mode strokes with raw-miss
 fallback. The temporary `--translate` CLI can load phrasing data and run all,
 verb, or nonverb phrase mode. Runtime pedal integration is started for macOS
-qwerty and TX Bolt checkpoints; hot reload is still pending.
+qwerty and TX Bolt checkpoints. Owner-level phrasing hot reload is implemented
+and keeps the previous phrasing table when a changed file fails to parse.
 
 Port the phrasing system before platform pedals:
 
@@ -201,8 +202,8 @@ toggle, shortcut-modifier pass-through, phrase-mode latching during a chord,
 phrase namespace gating, and phrase/nonverb pedal toggles. Darwin-only
 CoreGraphics output bindings are started for text, delete, key-combo emission,
 generated-event marking, and a live macOS qwerty event tap behind `--input
-qwerty`, including normal outline/translation trace output. File watching is
-still pending.
+qwerty`, including normal outline/translation trace output. Dictionary and
+phrasing reload checks now run through the runtime owner during input handling.
 
 Implement the first real platform layer on macOS:
 
@@ -238,7 +239,8 @@ basic baud validation on Darwin/Linux. The Odin CLI also has a macOS
 load the runtime, reconnect to serial devices, decode strokes, consume
 phrase/nonverb pedal latches from a background listen-only keyboard tap, and
 emit through the macOS output callbacks. Raw serial diagnostics are wired behind
-`--raw-serial`. Hot reload and multi-input merge are still pending.
+`--raw-serial`. Dictionary and phrasing hot reload are polled in the serial
+loops; multi-input merge is still pending.
 
 Port the current real-machine path:
 

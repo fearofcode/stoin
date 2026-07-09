@@ -7,6 +7,7 @@ import "core:time"
 APP_NAME :: "stoin"
 INPUT_EVENT_POLL_SLEEP_MS :: 10
 TX_BOLT_STROKE_IDLE_FLUSH_MS :: 100
+RELOAD_POLL_INTERVAL_MS :: 250
 RAW_SERIAL_BURST_CAPACITY :: 256
 
 Cli_Mode :: enum {
@@ -746,6 +747,18 @@ cli_monotonic_ms :: proc() -> u64 {
 	return u64(tick._nsec / 1_000_000)
 }
 
+cli_poll_runtime_reloads :: proc(owner: ^Steno_Runtime_Owner, last_poll_ms: ^u64) {
+	if owner == nil || last_poll_ms == nil {
+		return
+	}
+	now_ms := cli_monotonic_ms()
+	if last_poll_ms^ != 0 && now_ms - last_poll_ms^ < RELOAD_POLL_INTERVAL_MS {
+		return
+	}
+	last_poll_ms^ = now_ms
+	_ = steno_runtime_owner_reload_files_if_changed(owner)
+}
+
 cli_sleep_ms :: proc(ms: int) {
 	time.sleep(time.Duration(ms) * time.Millisecond)
 }
@@ -837,8 +850,11 @@ run_tx_bolt_cli :: proc(config: ^Cli_Config) -> bool {
 		connected := false
 		announced_disconnected := false
 		last_byte_ms: u64
+		last_reload_poll_ms: u64
 
 		for {
+			cli_poll_runtime_reloads(&owner, &last_reload_poll_ms)
+
 			if !connected {
 				resolved_port_path, resolved_path_owned, resolved := serial_cli_resolve_serial_port(config.serial_port_path)
 				if !resolved {
@@ -981,8 +997,11 @@ run_gemini_pr_cli :: proc(config: ^Cli_Config) -> bool {
 		serial: Platform_Serial_Port
 		connected := false
 		announced_disconnected := false
+		last_reload_poll_ms: u64
 
 		for {
+			cli_poll_runtime_reloads(&owner, &last_reload_poll_ms)
+
 			if !connected {
 				resolved_port_path, resolved_path_owned, resolved := serial_cli_resolve_serial_port(config.serial_port_path)
 				if !resolved {
@@ -1133,8 +1152,11 @@ run_stentura_cli :: proc(config: ^Cli_Config) -> bool {
 		stentura: Stentura
 		connected := false
 		announced_disconnected := false
+		last_reload_poll_ms: u64
 
 		for {
+			cli_poll_runtime_reloads(&owner, &last_reload_poll_ms)
+
 			if !connected {
 				if !stentura_cli_open(config, &stentura, baud_rate) {
 					if !announced_disconnected {
