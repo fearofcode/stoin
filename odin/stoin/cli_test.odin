@@ -27,6 +27,18 @@ test_parse_cli_args_lookup :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_parse_cli_args_dump_dictionary :: proc(t: ^testing.T) {
+	args := [?]string{APP_NAME, "--dict", "tests/test-dictionary.json", "--dump-dictionary", "build/odin-dump.json"}
+	config, ok := parse_cli_args(args[:])
+	defer cli_config_destroy(&config)
+
+	testing.expect(t, ok)
+	testing.expect_value(t, config.mode, Cli_Mode.Dump_Dictionary)
+	testing.expect(t, config.dump_dictionary)
+	testing.expect_value(t, config.dump_path, "build/odin-dump.json")
+}
+
+@(test)
 test_parse_cli_args_translate_consumes_remaining_outlines :: proc(t: ^testing.T) {
 	args := [?]string{APP_NAME, "--dict", "tests/test-dictionary.json", "--translate", "KWEUBG", "-L"}
 	config, ok := parse_cli_args(args[:])
@@ -282,7 +294,7 @@ test_parse_cli_args_rejects_combined_modes :: proc(t: ^testing.T) {
 	defer cli_config_destroy(&config)
 
 	testing.expect(t, !ok)
-	testing.expect_value(t, config.error_message, "--lookup, --translate, --input, and --raw-serial cannot be combined")
+	testing.expect_value(t, config.error_message, "--lookup, --dump-dictionary, --translate, --input, and --raw-serial cannot be combined")
 }
 
 @(test)
@@ -292,7 +304,17 @@ test_parse_cli_args_rejects_raw_serial_combined_with_translate :: proc(t: ^testi
 	defer cli_config_destroy(&config)
 
 	testing.expect(t, !ok)
-	testing.expect_value(t, config.error_message, "--lookup, --translate, --input, and --raw-serial cannot be combined")
+	testing.expect_value(t, config.error_message, "--lookup, --dump-dictionary, --translate, --input, and --raw-serial cannot be combined")
+}
+
+@(test)
+test_parse_cli_args_dump_dictionary_requires_dictionary :: proc(t: ^testing.T) {
+	args := [?]string{APP_NAME, "--dump-dictionary"}
+	config, ok := parse_cli_args(args[:])
+	defer cli_config_destroy(&config)
+
+	testing.expect(t, !ok)
+	testing.expect_value(t, config.error_message, "--dump-dictionary requires at least one --dict")
 }
 
 @(test)

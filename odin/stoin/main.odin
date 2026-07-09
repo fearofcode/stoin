@@ -9,6 +9,7 @@ print_help :: proc() {
 	fmt.println("Usage:")
 	fmt.println("  stoin [--help]")
 	fmt.println("  stoin --dict PATH --lookup OUTLINE [--lookup OUTLINE...]")
+	fmt.println("  stoin --dict PATH [--dict PATH...] --dump-dictionary [OUTPUT_PATH]")
 	fmt.println("  stoin --dict PATH [--dict PATH...] [--orthography PATH] [--phrasing PATH --phrase-mode all|verbs|nonverbs] [--print-suggestions] [--suggestion-log PATH] --translate OUTLINE [OUTLINE...]")
 	fmt.println("  stoin --input qwerty --dict PATH [--dict PATH...] [--keymap PATH] [--orthography PATH] [--phrasing PATH [--phrase-mode all|verbs|nonverbs] [--phrase-toggle KEY] [--nonverb-phrase-toggle KEY]] [--print-suggestions] [--suggestion-log PATH]")
 	fmt.println("  stoin --input tx-bolt|gemini-pr|stentura --dict PATH [--dict PATH...] [--serial-port PATH] [--serial-baud BAUD] [--orthography PATH] [--phrasing PATH [--phrase-mode all|verbs|nonverbs] [--phrase-toggle KEY] [--nonverb-phrase-toggle KEY]] [--print-suggestions] [--suggestion-log PATH]")
@@ -34,6 +35,11 @@ main :: proc() {
 		return
 	case .Lookup:
 		if !run_lookup_cli(&config) {
+			os.exit(1)
+		}
+		return
+	case .Dump_Dictionary:
+		if !run_dump_dictionary_cli(&config) {
 			os.exit(1)
 		}
 		return

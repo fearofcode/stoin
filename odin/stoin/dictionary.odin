@@ -223,6 +223,34 @@ dictionary_load_many :: proc(dictionary: ^Dictionary, paths: []string) -> bool {
 	return true
 }
 
+dictionary_dump_json :: proc(dictionary: ^Dictionary, path: string) -> bool {
+	if dictionary == nil || len(path) == 0 || dictionary.entries == nil {
+		return false
+	}
+
+	options := json.Marshal_Options {
+		spec = .JSON,
+		pretty = true,
+		use_spaces = true,
+		spaces = 4,
+		sort_maps_by_key = true,
+	}
+	data, marshal_err := json.marshal(dictionary.entries, options)
+	if marshal_err != nil {
+		return false
+	}
+	defer delete(data)
+
+	file, create_err := os.create(path)
+	if create_err != nil {
+		return false
+	}
+	_, write_err := os.write(file, data)
+	_, newline_err := os.write_string(file, "\n")
+	close_err := os.close(file)
+	return write_err == nil && newline_err == nil && close_err == nil
+}
+
 dictionary_count :: proc(dictionary: ^Dictionary) -> int {
 	if dictionary.entries == nil {
 		return 0

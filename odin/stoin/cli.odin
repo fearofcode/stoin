@@ -13,6 +13,7 @@ Cli_Mode :: enum {
 	Scaffold,
 	Help,
 	Lookup,
+	Dump_Dictionary,
 	Translate,
 	Qwerty,
 	Tx_Bolt,
@@ -24,6 +25,8 @@ Cli_Mode :: enum {
 Cli_Config :: struct {
 	mode:          Cli_Mode,
 	dict_paths:    [dynamic]string,
+	dump_dictionary: bool,
+	dump_path:     string,
 	lookups:       [dynamic]string,
 	translates:     [dynamic]string,
 	input_qwerty:   bool,
@@ -88,6 +91,12 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 			}
 			append(&config.lookups, args[i + 1])
 			i += 1
+		case "--dump-dictionary":
+			config.dump_dictionary = true
+			if i + 1 < len(args) && (len(args[i + 1]) == 0 || args[i + 1][0] != '-') {
+				config.dump_path = args[i + 1]
+				i += 1
+			}
 		case "--raw-serial", "--dump-serial":
 			config.raw_serial = true
 		case "--input":
@@ -220,6 +229,9 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 	if len(config.lookups) > 0 {
 		selected_modes += 1
 	}
+	if config.dump_dictionary {
+		selected_modes += 1
+	}
 	if len(config.translates) > 0 {
 		selected_modes += 1
 	}
@@ -239,7 +251,7 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 		selected_modes += 1
 	}
 	if selected_modes > 1 {
-		config.error_message = "--lookup, --translate, --input, and --raw-serial cannot be combined"
+		config.error_message = "--lookup, --dump-dictionary, --translate, --input, and --raw-serial cannot be combined"
 		return config, false
 	}
 
@@ -252,6 +264,12 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 
 	if config.raw_serial {
 		config.mode = .Raw_Serial
+	} else if config.dump_dictionary {
+		config.mode = .Dump_Dictionary
+		if len(config.dict_paths) == 0 {
+			config.error_message = "--dump-dictionary requires at least one --dict"
+			return config, false
+		}
 	} else if config.input_qwerty {
 		config.mode = .Qwerty
 		if len(config.dict_paths) == 0 {
@@ -406,6 +424,29 @@ run_lookup_cli :: proc(config: ^Cli_Config) -> bool {
 		}
 	}
 	return all_ok
+}
+
+run_dump_dictionary_cli :: proc(config: ^Cli_Config) -> bool {
+	stack: Dictionary_Stack
+	dictionary_stack_init(&stack)
+	defer dictionary_stack_destroy(&stack)
+
+	if !dictionary_stack_set_paths(&stack, config.dict_paths[:], nil) ||
+	   !dictionary_stack_load(&stack) {
+		fmt.eprintln("stoin: failed to load dictionary")
+		return false
+	}
+
+	path := config.dump_path
+	if len(path) == 0 {
+		path = config.dict_paths[len(config.dict_paths) - 1]
+	}
+	if !dictionary_dump_json(&stack.dictionary, path) {
+		fmt.eprintln("stoin: failed to dump dictionary to", path)
+		return false
+	}
+	fmt.println("stoin: wrote", dictionary_count(&stack.dictionary), "entries to", path)
+	return true
 }
 
 Cli_Runtime_Output :: struct {

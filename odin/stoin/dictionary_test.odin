@@ -1,5 +1,7 @@
 package stoin
 
+import "core:os"
+import "core:strings"
 import "core:testing"
 
 @(test)
@@ -44,6 +46,28 @@ test_dictionary_load_many_overrides :: proc(t: ^testing.T) {
 	translation, ok := dictionary_lookup_stroke(&dictionary, "KAT")
 	testing.expect(t, ok)
 	testing.expect_value(t, translation, "kitten")
+}
+
+@(test)
+test_dictionary_dump_json :: proc(t: ^testing.T) {
+	mkdir_err := os.make_directory("build")
+	testing.expect(t, mkdir_err == nil || mkdir_err == .Exist)
+
+	dictionary: Dictionary
+	dictionary_init(&dictionary)
+	defer dictionary_destroy(&dictionary)
+	testing.expect(t, dictionary_load(&dictionary, "tests/test-dictionary.json"))
+
+	path := "build/odin-test-dictionary-dump.json"
+	defer os.remove(path)
+	testing.expect(t, dictionary_dump_json(&dictionary, path))
+
+	data, read_err := os.read_entire_file(path, context.allocator)
+	testing.expect(t, read_err == nil)
+	defer delete(data)
+	dump := string(data)
+	testing.expect(t, strings.contains(dump, "\"STOER/Z\""))
+	testing.expect(t, strings.contains(dump, "\"stories\""))
 }
 
 @(test)
