@@ -126,16 +126,19 @@ formatted_stitch_delimiter :: proc(formatted: ^Formatted_Text) -> string {
 formatted_parse_stitch_meta :: proc(formatted: ^Formatted_Text, buffer: ^[dynamic]byte, meta: string) -> bool {
 	if len(meta) >= 8 && meta[:8] == ":stitch:" {
 		args := meta[8:]
-		separator := len(args)
-		for separator > 0 && args[separator - 1] != ':' {
-			separator -= 1
+		separator := -1
+		for i in 0..<len(args) {
+			if args[i] == ':' {
+				separator = i
+				break
+			}
 		}
 
 		word := args
 		delimiter := "-"
-		if separator > 0 {
-			word = args[:separator - 1]
-			delimiter = args[separator:]
+		if separator >= 0 {
+			word = args[:separator]
+			delimiter = args[separator + 1:]
 		}
 		if len(word) == 0 {
 			return false
@@ -160,14 +163,17 @@ formatted_parse_stitch_meta :: proc(formatted: ^Formatted_Text, buffer: ^[dynami
 	args := ""
 	if len(meta) > len(command) {
 		args = meta[len(command) + 1:]
-		separator := len(args)
-		for separator > 0 && args[separator - 1] != ':' {
-			separator -= 1
+		separator := -1
+		for i in 0..<len(args) {
+			if args[i] == ':' {
+				separator = i
+				break
+			}
 		}
 		count_text := args
-		if separator > 0 {
-			count_text = args[:separator - 1]
-			delimiter = args[separator:]
+		if separator >= 0 {
+			count_text = args[:separator]
+			delimiter = args[separator + 1:]
 		}
 		if len(count_text) > 0 {
 			parsed_count, parsed := parse_positive_int(count_text)
