@@ -115,8 +115,8 @@ the simple engine and temporary CLI, and `--dump-dictionary` writes stable
 canonical JSON. Default `stoin-config.json`, default word-list/phrasing paths,
 fallback default dictionary, explicit `--config` JSON loading, disabled
 dictionary layers, and the `--dictionary`/`--word-list` C aliases are supported.
-Some rarer formatting edge cases, non-macOS platform key-combo output, and
-other plover side-effect commands are still on the C side.
+Some rarer formatting edge cases and other plover side-effect commands are
+still on the C side.
 
 Port the pure translation data path:
 
@@ -276,14 +276,26 @@ Acceptance:
 
 ## Phase 7: Remaining Protocol And Platform Parity
 
+Status: implemented at the Odin code/checkpoint level. Linux now has uinput
+text/key-combo output, evdev qwerty capture, listen-only phrase-key monitoring,
+and the shared POSIX serial path wired into TX Bolt, Gemini PR, Stentura, raw
+serial, and multi-input TX Bolt modes. Windows now has SendInput text/key-combo
+output, COM-port discovery/open/read/write, low-level keyboard-hook qwerty
+capture, listen-only phrase-key monitoring, and the serial CLI modes wired
+through the shared runtime. Dictionary and phrasing hot reload remain
+runtime-owner mtime polling in Odin rather than per-platform file watcher APIs.
+Cross-target `odin check` passes for Linux arm64, Linux amd64, and Windows
+amd64 from macOS; live Linux/Windows smoke tests are still pending on those
+platforms.
+
 Port features that are not needed for the first macOS qwerty/TX Bolt loop but
 must exist before declaring parity:
 
 - Stentura archive/import parity beyond the macOS realtime serial checkpoint.
 - Gemini PR platform parity outside the macOS serial checkpoint.
-- Linux qwerty/input/output/file watcher.
+- Linux qwerty/input/output/reload polling.
 - Linux serial path.
-- Windows qwerty/input/output/file watcher.
+- Windows qwerty/input/output/reload polling.
 - Windows serial path.
 - Platform atomic wrappers if direct Odin intrinsics are not clean enough.
 - Any remaining setup docs and build scripts.
@@ -336,8 +348,8 @@ Acceptance:
 - Stentura support.
 - macOS output and event tap.
 - Trace key events and translation timing.
-- Linux output/input/file watcher.
-- Windows output/input/file watcher.
+- Linux output/input/reload polling.
+- Windows output/input/reload polling.
 - Runtime config file behavior.
 - CLI flags and help text.
 - SRS hint lookup compatibility with the running dictionary configuration.
