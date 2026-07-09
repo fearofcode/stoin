@@ -115,8 +115,8 @@ the simple engine and temporary CLI, and `--dump-dictionary` writes stable
 canonical JSON. Default `stoin-config.json`, default word-list/phrasing paths,
 fallback default dictionary, explicit `--config` JSON loading, disabled
 dictionary layers, and the `--dictionary`/`--word-list` C aliases are supported.
-Remaining formatting edge cases, platform key-combo output, and other plover
-side-effect commands are still on the C side.
+Some rarer formatting edge cases, non-macOS platform key-combo output, and
+other plover side-effect commands are still on the C side.
 
 Port the pure translation data path:
 
@@ -176,7 +176,7 @@ stacks, orthography, and phrasing, and supports explicit dictionary/phrasing
 reloads while keeping previous phrasing after failed reloads. It is covered by
 fake-output tests. The temporary `--translate` CLI now uses the runtime callback
 path. C/Odin shared fixture parity now covers representative dictionary,
-suffix, retroactive, formatting, command, and callback event cases.
+suffix, retroactive, formatting, phrase, command, and callback event cases.
 
 Assemble the Odin `Steno` runtime around callback-style output:
 
