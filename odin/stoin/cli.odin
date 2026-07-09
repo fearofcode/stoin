@@ -16,6 +16,7 @@ Cli_Mode :: enum {
 	Translate,
 	Qwerty,
 	Tx_Bolt,
+	Gemini_Pr,
 	Raw_Serial,
 }
 
@@ -26,6 +27,7 @@ Cli_Config :: struct {
 	translates:     [dynamic]string,
 	input_qwerty:   bool,
 	input_tx_bolt:  bool,
+	input_gemini_pr: bool,
 	raw_serial:     bool,
 	keymap_path:    string,
 	serial_port_path: string,
@@ -96,8 +98,10 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 				config.input_qwerty = true
 			} else if input_mode == "tx-bolt" || input_mode == "txbolt" || input_mode == "bolt" {
 				config.input_tx_bolt = true
+			} else if input_mode == "gemini-pr" || input_mode == "gemini" {
+				config.input_gemini_pr = true
 			} else {
-				config.error_message = "--input currently supports qwerty or tx-bolt"
+				config.error_message = "--input currently supports qwerty, tx-bolt, or gemini-pr"
 				return config, false
 			}
 			i += 1
@@ -108,14 +112,14 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 			}
 			config.keymap_path = args[i + 1]
 			i += 1
-		case "--serial-port", "--port", "--tx-bolt-port":
+		case "--serial-port", "--port", "--tx-bolt-port", "--gemini-port":
 			if i + 1 >= len(args) {
 				config.error_message = "--serial-port requires a path"
 				return config, false
 			}
 			config.serial_port_path = args[i + 1]
 			i += 1
-		case "--serial-baud", "--baud", "--tx-bolt-baud":
+		case "--serial-baud", "--baud", "--tx-bolt-baud", "--gemini-baud":
 			if i + 1 >= len(args) {
 				config.error_message = "--serial-baud requires a baud rate"
 				return config, false
@@ -221,6 +225,9 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 	if config.input_tx_bolt {
 		selected_modes += 1
 	}
+	if config.input_gemini_pr {
+		selected_modes += 1
+	}
 	if config.raw_serial {
 		selected_modes += 1
 	}
@@ -259,6 +266,20 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 		config.mode = .Tx_Bolt
 		if len(config.dict_paths) == 0 {
 			config.error_message = "--input tx-bolt requires at least one --dict"
+			return config, false
+		}
+		if config.phrase_mode_enabled && len(config.phrasing_path) == 0 {
+			config.error_message = "--phrase-mode requires --phrasing"
+			return config, false
+		}
+		if cli_phrase_toggles_enabled(&config) && len(config.phrasing_path) == 0 {
+			config.error_message = "--phrase-toggle requires --phrasing"
+			return config, false
+		}
+	} else if config.input_gemini_pr {
+		config.mode = .Gemini_Pr
+		if len(config.dict_paths) == 0 {
+			config.error_message = "--input gemini-pr requires at least one --dict"
 			return config, false
 		}
 		if config.phrase_mode_enabled && len(config.phrasing_path) == 0 {
@@ -640,6 +661,24 @@ tx_bolt_cli_flush_idle_stroke :: proc(owner: ^Steno_Runtime_Owner, tx_bolt: ^Tx_
 	return false
 }
 
+gemini_pr_cli_read_available :: proc(owner: ^Steno_Runtime_Owner, gemini: ^Gemini_Pr, serial: ^Platform_Serial_Port) -> (made_progress: bool) {
+	for {
+		value, read_result := platform_serial_read_byte(serial, 0)
+		switch read_result {
+		case .Byte:
+			made_progress = true
+			if bits, decoded := gemini_pr_decode_byte(gemini, value); decoded {
+				_ = steno_runtime_owner_handle_active_stroke_bits(owner, bits)
+			}
+			continue
+		case .None:
+			return made_progress
+		case .Error:
+			return made_progress
+		}
+	}
+}
+
 cli_monotonic_ms :: proc() -> u64 {
 	tick := time.tick_now()
 	return u64(tick._nsec / 1_000_000)
@@ -786,6 +825,144 @@ run_tx_bolt_cli :: proc(config: ^Cli_Config) -> bool {
 				tx_bolt = {}
 				connected = false
 				last_byte_ms = 0
+				cli_sleep_ms(1000)
+			} else if !made_progress {
+				cli_sleep_ms(INPUT_EVENT_POLL_SLEEP_MS)
+			}
+		}
+	}
+}
+
+run_gemini_pr_cli :: proc(config: ^Cli_Config) -> bool {
+	when ODIN_OS != .Darwin {
+		_ = config
+		fmt.eprintln("stoin: Gemini PR input is currently implemented only on macOS in the Odin port")
+		return false
+	} else {
+		suggestion_log_file: ^os.File
+		if len(config.suggestion_log_path) > 0 {
+			open_file, open_err := os.open(
+				config.suggestion_log_path,
+				os.File_Flags{.Write, .Create, .Append},
+				os.Permissions_Default_File,
+			)
+			if open_err != nil {
+				fmt.eprintln("stoin: failed to open suggestion log")
+				return false
+			}
+			suggestion_log_file = open_file
+		}
+		defer if suggestion_log_file != nil {
+			os.close(suggestion_log_file)
+		}
+
+		output: Cli_Runtime_Output
+		cli_runtime_output_init(&output)
+		output.suggestion_log_file = suggestion_log_file
+		defer cli_runtime_output_destroy(&output)
+
+		runtime_config := Steno_Runtime_Load_Config {
+			dictionary_paths = config.dict_paths[:],
+			orthography_path = config.orthography_path,
+			send_text = macos_runtime_send_text,
+			delete_text = macos_runtime_delete_text,
+			send_key_combination = macos_runtime_send_key_combination,
+			write_trace = cli_runtime_write_line,
+			userdata = rawptr(&output),
+		}
+		if len(config.phrasing_path) > 0 {
+			runtime_config.phrasing_path = config.phrasing_path
+		}
+		if config.print_suggestions {
+			runtime_config.write_suggestion = cli_runtime_write_suggestion
+		}
+		if suggestion_log_file != nil {
+			runtime_config.write_suggestion_log = cli_runtime_write_suggestion_log
+		}
+
+		owner: Steno_Runtime_Owner
+		if !steno_runtime_owner_init(&owner, &runtime_config) {
+			fmt.eprintln("stoin: failed to initialize runtime")
+			return false
+		}
+		defer steno_runtime_owner_destroy(&owner)
+
+		if config.phrase_mode_enabled {
+			steno_runtime_set_phrase_namespace_enabled(&owner.runtime, true)
+			steno_runtime_set_phrase_mode(&owner.runtime, steno_phrase_mode_from_lookup_mode(config.phrase_mode))
+		}
+		cli_configure_phrase_toggles(config, &owner.runtime)
+
+		if !macos_output_init() {
+			fmt.eprintln("stoin: failed to initialize macOS text output")
+			return false
+		}
+		defer macos_output_shutdown()
+		if cli_phrase_toggles_enabled(config) {
+			if !macos_keyboard_listen_start(&owner) {
+				fmt.eprintln("stoin: failed to start macOS phrase toggle listener; confirm Accessibility permission")
+				return false
+			}
+			defer macos_keyboard_listen_stop()
+		}
+
+		baud_rate := config.serial_baud_rate
+		if baud_rate == 0 {
+			baud_rate = PLATFORM_SERIAL_DEFAULT_BAUD
+		}
+		fmt.println("stoin: Gemini PR serial capture starting at", baud_rate, "baud 8N1")
+		fmt.println("stoin: loaded", dictionary_count(&owner.dictionary_stack.dictionary), "dictionary entries")
+		cli_print_phrase_toggle_status(config)
+		fmt.println("stoin: press Ctrl+C in this terminal to quit")
+
+		gemini: Gemini_Pr
+		serial: Platform_Serial_Port
+		connected := false
+		announced_disconnected := false
+
+		for {
+			if !connected {
+				resolved_port_path, resolved_path_owned, resolved := serial_cli_resolve_serial_port(config.serial_port_path)
+				if !resolved {
+					if !announced_disconnected {
+						if len(config.serial_port_path) > 0 {
+							fmt.eprintln("stoin: Gemini PR disconnected; waiting for", config.serial_port_path)
+						} else {
+							fmt.eprintln("stoin: Gemini PR disconnected; waiting for a platform default serial device")
+						}
+						announced_disconnected = true
+					}
+					cli_sleep_ms(1000)
+					continue
+				}
+
+				if !platform_serial_open(&serial, resolved_port_path, baud_rate) {
+					if !announced_disconnected {
+						fmt.eprintln("stoin: Gemini PR disconnected; waiting for", resolved_port_path)
+						announced_disconnected = true
+					}
+					if resolved_path_owned {
+						owned_string_delete(resolved_port_path)
+					}
+					cli_sleep_ms(1000)
+					continue
+				}
+				if resolved_path_owned {
+					owned_string_delete(resolved_port_path)
+				}
+
+				gemini = {}
+				connected = true
+				announced_disconnected = false
+				fmt.println("stoin: Gemini PR connected on", serial.port_path)
+			}
+
+			made_progress := gemini_pr_cli_read_available(&owner, &gemini, &serial)
+			if platform_serial_had_error(&serial) {
+				fmt.println("stoin: Gemini PR disconnected from", serial.port_path, "; waiting for reconnect")
+				platform_serial_close(&serial)
+				gemini = {}
+				connected = false
 				cli_sleep_ms(1000)
 			} else if !made_progress {
 				cli_sleep_ms(INPUT_EVENT_POLL_SLEEP_MS)

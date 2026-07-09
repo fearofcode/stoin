@@ -2,6 +2,11 @@ package stoin
 
 GEMINI_PR_PACKET_SIZE :: 6
 
+Gemini_Pr :: struct {
+	packet:       [GEMINI_PR_PACKET_SIZE]byte,
+	packet_index: int,
+}
+
 GEMINI_PR_BITS := [?]u64 {
 	0, steno_bit(.Num), steno_bit(.Num), steno_bit(.Num),
 	steno_bit(.Num), steno_bit(.Num), steno_bit(.Num),
@@ -51,4 +56,34 @@ gemini_pr_decode_packet :: proc(packet: []byte) -> (bits: u64, ok: bool) {
 	}
 
 	return bits, true
+}
+
+gemini_pr_decode_byte :: proc(gemini: ^Gemini_Pr, value: byte) -> (bits: u64, ok: bool) {
+	if gemini == nil {
+		return 0, false
+	}
+
+	if gemini.packet_index == 0 {
+		if (value & 0x80) == 0 {
+			return 0, false
+		}
+		gemini.packet[0] = value
+		gemini.packet_index = 1
+		return 0, false
+	}
+
+	if (value & 0x80) != 0 {
+		gemini.packet[0] = value
+		gemini.packet_index = 1
+		return 0, false
+	}
+
+	gemini.packet[gemini.packet_index] = value
+	gemini.packet_index += 1
+	if gemini.packet_index != GEMINI_PR_PACKET_SIZE {
+		return 0, false
+	}
+
+	gemini.packet_index = 0
+	return gemini_pr_decode_packet(gemini.packet[:])
 }

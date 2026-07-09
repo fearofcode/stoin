@@ -82,6 +82,18 @@ test_gemini_pr_decode_packet :: proc(t: ^testing.T) {
 	bad_gemini_continuation := [?]byte{0x80, 0xC0, 0x20, 0x00, 0x04, 0x00}
 	_, ok = gemini_pr_decode_packet(bad_gemini_continuation[:])
 	testing.expect(t, !ok)
+
+	gemini: Gemini_Pr
+	stream := [?]byte{0x00, 0x80, 0xC0, 0x80, 0x40, 0x20, 0x00, 0x04, 0x00}
+	decoded := false
+	for value in stream {
+		bits, ok = gemini_pr_decode_byte(&gemini, value)
+		if ok {
+			decoded = true
+			expect_outline(t, "Gemini PR stream resync", bits, "SAT")
+		}
+	}
+	testing.expect(t, decoded)
 }
 
 @(test)
