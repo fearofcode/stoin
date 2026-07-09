@@ -327,63 +327,72 @@ test_parse_cli_args_phrase_toggles :: proc(t: ^testing.T) {
 }
 
 @(test)
-test_parse_cli_args_requires_dictionary_for_lookup :: proc(t: ^testing.T) {
+test_parse_cli_args_lookup_uses_default_config :: proc(t: ^testing.T) {
 	args := [?]string{APP_NAME, "--lookup", "SA-P"}
 	config, ok := parse_cli_args(args[:])
 	defer cli_config_destroy(&config)
 
-	testing.expect(t, !ok)
-	testing.expect_value(t, config.error_message, "--lookup requires at least one --dict")
+	testing.expect(t, ok)
+	testing.expect_value(t, config.mode, Cli_Mode.Lookup)
+	testing.expect_value(t, config.orthography_path, DEFAULT_WORD_LIST_PATH)
+	testing.expect_value(t, config.phrasing_path, DEFAULT_PHRASING_PATH)
+	testing.expect(t, len(config.dict_paths) > 0)
 }
 
 @(test)
-test_parse_cli_args_requires_dictionary_for_translate :: proc(t: ^testing.T) {
+test_parse_cli_args_translate_uses_default_config :: proc(t: ^testing.T) {
 	args := [?]string{APP_NAME, "--translate", "KWEUBG", "-L"}
 	config, ok := parse_cli_args(args[:])
 	defer cli_config_destroy(&config)
 
-	testing.expect(t, !ok)
-	testing.expect_value(t, config.error_message, "--translate requires at least one --dict")
+	testing.expect(t, ok)
+	testing.expect_value(t, config.mode, Cli_Mode.Translate)
+	testing.expect(t, len(config.dict_paths) > 0)
 }
 
 @(test)
-test_parse_cli_args_requires_dictionary_for_qwerty :: proc(t: ^testing.T) {
+test_parse_cli_args_qwerty_uses_default_config :: proc(t: ^testing.T) {
 	args := [?]string{APP_NAME, "--input", "qwerty"}
 	config, ok := parse_cli_args(args[:])
 	defer cli_config_destroy(&config)
 
-	testing.expect(t, !ok)
-	testing.expect_value(t, config.error_message, "--input qwerty requires at least one --dict")
+	testing.expect(t, ok)
+	testing.expect_value(t, config.mode, Cli_Mode.Qwerty)
+	testing.expect_value(t, config.keymap_path, "stoin.keymap")
+	testing.expect(t, len(config.dict_paths) > 0)
 }
 
 @(test)
-test_parse_cli_args_requires_dictionary_for_tx_bolt :: proc(t: ^testing.T) {
+test_parse_cli_args_tx_bolt_uses_default_config :: proc(t: ^testing.T) {
 	args := [?]string{APP_NAME, "--input", "bolt"}
 	config, ok := parse_cli_args(args[:])
 	defer cli_config_destroy(&config)
 
-	testing.expect(t, !ok)
-	testing.expect_value(t, config.error_message, "--input tx-bolt requires at least one --dict")
+	testing.expect(t, ok)
+	testing.expect_value(t, config.mode, Cli_Mode.Tx_Bolt)
+	testing.expect(t, len(config.dict_paths) > 0)
 }
 
 @(test)
-test_parse_cli_args_requires_dictionary_for_gemini_pr :: proc(t: ^testing.T) {
+test_parse_cli_args_gemini_pr_uses_default_config :: proc(t: ^testing.T) {
 	args := [?]string{APP_NAME, "--input", "gemini-pr"}
 	config, ok := parse_cli_args(args[:])
 	defer cli_config_destroy(&config)
 
-	testing.expect(t, !ok)
-	testing.expect_value(t, config.error_message, "--input gemini-pr requires at least one --dict")
+	testing.expect(t, ok)
+	testing.expect_value(t, config.mode, Cli_Mode.Gemini_Pr)
+	testing.expect(t, len(config.dict_paths) > 0)
 }
 
 @(test)
-test_parse_cli_args_requires_dictionary_for_stentura :: proc(t: ^testing.T) {
+test_parse_cli_args_stentura_uses_default_config :: proc(t: ^testing.T) {
 	args := [?]string{APP_NAME, "--input", "stentura"}
 	config, ok := parse_cli_args(args[:])
 	defer cli_config_destroy(&config)
 
-	testing.expect(t, !ok)
-	testing.expect_value(t, config.error_message, "--input stentura requires at least one --dict")
+	testing.expect(t, ok)
+	testing.expect_value(t, config.mode, Cli_Mode.Stentura)
+	testing.expect(t, len(config.dict_paths) > 0)
 }
 
 @(test)
@@ -407,33 +416,46 @@ test_parse_cli_args_rejects_raw_serial_combined_with_translate :: proc(t: ^testi
 }
 
 @(test)
-test_parse_cli_args_dump_dictionary_requires_dictionary :: proc(t: ^testing.T) {
+test_parse_cli_args_dictionary_alone_requires_mode :: proc(t: ^testing.T) {
+	args := [?]string{APP_NAME, "--dict", "tests/test-dictionary.json"}
+	config, ok := parse_cli_args(args[:])
+	defer cli_config_destroy(&config)
+
+	testing.expect(t, !ok)
+	testing.expect_value(t, config.error_message, "--dictionary requires --lookup, --translate, --dump-dictionary, or --input")
+}
+
+@(test)
+test_parse_cli_args_dump_dictionary_uses_default_config :: proc(t: ^testing.T) {
 	args := [?]string{APP_NAME, "--dump-dictionary"}
 	config, ok := parse_cli_args(args[:])
 	defer cli_config_destroy(&config)
 
-	testing.expect(t, !ok)
-	testing.expect_value(t, config.error_message, "--dump-dictionary requires at least one --dict")
+	testing.expect(t, ok)
+	testing.expect_value(t, config.mode, Cli_Mode.Dump_Dictionary)
+	testing.expect(t, len(config.dict_paths) > 0)
 }
 
 @(test)
-test_parse_cli_args_phrase_mode_requires_phrasing :: proc(t: ^testing.T) {
+test_parse_cli_args_phrase_mode_uses_default_phrasing :: proc(t: ^testing.T) {
 	args := [?]string{APP_NAME, "--dict", "tests/test-dictionary.json", "--phrase-mode", "verbs", "--translate", "PW-B"}
 	config, ok := parse_cli_args(args[:])
 	defer cli_config_destroy(&config)
 
-	testing.expect(t, !ok)
-	testing.expect_value(t, config.error_message, "--phrase-mode requires --phrasing")
+	testing.expect(t, ok)
+	testing.expect(t, config.phrase_mode_enabled)
+	testing.expect_value(t, config.phrasing_path, DEFAULT_PHRASING_PATH)
 }
 
 @(test)
-test_parse_cli_args_phrase_toggle_requires_phrasing :: proc(t: ^testing.T) {
+test_parse_cli_args_phrase_toggle_uses_default_phrasing :: proc(t: ^testing.T) {
 	args := [?]string{APP_NAME, "--input", "qwerty", "--dict", "tests/test-dictionary.json", "--phrase-toggle", "F13"}
 	config, ok := parse_cli_args(args[:])
 	defer cli_config_destroy(&config)
 
-	testing.expect(t, !ok)
-	testing.expect_value(t, config.error_message, "--phrase-toggle requires --phrasing")
+	testing.expect(t, ok)
+	testing.expect(t, config.phrase_toggle_enabled)
+	testing.expect_value(t, config.phrasing_path, DEFAULT_PHRASING_PATH)
 }
 
 @(test)

@@ -136,13 +136,16 @@ cli_config_parse_dictionaries :: proc(config: ^Cli_Config, object: json.Object) 
 	return true
 }
 
-cli_config_load_runtime_config :: proc(config: ^Cli_Config, path: string) -> bool {
+cli_config_load_runtime_config :: proc(config: ^Cli_Config, path: string, missing_ok := false) -> bool {
 	if config == nil || len(path) == 0 {
 		return false
 	}
 
 	data, read_err := os.read_entire_file(path, context.allocator)
 	if read_err != nil {
+		if missing_ok && read_err == .Not_Exist {
+			return true
+		}
 		config.error_message = "failed to read config"
 		return false
 	}

@@ -5,6 +5,10 @@ import "core:os"
 import "core:time"
 
 APP_NAME :: "stoin"
+DEFAULT_CONFIG_PATH :: "stoin-config.json"
+DEFAULT_DICTIONARY_PATH :: "lapwing-base.json"
+DEFAULT_WORD_LIST_PATH :: "american_english_words.txt"
+DEFAULT_PHRASING_PATH :: "phrasing.json"
 INPUT_EVENT_POLL_SLEEP_MS :: 10
 TX_BOLT_STROKE_IDLE_FLUSH_MS :: 100
 TX_BOLT_MULTIPLE_DEFAULT_WINDOW_MS :: 150
@@ -84,22 +88,36 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 
 	raw_serial_requested := false
 	for i := 1; i < len(args); i += 1 {
-		if args[i] == "--raw-serial" || args[i] == "--dump-serial" {
+	if args[i] == "--raw-serial" || args[i] == "--dump-serial" {
 			raw_serial_requested = true
 		}
 	}
 	if !raw_serial_requested {
+		if !cli_config_set_orthography_path(&config, DEFAULT_WORD_LIST_PATH) ||
+		   !cli_config_set_phrasing_path(&config, DEFAULT_PHRASING_PATH) {
+			config.error_message = "failed to store default config paths"
+			return config, false
+		}
+
+		config_path := DEFAULT_CONFIG_PATH
+		config_path_explicit := false
 		for i := 1; i < len(args); i += 1 {
-			if args[i] == "--config" && i + 1 < len(args) {
-				if !cli_config_load_runtime_config(&config, args[i + 1]) {
-					return config, false
+			if args[i] == "--config" {
+				if i + 1 >= len(args) {
+					break
 				}
+				config_path = args[i + 1]
+				config_path_explicit = true
 				i += 1
 			}
+		}
+		if !cli_config_load_runtime_config(&config, config_path, !config_path_explicit) {
+			return config, false
 		}
 	}
 
 	cli_dictionary_paths := false
+	dictionary_argument_seen := false
 	for i := 1; i < len(args); i += 1 {
 		arg := args[i]
 		switch arg {
@@ -120,6 +138,7 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 				cli_config_clear_dictionary_paths(&config)
 				cli_dictionary_paths = true
 			}
+			dictionary_argument_seen = true
 			if !cli_config_add_dictionary_path(&config, args[i + 1], true) {
 				config.error_message = "failed to store dictionary path"
 				return config, false
@@ -316,6 +335,13 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 		return config, false
 	}
 
+	if !raw_serial_requested && len(config.dict_paths) == 0 {
+		if !cli_config_add_dictionary_path(&config, DEFAULT_DICTIONARY_PATH, true) {
+			config.error_message = "failed to store default dictionary path"
+			return config, false
+		}
+	}
+
 	if config.multiple_inputs && !config.input_tx_bolt {
 		config.error_message = "--multiple-inputs currently only supports --input tx-bolt"
 		return config, false
@@ -397,22 +423,14 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 		}
 	} else if len(config.lookups) > 0 {
 		config.mode = .Lookup
-		if len(config.dict_paths) == 0 {
-			config.error_message = "--lookup requires at least one --dict"
-			return config, false
-		}
 	} else if len(config.translates) > 0 {
 		config.mode = .Translate
-		if len(config.dict_paths) == 0 {
-			config.error_message = "--translate requires at least one --dict"
-			return config, false
-		}
 		if config.phrase_mode_enabled && len(config.phrasing_path) == 0 {
 			config.error_message = "--phrase-mode requires --phrasing"
 			return config, false
 		}
-	} else if len(config.dict_paths) > 0 {
-		config.error_message = "--dict requires --lookup or --translate"
+	} else if dictionary_argument_seen {
+		config.error_message = "--dictionary requires --lookup, --translate, --dump-dictionary, or --input"
 		return config, false
 	}
 
