@@ -1,6 +1,8 @@
 package stoin
 
 import "core:c"
+import "core:fmt"
+import "core:time"
 import CF "core:sys/darwin/CoreFoundation"
 import "core:unicode/utf8"
 
@@ -58,6 +60,66 @@ foreign CoreGraphics {
 }
 
 macos_output_source: CGEventSourceRef
+macos_translation_timing_enabled: bool
+macos_translation_timing_active: bool
+macos_translation_timing_start_ns: u64
+macos_translation_timing_sequence: u64
+
+macos_monotonic_ns :: proc() -> u64 {
+	tick := time.tick_now()
+	return u64(tick._nsec)
+}
+
+macos_translation_timing_set_enabled :: proc(enabled: bool) {
+	macos_translation_timing_enabled = enabled
+	if !enabled {
+		macos_translation_timing_active = false
+		macos_translation_timing_start_ns = 0
+	}
+}
+
+macos_translation_timing_begin :: proc(start_ns: u64, userdata: rawptr) {
+	_ = userdata
+	if !macos_translation_timing_enabled || start_ns == 0 {
+		return
+	}
+	macos_translation_timing_start_ns = start_ns
+	macos_translation_timing_active = true
+}
+
+macos_translation_timing_cancel :: proc(userdata: rawptr) {
+	_ = userdata
+	macos_translation_timing_active = false
+	macos_translation_timing_start_ns = 0
+}
+
+macos_report_translation_timing_before_output :: proc(operation: string) {
+	if !macos_translation_timing_enabled || !macos_translation_timing_active {
+		return
+	}
+
+	now_ns := macos_monotonic_ns()
+	start_ns := macos_translation_timing_start_ns
+	elapsed_ns: u64
+	if now_ns >= start_ns {
+		elapsed_ns = now_ns - start_ns
+	}
+	macos_translation_timing_active = false
+	macos_translation_timing_start_ns = 0
+	macos_translation_timing_sequence += 1
+
+	label := operation
+	if len(label) == 0 {
+		label = "first"
+	}
+	fmt.eprintf(
+		"stoin: translation latency #%d before %s CGEventPost: %.3f ms (%.1f us)\n",
+		macos_translation_timing_sequence,
+		label,
+		f64(elapsed_ns) / 1_000_000.0,
+		f64(elapsed_ns) / 1_000.0,
+	)
+}
 
 macos_output_init :: proc() -> bool {
 	if macos_output_source != nil {
@@ -84,7 +146,7 @@ macos_event_was_generated_by_stoin :: proc(event: CGEventRef) -> bool {
 	return event != nil && CGEventGetIntegerValueField(event, KCG_EVENT_SOURCE_USER_DATA) == MACOS_GENERATED_EVENT_USER_DATA
 }
 
-macos_post_keyboard_event_pair_with_flags :: proc(keycode: CGKeyCode, flags: CGEventFlags) -> bool {
+macos_post_keyboard_event_pair_with_flags_operation :: proc(keycode: CGKeyCode, flags: CGEventFlags, operation: string) -> bool {
 	if !macos_output_init() {
 		return false
 	}
@@ -97,6 +159,7 @@ macos_post_keyboard_event_pair_with_flags :: proc(keycode: CGKeyCode, flags: CGE
 		macos_mark_generated_event(key_up)
 		CGEventSetFlags(key_down, flags)
 		CGEventSetFlags(key_up, flags)
+		macos_report_translation_timing_before_output(operation)
 		CGEventPost(KCG_SESSION_EVENT_TAP, key_down)
 		CGEventPost(KCG_SESSION_EVENT_TAP, key_up)
 		ok = true
@@ -111,8 +174,12 @@ macos_post_keyboard_event_pair_with_flags :: proc(keycode: CGKeyCode, flags: CGE
 	return ok
 }
 
+macos_post_keyboard_event_pair_with_flags :: proc(keycode: CGKeyCode, flags: CGEventFlags) -> bool {
+	return macos_post_keyboard_event_pair_with_flags_operation(keycode, flags, "key-combo")
+}
+
 macos_post_keyboard_event_pair :: proc(keycode: CGKeyCode) -> bool {
-	return macos_post_keyboard_event_pair_with_flags(keycode, 0)
+	return macos_post_keyboard_event_pair_with_flags_operation(keycode, 0, "key")
 }
 
 macos_append_rune_utf16 :: proc(out: ^[dynamic]u16, r: rune) {
@@ -158,6 +225,7 @@ macos_send_text_utf8 :: proc(text: string) -> bool {
 		CGEventSetFlags(key_up, 0)
 		CGEventKeyboardSetUnicodeString(key_down, UniCharCount(len(units)), raw_data(units))
 		CGEventKeyboardSetUnicodeString(key_up, UniCharCount(len(units)), raw_data(units))
+		macos_report_translation_timing_before_output("text")
 		CGEventPost(KCG_SESSION_EVENT_TAP, key_down)
 		CGEventPost(KCG_SESSION_EVENT_TAP, key_up)
 		ok = true

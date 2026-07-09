@@ -12,6 +12,9 @@ Runtime_Test_Output :: struct {
 	traces:     [dynamic]string,
 	suggestions: [dynamic]string,
 	suggestion_logs: [dynamic]string,
+	timing_start_ns: u64,
+	timing_begin_count: int,
+	timing_cancel_count: int,
 }
 
 runtime_test_output_init :: proc(output: ^Runtime_Test_Output) {
@@ -69,6 +72,9 @@ runtime_test_output_reset_events :: proc(output: ^Runtime_Test_Output) {
 		owned_string_delete(value)
 	}
 	clear(&output.suggestion_logs)
+	output.timing_start_ns = 0
+	output.timing_begin_count = 0
+	output.timing_cancel_count = 0
 }
 
 runtime_test_output_clear :: proc(output: ^Runtime_Test_Output) {
@@ -152,6 +158,23 @@ runtime_test_write_suggestion_log :: proc(line: string, userdata: rawptr) -> boo
 		return false
 	}
 	return runtime_test_record(&output.suggestion_logs, line)
+}
+
+runtime_test_begin_translation_timing :: proc(start_ns: u64, userdata: rawptr) {
+	output := (^Runtime_Test_Output)(userdata)
+	if output == nil {
+		return
+	}
+	output.timing_start_ns = start_ns
+	output.timing_begin_count += 1
+}
+
+runtime_test_cancel_translation_timing :: proc(userdata: rawptr) {
+	output := (^Runtime_Test_Output)(userdata)
+	if output == nil {
+		return
+	}
+	output.timing_cancel_count += 1
 }
 
 runtime_test_last :: proc(values: []string) -> string {
@@ -255,6 +278,38 @@ test_steno_runtime_emits_minimal_text_replacements :: proc(t: ^testing.T) {
 	testing.expect_value(t, len(output.deletes), 1)
 	testing.expect_value(t, runtime_test_last(output.deletes[:]), "ies")
 	testing.expect_value(t, runtime_test_last(output.sends[:]), "y")
+}
+
+@(test)
+test_steno_runtime_times_timestamped_strokes :: proc(t: ^testing.T) {
+	dictionary: Dictionary
+	dictionary_init(&dictionary)
+	defer dictionary_destroy(&dictionary)
+	testing.expect(t, dictionary_load(&dictionary, "tests/test-dictionary.json"))
+
+	output: Runtime_Test_Output
+	runtime_test_output_init(&output)
+	defer runtime_test_output_destroy(&output)
+
+	runtime: Steno_Runtime
+	config := runtime_test_config(&dictionary, nil, nil, &output)
+	config.begin_translation_timing = runtime_test_begin_translation_timing
+	config.cancel_translation_timing = runtime_test_cancel_translation_timing
+	testing.expect(t, steno_runtime_init(&runtime, &config))
+	defer steno_runtime_destroy(&runtime)
+
+	testing.expect(t, steno_runtime_handle_stroke(&runtime, Stroke_Input {
+		bits = runtime_test_bits(t, "KAT"),
+		received_ns = 12345,
+	}))
+	testing.expect_value(t, output.timing_begin_count, 1)
+	testing.expect_value(t, output.timing_cancel_count, 1)
+	testing.expect_value(t, output.timing_start_ns, u64(12345))
+
+	runtime_test_output_reset_events(&output)
+	testing.expect(t, steno_runtime_handle_stroke_bits(&runtime, runtime_test_bits(t, "KAT")))
+	testing.expect_value(t, output.timing_begin_count, 0)
+	testing.expect_value(t, output.timing_cancel_count, 0)
 }
 
 @(test)

@@ -85,6 +85,7 @@ macos_keyboard_tap_callback :: proc "c" (proxy: CGEventTapProxy, event_type: CGE
 		keycode = keycode,
 		is_down = is_down,
 		is_repeat = repeat != 0,
+		shift = (flags & KCG_EVENT_FLAG_MASK_SHIFT) != 0,
 		control = (flags & KCG_EVENT_FLAG_MASK_CONTROL) != 0,
 		option = (flags & KCG_EVENT_FLAG_MASK_ALTERNATE) != 0,
 		command = (flags & KCG_EVENT_FLAG_MASK_COMMAND) != 0,

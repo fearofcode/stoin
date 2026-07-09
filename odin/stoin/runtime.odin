@@ -12,6 +12,8 @@ Send_Text_Callback :: proc(text: string, userdata: rawptr) -> bool
 Delete_Text_Callback :: proc(text: string, userdata: rawptr) -> bool
 Send_Key_Combination_Callback :: proc(combo: string, userdata: rawptr) -> bool
 Line_Output_Callback :: proc(line: string, userdata: rawptr) -> bool
+Translation_Timing_Begin_Callback :: proc(start_ns: u64, userdata: rawptr)
+Translation_Timing_Cancel_Callback :: proc(userdata: rawptr)
 
 File_Stamp :: struct {
 	exists:           bool,
@@ -28,6 +30,7 @@ Steno_Phrase_Mode :: enum {
 
 Stroke_Input :: struct {
 	bits:             u64,
+	received_ns:      u64,
 	phrase:           bool,
 	phrase_namespace: bool,
 	phrase_mode:      Steno_Phrase_Mode,
@@ -45,6 +48,8 @@ Steno_Runtime_Config :: struct {
 	write_trace:          Line_Output_Callback,
 	write_suggestion:     Line_Output_Callback,
 	write_suggestion_log: Line_Output_Callback,
+	begin_translation_timing: Translation_Timing_Begin_Callback,
+	cancel_translation_timing: Translation_Timing_Cancel_Callback,
 	userdata:             rawptr,
 }
 
@@ -60,6 +65,8 @@ Steno_Runtime_Load_Config :: struct {
 	write_trace:          Line_Output_Callback,
 	write_suggestion:     Line_Output_Callback,
 	write_suggestion_log: Line_Output_Callback,
+	begin_translation_timing: Translation_Timing_Begin_Callback,
+	cancel_translation_timing: Translation_Timing_Cancel_Callback,
 	userdata:             rawptr,
 }
 
@@ -73,8 +80,11 @@ Steno_Runtime :: struct {
 	write_trace:              Line_Output_Callback,
 	write_suggestion:         Line_Output_Callback,
 	write_suggestion_log:     Line_Output_Callback,
+	begin_translation_timing: Translation_Timing_Begin_Callback,
+	cancel_translation_timing: Translation_Timing_Cancel_Callback,
 	userdata:                 rawptr,
 	session_active:           bool,
+	trace_key_events:         bool,
 	phrase_namespace_enabled: bool,
 	enabled:                  bool,
 	phrase_mode:              Steno_Phrase_Mode,
@@ -117,6 +127,7 @@ Input_Event :: struct {
 	keycode:   u16,
 	is_down:   bool,
 	is_repeat: bool,
+	shift:     bool,
 	command:   bool,
 	option:    bool,
 	control:   bool,
@@ -159,6 +170,8 @@ steno_runtime_init :: proc(runtime: ^Steno_Runtime, config: ^Steno_Runtime_Confi
 	runtime.write_trace = config.write_trace
 	runtime.write_suggestion = config.write_suggestion
 	runtime.write_suggestion_log = config.write_suggestion_log
+	runtime.begin_translation_timing = config.begin_translation_timing
+	runtime.cancel_translation_timing = config.cancel_translation_timing
 	runtime.userdata = config.userdata
 	runtime.enabled = true
 	runtime.session_active = true
@@ -229,6 +242,8 @@ steno_runtime_owner_init :: proc(owner: ^Steno_Runtime_Owner, config: ^Steno_Run
 		write_trace = config.write_trace,
 		write_suggestion = config.write_suggestion,
 		write_suggestion_log = config.write_suggestion_log,
+		begin_translation_timing = config.begin_translation_timing,
+		cancel_translation_timing = config.cancel_translation_timing,
 		userdata = config.userdata,
 	}
 	if !steno_runtime_init(&owner.runtime, &runtime_config) {
@@ -486,6 +501,18 @@ steno_runtime_owner_handle_active_stroke_bits :: proc(owner: ^Steno_Runtime_Owne
 	})
 }
 
+steno_runtime_owner_handle_active_stroke_bits_received :: proc(owner: ^Steno_Runtime_Owner, bits: u64, received_ns: u64) -> bool {
+	if owner == nil {
+		return false
+	}
+	return steno_runtime_owner_handle_stroke(owner, Stroke_Input {
+		bits = bits,
+		received_ns = received_ns,
+		phrase_namespace = steno_runtime_phrase_namespace_active(&owner.runtime),
+		phrase_mode = steno_runtime_current_phrase_mode(&owner.runtime, true),
+	})
+}
+
 steno_runtime_owner_handle_event :: proc(owner: ^Steno_Runtime_Owner, event: Input_Event) -> bool {
 	if owner == nil {
 		return false
@@ -532,6 +559,13 @@ steno_runtime_set_phrase_mode :: proc(runtime: ^Steno_Runtime, mode: Steno_Phras
 	if mode != .None && runtime.down_keycodes != 0 {
 		runtime.chord_phrase_mode = mode
 	}
+}
+
+steno_runtime_set_trace_key_events :: proc(runtime: ^Steno_Runtime, enabled: bool) {
+	if runtime == nil {
+		return
+	}
+	runtime.trace_key_events = enabled
 }
 
 steno_runtime_configure_phrase_toggles :: proc(
@@ -629,6 +663,40 @@ steno_runtime_current_phrase_down_mode :: proc(runtime: ^Steno_Runtime) -> Steno
 	return runtime.phrase_mode
 }
 
+steno_runtime_monotonic_ns :: proc() -> u64 {
+	tick := time.tick_now()
+	return u64(tick._nsec)
+}
+
+steno_runtime_begin_translation_timing :: proc(runtime: ^Steno_Runtime, start_ns: u64) -> bool {
+	if runtime == nil || runtime.begin_translation_timing == nil || start_ns == 0 {
+		return false
+	}
+	runtime.begin_translation_timing(start_ns, runtime.userdata)
+	return true
+}
+
+steno_runtime_cancel_translation_timing :: proc(runtime: ^Steno_Runtime) {
+	if runtime != nil && runtime.cancel_translation_timing != nil {
+		runtime.cancel_translation_timing(runtime.userdata)
+	}
+}
+
+steno_runtime_print_key_event :: proc(event: Input_Event) {
+	if event.is_repeat {
+		return
+	}
+	fmt.printf(
+		"stoin: key event keycode=%d %s shift=%d control=%d option=%d command=%d\n",
+		event.keycode,
+		event.is_down ? "down" : "up",
+		event.shift ? 1 : 0,
+		event.control ? 1 : 0,
+		event.option ? 1 : 0,
+		event.command ? 1 : 0,
+	)
+}
+
 steno_runtime_update_phrase_toggle_state :: proc(down: ^bool, latched: ^bool, event: Input_Event) {
 	if event.is_repeat {
 		return
@@ -708,6 +776,10 @@ steno_runtime_handle_event :: proc(runtime: ^Steno_Runtime, event: Input_Event) 
 		return false
 	}
 
+	if runtime.trace_key_events {
+		steno_runtime_print_key_event(event)
+	}
+
 	modifier_key_event := steno_runtime_update_shortcut_modifier_state(runtime, event)
 	shortcut_modifier_down := event.command || event.control || event.option ||
 		runtime.command_down || runtime.control_down || runtime.option_down
@@ -732,6 +804,15 @@ steno_runtime_handle_event :: proc(runtime: ^Steno_Runtime, event: Input_Event) 
 	if runtime.keymap == nil {
 		return false
 	}
+
+	timing_started := false
+	if !event.is_down {
+		timing_started = steno_runtime_begin_translation_timing(runtime, steno_runtime_monotonic_ns())
+	}
+	defer if timing_started {
+		steno_runtime_cancel_translation_timing(runtime)
+	}
+
 	binding := keymap_find_binding(runtime.keymap, event.keycode)
 	if binding == nil || event.keycode >= 64 {
 		return false
@@ -1063,6 +1144,11 @@ steno_runtime_maybe_emit_brevity_suggestion :: proc(runtime: ^Steno_Runtime) -> 
 steno_runtime_handle_stroke :: proc(runtime: ^Steno_Runtime, stroke: Stroke_Input) -> bool {
 	if runtime == nil || !runtime.session_active {
 		return false
+	}
+
+	timing_started := steno_runtime_begin_translation_timing(runtime, stroke.received_ns)
+	defer if timing_started {
+		steno_runtime_cancel_translation_timing(runtime)
 	}
 
 	old_text, old_ok := simple_engine_render(&runtime.engine)

@@ -58,6 +58,8 @@ Cli_Config :: struct {
 	print_suggestions: bool,
 	suggestion_log_path: string,
 	trace_strokes: bool,
+	trace_key_events: bool,
+	time_translations: bool,
 	orthography_path: string,
 	phrasing_path: string,
 	phrase_mode: Phrase_Lookup_Mode,
@@ -263,6 +265,10 @@ parse_cli_args :: proc(args: []string) -> (config: Cli_Config, ok: bool) {
 			config.trace_strokes = true
 		case "--no-trace-strokes":
 			config.trace_strokes = false
+		case "--trace-key-events", "--trace-input-events":
+			config.trace_key_events = true
+		case "--time-translations", "--time-translation":
+			config.time_translations = true
 		case "--word-list", "--orthography":
 			if i + 1 >= len(args) {
 				config.error_message = "--word-list requires a path"
@@ -463,6 +469,17 @@ cli_phrase_toggles_enabled :: proc(config: ^Cli_Config) -> bool {
 	return config != nil && (config.phrase_toggle_enabled || config.nonverb_phrase_toggle_enabled)
 }
 
+cli_keyboard_listener_enabled :: proc(config: ^Cli_Config) -> bool {
+	return cli_phrase_toggles_enabled(config) || (config != nil && config.trace_key_events)
+}
+
+cli_configure_runtime_input_options :: proc(config: ^Cli_Config, runtime: ^Steno_Runtime) {
+	cli_configure_phrase_toggles(config, runtime)
+	if config != nil {
+		steno_runtime_set_trace_key_events(runtime, config.trace_key_events)
+	}
+}
+
 cli_configure_phrase_toggles :: proc(config: ^Cli_Config, runtime: ^Steno_Runtime) {
 	if config == nil || runtime == nil {
 		return
@@ -498,6 +515,16 @@ cli_print_phrase_toggle_status :: proc(config: ^Cli_Config) {
 			config.nonverb_phrase_toggle_name,
 			config.nonverb_phrase_toggle_keycode,
 		)
+	}
+}
+
+cli_print_translation_timing_status :: proc(config: ^Cli_Config) {
+	if config == nil || !config.time_translations {
+		return
+	}
+	fmt.eprintln("stoin: translation timing enabled; latency stops immediately before the first platform output event")
+	if config.trace_strokes {
+		fmt.eprintln("stoin: note: stroke tracing is enabled and included in the measured path; use --no-trace-strokes for cleaner benchmark numbers")
 	}
 }
 
@@ -745,6 +772,10 @@ run_qwerty_cli :: proc(config: ^Cli_Config) -> bool {
 		if config.trace_strokes {
 			runtime_config.write_trace = cli_runtime_write_line
 		}
+		if config.time_translations {
+			runtime_config.begin_translation_timing = macos_translation_timing_begin
+			runtime_config.cancel_translation_timing = macos_translation_timing_cancel
+		}
 		if len(config.phrasing_path) > 0 {
 			runtime_config.phrasing_path = config.phrasing_path
 		}
@@ -766,13 +797,15 @@ run_qwerty_cli :: proc(config: ^Cli_Config) -> bool {
 			steno_runtime_set_phrase_namespace_enabled(&owner.runtime, true)
 			steno_runtime_set_phrase_mode(&owner.runtime, steno_phrase_mode_from_lookup_mode(config.phrase_mode))
 		}
-		cli_configure_phrase_toggles(config, &owner.runtime)
+		cli_configure_runtime_input_options(config, &owner.runtime)
 
 		if !macos_qwerty_start(&owner) {
 			fmt.eprintln("stoin: failed to start macOS qwerty event tap; confirm Accessibility permission")
 			return false
 		}
+		macos_translation_timing_set_enabled(config.time_translations)
 		defer macos_output_shutdown()
+		defer macos_translation_timing_set_enabled(false)
 		defer macos_qwerty_stop()
 
 		fmt.eprintln("stoin: macOS Odin qwerty event tap running")
@@ -784,6 +817,7 @@ run_qwerty_cli :: proc(config: ^Cli_Config) -> bool {
 			"dictionary entries",
 		)
 		cli_print_phrase_toggle_status(config)
+		cli_print_translation_timing_status(config)
 		fmt.eprintln("stoin: press Ctrl+Esc to toggle capture; press Ctrl+C in this terminal to quit")
 		macos_qwerty_run()
 		return true
@@ -798,7 +832,10 @@ serial_cli_resolve_serial_port :: proc(requested_port: string) -> (path: string,
 	return resolved_path, true, resolved
 }
 
-tx_bolt_cli_handle_stroke :: proc(owner: ^Steno_Runtime_Owner, bits: u64) -> bool {
+tx_bolt_cli_handle_stroke :: proc(owner: ^Steno_Runtime_Owner, bits: u64, received_ns: u64 = 0) -> bool {
+	if received_ns != 0 {
+		return steno_runtime_owner_handle_active_stroke_bits_received(owner, bits, received_ns)
+	}
 	return steno_runtime_owner_handle_active_stroke_bits(owner, bits)
 }
 
@@ -910,7 +947,7 @@ tx_bolt_cli_process_merge_outputs :: proc(owner: ^Steno_Runtime_Owner, merge: ^S
 		if !ok {
 			return
 		}
-		_ = tx_bolt_cli_handle_stroke(owner, bits)
+		_ = tx_bolt_cli_handle_stroke(owner, bits, cli_monotonic_ns())
 	}
 }
 
@@ -938,7 +975,7 @@ tx_bolt_cli_read_available :: proc(owner: ^Steno_Runtime_Owner, tx_bolt: ^Tx_Bol
 			last_byte_ms^ = cli_monotonic_ms()
 			made_progress = true
 			if bits, decoded := tx_bolt_decode_byte(tx_bolt, value); decoded {
-				_ = tx_bolt_cli_handle_stroke(owner, bits)
+				_ = tx_bolt_cli_handle_stroke(owner, bits, cli_monotonic_ns())
 			}
 			continue
 		case .None:
@@ -960,7 +997,7 @@ tx_bolt_cli_flush_idle_stroke :: proc(owner: ^Steno_Runtime_Owner, tx_bolt: ^Tx_
 
 	last_byte_ms^ = 0
 	if bits, flushed := tx_bolt_flush_stroke(tx_bolt); flushed {
-		_ = tx_bolt_cli_handle_stroke(owner, bits)
+		_ = tx_bolt_cli_handle_stroke(owner, bits, cli_monotonic_ns())
 		return true
 	}
 	return false
@@ -971,6 +1008,7 @@ run_tx_bolt_multiple_cli :: proc(config: ^Cli_Config, owner: ^Steno_Runtime_Owne
 	fmt.println("stoin: multiple-input merge window is", config.multi_input_window_ms, "ms when 2+ devices are connected")
 	fmt.println("stoin: loaded", dictionary_count(&owner.dictionary_stack.dictionary), "dictionary entries")
 	cli_print_phrase_toggle_status(config)
+	cli_print_translation_timing_status(config)
 	fmt.println("stoin: press Ctrl+C in this terminal to quit")
 	if len(config.serial_port_path) > 0 {
 		fmt.eprintln("stoin: --serial-port limits multiple-input mode to that single port")
@@ -1097,7 +1135,7 @@ gemini_pr_cli_read_available :: proc(owner: ^Steno_Runtime_Owner, gemini: ^Gemin
 		case .Byte:
 			made_progress = true
 			if bits, decoded := gemini_pr_decode_byte(gemini, value); decoded {
-				_ = steno_runtime_owner_handle_active_stroke_bits(owner, bits)
+				_ = steno_runtime_owner_handle_active_stroke_bits_received(owner, bits, cli_monotonic_ns())
 			}
 			continue
 		case .None:
@@ -1111,6 +1149,11 @@ gemini_pr_cli_read_available :: proc(owner: ^Steno_Runtime_Owner, gemini: ^Gemin
 cli_monotonic_ms :: proc() -> u64 {
 	tick := time.tick_now()
 	return u64(tick._nsec / 1_000_000)
+}
+
+cli_monotonic_ns :: proc() -> u64 {
+	tick := time.tick_now()
+	return u64(tick._nsec)
 }
 
 cli_poll_runtime_reloads :: proc(owner: ^Steno_Runtime_Owner, last_poll_ms: ^u64) {
@@ -1169,6 +1212,10 @@ run_tx_bolt_cli :: proc(config: ^Cli_Config) -> bool {
 		if config.trace_strokes {
 			runtime_config.write_trace = cli_runtime_write_line
 		}
+		if config.time_translations {
+			runtime_config.begin_translation_timing = macos_translation_timing_begin
+			runtime_config.cancel_translation_timing = macos_translation_timing_cancel
+		}
 		if len(config.phrasing_path) > 0 {
 			runtime_config.phrasing_path = config.phrasing_path
 		}
@@ -1190,16 +1237,18 @@ run_tx_bolt_cli :: proc(config: ^Cli_Config) -> bool {
 			steno_runtime_set_phrase_namespace_enabled(&owner.runtime, true)
 			steno_runtime_set_phrase_mode(&owner.runtime, steno_phrase_mode_from_lookup_mode(config.phrase_mode))
 		}
-		cli_configure_phrase_toggles(config, &owner.runtime)
+		cli_configure_runtime_input_options(config, &owner.runtime)
 
 		if !macos_output_init() {
 			fmt.eprintln("stoin: failed to initialize macOS text output")
 			return false
 		}
+		macos_translation_timing_set_enabled(config.time_translations)
 		defer macos_output_shutdown()
-		if cli_phrase_toggles_enabled(config) {
+		defer macos_translation_timing_set_enabled(false)
+		if cli_keyboard_listener_enabled(config) {
 			if !macos_keyboard_listen_start(&owner) {
-				fmt.eprintln("stoin: failed to start macOS phrase toggle listener; confirm Accessibility permission")
+				fmt.eprintln("stoin: failed to start macOS keyboard listener; confirm Accessibility permission")
 				return false
 			}
 			defer macos_keyboard_listen_stop()
@@ -1216,6 +1265,7 @@ run_tx_bolt_cli :: proc(config: ^Cli_Config) -> bool {
 		fmt.println("stoin: TX Bolt serial capture starting at", baud_rate, "baud 8N1")
 		fmt.println("stoin: loaded", dictionary_count(&owner.dictionary_stack.dictionary), "dictionary entries")
 		cli_print_phrase_toggle_status(config)
+		cli_print_translation_timing_status(config)
 		fmt.println("stoin: press Ctrl+C in this terminal to quit")
 
 		tx_bolt: Tx_Bolt
@@ -1324,6 +1374,10 @@ run_gemini_pr_cli :: proc(config: ^Cli_Config) -> bool {
 		if config.trace_strokes {
 			runtime_config.write_trace = cli_runtime_write_line
 		}
+		if config.time_translations {
+			runtime_config.begin_translation_timing = macos_translation_timing_begin
+			runtime_config.cancel_translation_timing = macos_translation_timing_cancel
+		}
 		if len(config.phrasing_path) > 0 {
 			runtime_config.phrasing_path = config.phrasing_path
 		}
@@ -1345,16 +1399,18 @@ run_gemini_pr_cli :: proc(config: ^Cli_Config) -> bool {
 			steno_runtime_set_phrase_namespace_enabled(&owner.runtime, true)
 			steno_runtime_set_phrase_mode(&owner.runtime, steno_phrase_mode_from_lookup_mode(config.phrase_mode))
 		}
-		cli_configure_phrase_toggles(config, &owner.runtime)
+		cli_configure_runtime_input_options(config, &owner.runtime)
 
 		if !macos_output_init() {
 			fmt.eprintln("stoin: failed to initialize macOS text output")
 			return false
 		}
+		macos_translation_timing_set_enabled(config.time_translations)
 		defer macos_output_shutdown()
-		if cli_phrase_toggles_enabled(config) {
+		defer macos_translation_timing_set_enabled(false)
+		if cli_keyboard_listener_enabled(config) {
 			if !macos_keyboard_listen_start(&owner) {
-				fmt.eprintln("stoin: failed to start macOS phrase toggle listener; confirm Accessibility permission")
+				fmt.eprintln("stoin: failed to start macOS keyboard listener; confirm Accessibility permission")
 				return false
 			}
 			defer macos_keyboard_listen_stop()
@@ -1367,6 +1423,7 @@ run_gemini_pr_cli :: proc(config: ^Cli_Config) -> bool {
 		fmt.println("stoin: Gemini PR serial capture starting at", baud_rate, "baud 8N1")
 		fmt.println("stoin: loaded", dictionary_count(&owner.dictionary_stack.dictionary), "dictionary entries")
 		cli_print_phrase_toggle_status(config)
+		cli_print_translation_timing_status(config)
 		fmt.println("stoin: press Ctrl+C in this terminal to quit")
 
 		gemini: Gemini_Pr
@@ -1483,6 +1540,10 @@ run_stentura_cli :: proc(config: ^Cli_Config) -> bool {
 		if config.trace_strokes {
 			runtime_config.write_trace = cli_runtime_write_line
 		}
+		if config.time_translations {
+			runtime_config.begin_translation_timing = macos_translation_timing_begin
+			runtime_config.cancel_translation_timing = macos_translation_timing_cancel
+		}
 		if len(config.phrasing_path) > 0 {
 			runtime_config.phrasing_path = config.phrasing_path
 		}
@@ -1504,16 +1565,18 @@ run_stentura_cli :: proc(config: ^Cli_Config) -> bool {
 			steno_runtime_set_phrase_namespace_enabled(&owner.runtime, true)
 			steno_runtime_set_phrase_mode(&owner.runtime, steno_phrase_mode_from_lookup_mode(config.phrase_mode))
 		}
-		cli_configure_phrase_toggles(config, &owner.runtime)
+		cli_configure_runtime_input_options(config, &owner.runtime)
 
 		if !macos_output_init() {
 			fmt.eprintln("stoin: failed to initialize macOS text output")
 			return false
 		}
+		macos_translation_timing_set_enabled(config.time_translations)
 		defer macos_output_shutdown()
-		if cli_phrase_toggles_enabled(config) {
+		defer macos_translation_timing_set_enabled(false)
+		if cli_keyboard_listener_enabled(config) {
 			if !macos_keyboard_listen_start(&owner) {
-				fmt.eprintln("stoin: failed to start macOS phrase toggle listener; confirm Accessibility permission")
+				fmt.eprintln("stoin: failed to start macOS keyboard listener; confirm Accessibility permission")
 				return false
 			}
 			defer macos_keyboard_listen_stop()
@@ -1526,6 +1589,7 @@ run_stentura_cli :: proc(config: ^Cli_Config) -> bool {
 		fmt.println("stoin: Stentura serial capture starting at", baud_rate, "baud 8N1")
 		fmt.println("stoin: loaded", dictionary_count(&owner.dictionary_stack.dictionary), "dictionary entries")
 		cli_print_phrase_toggle_status(config)
+		cli_print_translation_timing_status(config)
 		fmt.println("stoin: press Ctrl+C in this terminal to quit")
 
 		stentura: Stentura
@@ -1560,7 +1624,7 @@ run_stentura_cli :: proc(config: ^Cli_Config) -> bool {
 			}
 
 			if bits, read := stentura_read_stroke(&stentura); read {
-				_ = steno_runtime_owner_handle_active_stroke_bits(&owner, bits)
+				_ = steno_runtime_owner_handle_active_stroke_bits_received(&owner, bits, cli_monotonic_ns())
 			} else if stentura_had_error(&stentura) {
 				fmt.println("stoin: Stentura disconnected from", stentura_port_path(&stentura), "; waiting for reconnect")
 				stentura_close(&stentura)
