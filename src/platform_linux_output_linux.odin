@@ -107,6 +107,10 @@ LINUX_KEY_MAX :: 0x2ff
 LINUX_BUS_USB :: u16(0x03)
 LINUX_UINPUT_MAX_NAME_SIZE :: 80
 LINUX_UINPUT_IOCTL_BASE :: byte('U')
+// Linux UAPI ioctl definitions use a 32-bit C int. Odin's int is
+// pointer-sized, so using size_of(int) changes the request number on 64-bit
+// systems and makes the kernel reject the ioctl with ENOTTY.
+LINUX_C_INT_SIZE :: u32(size_of(i32))
 
 LINUX_COMBO_SHIFT :: 1 << 0
 LINUX_COMBO_CONTROL :: 1 << 1
@@ -160,11 +164,35 @@ linux_iow :: proc(request_type, nr, size: u32) -> u32 {
 LINUX_UI_DEV_CREATE :: (0 << 30) | (u32(LINUX_UINPUT_IOCTL_BASE) << 8) | 1 | (0 << 16)
 LINUX_UI_DEV_DESTROY :: (0 << 30) | (u32(LINUX_UINPUT_IOCTL_BASE) << 8) | 2 | (0 << 16)
 LINUX_UI_DEV_SETUP :: (1 << 30) | (u32(LINUX_UINPUT_IOCTL_BASE) << 8) | 3 | (u32(size_of(Linux_Uinput_Setup)) << 16)
-LINUX_UI_SET_EVBIT :: (1 << 30) | (u32(LINUX_UINPUT_IOCTL_BASE) << 8) | 100 | (u32(size_of(int)) << 16)
-LINUX_UI_SET_KEYBIT :: (1 << 30) | (u32(LINUX_UINPUT_IOCTL_BASE) << 8) | 101 | (u32(size_of(int)) << 16)
+LINUX_UI_SET_EVBIT :: (1 << 30) | (u32(LINUX_UINPUT_IOCTL_BASE) << 8) | 100 | (LINUX_C_INT_SIZE << 16)
+LINUX_UI_SET_KEYBIT :: (1 << 30) | (u32(LINUX_UINPUT_IOCTL_BASE) << 8) | 101 | (LINUX_C_INT_SIZE << 16)
+
+#assert(LINUX_UI_DEV_CREATE == 0x00005501)
+#assert(LINUX_UI_DEV_DESTROY == 0x00005502)
+#assert(size_of(Linux_Uinput_Setup) == 92)
+#assert(LINUX_UI_DEV_SETUP == 0x405c5503)
+#assert(LINUX_UI_SET_EVBIT == 0x40045564)
+#assert(LINUX_UI_SET_KEYBIT == 0x40045565)
+
+linux_ioctl_errno :: proc(fd: linux.Fd, request: u32, arg: uintptr) -> linux.Errno {
+	result := int(linux.ioctl(fd, request, arg))
+	if result < 0 {
+		return linux.Errno(-result)
+	}
+	return .NONE
+}
 
 linux_ioctl_ok :: proc(fd: linux.Fd, request: u32, arg: uintptr) -> bool {
-	return int(linux.ioctl(fd, request, arg)) >= 0
+	return linux_ioctl_errno(fd, request, arg) == .NONE
+}
+
+linux_uinput_ioctl_ok :: proc(fd: linux.Fd, request: u32, arg: uintptr, operation: string) -> bool {
+	err := linux_ioctl_errno(fd, request, arg)
+	if err == .NONE {
+		return true
+	}
+	fmt.eprintln("stoin: Linux uinput", operation, "failed:", err)
+	return false
 }
 
 linux_write_all :: proc(fd: linux.Fd, data: []byte) -> bool {
@@ -226,13 +254,13 @@ linux_output_init :: proc() -> bool {
 
 	fd, open_err := linux.open(cpath, {.WRONLY, .NONBLOCK, .CLOEXEC})
 	if open_err != .NONE {
-		fmt.eprintln("stoin: failed to open /dev/uinput for Linux keyboard output")
+		fmt.eprintln("stoin: failed to open /dev/uinput for Linux keyboard output:", open_err)
 		fmt.eprintln("stoin: check uinput permissions or run with access to /dev/uinput")
 		return false
 	}
 
-	if !linux_ioctl_ok(fd, LINUX_UI_SET_EVBIT, uintptr(LINUX_EV_KEY)) ||
-	   !linux_ioctl_ok(fd, LINUX_UI_SET_EVBIT, uintptr(LINUX_EV_SYN)) {
+	if !linux_uinput_ioctl_ok(fd, LINUX_UI_SET_EVBIT, uintptr(LINUX_EV_KEY), "UI_SET_EVBIT(EV_KEY)") ||
+	   !linux_uinput_ioctl_ok(fd, LINUX_UI_SET_EVBIT, uintptr(LINUX_EV_SYN), "UI_SET_EVBIT(EV_SYN)") {
 		linux.close(fd)
 		return false
 	}
@@ -247,8 +275,8 @@ linux_output_init :: proc() -> bool {
 	setup.id.version = 1
 	linux_copy_name(&setup.name, LINUX_UINPUT_NAME)
 
-	if !linux_ioctl_ok(fd, LINUX_UI_DEV_SETUP, uintptr(rawptr(&setup))) ||
-	   !linux_ioctl_ok(fd, LINUX_UI_DEV_CREATE, 0) {
+	if !linux_uinput_ioctl_ok(fd, LINUX_UI_DEV_SETUP, uintptr(rawptr(&setup)), "UI_DEV_SETUP") ||
+	   !linux_uinput_ioctl_ok(fd, LINUX_UI_DEV_CREATE, 0, "UI_DEV_CREATE") {
 		linux.close(fd)
 		return false
 	}

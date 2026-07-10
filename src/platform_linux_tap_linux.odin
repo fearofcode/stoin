@@ -73,7 +73,9 @@ linux_eviocgbit :: proc(event_type, length: int) -> u32 {
 LINUX_EVIOCGRAB :: (LINUX_EVDEV_IOC_WRITE << 30) |
 	(u32(LINUX_EVDEV_IOCTL_BASE) << 8) |
 	0x90 |
-	(u32(size_of(int)) << 16)
+	(LINUX_C_INT_SIZE << 16)
+
+#assert(LINUX_EVIOCGRAB == 0x40044590)
 
 linux_bit_word :: proc(bit: int) -> int {
 	return bit / LINUX_BITS_PER_ULONG
