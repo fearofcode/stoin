@@ -391,6 +391,7 @@ func TestDeckPageIncludesSessionOrderOptions(t *testing.T) {
 		`value="group_random" selected`,
 		`value="total_random"`,
 		`value="listed"`,
+		`type="submit" name="mode" value="review_all">Review all</button>`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("expected deck body to contain %q, got %q", want, body)
@@ -484,6 +485,67 @@ func TestPracticeAllStartsDeckSessionWithoutSelection(t *testing.T) {
 	}
 	if got := strings.Count(body, `name="session_index"`); got != 4 {
 		t.Fatalf("expected 4 repeated session items, got %d", got)
+	}
+}
+
+func TestReviewAllStartsDeckSessionWithoutSelection(t *testing.T) {
+	app := testApp(t)
+	ctx := context.Background()
+	deckID, err := app.getOrCreateDeck(ctx, "briefs", time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = app.ingestGroups(ctx, deckID, []ImportGroup{{Name: "words", Words: []string{"a", "the"}}}, "test", "one")
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherDeckID, err := app.getOrCreateDeck(ctx, "other deck", time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = app.ingestGroups(ctx, otherDeckID, []ImportGroup{{Name: "words", Words: []string{"other"}}}, "test", "two")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.db.Exec(
+		`UPDATE items
+		 SET intro_remaining = 0, due_at = ?
+		 WHERE group_id IN (SELECT id FROM groups WHERE deck_id = ?) AND text = 'the'`,
+		formatDBTime(time.Now().UTC().AddDate(0, 0, 30)),
+		deckID,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	form := url.Values{}
+	form.Set("deck_id", fmt.Sprint(deckID))
+	form.Set("mode", "review_all")
+	form.Set("session_order", "listed")
+	req := httptest.NewRequest(http.MethodPost, "/session/start", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+
+	app.handleSessionStart(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected ok, got %d with body %q", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	for _, want := range []string{
+		"<h1>Review</h1>",
+		`name="mode" value="review"`,
+		fmt.Sprintf(`name="deck_id" value="%d"`, deckID),
+		`value="a"`,
+		`value="the"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("expected review session body to contain %q, got %q", want, body)
+		}
+	}
+	if strings.Contains(body, `value="other"`) {
+		t.Fatalf("review all should not include another deck's items, got body %q", body)
+	}
+	if got := strings.Count(body, `name="session_index"`); got != 2 {
+		t.Fatalf("expected 2 review items, including the non-due item, got %d", got)
 	}
 }
 

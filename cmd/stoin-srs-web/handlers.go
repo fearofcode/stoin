@@ -255,14 +255,14 @@ func (a *App) handleSessionStart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rawMode := r.FormValue("mode")
-	if rawMode != "practice" && rawMode != "review" && rawMode != "practice_all" {
-		http.Error(w, "mode must be practice, practice_all, or review", http.StatusBadRequest)
+	if rawMode != "practice" && rawMode != "review" && rawMode != "practice_all" && rawMode != "review_all" {
+		http.Error(w, "mode must be practice, practice_all, review, or review_all", http.StatusBadRequest)
 		return
 	}
 	mode := rawMode
-	practiceAll := rawMode == "practice_all"
-	if practiceAll {
-		mode = "practice"
+	allItems := rawMode == "practice_all" || rawMode == "review_all"
+	if allItems {
+		mode = strings.TrimSuffix(rawMode, "_all")
 	}
 	order, err := parseSessionOrder(r.FormValue("session_order"))
 	if err != nil {
@@ -286,9 +286,9 @@ func (a *App) handleSessionStart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var items []SessionItem
-	if practiceAll {
+	if allItems {
 		if deckID <= 0 {
-			http.Error(w, "practice all requires a deck", http.StatusBadRequest)
+			http.Error(w, strings.ReplaceAll(rawMode, "_", " ")+" requires a deck", http.StatusBadRequest)
 			return
 		}
 		items, err = a.itemsForDeck(r.Context(), deckID)

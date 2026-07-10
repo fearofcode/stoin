@@ -77,6 +77,8 @@ Each deck page shows groups and words. Select whole groups or individual words,
 then choose:
 
 - `Review selected`: saves all results in one batch when you submit at the end.
+- `Review all`: reviews every word in the deck without changing the current
+  checkbox selection.
 - `Practice selected`: does not update due dates.
 - `Practice all`: practices every word in the deck without changing the current
   checkbox selection.
