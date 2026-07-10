@@ -1,0 +1,55 @@
+#ifndef PLATFORM_MACOS_INTERNAL_H
+#define PLATFORM_MACOS_INTERNAL_H
+
+#include "platform.h"
+
+#include <ApplicationServices/ApplicationServices.h>
+#include <CoreFoundation/CoreFoundation.h>
+#include <pthread.h>
+#include <stdbool.h>
+
+#define STOIN_GENERATED_EVENT_USER_DATA 0x73746f696eULL
+
+typedef struct Mac_File_Watch_Target {
+    int fd;
+    char *path;
+} Mac_File_Watch_Target;
+
+typedef struct Mac_State {
+    CFMachPortRef tap;
+    CFRunLoopSourceRef run_loop_source;
+    CFRunLoopRef run_loop;
+    pthread_t tap_thread;
+    pthread_mutex_t tap_thread_mutex;
+    pthread_cond_t tap_thread_condition;
+    CFFileDescriptorRef file_watcher_descriptor;
+    CFRunLoopSourceRef file_watcher_source;
+    CFRunLoopRef file_watcher_run_loop;
+    CGEventSourceRef output_source;
+    Handle_Input_Fn handler;
+    void *userdata;
+    Platform_File_Watch_Fn file_watcher_callback;
+    void *file_watcher_userdata;
+    char **file_watcher_paths;
+    Mac_File_Watch_Target *file_watcher_targets;
+    int file_watcher_kq;
+    int screen_lock_notify_token;
+    uint64_t translation_timing_start_ns;
+    uint64_t translation_timing_sequence;
+    bool file_watcher_active;
+    bool screen_lock_notify_registered;
+    bool tap_thread_sync_initialized;
+    bool tap_thread_started;
+    bool tap_thread_ready;
+    bool tap_thread_ok;
+    bool tap_listen_only;
+    bool translation_timing_enabled;
+    bool translation_timing_active;
+} Mac_State;
+
+extern Mac_State g_macos;
+
+void macos_mark_generated_event(CGEventRef event);
+bool macos_event_was_generated_by_stoin(CGEventRef event);
+
+#endif
