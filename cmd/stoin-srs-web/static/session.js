@@ -12,6 +12,10 @@ const results = Array(items.length).fill('');
 const form = document.getElementById('session-form');
 const submit = document.getElementById('submit');
 const autoSubmitStatus = document.getElementById('auto-submit-status');
+const practiceMissedSummary = document.getElementById('practice-missed-summary');
+const practiceMissedList = document.getElementById('practice-missed-list');
+const copyPracticeMissed = document.getElementById('copy-practice-missed');
+const copyPracticeMissedStatus = document.getElementById('copy-practice-missed-status');
 const lines = Array.from(document.querySelectorAll('.session-line'));
 const lineInputs = Array.from(document.querySelectorAll('.session-line-input'));
 const hintButtons = Array.from(document.querySelectorAll('.session-hint-button'));
@@ -48,6 +52,52 @@ function cancelCorrectTimer() {
 }
 function anyMissed() {
 	return results.some((result) => result === 'missed');
+}
+function uniqueMissedItemTexts() {
+	const seen = new Set();
+	const texts = [];
+	results.forEach((result, itemIndex) => {
+		if (result !== 'missed' || seen.has(items[itemIndex].id)) return;
+		seen.add(items[itemIndex].id);
+		texts.push(items[itemIndex].text);
+	});
+	return texts;
+}
+function updatePracticeMissedSummary() {
+	if (!practiceMissedSummary || !practiceMissedList) return;
+	const missedTexts = index >= items.length ? uniqueMissedItemTexts() : [];
+	practiceMissedList.value = missedTexts.join('\n');
+	practiceMissedSummary.hidden = missedTexts.length === 0;
+	if (copyPracticeMissedStatus) copyPracticeMissedStatus.textContent = '';
+}
+function selectPracticeMissedList() {
+	if (!practiceMissedList) return;
+	practiceMissedList.focus();
+	practiceMissedList.select();
+}
+function copyPracticeMissedFallback() {
+	selectPracticeMissedList();
+	try {
+		if (document.execCommand('copy')) {
+			copyPracticeMissedStatus.textContent = 'Copied.';
+			return;
+		}
+	} catch (_) {
+		// Leave the list selected for manual copying.
+	}
+	copyPracticeMissedStatus.textContent = 'List selected; copy it from the text box.';
+}
+function copyPracticeMissedList() {
+	if (!practiceMissedList || !practiceMissedList.value) return;
+	if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+		navigator.clipboard.writeText(practiceMissedList.value)
+			.then(function() {
+				copyPracticeMissedStatus.textContent = 'Copied.';
+			})
+			.catch(copyPracticeMissedFallback);
+		return;
+	}
+	copyPracticeMissedFallback();
 }
 function cancelAutoSubmit() {
 	if (autoSubmitTimer) {
@@ -184,6 +234,7 @@ function renderSession(options) {
 	updateTokenStates();
 	lines.forEach(renderLineEcho);
 	syncControls();
+	updatePracticeMissedSummary();
 	if (opts.focus !== false) focusCurrentInput(opts.scroll !== false);
 }
 function completeCurrent(correct) {
@@ -252,4 +303,13 @@ skipButtons.forEach((button, lineIndex) => {
 		if (lineIndex === currentLineIndex()) completeCurrent(false);
 	});
 });
+if (practiceMissedList) {
+	practiceMissedList.addEventListener('focus', function() {
+		practiceMissedList.select();
+	});
+	practiceMissedList.addEventListener('click', function() {
+		practiceMissedList.select();
+	});
+}
+if (copyPracticeMissed) copyPracticeMissed.addEventListener('click', copyPracticeMissedList);
 renderSession();

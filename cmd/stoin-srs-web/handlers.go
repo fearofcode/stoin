@@ -365,17 +365,31 @@ func (a *App) handleSessionSubmit(w http.ResponseWriter, r *http.Request) {
 	if returnURL == "" {
 		returnURL = "/"
 	}
-	if mode != "review" {
-		redirectWithNotice(w, r, returnURL, "Practice complete.")
-		return
-	}
-	order, err := parseSessionOrder(r.FormValue("session_order"))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	if mode != "practice" && mode != "review" {
+		http.Error(w, "mode must be practice or review", http.StatusBadRequest)
 		return
 	}
 
 	results, err := parseSubmittedResults(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if mode == "practice" {
+		missed := deduplicatedMissedResults(results)
+		if len(missed) > 0 {
+			if err := a.applyReviewBatch(r.Context(), missed); err != nil {
+				serverError(w, err)
+				return
+			}
+			redirectWithNotice(w, r, returnURL, "Practice complete; missed words reset.")
+			return
+		}
+		redirectWithNotice(w, r, returnURL, "Practice complete.")
+		return
+	}
+
+	order, err := parseSessionOrder(r.FormValue("session_order"))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

@@ -339,6 +339,33 @@ button:disabled {
 	white-space: nowrap;
 }
 
+.practice-missed-summary {
+	display: grid;
+	gap: 8px;
+	margin: 22px 0 8px;
+	max-width: 42rem;
+}
+
+.practice-missed-summary[hidden] {
+	display: none;
+}
+
+.practice-missed-label {
+	font-weight: 700;
+}
+
+#practice-missed-list {
+	min-height: 7rem;
+	resize: vertical;
+}
+
+.practice-missed-actions {
+	align-items: center;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+}
+
 @media (max-width: 700px) {
 	.session-input-row {
 		align-items: stretch;

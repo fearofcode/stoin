@@ -30,6 +30,16 @@
 		</div>
 	{{end}}
 	</div>
+	{{if .IsPractice}}
+	<div class="practice-missed-summary" id="practice-missed-summary" hidden>
+		<label class="practice-missed-label" for="practice-missed-list">Hinted or skipped items</label>
+		<textarea id="practice-missed-list" rows="6" readonly spellcheck="false"></textarea>
+		<div class="practice-missed-actions">
+			<button type="button" id="copy-practice-missed">Copy list</button>
+			<span class="small" id="copy-practice-missed-status" aria-live="polite"></span>
+		</div>
+	</div>
+	{{end}}
 	<div class="actions">
 		<button class="primary" type="submit" id="submit" disabled>Submit</button>
 		<span class="small" id="auto-submit-status" aria-live="polite"></span>

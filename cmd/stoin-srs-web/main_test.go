@@ -276,6 +276,114 @@ func TestReviewSubmitRedirectsWhenNoDueItemsRemain(t *testing.T) {
 	}
 }
 
+func TestPracticeSubmitResetsEachMissedItemOnce(t *testing.T) {
+	app := testApp(t)
+	ctx := context.Background()
+	deckID, err := app.getOrCreateDeck(ctx, "briefs", time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = app.ingestGroups(ctx, deckID, []ImportGroup{{Name: "words", Words: []string{"a", "the"}}}, "test", "one")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	itemIDs := map[string]int64{}
+	rows, err := app.db.Query(`SELECT id, text FROM items`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		var id int64
+		var text string
+		if err := rows.Scan(&id, &text); err != nil {
+			rows.Close()
+			t.Fatal(err)
+		}
+		itemIDs[text] = id
+	}
+	if err := rows.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.db.Exec(`
+UPDATE items
+SET intro_remaining = 0,
+	schedule_stage = 3,
+	interval_days = 14,
+	due_at = ?,
+	review_count = 4,
+	correct_count = 3,
+	incorrect_count = 1`, formatDBTime(time.Now().UTC().AddDate(0, 0, 30))); err != nil {
+		t.Fatal(err)
+	}
+
+	form := url.Values{}
+	form.Set("mode", "practice")
+	form.Set("return", fmt.Sprintf("/deck?id=%d", deckID))
+	form.Add("session_index", "0")
+	form.Set("item_id_0", fmt.Sprint(itemIDs["a"]))
+	form.Set("prompt_0", "a")
+	form.Set("answer_0", "a")
+	form.Set("result_0", "missed")
+	form.Add("session_index", "1")
+	form.Set("item_id_1", fmt.Sprint(itemIDs["a"]))
+	form.Set("prompt_1", "a")
+	form.Set("answer_1", "a")
+	form.Set("result_1", "missed")
+	form.Add("session_index", "2")
+	form.Set("item_id_2", fmt.Sprint(itemIDs["the"]))
+	form.Set("prompt_2", "the")
+	form.Set("answer_2", "the")
+	form.Set("result_2", "correct")
+	req := httptest.NewRequest(http.MethodPost, "/session/submit", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+
+	app.handleSessionSubmit(rec, req)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("expected redirect after practice, got %d with body %q", rec.Code, rec.Body.String())
+	}
+	if location := rec.Header().Get("Location"); !strings.Contains(location, "missed+words+reset") {
+		t.Fatalf("expected reset notice, got redirect %q", location)
+	}
+
+	assertSchedule := func(text string, wantIntro, wantStage int, wantInterval float64, wantReviews, wantCorrect, wantIncorrect int) {
+		t.Helper()
+		var intro, stage, reviews, correct, incorrect int
+		var interval float64
+		if err := app.db.QueryRow(`
+SELECT intro_remaining, schedule_stage, interval_days, review_count, correct_count, incorrect_count
+FROM items
+WHERE id = ?`, itemIDs[text]).Scan(&intro, &stage, &interval, &reviews, &correct, &incorrect); err != nil {
+			t.Fatal(err)
+		}
+		if intro != wantIntro || stage != wantStage || interval != wantInterval ||
+			reviews != wantReviews || correct != wantCorrect || incorrect != wantIncorrect {
+			t.Fatalf(
+				"%s schedule: got intro=%d stage=%d interval=%v reviews=%d correct=%d incorrect=%d",
+				text, intro, stage, interval, reviews, correct, incorrect,
+			)
+		}
+	}
+	assertSchedule("a", introRepetitions, 0, 0, 5, 3, 2)
+	assertSchedule("the", 0, 3, 14, 4, 3, 1)
+
+	var missedReviews int
+	if err := app.db.QueryRow(`SELECT COUNT(*) FROM reviews WHERE item_id = ? AND correct = 0`, itemIDs["a"]).Scan(&missedReviews); err != nil {
+		t.Fatal(err)
+	}
+	if missedReviews != 1 {
+		t.Fatalf("expected one deduplicated missed review, got %d", missedReviews)
+	}
+	var correctPracticeReviews int
+	if err := app.db.QueryRow(`SELECT COUNT(*) FROM reviews WHERE item_id = ?`, itemIDs["the"]).Scan(&correctPracticeReviews); err != nil {
+		t.Fatal(err)
+	}
+	if correctPracticeReviews != 0 {
+		t.Fatalf("correct practice should not create reviews, got %d", correctPracticeReviews)
+	}
+}
+
 func TestHintRouteUsesConfiguredDictionaryStack(t *testing.T) {
 	dir := t.TempDir()
 	firstDict := filepath.Join(dir, "first.json")
@@ -358,12 +466,33 @@ func TestSessionPageIncludesHintControls(t *testing.T) {
 	for _, want := range []string{
 		`class="session-hint-button"`,
 		`class="session-hint"`,
+		`id="practice-missed-summary" hidden`,
+		`id="practice-missed-list"`,
+		`id="copy-practice-missed"`,
+		`>Hinted or skipped items<`,
 		`name="session_order" value="group_random"`,
 		">Hint<",
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("expected session body to contain %q, got %q", want, body)
 		}
+	}
+}
+
+func TestReviewSessionOmitsPracticeMissedSummary(t *testing.T) {
+	app := testApp(t)
+	rec := httptest.NewRecorder()
+	app.renderSession(rec, SessionPageData{
+		Mode:      "review",
+		ReturnURL: "/",
+		Items:     []SessionItem{{ID: 1, Text: "put"}},
+		IsReview:  true,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected session page, got %d", rec.Code)
+	}
+	if body := rec.Body.String(); strings.Contains(body, `id="practice-missed-summary"`) {
+		t.Fatalf("review session should omit practice summary, got %q", body)
 	}
 }
 
@@ -866,6 +995,11 @@ func TestStaticSessionScriptIncludesHints(t *testing.T) {
 		"hinted[index]",
 		"fetch('/hint?item_id='",
 		"Outline: ",
+		"uniqueMissedItemTexts",
+		"seen.has(items[itemIndex].id)",
+		"missedTexts.join('\\n')",
+		"navigator.clipboard.writeText",
+		"document.execCommand('copy')",
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("expected session script to contain %q, got %q", want, body)

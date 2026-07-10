@@ -172,6 +172,19 @@ func parseSubmittedResults(r *http.Request) ([]ReviewResult, error) {
 	return results, nil
 }
 
+func deduplicatedMissedResults(results []ReviewResult) []ReviewResult {
+	seen := make(map[int64]bool)
+	missed := make([]ReviewResult, 0, len(results))
+	for _, result := range results {
+		if result.Correct || seen[result.ItemID] {
+			continue
+		}
+		seen[result.ItemID] = true
+		missed = append(missed, result)
+	}
+	return missed
+}
+
 func (a *App) renderSession(w http.ResponseWriter, data SessionPageData) {
 	if data.Order == "" {
 		data.Order = sessionOrderGroupRandom

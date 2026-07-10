@@ -79,7 +79,8 @@ then choose:
 - `Review selected`: saves all results in one batch when you submit at the end.
 - `Review all`: reviews every word in the deck without changing the current
   checkbox selection.
-- `Practice selected`: does not update due dates.
+- `Practice selected`: correct answers do not update due dates; hinted or
+  skipped words reset to the intro schedule when the session is submitted.
 - `Practice all`: practices every word in the deck without changing the current
   checkbox selection.
 
@@ -87,8 +88,13 @@ Practice mode accepts a practice count before starting the session.
 
 During review or practice, `Hint` shows the current word's outline from the
 configured dictionary stack. Requesting a hint marks that item as missed for the
-session, but leaves the word active until you type it correctly. In review mode,
-that means the item is scheduled the same way as a skipped item.
+session, but leaves the word active until you type it correctly. In review and
+practice modes, that means the item is scheduled the same way as a skipped item
+when the session is submitted.
+
+At the end of a practice session, any hinted or skipped items appear once each
+in a plain-text list beside the submit controls. The list can be copied for
+review outside the app.
 
 After a review submit, the app checks for more due words in the same review
 scope. Deck reviews continue with due words from that deck; the root review-all
