@@ -269,6 +269,19 @@ runtime_test_reset_owner :: proc(owner: ^Steno_Runtime_Owner, config: ^Steno_Run
 	return steno_runtime_owner_init(owner, config)
 }
 
+runtime_test_expect_owner_load_failure_path :: proc(
+	t: ^testing.T,
+	config: ^Steno_Runtime_Load_Config,
+	expected_path: string,
+) {
+	owner: Steno_Runtime_Owner
+	failed_path: string
+	loaded := steno_runtime_owner_init(&owner, config, &failed_path)
+	testing.expect(t, !loaded)
+	testing.expect_value(t, failed_path, expected_path)
+	steno_runtime_owner_destroy(&owner)
+}
+
 @(test)
 test_steno_runtime_emits_minimal_text_replacements :: proc(t: ^testing.T) {
 	dictionary: Dictionary
@@ -540,6 +553,58 @@ test_steno_runtime_owner_loads_paths :: proc(t: ^testing.T) {
 		phrase_mode = .Verbs,
 	}))
 	runtime_test_expect_output(t, &output, " is a")
+}
+
+@(test)
+test_steno_runtime_owner_reports_failed_file_path :: proc(t: ^testing.T) {
+	output: Runtime_Test_Output
+	runtime_test_output_init(&output)
+	defer runtime_test_output_destroy(&output)
+
+	missing_dictionary_path := "build/odin-runtime-missing-dictionary.json"
+	missing_keymap_path := "build/odin-runtime-missing-keymap.keymap"
+	missing_word_list_path := "build/odin-runtime-missing-word-list.txt"
+	missing_phrasing_path := "build/odin-runtime-missing-phrasing.json"
+	_ = os.remove(missing_dictionary_path)
+	_ = os.remove(missing_keymap_path)
+	_ = os.remove(missing_word_list_path)
+	_ = os.remove(missing_phrasing_path)
+
+	dictionary_paths := [?]string{"tests/test-dictionary.json", missing_dictionary_path}
+	config := runtime_test_load_config(dictionary_paths[:], nil, &output)
+	runtime_test_expect_owner_load_failure_path(t, &config, missing_dictionary_path)
+
+	valid_dictionary_paths := [?]string{"tests/test-dictionary.json"}
+	config = runtime_test_load_config(valid_dictionary_paths[:], nil, &output)
+	config.keymap_path = missing_keymap_path
+	runtime_test_expect_owner_load_failure_path(t, &config, missing_keymap_path)
+
+	config.keymap_path = ""
+	config.orthography_path = missing_word_list_path
+	runtime_test_expect_owner_load_failure_path(t, &config, missing_word_list_path)
+
+	config.orthography_path = ""
+	config.phrasing_path = missing_phrasing_path
+	runtime_test_expect_owner_load_failure_path(t, &config, missing_phrasing_path)
+}
+
+@(test)
+test_steno_runtime_owner_ignores_disabled_missing_dictionary :: proc(t: ^testing.T) {
+	output: Runtime_Test_Output
+	runtime_test_output_init(&output)
+	defer runtime_test_output_destroy(&output)
+
+	missing_path := "build/odin-runtime-disabled-missing-dictionary.json"
+	_ = os.remove(missing_path)
+	paths := [?]string{missing_path, "tests/test-dictionary.json"}
+	enabled := [?]bool{false, true}
+	config := runtime_test_load_config(paths[:], enabled[:], &output)
+
+	owner: Steno_Runtime_Owner
+	failed_path := "not reset"
+	testing.expect(t, steno_runtime_owner_init(&owner, &config, &failed_path))
+	defer steno_runtime_owner_destroy(&owner)
+	testing.expect_value(t, failed_path, "")
 }
 
 @(test)

@@ -46,8 +46,7 @@ run_translate_cli :: proc(config: ^Cli_Config) -> bool {
 	}
 
 	owner: Steno_Runtime_Owner
-	if !steno_runtime_owner_init(&owner, &runtime_config) {
-		fmt.eprintln("stoin: failed to initialize runtime")
+	if !cli_runtime_owner_init(&owner, &runtime_config) {
 		return false
 	}
 	defer steno_runtime_owner_destroy(&owner)
@@ -133,8 +132,7 @@ run_qwerty_cli :: proc(config: ^Cli_Config) -> bool {
 		}
 
 		owner: Steno_Runtime_Owner
-		if !steno_runtime_owner_init(&owner, &runtime_config) {
-			fmt.eprintln("stoin: failed to initialize runtime")
+		if !cli_runtime_owner_init(&owner, &runtime_config) {
 			return false
 		}
 		defer steno_runtime_owner_destroy(&owner)
@@ -169,4 +167,3 @@ run_qwerty_cli :: proc(config: ^Cli_Config) -> bool {
 		return true
 	}
 }
-

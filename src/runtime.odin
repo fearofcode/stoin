@@ -179,16 +179,30 @@ steno_runtime_init :: proc(runtime: ^Steno_Runtime, config: ^Steno_Runtime_Confi
 	return true
 }
 
-steno_runtime_owner_init :: proc(owner: ^Steno_Runtime_Owner, config: ^Steno_Runtime_Load_Config) -> bool {
+steno_runtime_owner_init :: proc(
+	owner: ^Steno_Runtime_Owner,
+	config: ^Steno_Runtime_Load_Config,
+	failed_path: ^string = nil,
+) -> bool {
+	if failed_path != nil {
+		failed_path^ = ""
+	}
 	if owner == nil || config == nil {
 		return false
 	}
 	owner^ = {}
 
 	dictionary_stack_init(&owner.dictionary_stack)
-	if !dictionary_stack_set_paths(&owner.dictionary_stack, config.dictionary_paths, config.dictionary_enabled) ||
-	   !dictionary_stack_load(&owner.dictionary_stack) {
+	if !dictionary_stack_set_paths(&owner.dictionary_stack, config.dictionary_paths, config.dictionary_enabled) {
 		steno_runtime_owner_destroy(owner)
+		return false
+	}
+	failed_dictionary_index := -1
+	if !dictionary_stack_load(&owner.dictionary_stack, &failed_dictionary_index) {
+		steno_runtime_owner_destroy(owner)
+		if failed_path != nil && failed_dictionary_index >= 0 && failed_dictionary_index < len(config.dictionary_paths) {
+			failed_path^ = config.dictionary_paths[failed_dictionary_index]
+		}
 		return false
 	}
 
@@ -198,6 +212,9 @@ steno_runtime_owner_init :: proc(owner: ^Steno_Runtime_Owner, config: ^Steno_Run
 		owner.has_keymap = true
 		if !keymap_load(&owner.keymap, config.keymap_path) {
 			steno_runtime_owner_destroy(owner)
+			if failed_path != nil {
+				failed_path^ = config.keymap_path
+			}
 			return false
 		}
 		keymap_pointer = &owner.keymap
@@ -209,6 +226,9 @@ steno_runtime_owner_init :: proc(owner: ^Steno_Runtime_Owner, config: ^Steno_Run
 		owner.has_orthography = true
 		if !orthography_load(&owner.orthography, config.orthography_path) {
 			steno_runtime_owner_destroy(owner)
+			if failed_path != nil {
+				failed_path^ = config.orthography_path
+			}
 			return false
 		}
 		orthography_pointer = &owner.orthography
@@ -220,6 +240,9 @@ steno_runtime_owner_init :: proc(owner: ^Steno_Runtime_Owner, config: ^Steno_Run
 		owner.phrasing, phrasing_ok = phrasing_load(config.phrasing_path)
 		if !phrasing_ok {
 			steno_runtime_owner_destroy(owner)
+			if failed_path != nil {
+				failed_path^ = config.phrasing_path
+			}
 			return false
 		}
 		owner.has_phrasing = true

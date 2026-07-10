@@ -58,7 +58,10 @@ dictionary_stack_set_paths :: proc(stack: ^Dictionary_Stack, paths: []string, en
 	return true
 }
 
-dictionary_stack_load :: proc(stack: ^Dictionary_Stack) -> bool {
+dictionary_stack_load :: proc(stack: ^Dictionary_Stack, failed_path_index: ^int = nil) -> bool {
+	if failed_path_index != nil {
+		failed_path_index^ = -1
+	}
 	if len(stack.paths) == 0 || len(stack.paths) != len(stack.enabled) {
 		return false
 	}
@@ -70,6 +73,9 @@ dictionary_stack_load :: proc(stack: ^Dictionary_Stack) -> bool {
 			continue
 		}
 		if !dictionary_load(&next, path) {
+			if failed_path_index != nil {
+				failed_path_index^ = i
+			}
 			dictionary_destroy(&next)
 			return false
 		}

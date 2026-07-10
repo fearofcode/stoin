@@ -542,14 +542,36 @@ cli_config_destroy :: proc(config: ^Cli_Config) {
 	config^ = {}
 }
 
+cli_print_file_load_error :: proc(path: string) {
+	fmt.eprintln("stoin: failed to load file:", path)
+}
+
+cli_runtime_owner_init :: proc(owner: ^Steno_Runtime_Owner, config: ^Steno_Runtime_Load_Config) -> bool {
+	failed_path: string
+	if steno_runtime_owner_init(owner, config, &failed_path) {
+		return true
+	}
+	if len(failed_path) > 0 {
+		cli_print_file_load_error(failed_path)
+	} else {
+		fmt.eprintln("stoin: failed to initialize runtime")
+	}
+	return false
+}
+
 run_lookup_cli :: proc(config: ^Cli_Config) -> bool {
 	stack: Dictionary_Stack
 	dictionary_stack_init(&stack)
 	defer dictionary_stack_destroy(&stack)
 
+	failed_dictionary_index := -1
 	if !dictionary_stack_set_paths(&stack, config.dict_paths[:], config.dict_enabled[:]) ||
-	   !dictionary_stack_load(&stack) {
-		fmt.eprintln("stoin: failed to load dictionary")
+	   !dictionary_stack_load(&stack, &failed_dictionary_index) {
+		if failed_dictionary_index >= 0 && failed_dictionary_index < len(config.dict_paths) {
+			cli_print_file_load_error(config.dict_paths[failed_dictionary_index])
+		} else {
+			fmt.eprintln("stoin: failed to load dictionary")
+		}
 		return false
 	}
 
@@ -572,9 +594,14 @@ run_dump_dictionary_cli :: proc(config: ^Cli_Config) -> bool {
 	dictionary_stack_init(&stack)
 	defer dictionary_stack_destroy(&stack)
 
+	failed_dictionary_index := -1
 	if !dictionary_stack_set_paths(&stack, config.dict_paths[:], config.dict_enabled[:]) ||
-	   !dictionary_stack_load(&stack) {
-		fmt.eprintln("stoin: failed to load dictionary")
+	   !dictionary_stack_load(&stack, &failed_dictionary_index) {
+		if failed_dictionary_index >= 0 && failed_dictionary_index < len(config.dict_paths) {
+			cli_print_file_load_error(config.dict_paths[failed_dictionary_index])
+		} else {
+			fmt.eprintln("stoin: failed to load dictionary")
+		}
 		return false
 	}
 
