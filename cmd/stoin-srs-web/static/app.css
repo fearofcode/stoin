@@ -602,7 +602,7 @@ button:disabled {
 .phrase-bank-options {
 	display: grid;
 	gap: 6px;
-	grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+	grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
 }
 
 .phrase-bank-options label {
@@ -625,9 +625,7 @@ button:disabled {
 
 .phrase-bank-options span {
 	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+	overflow-wrap: anywhere;
 }
 
 @media (max-width: 900px) {
