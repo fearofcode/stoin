@@ -657,6 +657,11 @@ function fvHaveNegativeContraction(starter, past) {
 	return starter.agreement === 'third_singular' ? "hasn't" : "haven't";
 }
 
+function fvDoNegativeContraction(starter, past) {
+	if (past) return "didn't";
+	return starter.agreement === 'third_singular' ? "doesn't" : "don't";
+}
+
 function appendVerbAndSuffix(words, verbWord, suffix) {
 	appendWord(words, verbWord);
 	appendWord(words, suffix);
@@ -761,11 +766,19 @@ function buildFvContraction(starter, op, structureKind, ender) {
 			appendWord(words, modal);
 			return appendModalComplement(words, structureKind, ender) ? phraseFromWords(words) : null;
 		}
-		if (op.modal === 'will' && !ender.past && starter.will_contraction) {
-			appendWord(words, starter.will_contraction);
+		if (op.modal === 'will') {
+			const contraction = ender.past ? starter.d_contraction : starter.will_contraction;
+			if (!contraction) return null;
+			appendWord(words, contraction);
 			return appendModalComplement(words, structureKind, ender) ? phraseFromWords(words) : null;
 		}
 		return null;
+	}
+	if (op.negative && structureKind === 'simple' && verb && fvVerbKind(verb) !== 'be') {
+		appendWord(words, starter.text);
+		appendWord(words, fvDoNegativeContraction(starter, ender.past));
+		appendVerbAndSuffix(words, verb.base, ender.suffix);
+		return phraseFromWords(words);
 	}
 	if (op.negative
 		&& (structureKind === 'progressive'
@@ -798,10 +811,10 @@ function buildFvContraction(starter, op, structureKind, ender) {
 			appendWord(words, negative);
 			return appendHaveContractionComplement(words, structureKind, ender) ? phraseFromWords(words) : null;
 		}
-		if (!ender.past && starter.have_contraction) {
-			appendWord(words, starter.have_contraction);
-			return appendHaveContractionComplement(words, structureKind, ender) ? phraseFromWords(words) : null;
-		}
+		const contraction = ender.past ? starter.d_contraction : starter.have_contraction;
+		if (!contraction) return null;
+		appendWord(words, contraction);
+		return appendHaveContractionComplement(words, structureKind, ender) ? phraseFromWords(words) : null;
 	}
 	return null;
 }
@@ -1256,6 +1269,11 @@ function validatePhraseData(data) {
 		if (starter.label !== undefined && typeof starter.label !== 'string') {
 			throw new Error('final_verbs.starters[' + index + '].label must be a string');
 		}
+		['be_contraction', 'have_contraction', 'will_contraction', 'd_contraction'].forEach(function(field) {
+			if (starter[field] !== undefined && typeof starter[field] !== 'string') {
+				throw new Error('final_verbs.starters[' + index + '].' + field + ' must be a string');
+			}
+		});
 		if (starter.enders === undefined) return;
 		if (!Array.isArray(starter.enders)) {
 			throw new Error('final_verbs.starters[' + index + '].enders must be an array');

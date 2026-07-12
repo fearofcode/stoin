@@ -241,10 +241,10 @@ and `BD` be enders also cannot spell the basic forms because `THR-B` and
 provides collision-free `there is` and `there was` instead.
 
 Affirmative contractions are starter-specific. `This` deliberately assigns
-only `this'll`, avoiding the uncommon written `this's`. `That` assigns
-`that's` for both `that is` and `that has`, plus `that'll`. Plural `there`
-assigns `there're`, `there've`, and `there'll`; default `THR` keeps `there's`
-and `there'll`.
+only `this'll`, avoiding the uncommon written `this's` and `this'd`. `That`
+assigns `that's` for both `that is` and `that has`, plus `that'll` and
+`that'd`. Plural `there` assigns `there're`, `there've`, `there'll`, and
+`there'd`; default `THR` keeps `there's`, `there'll`, and `there'd`.
 
 ### FV Operators
 
@@ -343,13 +343,17 @@ verb inflection.
 | `#` + present be | starter contraction: `I'm`, `you're`, `he's`, `she's`, `it's`, `we're`, `they're`, `that's`, `there's`, `there're`; affirmative `this is` is unassigned |
 | `#` + negative be | `isn't`, `aren't`, `wasn't`, `weren't`; `I am not` becomes `I'm not` |
 | `#` + present have/perfect | starter contraction: `I've`, `you've`, `he's`, `she's`, `it's`, `we've`, `they've`, `that's`, `there's`, `there've`; affirmative `this has` is unassigned |
+| `#` + past have/perfect | configured starter + `'d`: `I'd`, `you'd`, `he'd`, `she'd`, `it'd`, `we'd`, `they'd`, `that'd`, `there'd`; `this had` is unassigned |
 | `#` + negative have/perfect | `haven't`, `hasn't`, `hadn't` |
+| `#` + simple negative lexical verb | agreement-aware `don't`, `doesn't`, or `didn't` |
 | `#` + `AO` present | starter + `will`: `I'll`, `you'll`, `he'll`, `she'll`, `it'll`, `we'll`, `they'll`, `this'll`, `that'll`, `there'll` |
+| `#` + `AO` past | configured starter + `would` contraction: `I'd`, `you'd`, `he'd`, `she'd`, `it'd`, `we'd`, `they'd`, `that'd`, `there'd` |
 | `#` + `A*` | `can't` / `couldn't` |
 | `#` + `O*` | `shouldn't` |
 | `#` + `AO*` | `won't` / `wouldn't` |
 
-Past affirmative be/have/will contractions are unassigned.
+Past affirmative `be` contractions remain unassigned because standard English
+has no general subject contraction for `was` or `were`.
 
 ## Samples
 
@@ -516,6 +520,12 @@ Past affirmative be/have/will contractions are unassigned.
 | `#SWR-F` | I've |
 | `#KWHR-FG` | he's gone |
 | `#TWHAO-G` | they'll go |
+| `#TWH-FRLTD` | they'd told |
+| `#TWHE-FRLTD` | they'd been telling |
+| `#TWHAO-RLTD` | they'd tell |
+| `#TWHAO-FRLTD` | they'd have told |
+| `#TWH*RLTD` | they didn't tell |
+| `#SKWHR*RLT` | she doesn't tell |
 | `#STKHAO` | this'll |
 | `#STWH-B` | that's |
 | `#STWHAO` | that'll |

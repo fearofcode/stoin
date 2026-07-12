@@ -386,6 +386,12 @@ int main(void)
         { "#SWR-F", "I've" },
         { "#KWHR-FG", "he's gone" },
         { "#TWHAO-G", "they'll go" },
+        { "#TWH-FRLTD", "they'd told" },
+        { "#TWHE-FRLTD", "they'd been telling" },
+        { "#TWHAO-RLTD", "they'd tell" },
+        { "#TWHAO-FRLTD", "they'd have told" },
+        { "#TWH*RLTD", "they didn't tell" },
+        { "#SKWHR*RLT", "she doesn't tell" },
     };
     for (size_t i = 0; i < sizeof(final_verb_contraction_cases) / sizeof(final_verb_contraction_cases[0]); ++i) {
         ok = ok && expect_phrase_stroke_output(
@@ -534,6 +540,10 @@ int main(void)
         { "#STWH-FG", "that's gone" },
         { "STWHAO*", "that will not" },
         { "#STWHAO", "that'll" },
+        { "#TWHE-FRLTD", "they'd been telling" },
+        { "#TWHAO-RLTD", "they'd tell" },
+        { "#TWH*RLTD", "they didn't tell" },
+        { "#SKWHR*RLT", "she doesn't tell" },
         { "STPHR-B", "there are" },
         { "STPHR-BD", "there were" },
         { "STPHRE", "there are" },

@@ -65,6 +65,7 @@ typedef struct Fv_Starter {
     char *be_contraction;
     char *have_contraction;
     char *will_contraction;
+    char *d_contraction;
     size_t *ender_indices;
     bool has_ender_allowlist;
 } Fv_Starter;
@@ -587,6 +588,7 @@ static void destroy_fv_starter_contents(Fv_Starter *starter)
     free(starter->be_contraction);
     free(starter->have_contraction);
     free(starter->will_contraction);
+    free(starter->d_contraction);
     arrfree(starter->ender_indices);
 }
 
@@ -730,7 +732,8 @@ static bool parse_fv_starters(Phrasing *phrasing, const cJSON *array, const char
 
         if (!copy_optional_string(item, "be_contraction", &starter.be_contraction)
             || !copy_optional_string(item, "have_contraction", &starter.have_contraction)
-            || !copy_optional_string(item, "will_contraction", &starter.will_contraction)) {
+            || !copy_optional_string(item, "will_contraction", &starter.will_contraction)
+            || !copy_optional_string(item, "d_contraction", &starter.d_contraction)) {
             fprintf(stderr, "stoin: phrasing '%s' %s contraction fields must be strings\n", path, context);
             destroy_fv_starter_contents(&starter);
             return false;
@@ -1183,6 +1186,14 @@ static const char *fv_have_negative_contraction(const Fv_Starter *starter, bool 
     return starter->agreement == FV_AGREEMENT_THIRD_SINGULAR ? "hasn't" : "haven't";
 }
 
+static const char *fv_do_negative_contraction(const Fv_Starter *starter, bool past)
+{
+    if (past) {
+        return "didn't";
+    }
+    return starter->agreement == FV_AGREEMENT_THIRD_SINGULAR ? "doesn't" : "don't";
+}
+
 static bool append_verb_and_suffix(char **text, const char *verb, const char *suffix)
 {
     return append_word(text, verb) && append_word(text, suffix);
@@ -1308,12 +1319,22 @@ static bool build_fv_contraction(
                 && append_word(out, modal)
                 && append_modal_complement(out, structure, ender);
         }
-        if (operator.modal == FV_MODAL_WILL && !ender->past) {
-            return starter->will_contraction != NULL
-                && append_word(out, starter->will_contraction)
+        if (operator.modal == FV_MODAL_WILL) {
+            const char *contraction = ender->past ? starter->d_contraction : starter->will_contraction;
+            return contraction != NULL
+                && append_word(out, contraction)
                 && append_modal_complement(out, structure, ender);
         }
         return false;
+    }
+
+    if (operator.negative
+        && structure == FV_STRUCTURE_SIMPLE
+        && ender->verb != NULL
+        && ender->verb->kind != FV_VERB_BE) {
+        return append_word(out, starter->text)
+            && append_word(out, fv_do_negative_contraction(starter, ender->past))
+            && append_verb_and_suffix(out, ender->verb->base, ender->suffix);
     }
 
     if (operator.negative
@@ -1349,11 +1370,10 @@ static bool build_fv_contraction(
                 && append_word(out, negative)
                 && append_have_contraction_complement(out, structure, ender);
         }
-        if (!ender->past) {
-            return starter->have_contraction != NULL
-                && append_word(out, starter->have_contraction)
-                && append_have_contraction_complement(out, structure, ender);
-        }
+        const char *contraction = ender->past ? starter->d_contraction : starter->have_contraction;
+        return contraction != NULL
+            && append_word(out, contraction)
+            && append_have_contraction_complement(out, structure, ender);
     }
 
     return false;

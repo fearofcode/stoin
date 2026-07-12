@@ -352,7 +352,8 @@
         "agreement": "first_singular",
         "be_contraction": "I'm",
         "have_contraction": "I've",
-        "will_contraction": "I'll"
+        "will_contraction": "I'll",
+        "d_contraction": "I'd"
       },
       {
         "stroke": "KPWR",
@@ -360,7 +361,8 @@
         "agreement": "plural",
         "be_contraction": "you're",
         "have_contraction": "you've",
-        "will_contraction": "you'll"
+        "will_contraction": "you'll",
+        "d_contraction": "you'd"
       },
       {
         "stroke": "KWHR",
@@ -368,7 +370,8 @@
         "agreement": "third_singular",
         "be_contraction": "he's",
         "have_contraction": "he's",
-        "will_contraction": "he'll"
+        "will_contraction": "he'll",
+        "d_contraction": "he'd"
       },
       {
         "stroke": "SKWHR",
@@ -376,7 +379,8 @@
         "agreement": "third_singular",
         "be_contraction": "she's",
         "have_contraction": "she's",
-        "will_contraction": "she'll"
+        "will_contraction": "she'll",
+        "d_contraction": "she'd"
       },
       {
         "stroke": "TWH",
@@ -384,7 +388,8 @@
         "agreement": "plural",
         "be_contraction": "they're",
         "have_contraction": "they've",
-        "will_contraction": "they'll"
+        "will_contraction": "they'll",
+        "d_contraction": "they'd"
       }
     ],
     "operators": [
@@ -421,6 +426,10 @@
       {
         "stroke": "-F",
         "kind": "perfect"
+      },
+      {
+        "stroke": "E-F",
+        "kind": "perfect_progressive"
       }
     ],
     "verbs": [

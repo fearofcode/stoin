@@ -1266,6 +1266,8 @@ func TestStaticPhrasingTrainerScript(t *testing.T) {
 		!strings.Contains(body, "initial_verbs") ||
 		!strings.Contains(body, "final_verbs") ||
 		!strings.Contains(body, "generateFinalVerbPrompts") ||
+		!strings.Contains(body, "d_contraction") ||
+		!strings.Contains(body, "fvDoNegativeContraction") ||
 		!strings.Contains(body, "stemAllowsTail") ||
 		!strings.Contains(body, "starterAllowsEnder") ||
 		!strings.Contains(body, "starter.label") ||
@@ -1344,6 +1346,7 @@ func TestPhrasingDataRoute(t *testing.T) {
 		`"text": "there"`,
 		`"will_contraction": "this'll"`,
 		`"will_contraction": "that'll"`,
+		`"d_contraction": "they'd"`,
 		`"have_contraction": "there've"`,
 		`"will_contraction": "there'll"`,
 		`"could expect"`,

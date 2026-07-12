@@ -135,6 +135,10 @@ bool test_phrasing_starter_filters(void)
         path,
         "FV starter ender allowlist rejects duplicate ender aliases",
         "\"enders\":[\"-B\",\"B\"]") && ok;
+    ok = expect_invalid_starter_allowlist(
+        path,
+        "FV starter d contraction must be a string",
+        "\"d_contraction\":42") && ok;
 
     remove(path);
     return ok;
