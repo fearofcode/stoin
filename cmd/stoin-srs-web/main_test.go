@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -26,6 +27,52 @@ func testApp(t *testing.T) *App {
 		}
 	})
 	return app
+}
+
+func TestInitSchemaMigratesPausedDeckColumn(t *testing.T) {
+	t.Parallel()
+	dbPath := filepath.Join(t.TempDir(), "legacy.sqlite3")
+	legacy, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := legacy.Exec(`
+CREATE TABLE decks (
+	id INTEGER PRIMARY KEY,
+	name TEXT NOT NULL UNIQUE,
+	created_at TEXT NOT NULL
+);
+INSERT INTO decks(id, name, created_at) VALUES(1, 'legacy deck', '2026-01-01T00:00:00Z');`); err != nil {
+		legacy.Close()
+		t.Fatal(err)
+	}
+	if err := legacy.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	app, err := NewAppWithPhrasing(dbPath, "../../phrasing.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.db.Close()
+
+	deck, err := app.deckByID(context.Background(), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if deck.Name != "legacy deck" || deck.Paused {
+		t.Fatalf("expected migrated active legacy deck, got %#v", deck)
+	}
+	var defaultValue sql.NullString
+	if err := app.db.QueryRow(`
+SELECT dflt_value
+FROM pragma_table_info('decks')
+WHERE name = 'paused'`).Scan(&defaultValue); err != nil {
+		t.Fatal(err)
+	}
+	if !defaultValue.Valid || defaultValue.String != "0" {
+		t.Fatalf("expected paused default 0, got %#v", defaultValue)
+	}
 }
 
 func TestParseGroupedImportAllowsColonWordsAndGroupSpaces(t *testing.T) {
@@ -169,6 +216,95 @@ func TestLearningStatsCountsIntroReps(t *testing.T) {
 	}
 	if stats.Count != 2 || stats.IntroRemaining != 8 {
 		t.Fatalf("expected 2 learning items with 8 intro reps left, got %#v", stats)
+	}
+}
+
+func TestPausedDecksAreExcludedFromScheduledReview(t *testing.T) {
+	app := testApp(t)
+	ctx := context.Background()
+	activeID, err := app.getOrCreateDeck(ctx, "active", time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	pausedID, err := app.getOrCreateDeck(ctx, "paused", time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.ingestGroups(ctx, activeID, []ImportGroup{{Name: "words", Words: []string{"active word"}}}, "test", "active"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.ingestGroups(ctx, pausedID, []ImportGroup{{Name: "words", Words: []string{"paused word"}}}, "test", "paused"); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.setDeckPaused(ctx, pausedID, true); err != nil {
+		t.Fatal(err)
+	}
+
+	due, err := app.countDue(ctx, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if due != 1 {
+		t.Fatalf("expected only active deck in global due count, got %d", due)
+	}
+	pausedDue, err := app.countDue(ctx, pausedID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pausedDue != 1 {
+		t.Fatalf("expected paused deck to retain one due word, got %d", pausedDue)
+	}
+
+	learning, err := app.learningStats(ctx, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if learning.Count != 1 || learning.IntroRemaining != introRepetitions {
+		t.Fatalf("expected global learning stats from active deck only, got %#v", learning)
+	}
+	pausedLearning, err := app.learningStats(ctx, pausedID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pausedLearning.Count != 1 || pausedLearning.IntroRemaining != introRepetitions {
+		t.Fatalf("expected paused deck learning state to be preserved, got %#v", pausedLearning)
+	}
+
+	items, err := app.dueItems(ctx, 0, reviewAllDueLimit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0].Text != "active word" {
+		t.Fatalf("expected only active due item, got %#v", items)
+	}
+	pausedItems, err := app.dueItems(ctx, pausedID, reviewAllDueLimit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pausedItems) != 0 {
+		t.Fatalf("expected no scheduled review items for paused deck, got %#v", pausedItems)
+	}
+	var pausedItemID int64
+	if err := app.db.QueryRow(`SELECT i.id FROM items i JOIN groups g ON g.id = i.group_id WHERE g.deck_id = ?`, pausedID).Scan(&pausedItemID); err != nil {
+		t.Fatal(err)
+	}
+	selected, err := app.reviewItemsByID(ctx, []int64{pausedItemID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(selected) != 0 {
+		t.Fatalf("expected crafted paused selection to be filtered, got %#v", selected)
+	}
+	result := ReviewResult{ItemID: pausedItemID, Prompt: "paused word", Answer: "paused word", Correct: true}
+	if err := app.applyScheduledReviewBatch(ctx, []ReviewResult{result}); !errors.Is(err, ErrReviewItemUnavailable) {
+		t.Fatalf("expected paused scheduled review to be rejected transactionally, got %v", err)
+	}
+	var reviewCount int
+	if err := app.db.QueryRow(`SELECT review_count FROM items WHERE id = ?`, pausedItemID).Scan(&reviewCount); err != nil {
+		t.Fatal(err)
+	}
+	if reviewCount != 0 {
+		t.Fatalf("expected rejected paused review not to mutate scheduling, got review_count %d", reviewCount)
 	}
 }
 
@@ -678,6 +814,162 @@ func TestReviewAllStartsDeckSessionWithoutSelection(t *testing.T) {
 	}
 }
 
+func TestDeckPauseHandlerPersistsAndResumes(t *testing.T) {
+	app := testApp(t)
+	ctx := context.Background()
+	deckID, err := app.getOrCreateDeck(ctx, "briefs", time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	post := func(id int64, paused bool) *httptest.ResponseRecorder {
+		t.Helper()
+		form := url.Values{"deck_id": {fmt.Sprint(id)}}
+		if paused {
+			form.Set("paused", "1")
+		}
+		req := httptest.NewRequest(http.MethodPost, "/deck/edit", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rec := httptest.NewRecorder()
+		app.handleDeckEdit(rec, req)
+		return rec
+	}
+
+	if rec := post(deckID, true); rec.Code != http.StatusSeeOther {
+		t.Fatalf("expected pause redirect, got %d with body %q", rec.Code, rec.Body.String())
+	}
+	deck, err := app.deckByID(ctx, deckID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !deck.Paused {
+		t.Fatal("expected deck to be paused")
+	}
+	if rec := post(deckID, false); rec.Code != http.StatusSeeOther {
+		t.Fatalf("expected resume redirect, got %d with body %q", rec.Code, rec.Body.String())
+	}
+	deck, err = app.deckByID(ctx, deckID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if deck.Paused {
+		t.Fatal("expected deck to be resumed")
+	}
+	if rec := post(deckID+999, true); rec.Code != http.StatusNotFound {
+		t.Fatalf("expected unknown deck edit to return 404, got %d", rec.Code)
+	}
+}
+
+func TestPausedDeckBlocksReviewButAllowsPractice(t *testing.T) {
+	app := testApp(t)
+	ctx := context.Background()
+	deckID, err := app.getOrCreateDeck(ctx, "paused briefs", time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.ingestGroups(ctx, deckID, []ImportGroup{{Name: "words", Words: []string{"a", "the"}}}, "test", "one"); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.setDeckPaused(ctx, deckID, true); err != nil {
+		t.Fatal(err)
+	}
+
+	start := func(mode string) *httptest.ResponseRecorder {
+		t.Helper()
+		form := url.Values{}
+		form.Set("deck_id", fmt.Sprint(deckID))
+		form.Set("mode", mode)
+		form.Set("practice_count", "1")
+		req := httptest.NewRequest(http.MethodPost, "/session/start", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rec := httptest.NewRecorder()
+		app.handleSessionStart(rec, req)
+		return rec
+	}
+
+	if rec := start("review_all"); rec.Code != http.StatusSeeOther || !strings.Contains(rec.Header().Get("Location"), "paused") {
+		t.Fatalf("expected paused review redirect, got %d location %q", rec.Code, rec.Header().Get("Location"))
+	}
+	practice := start("practice_all")
+	if practice.Code != http.StatusOK {
+		t.Fatalf("expected paused-deck practice, got %d with body %q", practice.Code, practice.Body.String())
+	}
+	if body := practice.Body.String(); !strings.Contains(body, "<h1>Practice</h1>") || !strings.Contains(body, `value="a"`) {
+		t.Fatalf("expected practice session for paused deck, got %q", body)
+	}
+}
+
+func TestIndexAndDeckPagesPresentPausedDeckControls(t *testing.T) {
+	app := testApp(t)
+	ctx := context.Background()
+	activeID, err := app.getOrCreateDeck(ctx, "Alpha active", time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	pausedID, err := app.getOrCreateDeck(ctx, "Zulu paused", time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.ingestGroups(ctx, activeID, []ImportGroup{{Name: "words", Words: []string{"active"}}}, "test", "active"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.ingestGroups(ctx, pausedID, []ImportGroup{{Name: "words", Words: []string{"paused"}}}, "test", "paused"); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.setDeckPaused(ctx, pausedID, true); err != nil {
+		t.Fatal(err)
+	}
+
+	indexReq := httptest.NewRequest(http.MethodGet, "/", nil)
+	indexRec := httptest.NewRecorder()
+	app.handleIndex(indexRec, indexReq)
+	if indexRec.Code != http.StatusOK {
+		t.Fatalf("expected index page, got %d", indexRec.Code)
+	}
+	indexBody := indexRec.Body.String()
+	activeAt := strings.Index(indexBody, "Alpha active")
+	pausedSectionAt := strings.Index(indexBody, `class="paused-decks"`)
+	pausedAt := strings.Index(indexBody, "Zulu paused")
+	if activeAt < 0 || pausedSectionAt < 0 || pausedAt < pausedSectionAt || activeAt > pausedSectionAt {
+		t.Fatalf("expected active deck before separate paused section, got %q", indexBody)
+	}
+	for _, want := range []string{`class="paused-deck"`, "practice only", "Zulu paused (paused)"} {
+		if !strings.Contains(indexBody, want) {
+			t.Fatalf("expected index body to contain %q, got %q", want, indexBody)
+		}
+	}
+
+	deckReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/deck?id=%d", pausedID), nil)
+	deckRec := httptest.NewRecorder()
+	app.handleDeck(deckRec, deckReq)
+	if deckRec.Code != http.StatusOK {
+		t.Fatalf("expected paused deck page, got %d", deckRec.Code)
+	}
+	deckBody := deckRec.Body.String()
+	for _, want := range []string{
+		`deck-status deck-status-paused`,
+		`value="review" disabled`,
+		`value="review_all" disabled`,
+		`value="practice_all">Practice all`,
+		"due when resumed",
+		"edit_deck=1",
+	} {
+		if !strings.Contains(deckBody, want) {
+			t.Fatalf("expected paused deck body to contain %q, got %q", want, deckBody)
+		}
+	}
+
+	editReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/deck?id=%d&edit_deck=1", pausedID), nil)
+	editRec := httptest.NewRecorder()
+	app.handleDeck(editRec, editReq)
+	if editRec.Code != http.StatusOK {
+		t.Fatalf("expected deck edit page, got %d", editRec.Code)
+	}
+	if body := editRec.Body.String(); !strings.Contains(body, `action="/deck/edit"`) || !strings.Contains(body, `name="paused" value="1" checked`) {
+		t.Fatalf("expected checked paused toggle in deck edit form, got %q", body)
+	}
+}
+
 func TestEditItemUpdatesTextAndRejectsDuplicates(t *testing.T) {
 	app := testApp(t)
 	ctx := context.Background()
@@ -881,6 +1173,9 @@ func TestBackupRouteDumpsRestorableSQL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := app.setDeckPaused(ctx, deckID, true); err != nil {
+		t.Fatal(err)
+	}
 
 	mux := http.NewServeMux()
 	app.routes(mux)
@@ -897,6 +1192,7 @@ func TestBackupRouteDumpsRestorableSQL(t *testing.T) {
 		`INSERT INTO "decks"`,
 		`INSERT INTO "items"`,
 		`'can''t'`,
+		`"paused"`,
 		"COMMIT;",
 	} {
 		if !strings.Contains(body, want) {
@@ -918,6 +1214,13 @@ func TestBackupRouteDumpsRestorableSQL(t *testing.T) {
 	}
 	if restoredCount != 2 {
 		t.Fatalf("expected restored backup to contain 2 items, got %d", restoredCount)
+	}
+	var restoredPaused int
+	if err := restoreDB.QueryRow(`SELECT paused FROM decks WHERE id = ?`, deckID).Scan(&restoredPaused); err != nil {
+		t.Fatal(err)
+	}
+	if restoredPaused != 1 {
+		t.Fatalf("expected restored backup to preserve paused deck, got %d", restoredPaused)
 	}
 }
 

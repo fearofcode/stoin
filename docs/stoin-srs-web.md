@@ -41,6 +41,17 @@ scripts/stoin-srs-backup.sh
 scripts/stoin-srs-backup.sh http://127.0.0.1:8090/backup practice-backup.sql
 ```
 
+To restore one of these SQL dumps, stop the SRS web app first and run:
+
+```sh
+scripts/stoin-srs-restore.sh stoin-srs-backup.sql
+scripts/stoin-srs-restore.sh practice-backup.sql practice.sqlite3
+```
+
+The restore helper builds and validates a temporary database before replacing
+the target. If the target database already exists, it is preserved beside it
+with a timestamped `.before-restore-...` suffix.
+
 ## Import Format
 
 Paste grouped text into the import form:
@@ -83,6 +94,11 @@ then choose:
   skipped words reset to the intro schedule when the session is submitted.
 - `Practice all`: practices every word in the deck without changing the current
   checkbox selection.
+
+Use `Edit deck` to pause or resume scheduled reviews for a deck. Paused decks
+are shown in a muted section at the bottom of the deck list and are excluded
+from deck and cross-deck review sessions. Their learning state and due dates are
+preserved, and both selected and all-word practice remain available.
 
 Practice mode accepts a practice count before starting the session.
 

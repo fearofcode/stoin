@@ -8,7 +8,10 @@ import (
 	"time"
 )
 
-var ErrDuplicateItem = errors.New("item already exists in deck")
+var (
+	ErrDuplicateItem         = errors.New("item already exists in deck")
+	ErrReviewItemUnavailable = errors.New("review item belongs to a paused or missing deck")
+)
 
 func (a *App) initSchema(ctx context.Context) error {
 	_, err := a.db.ExecContext(ctx, `
@@ -17,7 +20,8 @@ PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS decks (
 	id INTEGER PRIMARY KEY,
 	name TEXT NOT NULL UNIQUE,
-	created_at TEXT NOT NULL
+	created_at TEXT NOT NULL,
+	paused INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS groups (
@@ -77,6 +81,51 @@ CREATE INDEX IF NOT EXISTS idx_items_due ON items(due_at);
 CREATE INDEX IF NOT EXISTS idx_items_intro ON items(intro_remaining);
 CREATE INDEX IF NOT EXISTS idx_imports_deck ON imports(deck_id);
 `)
+	if err != nil {
+		return err
+	}
+	return a.ensureDeckPausedColumn(ctx)
+}
+
+// ensureDeckPausedColumn migrates databases created before deck pausing was
+// introduced. CREATE TABLE IF NOT EXISTS does not add columns to an existing
+// table, so keep this small migration explicit and idempotent.
+func (a *App) ensureDeckPausedColumn(ctx context.Context) error {
+	rows, err := a.db.QueryContext(ctx, `PRAGMA table_info(decks)`)
+	if err != nil {
+		return err
+	}
+
+	found := false
+	for rows.Next() {
+		var (
+			cid          int
+			name         string
+			typeName     string
+			notNull      int
+			defaultValue sql.NullString
+			primaryKey   int
+		)
+		if err := rows.Scan(&cid, &name, &typeName, &notNull, &defaultValue, &primaryKey); err != nil {
+			rows.Close()
+			return err
+		}
+		if name == "paused" {
+			found = true
+		}
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+	if found {
+		return nil
+	}
+
+	_, err = a.db.ExecContext(ctx, `ALTER TABLE decks ADD COLUMN paused INTEGER NOT NULL DEFAULT 0`)
 	return err
 }
 
@@ -93,8 +142,19 @@ func (a *App) indexData(ctx context.Context, issues []ParseIssue, form ImportFor
 	if err != nil {
 		return IndexPageData{}, err
 	}
+	activeDecks := make([]Deck, 0, len(decks))
+	pausedDecks := make([]Deck, 0, len(decks))
+	for _, deck := range decks {
+		if deck.Paused {
+			pausedDecks = append(pausedDecks, deck)
+		} else {
+			activeDecks = append(activeDecks, deck)
+		}
+	}
 	return IndexPageData{
 		Decks:          decks,
+		ActiveDecks:    activeDecks,
+		PausedDecks:    pausedDecks,
 		Errors:         issues,
 		Form:           form,
 		DueLimit:       reviewAllDueLimit,
@@ -140,9 +200,9 @@ func (a *App) deckData(ctx context.Context, deckID int64, issues []ParseIssue, f
 
 func (a *App) listDecks(ctx context.Context) ([]Deck, error) {
 	rows, err := a.db.QueryContext(ctx, `
-SELECT id, name, created_at
+SELECT id, name, created_at, paused
 FROM decks
-ORDER BY name`)
+ORDER BY paused, name`)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +211,7 @@ ORDER BY name`)
 	var decks []Deck
 	for rows.Next() {
 		var deck Deck
-		if err := rows.Scan(&deck.ID, &deck.Name, &deck.CreatedAt); err != nil {
+		if err := rows.Scan(&deck.ID, &deck.Name, &deck.CreatedAt, &deck.Paused); err != nil {
 			return nil, err
 		}
 		decks = append(decks, deck)
@@ -162,10 +222,25 @@ ORDER BY name`)
 func (a *App) deckByID(ctx context.Context, id int64) (Deck, error) {
 	var deck Deck
 	err := a.db.QueryRowContext(ctx, `
-SELECT id, name, created_at
+SELECT id, name, created_at, paused
 FROM decks
-WHERE id = ?`, id).Scan(&deck.ID, &deck.Name, &deck.CreatedAt)
+WHERE id = ?`, id).Scan(&deck.ID, &deck.Name, &deck.CreatedAt, &deck.Paused)
 	return deck, err
+}
+
+func (a *App) setDeckPaused(ctx context.Context, id int64, paused bool) error {
+	result, err := a.db.ExecContext(ctx, `UPDATE decks SET paused = ? WHERE id = ?`, boolInt(paused), id)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
 }
 
 func (a *App) groupsForDeck(ctx context.Context, deckID int64) ([]Group, error) {
@@ -263,7 +338,7 @@ ORDER BY g.name, i.id`, deckID)
 
 func (a *App) countDue(ctx context.Context, deckID int64) (int, error) {
 	args := []any{formatDBTime(time.Now().UTC())}
-	filter := ""
+	filter := " AND d.paused = 0"
 	if deckID > 0 {
 		filter = " AND g.deck_id = ?"
 		args = append(args, deckID)
@@ -273,13 +348,14 @@ func (a *App) countDue(ctx context.Context, deckID int64) (int, error) {
 SELECT COUNT(*)
 FROM items i
 JOIN groups g ON g.id = i.group_id
+JOIN decks d ON d.id = g.deck_id
 WHERE (i.intro_remaining > 0 OR i.due_at <= ?)`+filter, args...).Scan(&count)
 	return count, err
 }
 
 func (a *App) learningStats(ctx context.Context, deckID int64) (LearningStats, error) {
 	args := []any{}
-	filter := ""
+	filter := " AND d.paused = 0"
 	if deckID > 0 {
 		filter = " AND g.deck_id = ?"
 		args = append(args, deckID)
@@ -289,6 +365,7 @@ func (a *App) learningStats(ctx context.Context, deckID int64) (LearningStats, e
 SELECT COUNT(*), COALESCE(SUM(i.intro_remaining), 0)
 FROM items i
 JOIN groups g ON g.id = i.group_id
+JOIN decks d ON d.id = g.deck_id
 WHERE i.intro_remaining > 0`+filter, args...).Scan(&stats.Count, &stats.IntroRemaining)
 	return stats, err
 }
@@ -513,6 +590,14 @@ WHERE id = ?`, itemID).Scan(&text)
 }
 
 func (a *App) itemsByID(ctx context.Context, ids []int64) ([]SessionItem, error) {
+	return a.itemsByIDFiltered(ctx, ids, false)
+}
+
+func (a *App) reviewItemsByID(ctx context.Context, ids []int64) ([]SessionItem, error) {
+	return a.itemsByIDFiltered(ctx, ids, true)
+}
+
+func (a *App) itemsByIDFiltered(ctx context.Context, ids []int64, activeDecksOnly bool) ([]SessionItem, error) {
 	if len(ids) == 0 {
 		return nil, nil
 	}
@@ -522,6 +607,10 @@ func (a *App) itemsByID(ctx context.Context, ids []int64) ([]SessionItem, error)
 		args = append(args, id)
 	}
 
+	activeFilter := ""
+	if activeDecksOnly {
+		activeFilter = " AND d.paused = 0"
+	}
 	rows, err := a.db.QueryContext(ctx, `
 SELECT
 	i.id,
@@ -531,7 +620,7 @@ SELECT
 FROM items i
 JOIN groups g ON g.id = i.group_id
 JOIN decks d ON d.id = g.deck_id
-WHERE i.id IN (`+placeholders+`)`, args...)
+WHERE i.id IN (`+placeholders+`)`+activeFilter, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -603,7 +692,8 @@ SELECT
 FROM items i
 JOIN groups g ON g.id = i.group_id
 JOIN decks d ON d.id = g.deck_id
-WHERE (i.intro_remaining > 0 OR i.due_at <= ?)`+filter+`
+WHERE d.paused = 0
+  AND (i.intro_remaining > 0 OR i.due_at <= ?)`+filter+`
 ORDER BY i.due_at, i.id
 LIMIT ?`, args...)
 	if err != nil {
@@ -623,6 +713,14 @@ LIMIT ?`, args...)
 }
 
 func (a *App) applyReviewBatch(ctx context.Context, results []ReviewResult) error {
+	return a.applyReviewBatchFiltered(ctx, results, false)
+}
+
+func (a *App) applyScheduledReviewBatch(ctx context.Context, results []ReviewResult) error {
+	return a.applyReviewBatchFiltered(ctx, results, true)
+}
+
+func (a *App) applyReviewBatchFiltered(ctx context.Context, results []ReviewResult, activeDecksOnly bool) error {
 	now := time.Now().UTC()
 	tx, err := a.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -631,20 +729,32 @@ func (a *App) applyReviewBatch(ctx context.Context, results []ReviewResult) erro
 	defer tx.Rollback()
 
 	for _, result := range results {
-		if err := applyOneReview(ctx, tx, result, now); err != nil {
+		if err := applyOneReview(ctx, tx, result, now, activeDecksOnly); err != nil {
+			if activeDecksOnly && errors.Is(err, sql.ErrNoRows) {
+				return ErrReviewItemUnavailable
+			}
 			return err
 		}
 	}
 	return tx.Commit()
 }
 
-func applyOneReview(ctx context.Context, tx *sql.Tx, result ReviewResult, now time.Time) error {
+func applyOneReview(ctx context.Context, tx *sql.Tx, result ReviewResult, now time.Time, activeDecksOnly bool) error {
 	var introRemaining int
 	var stage int
-	if err := tx.QueryRowContext(ctx, `
+	query := `
 SELECT intro_remaining, schedule_stage
 FROM items
-WHERE id = ?`, result.ItemID).Scan(&introRemaining, &stage); err != nil {
+WHERE id = ?`
+	if activeDecksOnly {
+		query = `
+SELECT i.intro_remaining, i.schedule_stage
+FROM items i
+JOIN groups g ON g.id = i.group_id
+JOIN decks d ON d.id = g.deck_id
+WHERE i.id = ? AND d.paused = 0`
+	}
+	if err := tx.QueryRowContext(ctx, query, result.ItemID).Scan(&introRemaining, &stage); err != nil {
 		return err
 	}
 

@@ -9,6 +9,7 @@ type Deck struct {
 	ID        int64
 	Name      string
 	CreatedAt string
+	Paused    bool
 }
 
 type Group struct {
@@ -57,6 +58,8 @@ type ImportStats struct {
 
 type IndexPageData struct {
 	Decks          []Deck
+	ActiveDecks    []Deck
+	PausedDecks    []Deck
 	Errors         []ParseIssue
 	Notice         string
 	Form           ImportFormData
@@ -75,6 +78,7 @@ type ImportFormData struct {
 
 type DeckPageData struct {
 	Deck           Deck
+	EditDeck       bool
 	Groups         []Group
 	Errors         []ParseIssue
 	Notice         string

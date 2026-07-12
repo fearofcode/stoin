@@ -15,7 +15,7 @@
 		<label>Existing deck
 			<select name="deck_id">
 				<option value="">choose...</option>
-				{{range .Decks}}<option value="{{.ID}}" {{if eq $.Form.DeckID .ID}}selected{{end}}>{{.Name}}</option>{{end}}
+				{{range .Decks}}<option value="{{.ID}}" {{if eq $.Form.DeckID .ID}}selected{{end}}>{{.Name}}{{if .Paused}} (paused){{end}}</option>{{end}}
 			</select>
 		</label>
 		<label>New deck name

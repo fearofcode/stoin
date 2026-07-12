@@ -105,6 +105,7 @@ func (a *App) routes(mux *http.ServeMux) {
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
 	mux.HandleFunc("/", a.handleIndex)
 	mux.HandleFunc("/deck", a.handleDeck)
+	mux.HandleFunc("/deck/edit", a.handleDeckEdit)
 	mux.HandleFunc("/backup", a.handleBackup)
 	mux.HandleFunc("/hint", a.handleHint)
 	mux.HandleFunc("/import", a.handleImport)

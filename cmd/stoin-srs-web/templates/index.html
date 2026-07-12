@@ -4,17 +4,28 @@
 {{if .Notice}}<p class="notice">{{.Notice}}</p>{{end}}
 <div class="panel">
 	<h2>Decks</h2>
-	{{if .Decks}}
-	<ul>
-		{{range .Decks}}<li><a href="/deck?id={{.ID}}">{{.Name}}</a></li>{{end}}
+	{{if .ActiveDecks}}
+	<ul class="deck-list">
+		{{range .ActiveDecks}}<li><a href="/deck?id={{.ID}}">{{.Name}}</a></li>{{end}}
 	</ul>
-	{{else}}
+	{{else if not .PausedDecks}}
 	<p>No decks yet.</p>
 	{{end}}
 	<form method="post" action="/session/review-all-due">
 		<button type="submit">Review all due across all decks</button>
 		<span class="small">{{.DueCount}} due now{{if gt .LearningCount 0}}, {{.LearningCount}} learning, {{.IntroRemaining}} intro reps left{{end}}; up to {{.DueLimit}} per session</span>
 	</form>
+	{{if .PausedDecks}}
+	<section class="paused-decks">
+		<h3>Paused</h3>
+		<p class="small">These decks are excluded from scheduled reviews but remain available for practice.</p>
+		<ul class="deck-list">
+			{{range .PausedDecks}}
+			<li class="paused-deck"><a href="/deck?id={{.ID}}">{{.Name}}</a> <span class="small">practice only</span></li>
+			{{end}}
+		</ul>
+	</section>
+	{{end}}
 </div>
 <div class="panel">
 	<h2>Trainers</h2>

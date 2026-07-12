@@ -51,9 +51,40 @@ func (a *App) handleDeck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data.Notice = r.URL.Query().Get("notice")
+	data.EditDeck = r.URL.Query().Get("edit_deck") == "1"
 	data.EditItemID = parseOptionalInt64(r.URL.Query().Get("edit_item_id"))
 	data.ItemError = r.URL.Query().Get("item_error")
 	a.render(w, "deck", data)
+}
+
+func (a *App) handleDeckEdit(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		methodNotAllowed(w)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "could not read form", http.StatusBadRequest)
+		return
+	}
+	deckID := parseOptionalInt64(r.FormValue("deck_id"))
+	if deckID <= 0 {
+		http.Error(w, "invalid deck edit", http.StatusBadRequest)
+		return
+	}
+	paused := r.FormValue("paused") != ""
+	if err := a.setDeckPaused(r.Context(), deckID, paused); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			http.NotFound(w, r)
+			return
+		}
+		serverError(w, err)
+		return
+	}
+	notice := "Deck reviews resumed."
+	if paused {
+		notice = "Deck paused; practice is still available."
+	}
+	redirectWithNotice(w, r, deckPath(deckID), notice)
 }
 
 func (a *App) handleItemEdit(w http.ResponseWriter, r *http.Request) {
@@ -275,6 +306,21 @@ func (a *App) handleSessionStart(w http.ResponseWriter, r *http.Request) {
 	if deckID > 0 {
 		returnURL = "/deck?id=" + strconv.FormatInt(deckID, 10)
 	}
+	if mode == "review" && deckID > 0 {
+		deck, err := a.deckByID(r.Context(), deckID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				http.NotFound(w, r)
+				return
+			}
+			serverError(w, err)
+			return
+		}
+		if deck.Paused {
+			redirectWithNotice(w, r, returnURL, "This deck is paused. Resume it before reviewing.")
+			return
+		}
+	}
 
 	count := 1
 	if mode == "practice" {
@@ -303,7 +349,11 @@ func (a *App) handleSessionStart(w http.ResponseWriter, r *http.Request) {
 			redirectWithNotice(w, r, returnURL, "Select at least one word.")
 			return
 		}
-		items, err = a.itemsByID(r.Context(), ids)
+		if mode == "review" {
+			items, err = a.reviewItemsByID(r.Context(), ids)
+		} else {
+			items, err = a.itemsByID(r.Context(), ids)
+		}
 	}
 	if err != nil {
 		serverError(w, err)
@@ -388,13 +438,30 @@ func (a *App) handleSessionSubmit(w http.ResponseWriter, r *http.Request) {
 		redirectWithNotice(w, r, returnURL, "Practice complete.")
 		return
 	}
+	reviewIDs := make([]int64, len(results))
+	for i, result := range results {
+		reviewIDs[i] = result.ItemID
+	}
+	activeItems, err := a.reviewItemsByID(r.Context(), reviewIDs)
+	if err != nil {
+		serverError(w, err)
+		return
+	}
+	if len(activeItems) != len(reviewIDs) {
+		http.Error(w, "review contains words from a paused or missing deck", http.StatusBadRequest)
+		return
+	}
 
 	order, err := parseSessionOrder(r.FormValue("session_order"))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if err := a.applyReviewBatch(r.Context(), results); err != nil {
+	if err := a.applyScheduledReviewBatch(r.Context(), results); err != nil {
+		if errors.Is(err, ErrReviewItemUnavailable) {
+			http.Error(w, "review contains words from a paused or missing deck", http.StatusBadRequest)
+			return
+		}
 		serverError(w, err)
 		return
 	}

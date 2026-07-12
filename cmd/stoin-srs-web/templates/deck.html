@@ -2,13 +2,34 @@
 {{template "layoutTop" .}}
 <p><a href="/">All decks</a></p>
 {{if .Notice}}<p class="notice">{{.Notice}}</p>{{end}}
-<h1>{{.Deck.Name}}</h1>
-<p class="small">{{.TotalItems}} words, {{.DueCount}} due now{{if gt .LearningCount 0}}, {{.LearningCount}} learning, {{.IntroRemaining}} intro reps left{{end}}</p>
+<div class="deck-heading">
+	<h1>{{.Deck.Name}}{{if .Deck.Paused}} <span class="deck-status deck-status-paused">Paused</span>{{end}}</h1>
+	{{if .EditDeck}}
+	<a class="button-link" href="/deck?id={{.Deck.ID}}">Cancel deck edit</a>
+	{{else}}
+	<a class="button-link" href="/deck?id={{.Deck.ID}}&edit_deck=1">Edit deck</a>
+	{{end}}
+</div>
+{{if .EditDeck}}
+<form class="panel deck-edit-form" method="post" action="/deck/edit">
+	<input type="hidden" name="deck_id" value="{{.Deck.ID}}">
+	<label><input type="checkbox" name="paused" value="1" {{if .Deck.Paused}}checked{{end}}> Pause scheduled reviews</label>
+	<p class="small">Paused decks do not appear in due reviews. Their schedule is preserved, and all practice options remain available.</p>
+	<div class="actions">
+		<button class="primary" type="submit">Save deck</button>
+		<a class="button-link" href="/deck?id={{.Deck.ID}}">Cancel</a>
+	</div>
+</form>
+{{end}}
+<p class="small">{{.TotalItems}} words, {{.DueCount}} {{if .Deck.Paused}}due when resumed{{else}}due now{{end}}{{if gt .LearningCount 0}}, {{.LearningCount}} learning, {{.IntroRemaining}} intro reps left{{end}}</p>
+{{if .Deck.Paused}}
+<p class="paused-deck-note">Scheduled review is paused for this deck. You can still practice any or all of its words.</p>
+{{end}}
 <form method="post" action="/session/start" id="selection-form">
 	<input type="hidden" name="deck_id" value="{{.Deck.ID}}">
 	<div class="actions">
-		<button class="primary" type="submit" name="mode" value="review">Review selected</button>
-		<button type="submit" name="mode" value="review_all">Review all</button>
+		<button class="primary" type="submit" name="mode" value="review"{{if .Deck.Paused}} disabled title="Resume this deck to review it"{{end}}>Review selected</button>
+		<button type="submit" name="mode" value="review_all"{{if .Deck.Paused}} disabled title="Resume this deck to review it"{{end}}>Review all</button>
 		<label>Practice count <input type="number" name="practice_count" min="1" value="1"></label>
 		<label>Order
 			<select name="session_order">

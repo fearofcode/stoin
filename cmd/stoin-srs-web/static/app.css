@@ -41,6 +41,75 @@ h3 {
 	line-height: 1.15;
 }
 
+.deck-list {
+	margin-bottom: 14px;
+}
+
+.paused-decks {
+	border-top: 1px solid var(--line);
+	margin-top: 18px;
+	padding-top: 14px;
+}
+
+.paused-decks h3 {
+	color: var(--muted);
+	margin-bottom: 6px;
+}
+
+.paused-decks > p {
+	margin-top: 0;
+}
+
+.paused-deck {
+	color: var(--muted);
+}
+
+.paused-deck a {
+	color: var(--muted);
+}
+
+.deck-heading {
+	align-items: center;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px;
+	justify-content: space-between;
+}
+
+.deck-heading h1 {
+	margin-bottom: 0;
+}
+
+.deck-status {
+	border: 1px solid var(--line);
+	border-radius: 999px;
+	display: inline-block;
+	font-size: 0.45em;
+	font-weight: 600;
+	letter-spacing: 0.04em;
+	padding: 0.3em 0.65em;
+	text-transform: uppercase;
+	vertical-align: 0.3em;
+}
+
+.deck-status-paused {
+	color: var(--muted);
+}
+
+.deck-edit-form {
+	max-width: 44rem;
+}
+
+.deck-edit-form .actions {
+	margin-bottom: 0;
+}
+
+.paused-deck-note {
+	border-left: 4px solid var(--line);
+	color: var(--muted);
+	padding: 8px 12px;
+}
+
 .panel {
 	background: var(--panel);
 	border: 1px solid var(--line);
