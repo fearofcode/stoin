@@ -104,10 +104,10 @@ submit.
 
 ## Phrasing Trainer
 
-The root page links to `/phrasing`, a non-SRS trainer for Stoin's keyboard-only
-phrasing assignments. It reads the same `initial_verbs`, `final_verbs`, and
-`nonverbs` data used by the app and generates drills from selectable banks,
-including `#` contraction forms.
+The root page links to `/phrasing`, a non-SRS trainer for Stoin's IV/FV
+phrasing assignments. It reads the same `initial_verbs` and `final_verbs` data
+used by the app and generates drills from selectable banks, including `#`
+contraction forms.
 
-Choose how many repetitions to practice, select IV/FV/NV banks, then practice
+Choose how many repetitions to practice, select IV/FV banks, then practice
 shuffled passes, random prompts, or selected bank-order blocks.

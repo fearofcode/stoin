@@ -21,12 +21,11 @@ let phraseQueue = [];
 let phraseIndex = 0;
 let phraseMistake = false;
 const phraseCheckedByKey = new Map();
-const phraseStorageKey = 'stoin.phrasingTrainer.v3';
+const phraseStorageKey = 'stoin.phrasingTrainer.v4';
 
 const familyLabels = {
 	initial_verbs: 'Initial verbs',
 	final_verbs: 'Final verbs',
-	nonverbs: 'Nonverbs',
 };
 
 const stenoIndexes = {
@@ -317,7 +316,6 @@ function availableFamilies() {
 	const families = [];
 	if (phraseData && phraseData.initial_verbs) families.push('initial_verbs');
 	if (phraseData && phraseData.final_verbs) families.push('final_verbs');
-	if (phraseData && phraseData.nonverbs) families.push('nonverbs');
 	return families;
 }
 
@@ -404,38 +402,6 @@ function initialSections() {
 					tail.text,
 					tail.stroke,
 					['initial verbs', tail.id, tail.text, tail.stroke],
-					defaultFamilyChecked(family)
-				);
-			}),
-		},
-	];
-}
-
-function nonverbSections() {
-	const family = 'nonverbs';
-	const prefixes = phraseData.nonverbs.prefixes || [];
-	const tails = phraseData.nonverbs.tails || [];
-	return [
-		{
-			title: 'NV prefixes',
-			options: prefixes.map(function(prefix) {
-				return sectionOption(
-					bankKey(family, 'prefixes', prefix.stroke),
-					prefix.text,
-					prefix.stroke,
-					['nonverbs', prefix.text, prefix.stroke],
-					defaultFamilyChecked(family)
-				);
-			}),
-		},
-		{
-			title: 'NV tails',
-			options: tails.map(function(tail) {
-				return sectionOption(
-					bankKey(family, 'tails', tail.id),
-					tail.text,
-					tail.stroke,
-					['nonverbs', tail.id, tail.text, tail.stroke],
 					defaultFamilyChecked(family)
 				);
 			}),
@@ -554,9 +520,6 @@ function focusSections() {
 	if (familyEnabled('final_verbs') && phraseData.final_verbs) {
 		sections.push.apply(sections, finalVerbSections());
 	}
-	if (familyEnabled('nonverbs') && phraseData.nonverbs) {
-		sections.push.apply(sections, nonverbSections());
-	}
 	return sections;
 }
 
@@ -598,28 +561,6 @@ function generateInitialVerbPrompts() {
 					stroke: combineStrokeParts([stem.stroke, form.stroke, tail.stroke]),
 					phrase: phraseFromWords([form.text, tail.text]),
 				});
-			});
-		});
-	});
-	return prompts;
-}
-
-function generateNonverbPrompts() {
-	if (!familyEnabled('nonverbs')) return [];
-	const prefixes = (phraseData.nonverbs.prefixes || []).filter(function(prefix) {
-		return bankOptionChecked('nonverbs', 'prefixes', prefix.stroke);
-	});
-	const tails = (phraseData.nonverbs.tails || []).filter(function(tail) {
-		return bankOptionChecked('nonverbs', 'tails', tail.id);
-	});
-	const prompts = [];
-	prefixes.forEach(function(prefix) {
-		tails.forEach(function(tail) {
-			if (!Array.isArray(prefix.tails) || prefix.tails.indexOf(tail.id) === -1) return;
-			prompts.push({
-				lesson: familyLabels.nonverbs,
-				stroke: combineStrokeParts([prefix.stroke, tail.stroke]),
-				phrase: phraseFromWords([prefix.text, tail.text]),
 			});
 		});
 	});
@@ -905,8 +846,7 @@ function uniquePrompts(prompts) {
 function currentPool() {
 	return uniquePrompts([]
 		.concat(generateInitialVerbPrompts())
-		.concat(generateFinalVerbPrompts())
-		.concat(generateNonverbPrompts()));
+		.concat(generateFinalVerbPrompts()));
 }
 
 function shuffle(items) {
@@ -1207,13 +1147,11 @@ function requireArray(parent, field, context) {
 
 function validatePhraseData(data) {
 	if (!data || typeof data !== 'object') throw new Error('phrasing data must be an object');
-	if (!data.initial_verbs || !data.final_verbs || !data.nonverbs) {
-		throw new Error('phrasing JSON needs initial_verbs, final_verbs, and nonverbs');
+	if (!data.initial_verbs || !data.final_verbs) {
+		throw new Error('phrasing JSON needs initial_verbs and final_verbs');
 	}
 	requireArray(data.initial_verbs, 'stems', 'initial_verbs');
 	requireArray(data.initial_verbs, 'tails', 'initial_verbs');
-	requireArray(data.nonverbs, 'prefixes', 'nonverbs');
-	requireArray(data.nonverbs, 'tails', 'nonverbs');
 	requireArray(data.final_verbs, 'starters', 'final_verbs');
 	requireArray(data.final_verbs, 'operators', 'final_verbs');
 	requireArray(data.final_verbs, 'structures', 'final_verbs');

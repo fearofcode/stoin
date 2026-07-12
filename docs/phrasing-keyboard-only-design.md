@@ -1,12 +1,12 @@
-# Keyboard-Only Phrasing Reference
+# Phrasing Reference
 
 ## Global Rules
 
 | Topic | Rule |
 | --- | --- |
-| Activation | ordinary steno strokes only |
-| Match order | phrase matcher wins before loaded dictionaries |
-| Families | `IV`, `FV`, `NV` |
+| Activation | `--phrase-toggle KEY` selects the phrase namespace for a stroke |
+| Match order | while the phrase pedal is active, phrase matching replaces dictionary lookup |
+| Families | `IV`, `FV` |
 | Contractions | only when `#` is pressed |
 | Default output | long forms, never contractions |
 | Follow-ons | none |
@@ -14,30 +14,76 @@
 
 ## Optional Pedal Namespace
 
-`--phrase-toggle KEY` enables a separate phrase namespace while keeping the
-same phrasing data. The key is intended for a pedal remapped to something like
-`F13`. When used alone, this pedal selects all phrase families for backward
-compatibility.
+`--phrase-toggle KEY` enables a separate IV/FV phrase namespace. The key is
+intended for a pedal remapped to something like `F13`. Ordinary strokes use the
+main dictionary stack; a stroke is a phrase stroke if the pedal is down during
+any part of chord gathering, so the pedal may be released before the chord.
 
-`--nonverb-phrase-toggle KEY` adds a second phrase pedal for the `NV` family.
-When both pedals are configured, `--phrase-toggle` selects only verb families
-(`IV` and `FV`) and `--nonverb-phrase-toggle` selects only `NV`. Startup rejects
-duplicate keycodes so the two pedals cannot silently collapse into one
-namespace.
+Phrase strokes print the `[phrase]` trace marker. A phrase miss emits raw steno
+instead of falling through to a dictionary word, except star-only strokes,
+which use the dictionary fallback path and trace as `[phase fallback]`.
 
-When no phrase toggle is used, phrase matching keeps the keyboard-only behavior:
-phrases are checked before loaded dictionaries. When a phrase toggle is used,
-ordinary strokes skip phrase matching and use the dictionaries. A stroke is a
-phrase stroke if the pedal is down during any part of chord gathering; the pedal
-does not need to remain held through release. Phrase strokes print the usual
-`[phrase]` trace marker. A phrase-mode miss emits raw steno instead of falling
-through to a dictionary word, except star-only strokes, which use the dictionary
-fallback path and trace as `[phase fallback]`.
+## Modal Dictionary Pedal
+
+A second, separately loaded dictionary can be assigned to a momentary pedal.
+It is not merged into the main dictionary stack. Configure its path in JSON:
+
+```json
+{
+  "modal_dictionary": "/absolute/path/to/magnum.json"
+}
+```
+
+The equivalent command-line path is `--modal-dictionary PATH`. Assign the
+pedal with `--modal-dictionary-toggle F14` (or `--modal-toggle F14`). The phrase
+and modal pedals must resolve to different keycodes.
+
+While the modal pedal is active, lookup uses only the modal dictionary. It does
+not fall through to IV/FV phrasing or the main dictionary, and a miss emits raw
+steno. Modal state is latched for a chord in the same way as phrase state.
+Consecutive modal strokes form one run; normal or phrase input closes the run,
+so outlines cannot cross a dictionary-mode boundary. A modal history-changing
+command also starts a new run when it cannot preserve an equivalent stroke
+sequence.
+
+For plain-text modal entries, Stoin evaluates complete segmentations of the
+run. It first minimizes untranslated strokes, then prefers the segmentation
+that emits the most whitespace-delimited words. Ties prefer fewer dictionary
+segments and then a longer final segment. Thus Magnum's `but if` plus `I can`
+wins over its conflicting two-stroke `glyphic` entry. If any competing entry
+uses a Plover formatting or command value, Stoin retains ordinary longest-match
+behavior rather than trying to concatenate or score side effects.
+
+Outside modal mode, an exact single stroke that the main stack cannot translate
+is delegated to the modal dictionary. This supports supplemental words such as
+Magnum `STPHULGDZ` -> `snuggling` without enabling Magnum's multi-stroke
+boundary conflicts during normal typing. Main-stack entries always win, and
+the fallback never considers a multi-stroke modal outline.
+
+## Why Keep Verb Phrasing
+
+The production IV/FV grammar still supplies natural everyday phrases that are
+not direct entries in the checked Magnum or Phoenix dictionaries. These
+examples were checked as exact, case-sensitive dictionary values; they may of
+course be written more slowly by composing ordinary dictionary strokes.
+
+| Stoin outline | Output | Family / form |
+| --- | --- | --- |
+| `SA-P` | can see it | IV modal + object |
+| `TH-RGT` | thinking that | IV present participle + complement |
+| `KPU-P` | to keep it | IV infinitive + object |
+| `#SWR*E-BTS` | I'm not saying that | FV contracted negative progressive |
+| `SWRE-PBGTD` | I was thinking that | FV past progressive |
+| `#SWRE-FPBG` | I've been thinking | FV contracted perfect progressive |
+| `#TWRAO-RTS` | we'll try to | FV contracted `will` modal |
+| `KPWRO-PBT` | you should know that | FV `should` modal |
+| `#SKWHR*-FBTS` | she hasn't said that | FV contracted negative perfect |
+| `#KPWRA*-PBLGTD` | you couldn't find that | FV contracted negative past modal |
 
 ## IV Set 1
 
 Initial-verb phrases are generated assignments. The trainer reads the phrasing
-sections directly and presents selectable IV/FV/NV banks, so adding a stem,
+sections directly and presents selectable IV/FV banks, so adding a stem,
 tail, ender, or flag should not require listing every drill prompt by hand.
 
 ### IV Verb Stems
@@ -67,7 +113,7 @@ tail, ender, or flag should not require listing every drill prompt by hand.
 | `D` | past: `was`, `had`, `called`, `said`, `thought`, `told`, `caught`, `looked`, `held`, `sold`, `spelled`, `pulled`, `kept` |
 | `E` | base/non-third present or imperative: `are`, `have`, `call`, `say`, `think`, `tell`, `catch`, `look`, `hold`, `sell`, `spell`, `pull`, `keep` |
 | `ED` | plural past for `PW`: `were` |
-| `G` | present participle/gerund for stems that define one: `calling`, `saying`, `thinking`, `telling`, `catching`, `looking`, `holding`, `selling`, `spelling`, `pulling`, `keeping` |
+| `G` | present participle/gerund for stems that define one: `seeing`, `saying`, `thinking`, `telling`, `catching`, `looking`, `holding`, `selling`, `spelling`, `pulling`, `keeping`, `calling` |
 | `U` | infinitive with `to`: `to be`, `to have`, `to call`, `to say`, `to think`, `to tell`, `to catch`, `to look`, `to hold`, `to sell`, `to spell`, `to pull`, `to keep` |
 | `A` | modal base: `can` + base verb |
 | `AD` | modal past: `could` + base verb |
@@ -115,7 +161,7 @@ starter + operator + structure + ender
 | `KPWR` | you |
 | `KWHR` | he |
 | `SKWHR` | she |
-| `KPWH` | it |
+| `T` | it |
 | `TWR` | we |
 | `TWH` | they |
 
@@ -194,50 +240,6 @@ starter + operator + structure + ender
 | `#` + `AO*` | `won't` / `wouldn't` |
 
 Past affirmative be/have/will contractions are unassigned.
-
-## NV Set 1
-
-Non-verb phrase rows are split between generated phrase rows and custom
-dictionary rows. The `anything` stem is written in canonical steno order as
-`TKPWH*`; it is the same chord as the mnemonic `TPKWH*` idea.
-
-### NV Left-Side Assignments
-
-| Keys | Output Pattern |
-| --- | --- |
-| `TW` | with `*` |
-| `THA` | that `*` |
-| `TPO` | for `*` |
-| `OF` | of `*` |
-| `TKPWH*` | anything `*` |
-| `S*` | as `*` |
-| `SRAO*E` | even `*` |
-
-### NV Right-Hand Assignments
-
-| Keys | Output Pattern | Used With |
-| --- | --- | --- |
-| `-R` | `*` her | `TPO`, `OF` |
-| `-B` | `*` a | `TW`, `THA`, `SRAO*E` |
-| `-F` | `*` if | `S*`, `SRAO*E` |
-| `-GT` | `*` though | `S*`, `SRAO*E` |
-| `-LS` | `*` else | `TKPWH*` |
-| `-P` | `*` it | `OF` |
-| `-PLT` | `*` them | `TW` |
-| `-RT` | `*` that | `TW`, `TKPWH*`, `SRAO*E` |
-| `-S` | `*` us | `TW`, `THA`, `SRAO*E` |
-| `-T` | `*` the | `TW`, `THA`, `TPO` |
-| `-Z` | `*` his | `TW`, `THA`, `TPO`, `OF`, `TKPWH*`, `S*`, `SRAO*E` |
-
-### NV Custom Rows
-
-These rows live in `stoin-custom.json`. `TPHORTD` and `STPHEFD` are copied
-from the open-source Lapwing dictionary.
-
-| Type | Stroke | Output |
-| --- | --- | --- |
-| function | `TPHORTD` | in order to |
-| function | `STPHEFD` | instead of |
 
 ## Samples
 
@@ -392,30 +394,3 @@ from the open-source Lapwing dictionary.
 | `#SWR-F` | I've |
 | `#KWHR-FG` | he's gone |
 | `#TWHAO-G` | they'll go |
-
-### NV Samples
-
-| Stroke | Output |
-| --- | --- |
-| `TW-B` | with a |
-| `TW-T` | with the |
-| `TW-PLT` | with them |
-| `TW-S` | with us |
-| `TW-RT` | with that |
-| `THA-B` | that a |
-| `THAT` | that the |
-| `THA-S` | that us |
-| `TPOR` | for her |
-| `TPOT` | for the |
-| `OFR` | of her |
-| `OFP` | of it |
-| `OFZ` | of his |
-| `TKPWH*-RT` | anything that |
-| `TKPWH*-LS` | anything else |
-| `S*-F` | as if |
-| `S*-GT` | as though |
-| `SRAO*E-S` | even us |
-| `SRAO*E-B` | even a |
-| `SRAO*E-F` | even if |
-| `SRAO*E-GT` | even though |
-| `STPHEFD` | instead of |

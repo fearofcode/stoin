@@ -20,16 +20,26 @@ struct Steno {
     Keymap keymap;
     Translation *translations;
     Dictionary_Stack dictionary_stack;
+    Dictionary_Stack modal_dictionary_stack;
     Orthography orthography;
     Phrasing *phrasing;
     char *phrasing_path;
     uint64_t down_keycodes;
     uint64_t chord_bits;
+    uint64_t *modal_run_strokes;
     Platform_File_Stamp phrasing_stamp;
     size_t strokes_since_compaction;
+    size_t modal_run_translation_count;
     Steno_Phrase_Mode chord_phrase_mode;
+    Case_Mode modal_run_case_mode;
+    Case_Mode modal_run_next_case;
     bool phrase_namespace_enabled;
     Steno_Phrase_Mode phrase_mode;
+    bool modal_dictionary_loaded;
+    bool modal_dictionary_mode;
+    bool chord_modal_dictionary;
+    bool modal_run_open;
+    bool modal_retranslation_in_progress;
     bool enabled;
     bool session_active;
     bool toggle_esc_down;
@@ -53,10 +63,17 @@ struct Steno {
 
 
 bool steno_set_spacing(Steno *steno, const char *spacing);
-bool steno_execute_command(Steno *steno, const char *command, const uint64_t *strokes, size_t stroke_count);
+bool steno_execute_command(
+    Steno *steno,
+    const char *command,
+    const uint64_t *strokes,
+    size_t stroke_count,
+    Translation_Source source
+);
 bool steno_apply_translation_match(Steno *steno, const Translation_Match *match);
 bool steno_translate_chord_bits(Steno *steno, uint64_t bits);
 bool steno_translate_stroke_input(Steno *steno, Stroke_Input stroke);
+void steno_prepare_modal_retro_retranslation(Steno *steno);
 void steno_maybe_emit_brevity_suggestion(Steno *steno);
 
 #endif

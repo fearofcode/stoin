@@ -245,6 +245,20 @@ bool stroke_string_to_bits(const char *stroke, uint64_t *out_bits)
                 bit = right_number_bit_for_char(c);
                 if (bit != 0) saw_number_digit = true;
             }
+            if (bit == 0) {
+                // Plover permits an internal hyphen before the vowel bank,
+                // for example -ER and TKA-EURB. The hyphen still forces a
+                // consonant-only stroke such as -R to the right hand.
+                bit = vowel_bit_for_char(c);
+                if (bit != 0) region = STROKE_REGION_VOWEL;
+            }
+            if (bit == 0) {
+                bit = vowel_number_bit_for_char(c);
+                if (bit != 0) {
+                    region = STROKE_REGION_VOWEL;
+                    saw_number_digit = true;
+                }
+            }
             break;
         }
 

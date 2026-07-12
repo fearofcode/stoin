@@ -16,6 +16,10 @@ void translation_destroy(Translation *translation)
     arrfree(translation->strokes);
     arrfree(translation->utf8);
     arrfree(translation->split_prefix_text);
+    for (size_t i = 0; i < arrlenu(translation->segment_boundaries); ++i) {
+        arrfree(translation->segment_boundaries[i].utf8);
+    }
+    arrfree(translation->segment_boundaries);
     for (size_t i = 0; i < arrlenu(translation->replaced); ++i) {
         translation_destroy(&translation->replaced[i]);
     }

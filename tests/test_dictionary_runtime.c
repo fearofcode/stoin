@@ -33,6 +33,17 @@ static void test_phrasing_watch_callback(void *userdata)
     }
 }
 
+static void test_modal_dictionary_watch_callback(void *userdata)
+{
+    Watch_Test *watch = userdata;
+    if (watch == NULL) {
+        return;
+    }
+    if (steno_reload_modal_dictionary_if_changed(watch->steno)) {
+        ++watch->reload_count;
+    }
+}
+
 bool test_dictionary_runtime(void)
 {
     Test_Output output = {0};
@@ -85,6 +96,13 @@ bool test_dictionary_runtime(void)
     ok = ok && steno_lookup_stroke(steno, "#*-6R/TKPWRA-PBD", &evergrande);
     ok = ok && expect_string("dictionary lookup multi-stroke number-bar digits", evergrande, "the Evergrande");
 
+    const char *internal_hyphen = NULL;
+    ok = ok && steno_lookup_stroke(steno, "TKAEURB", &internal_hyphen);
+    ok = ok && expect_string(
+        "dictionary lookup accepts Plover internal hyphen",
+        internal_hyphen,
+        "internal hyphen");
+
     const char *histories = NULL;
     ok = ok && steno_lookup_stroke(steno, "HEU/STOE-R/-Z", &histories);
     ok = ok && expect_string("dictionary lookup longest multi-stroke", histories, "histories");
@@ -136,6 +154,73 @@ bool test_dictionary_runtime(void)
         ok = ok && steno_handle_stroke_bits(reload_steno, reload_bits);
         ok = ok && expect_string("platform dictionary watcher reload", output.text, " watched");
 
+        const char *reload_modal_path = "build/test-hot-reload-modal-dictionary.json";
+        ok = ok && write_text_file(reload_modal_path, "{ \"S\": \"modal old\" }\n");
+        Steno_Config modal_reload_config = config;
+        modal_reload_config.modal_dictionary_path = reload_modal_path;
+        Steno *modal_reload_steno = steno_create(&modal_reload_config);
+        ok = ok && modal_reload_steno != NULL;
+        if (modal_reload_steno != NULL) {
+            const char *configured_modal_path = NULL;
+            ok = ok && steno_get_modal_dictionary_path(
+                modal_reload_steno,
+                &configured_modal_path
+            );
+            ok = ok && expect_string(
+                "configured modal dictionary path",
+                configured_modal_path,
+                reload_modal_path);
+
+            clear_test_output(&output);
+            ok = ok && handle_modal_dictionary_test_stroke(modal_reload_steno, "S");
+            ok = ok && expect_string("hot reload initial modal dictionary", output.text, "modal old");
+
+            ok = ok && write_text_file(reload_modal_path, "{");
+            ok = ok && !steno_reload_modal_dictionary(modal_reload_steno);
+            ok = ok && handle_test_stroke(modal_reload_steno, "F");
+            ok = ok && handle_modal_dictionary_test_stroke(modal_reload_steno, "S");
+            ok = ok && expect_string(
+                "hot reload keeps old modal dictionary on parse failure",
+                output.text,
+                "modal old fee modal old");
+
+            ok = ok && write_text_file(reload_modal_path, "{ \"S\": \"modal newer\" }\n");
+            ok = ok && steno_reload_modal_dictionary(modal_reload_steno);
+            ok = ok && handle_test_stroke(modal_reload_steno, "F");
+            ok = ok && handle_modal_dictionary_test_stroke(modal_reload_steno, "S");
+            ok = ok && expect_string(
+                "hot reload updates modal dictionary",
+                output.text,
+                "modal old fee modal old fee modal newer");
+
+            Watch_Test modal_watch = {
+                .steno = modal_reload_steno,
+            };
+            const char *const modal_watch_paths[] = { reload_modal_path };
+            ok = ok && platform_file_watcher_start(
+                modal_watch_paths,
+                sizeof(modal_watch_paths) / sizeof(modal_watch_paths[0]),
+                test_modal_dictionary_watch_callback,
+                &modal_watch
+            );
+            ok = ok && write_text_file(reload_modal_path, "{ \"S\": \"modal watched\" }\n");
+            for (size_t attempt = 0; ok && modal_watch.reload_count == 0 && attempt < 50; ++attempt) {
+                platform_file_watcher_poll();
+                platform_sleep_ms(10);
+            }
+            platform_file_watcher_stop();
+            ok = ok && modal_watch.reload_count > 0;
+            ok = ok && handle_test_stroke(modal_reload_steno, "F");
+            ok = ok && handle_modal_dictionary_test_stroke(modal_reload_steno, "S");
+            ok = ok && expect_string(
+                "platform modal dictionary watcher reload",
+                output.text,
+                "modal old fee modal old fee modal newer fee modal watched");
+
+            steno_destroy(modal_reload_steno);
+        }
+        remove(reload_modal_path);
+
         const char *reload_phrasing_path = "build/test-hot-reload-phrasing.json";
         const char *phrasing_is =
             "{\n"
@@ -143,7 +228,6 @@ bool test_dictionary_runtime(void)
             "    \"tails\": [{\"id\": \"a\", \"stroke\": \"-B\", \"text\": \"a\"}],\n"
             "    \"stems\": [{\"stroke\": \"PW\", \"forms\": [{\"stroke\": \"\", \"text\": \"is\"}]}]\n"
             "  },\n"
-            "  \"nonverbs\": {\"tails\": [], \"prefixes\": []},\n"
             "  \"final_verbs\": {\n"
             "    \"contraction_stroke\": \"#\",\n"
             "    \"starters\": [],\n"
@@ -159,7 +243,6 @@ bool test_dictionary_runtime(void)
             "    \"tails\": [{\"id\": \"a\", \"stroke\": \"-B\", \"text\": \"a\"}],\n"
             "    \"stems\": [{\"stroke\": \"PW\", \"forms\": [{\"stroke\": \"\", \"text\": \"was\"}]}]\n"
             "  },\n"
-            "  \"nonverbs\": {\"tails\": [], \"prefixes\": []},\n"
             "  \"final_verbs\": {\n"
             "    \"contraction_stroke\": \"#\",\n"
             "    \"starters\": [],\n"
@@ -175,7 +258,6 @@ bool test_dictionary_runtime(void)
             "    \"tails\": [{\"id\": \"a\", \"stroke\": \"-B\", \"text\": \"a\"}],\n"
             "    \"stems\": [{\"stroke\": \"PW\", \"forms\": [{\"stroke\": \"\", \"text\": \"are\"}]}]\n"
             "  },\n"
-            "  \"nonverbs\": {\"tails\": [], \"prefixes\": []},\n"
             "  \"final_verbs\": {\n"
             "    \"contraction_stroke\": \"#\",\n"
             "    \"starters\": [],\n"
@@ -185,18 +267,14 @@ bool test_dictionary_runtime(void)
             "    \"enders\": []\n"
             "  }\n"
             "}\n";
-        const char *phrasing_duplicate_tail =
+        const char *phrasing_duplicate_iv_tail =
             "{\n"
             "  \"initial_verbs\": {\n"
-            "    \"tails\": [{\"id\": \"a\", \"stroke\": \"-B\", \"text\": \"a\"}],\n"
-            "    \"stems\": [{\"stroke\": \"PW\", \"forms\": [{\"stroke\": \"\", \"text\": \"is\"}]}]\n"
-            "  },\n"
-            "  \"nonverbs\": {\n"
             "    \"tails\": [\n"
-            "      {\"id\": \"if\", \"stroke\": \"-F\", \"text\": \"if\"},\n"
-            "      {\"id\": \"else\", \"stroke\": \"-F\", \"text\": \"else\"}\n"
+            "      {\"id\": \"a\", \"stroke\": \"-B\", \"text\": \"a\"},\n"
+            "      {\"id\": \"the\", \"stroke\": \"-B\", \"text\": \"the\"}\n"
             "    ],\n"
-            "    \"prefixes\": []\n"
+            "    \"stems\": [{\"stroke\": \"PW\", \"forms\": [{\"stroke\": \"\", \"text\": \"is\"}]}]\n"
             "  },\n"
             "  \"final_verbs\": {\n"
             "    \"contraction_stroke\": \"#\",\n"
@@ -223,7 +301,7 @@ bool test_dictionary_runtime(void)
             ok = ok && handle_phrase_test_stroke(phrasing_reload_steno, "PW-B", STENO_PHRASE_MODE_VERBS);
             ok = ok && expect_string("hot reload keeps old phrasing on parse failure", output.text, " is a");
 
-            ok = ok && write_text_file(reload_phrasing_path, phrasing_duplicate_tail);
+            ok = ok && write_text_file(reload_phrasing_path, phrasing_duplicate_iv_tail);
             ok = ok && !steno_reload_phrasing(phrasing_reload_steno);
             clear_test_output(&output);
             ok = ok && handle_phrase_test_stroke(phrasing_reload_steno, "PW-B", STENO_PHRASE_MODE_VERBS);

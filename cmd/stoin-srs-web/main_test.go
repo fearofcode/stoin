@@ -962,7 +962,6 @@ func TestStaticPhrasingTrainerScript(t *testing.T) {
 		!strings.Contains(body, "validatePhraseData") ||
 		!strings.Contains(body, "initial_verbs") ||
 		!strings.Contains(body, "final_verbs") ||
-		!strings.Contains(body, "nonverbs") ||
 		!strings.Contains(body, "generateFinalVerbPrompts") ||
 		!strings.Contains(body, "combineStrokeParts") ||
 		!strings.Contains(body, "phraseFilterInput") ||
@@ -975,6 +974,9 @@ func TestStaticPhrasingTrainerScript(t *testing.T) {
 		!strings.Contains(body, "repeatedPromptBlocks") ||
 		!strings.Contains(body, "normalizedPromptPhrase") {
 		t.Fatalf("expected trainer script contents, got %q", rec.Body.String())
+	}
+	if strings.Contains(body, "nonverbs") {
+		t.Fatalf("expected trainer script to omit removed nonverb phrasing, got %q", body)
 	}
 }
 
@@ -1005,6 +1007,9 @@ func TestStaticSessionScriptIncludesHints(t *testing.T) {
 			t.Fatalf("expected session script to contain %q, got %q", want, body)
 		}
 	}
+	if strings.Contains(body, `"nonverbs"`) {
+		t.Fatalf("expected phrasing data to omit removed nonverb section, got %q", body)
+	}
 }
 
 func TestPhrasingDataRoute(t *testing.T) {
@@ -1022,10 +1027,9 @@ func TestPhrasingDataRoute(t *testing.T) {
 	for _, want := range []string{
 		`"initial_verbs"`,
 		`"final_verbs"`,
-		`"nonverbs"`,
 		`"KHR"`,
-		`"SRAO*E"`,
-		`"though"`,
+		`"SKWHR"`,
+		`"present_participle"`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("expected phrasing data to contain %q, got %q", want, body)

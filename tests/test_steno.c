@@ -313,62 +313,12 @@ int main(void)
             initial_verb_cases[i].expected);
     }
 
-    const struct {
-        const char *stroke;
-        const char *expected;
-    } nonverb_cases[] = {
-        { "TW-B", "with a" },
-        { "TW-S", "with us" },
-        { "TKPWH*-RT", "anything that" },
-        { "TKPWH*-LS", "anything else" },
-        { "S*-F", "as if" },
-        { "S*-GT", "as though" },
-        { "SRAO*E-S", "even us" },
-        { "SRAO*E-RT", "even that" },
-        { "SRAO*E-GT", "even though" },
-    };
-    for (size_t i = 0; i < sizeof(nonverb_cases) / sizeof(nonverb_cases[0]); ++i) {
-        ok = ok && expect_phrase_stroke_output(
-            &steno,
-            &config,
-            &output,
-            "nonverb set 1",
-            nonverb_cases[i].stroke,
-            STENO_PHRASE_MODE_NONVERBS,
-            nonverb_cases[i].expected);
-    }
-
-    const char *custom_nv_paths[] = {
-        "tests/test-dictionary.json",
-        "stoin-custom.json",
-    };
-    Steno_Config custom_nv_config = config;
-    custom_nv_config.dictionary_path = NULL;
-    custom_nv_config.dictionary_paths = custom_nv_paths;
-    custom_nv_config.dictionary_path_count = sizeof(custom_nv_paths) / sizeof(custom_nv_paths[0]);
-    const struct {
-        const char *stroke;
-        const char *expected;
-    } custom_nonverb_cases[] = {
-        { "TPHORTD", "in order to" },
-        { "STPHEFD", "instead of" },
-    };
-    for (size_t i = 0; i < sizeof(custom_nonverb_cases) / sizeof(custom_nonverb_cases[0]); ++i) {
-        ok = ok && expect_stroke_output(
-            &steno,
-            &custom_nv_config,
-            &output,
-            "custom nonverb entries",
-            custom_nonverb_cases[i].stroke,
-            custom_nonverb_cases[i].expected);
-    }
-
-    ok = ok && reset_test_steno(&steno, &custom_nv_config);
+    ok = ok && reset_test_steno(&steno, &config);
     steno_set_phrase_namespace_enabled(steno, true);
     clear_test_output(&output);
     ok = ok && handle_test_stroke(steno, "KHREP");
     ok = ok && expect_string("phrase namespace normal KHREP skips phrase lookup", output.text, "KHREP");
-    ok = ok && reset_test_steno(&steno, &custom_nv_config);
+    ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
     ok = ok && steno_handle_stroke(steno, ((Stroke_Input) {
         .bits = khrep_bits,
@@ -513,15 +463,6 @@ int main(void)
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
     ok = ok && steno_handle_stroke(steno, ((Stroke_Input) {
-        .bits = phrase_is_a_bits,
-        .phrase_mode = STENO_PHRASE_MODE_NONVERBS,
-        .phrase_namespace = true,
-    }));
-    ok = ok && expect_string("phrase namespace nonverb pedal uses nonverb lookup", output.text, "near a");
-
-    ok = ok && reset_test_steno(&steno, &config);
-    clear_test_output(&output);
-    ok = ok && steno_handle_stroke(steno, ((Stroke_Input) {
         .bits = phrase_fallback_test_bits,
         .phrase = true,
         .phrase_namespace = true,
@@ -573,25 +514,263 @@ int main(void)
     ok = ok && expect_string("qwerty phrase namespace latches phrase during chord", output.text, "is a");
 
     ok = ok && reset_test_steno(&steno, &config);
-    steno_set_phrase_namespace_enabled(steno, true);
-    clear_test_output(&output);
-    ok = ok && send_key_event(steno, "e", true);
-    steno_set_phrase_mode_family(steno, STENO_PHRASE_MODE_NONVERBS);
-    steno_set_phrase_mode_family(steno, STENO_PHRASE_MODE_NONE);
-    ok = ok && send_key_event(steno, "d", true);
-    ok = ok && send_key_event(steno, "k", true);
-    ok = ok && send_key_event(steno, "e", false);
-    ok = ok && send_key_event(steno, "d", false);
-    ok = ok && send_key_event(steno, "k", false);
-    ok = ok && expect_string("qwerty phrase namespace latches nonverb family during chord", output.text, "near a");
-
-    ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
     ok = ok && !send_key_event(steno, "left_shift", true);
     ok = ok && !send_key_event(steno, "left_shift", false);
     ok = ok && send_key_event(steno, "u", true);
     ok = ok && send_key_event(steno, "u", false);
     ok = ok && expect_string("qwerty shift tap has no phrasing side effect", output.text, "fee");
+
+    Steno_Config modal_config = config;
+    modal_config.modal_dictionary_path = "tests/test-phrase-preference-dictionary.json";
+    Steno *modal_steno = steno_create(&modal_config);
+    ok = ok && modal_steno != NULL;
+    if (modal_steno != NULL) {
+        const char *modal_fallback_lookup = NULL;
+        ok = ok && steno_lookup_stroke(
+            modal_steno,
+            "STPHULGDZ",
+            &modal_fallback_lookup);
+        ok = ok && expect_string(
+            "single-stroke lookup delegates to modal dictionary",
+            modal_fallback_lookup,
+            "snuggling");
+        const char *modal_multi_lookup = NULL;
+        ok = ok && !steno_lookup_stroke(modal_steno, "H/R", &modal_multi_lookup);
+
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && handle_modal_dictionary_test_stroke(modal_steno, "TKPWHREUF");
+        ok = ok && expect_string("modal phrase preference first phrase", output.text, "but if");
+        ok = ok && handle_modal_dictionary_test_stroke(modal_steno, "EUBG");
+        ok = ok && expect_string(
+            "modal phrase preference beats conflicting longer outline",
+            output.text,
+            "but if I can");
+        ok = ok && steno_handle_stroke_bits(modal_steno, undo_bits);
+        ok = ok && expect_string("modal phrase preference undo restores prior plan", output.text, "but if");
+
+        ok = ok && reset_test_steno(&modal_steno, &modal_config);
+        clear_test_output(&output);
+        ok = ok && handle_modal_dictionary_test_stroke(modal_steno, "S");
+        ok = ok && handle_modal_dictionary_test_stroke(modal_steno, "T");
+        ok = ok && handle_modal_dictionary_test_stroke(modal_steno, "K");
+        ok = ok && expect_string(
+            "modal phrase preference enumerates three-stroke partitions",
+            output.text,
+            "one two three words");
+
+        ok = ok && reset_test_steno(&modal_steno, &modal_config);
+        clear_test_output(&output);
+        ok = ok && handle_modal_dictionary_test_stroke(modal_steno, "P");
+        ok = ok && handle_modal_dictionary_test_stroke(modal_steno, "W");
+        ok = ok && expect_string(
+            "modal phrase preference tie uses fewer segments",
+            output.text,
+            "two words");
+
+        ok = ok && reset_test_steno(&modal_steno, &modal_config);
+        clear_test_output(&output);
+        ok = ok && handle_modal_dictionary_test_stroke(modal_steno, "H");
+        ok = ok && expect_string("modal provisional raw stroke", output.text, "H");
+        ok = ok && handle_modal_dictionary_test_stroke(modal_steno, "R");
+        ok = ok && expect_string("modal raw stroke replaced by later outline", output.text, "hello");
+
+        ok = ok && reset_test_steno(&modal_steno, &modal_config);
+        clear_test_output(&output);
+        ok = ok && handle_modal_dictionary_test_stroke(modal_steno, "A");
+        ok = ok && handle_modal_dictionary_test_stroke(modal_steno, "O");
+        ok = ok && expect_string(
+            "modal formatter entry bypasses phrase scoring",
+            output.text,
+            "glyphic");
+        ok = ok && handle_modal_dictionary_test_stroke(modal_steno, "F");
+        ok = ok && expect_string(
+            "modal formatter fallback remains open for a longer outline",
+            output.text,
+            "longer");
+
+        ok = ok && reset_test_steno(&modal_steno, &modal_config);
+        clear_test_output(&output);
+        ok = ok && handle_modal_dictionary_test_stroke(modal_steno, "TP");
+        ok = ok && handle_modal_dictionary_test_stroke(modal_steno, "WH");
+        ok = ok && handle_modal_dictionary_test_stroke(modal_steno, "R");
+        ok = ok && expect_string(
+            "modal formatted suffix can start at a preferred-plan boundary",
+            output.text,
+            "alpha replacement");
+
+        ok = ok && reset_test_steno(&modal_steno, &modal_config);
+        clear_test_output(&output);
+        ok = ok && handle_test_stroke(modal_steno, "TP-PL");
+        ok = ok && handle_modal_dictionary_test_stroke(modal_steno, "L");
+        ok = ok && handle_modal_dictionary_test_stroke(modal_steno, "G");
+        ok = ok && expect_string(
+            "modal formatted full outline replays run base case state",
+            output.text,
+            ". World");
+
+        ok = ok && reset_test_steno(&modal_steno, &modal_config);
+        clear_test_output(&output);
+        ok = ok && handle_modal_dictionary_test_stroke(modal_steno, "KAT");
+        ok = ok && handle_modal_dictionary_test_stroke(modal_steno, "HR");
+        ok = ok && handle_test_stroke(modal_steno, "TO");
+        ok = ok && expect_string(
+            "modal retro replacement preserves dictionary provenance",
+            output.text,
+            "MODAL cat to");
+
+        ok = ok && reset_test_steno(&modal_steno, &modal_config);
+        clear_test_output(&output);
+        ok = ok && handle_modal_dictionary_test_stroke(modal_steno, "KAT");
+        ok = ok && handle_modal_dictionary_test_stroke(modal_steno, "-RBGS");
+        ok = ok && handle_test_stroke(modal_steno, "TO");
+        ok = ok && expect_string(
+            "modal stitch replacement preserves dictionary provenance",
+            output.text,
+            "modal c-a-t to");
+
+        ok = ok && reset_test_steno(&modal_steno, &modal_config);
+        clear_test_output(&output);
+        ok = ok && handle_modal_dictionary_test_stroke(modal_steno, "KAT");
+        ok = ok && handle_modal_dictionary_test_stroke(modal_steno, "#*");
+        ok = ok && expect_string(
+            "modal retro asterisk retranslates in the modal dictionary",
+            output.text,
+            "star cat");
+        ok = ok && handle_modal_dictionary_test_stroke(modal_steno, "TO");
+        ok = ok && expect_string(
+            "modal retro asterisk keeps the corrected run open",
+            output.text,
+            "corrected phrase has five words");
+
+        ok = ok && reset_test_steno(&modal_steno, &modal_config);
+        clear_test_output(&output);
+        ok = ok && handle_modal_dictionary_test_stroke(modal_steno, "SR");
+        ok = ok && handle_modal_dictionary_test_stroke(modal_steno, "TR");
+        ok = ok && handle_modal_dictionary_test_stroke(modal_steno, "#*");
+        ok = ok && expect_string(
+            "modal retro asterisk preserves a corrected run prefix",
+            output.text,
+            "alpha corrected beta");
+        ok = ok && handle_modal_dictionary_test_stroke(modal_steno, "KR");
+        ok = ok && expect_string(
+            "modal corrected multi-stroke run remains extensible",
+            output.text,
+            "corrected full phrase has six words");
+
+        ok = ok && reset_test_steno(&modal_steno, &modal_config);
+        clear_test_output(&output);
+        ok = ok && handle_modal_dictionary_test_stroke(modal_steno, "KAT");
+        ok = ok && handle_modal_dictionary_test_stroke(modal_steno, "WR");
+        ok = ok && handle_test_stroke(modal_steno, "TO");
+        ok = ok && expect_string(
+            "modal repeat command preserves dictionary provenance",
+            output.text,
+            "modal cat modal cat to");
+
+        ok = ok && reset_test_steno(&modal_steno, &modal_config);
+        clear_test_output(&output);
+        uint64_t replay_failure_bits = 0;
+        ok = ok && stroke_string_to_bits("P", &replay_failure_bits);
+        ok = ok && handle_modal_dictionary_test_stroke(modal_steno, "SK");
+        output.fail_next_send = true;
+        ok = ok && !steno_handle_stroke(modal_steno, ((Stroke_Input) {
+            .bits = replay_failure_bits,
+            .modal_dictionary = true,
+        }));
+        reset_output_log(&output);
+        ok = ok && handle_test_stroke(modal_steno, "F");
+        ok = ok && expect_string(
+            "failed modal replay restores caller case state",
+            output.last_send,
+            "Fee");
+
+        ok = ok && reset_test_steno(&modal_steno, &modal_config);
+        clear_test_output(&output);
+        ok = ok && handle_test_stroke(modal_steno, "STPHULGDZ");
+        ok = ok && expect_string(
+            "undefined main stroke delegates to modal dictionary",
+            output.text,
+            "snuggling");
+
+        ok = ok && reset_test_steno(&modal_steno, &modal_config);
+        clear_test_output(&output);
+        ok = ok && handle_test_stroke(modal_steno, "KAT");
+        ok = ok && expect_string("main dictionary wins over modal fallback", output.text, "cat");
+        ok = ok && reset_test_steno(&modal_steno, &modal_config);
+        clear_test_output(&output);
+        ok = ok && handle_modal_dictionary_test_stroke(modal_steno, "F");
+        ok = ok && expect_string("modal miss never falls through to main dictionary", output.text, "F");
+
+        ok = ok && reset_test_steno(&modal_steno, &modal_config);
+        clear_test_output(&output);
+        ok = ok && handle_test_stroke(modal_steno, "KAT");
+        ok = ok && handle_modal_dictionary_test_stroke(modal_steno, "TO");
+        ok = ok && expect_string(
+            "modal lookup cannot consume preceding main stroke",
+            output.text,
+            "cat modal to");
+
+        ok = ok && reset_test_steno(&modal_steno, &modal_config);
+        clear_test_output(&output);
+        ok = ok && handle_modal_dictionary_test_stroke(modal_steno, "KAT");
+        ok = ok && handle_test_stroke(modal_steno, "TO");
+        ok = ok && expect_string(
+            "main lookup cannot consume preceding modal stroke",
+            output.text,
+            "modal cat to");
+
+        ok = ok && reset_test_steno(&modal_steno, &modal_config);
+        clear_test_output(&output);
+        ok = ok && handle_modal_dictionary_test_stroke(modal_steno, "TKPWHREUF");
+        ok = ok && handle_test_stroke(modal_steno, "F");
+        ok = ok && handle_modal_dictionary_test_stroke(modal_steno, "EUBG");
+        ok = ok && expect_string(
+            "normal stroke closes modal phrase run",
+            output.text,
+            "but if fee I can");
+
+        ok = ok && reset_test_steno(&modal_steno, &modal_config);
+        clear_test_output(&output);
+        ok = ok && steno_handle_stroke(modal_steno, ((Stroke_Input) {
+            .bits = phrase_is_a_bits,
+            .phrase = true,
+            .phrase_namespace = true,
+            .modal_dictionary = true,
+        }));
+        ok = ok && expect_string(
+            "modal dictionary takes precedence over phrase namespace",
+            output.text,
+            "modal is a");
+
+        ok = ok && reset_test_steno(&modal_steno, &modal_config);
+        clear_test_output(&output);
+        ok = ok && send_key_event(modal_steno, "e", true);
+        steno_set_modal_dictionary_mode(modal_steno, true);
+        steno_set_modal_dictionary_mode(modal_steno, false);
+        ok = ok && send_key_event(modal_steno, "d", true);
+        ok = ok && send_key_event(modal_steno, "k", true);
+        ok = ok && send_key_event(modal_steno, "e", false);
+        ok = ok && send_key_event(modal_steno, "d", false);
+        ok = ok && send_key_event(modal_steno, "k", false);
+        ok = ok && expect_string(
+            "qwerty chord latches modal dictionary during stroke",
+            output.text,
+            "modal is a");
+
+        ok = ok && reset_test_steno(&modal_steno, &modal_config);
+        clear_test_output(&output);
+        ok = ok && handle_test_stroke(modal_steno, "TP-PL");
+        ok = ok && handle_modal_dictionary_test_stroke(modal_steno, "TKPWHREUF");
+        ok = ok && handle_modal_dictionary_test_stroke(modal_steno, "EUBG");
+        ok = ok && expect_string(
+            "modal phrase recomputation preserves run base case state",
+            output.text,
+            ". But if I can");
+
+        steno_destroy(modal_steno);
+    }
 
     ok = ok && reset_test_steno(&steno, &config);
 

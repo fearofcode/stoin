@@ -3,6 +3,7 @@
 #include "steno_stroke.h"
 #include "text_util.h"
 
+#include <ctype.h>
 #include <string.h>
 
 #include "../third_party/stb_ds.h"
@@ -56,6 +57,25 @@ static void translation_match_clear_partial_prefix(Translation_Match *match)
     match->partial_prefix_stroke_count = 0;
 }
 
+static void segment_boundaries_destroy(Translation_Segment_Boundary **boundaries)
+{
+    if (boundaries == NULL) {
+        return;
+    }
+    for (size_t i = 0; i < arrlenu(*boundaries); ++i) {
+        arrfree((*boundaries)[i].utf8);
+    }
+    arrfree(*boundaries);
+    *boundaries = NULL;
+}
+
+static void translation_match_clear_segment_boundaries(Translation_Match *match)
+{
+    if (match != NULL) {
+        segment_boundaries_destroy(&match->segment_boundaries);
+    }
+}
+
 static bool translation_match_set_partial_prefix(
     Translation_Match *match,
     const char *text,
@@ -83,6 +103,7 @@ void translation_match_destroy(Translation_Match *match)
 {
     translation_match_clear_owned(match);
     translation_match_clear_partial_prefix(match);
+    translation_match_clear_segment_boundaries(match);
 }
 
 static bool set_translation_match(
@@ -95,6 +116,7 @@ static bool set_translation_match(
 {
     translation_match_clear_owned(match);
     translation_match_clear_partial_prefix(match);
+    translation_match_clear_segment_boundaries(match);
     match->translation = translation;
     match->suffix_base_translation = NULL;
     match->suffix_translation = NULL;
@@ -294,9 +316,32 @@ bool translation_match_find(
     Translation_Match *out_match
 )
 {
-    if (dictionary == NULL || out_match == NULL) {
+    return translation_match_find_for_source(
+        dictionary,
+        history,
+        arrlenu(history),
+        TRANSLATION_SOURCE_NORMAL,
+        bits,
+        out_match
+    );
+}
+
+bool translation_match_find_for_source(
+    const Dictionary *dictionary,
+    const Translation *history,
+    size_t history_count,
+    Translation_Source source,
+    uint64_t bits,
+    Translation_Match *out_match
+)
+{
+    if (dictionary == NULL
+        || out_match == NULL
+        || (history_count > 0 && history == NULL)) {
         return false;
     }
+
+    out_match->source = source;
 
     const size_t max_strokes = translation_match_lookup_stroke_limit(dictionary);
 
@@ -319,9 +364,12 @@ bool translation_match_find(
     }
     found = candidate_found;
 
-    for (size_t i = arrlenu(history); i > 0 && candidate_count < max_strokes;) {
+    for (size_t i = history_count; i > 0 && candidate_count < max_strokes;) {
         --i;
         const Translation *previous = &history[i];
+        if (previous->source != source) {
+            break;
+        }
         const size_t previous_stroke_count = arrlenu(previous->strokes);
         if (previous_stroke_count == 0) {
             break;
@@ -361,6 +409,50 @@ bool translation_match_find(
             }
         }
 
+        for (size_t boundary_index = arrlenu(previous->segment_boundaries);
+             boundary_index > 0;
+             --boundary_index) {
+            const Translation_Segment_Boundary *boundary =
+                &previous->segment_boundaries[boundary_index - 1];
+            if (boundary->stroke_count == 0
+                || boundary->stroke_count >= previous_stroke_count) {
+                continue;
+            }
+
+            const size_t suffix_stroke_count = previous_stroke_count - boundary->stroke_count;
+            if (suffix_stroke_count + candidate_count > max_strokes) {
+                continue;
+            }
+
+            uint64_t partial_candidate[TRANSLATION_MATCH_MAX_STROKES] = {0};
+            memcpy(
+                partial_candidate,
+                previous->strokes + boundary->stroke_count,
+                suffix_stroke_count * sizeof(partial_candidate[0])
+            );
+            memcpy(
+                partial_candidate + suffix_stroke_count,
+                candidate,
+                candidate_count * sizeof(partial_candidate[0])
+            );
+
+            bool partial_found = false;
+            if (!try_candidate_translation_match(
+                    dictionary,
+                    partial_candidate,
+                    suffix_stroke_count + candidate_count,
+                    replaced_count + 1,
+                    boundary->utf8,
+                    boundary->stroke_count,
+                    out_match,
+                    &partial_found)) {
+                return false;
+            }
+            if (partial_found) {
+                found = true;
+            }
+        }
+
         if (candidate_count + previous_stroke_count > max_strokes) {
             break;
         }
@@ -394,5 +486,261 @@ bool translation_match_find(
     if (!found && !set_translation_match(out_match, NULL, &bits, 1, 0)) {
         return false;
     }
+    return true;
+}
+
+typedef struct Phrase_Plan_State {
+    const char *translation;
+    size_t previous;
+    size_t raw_count;
+    size_t word_count;
+    size_t segment_count;
+    size_t segment_stroke_count;
+    bool reachable;
+} Phrase_Plan_State;
+
+static bool phrase_translation_is_plain(const char *translation)
+{
+    if (translation == NULL
+        || translation[0] == '\0'
+        || translation[0] == '='
+        || isspace((unsigned char)translation[0])) {
+        return false;
+    }
+
+    const size_t length = strlen(translation);
+    if (isspace((unsigned char)translation[length - 1])) {
+        return false;
+    }
+
+    for (const char *p = translation; *p != '\0'; ++p) {
+        if (*p == '{' || *p == '}' || *p == '\\' || *p == '[' || *p == ']') {
+            return false;
+        }
+    }
+    return true;
+}
+
+static size_t phrase_translation_word_count(const char *translation)
+{
+    size_t words = 0;
+    bool in_word = false;
+    for (const char *p = translation; p != NULL && *p != '\0'; ++p) {
+        const bool whitespace = isspace((unsigned char)*p) != 0;
+        if (!whitespace && !in_word) {
+            ++words;
+        }
+        in_word = !whitespace;
+    }
+    return words;
+}
+
+static bool phrase_plan_candidate_is_better(
+    const Phrase_Plan_State *current,
+    size_t raw_count,
+    size_t word_count,
+    size_t segment_count,
+    size_t segment_stroke_count
+)
+{
+    if (!current->reachable) {
+        return true;
+    }
+    if (raw_count != current->raw_count) {
+        return raw_count < current->raw_count;
+    }
+    if (word_count != current->word_count) {
+        return word_count > current->word_count;
+    }
+    if (segment_count != current->segment_count) {
+        return segment_count < current->segment_count;
+    }
+    return segment_stroke_count > current->segment_stroke_count;
+}
+
+static void phrase_plan_set(
+    Phrase_Plan_State *state,
+    const char *translation,
+    size_t previous,
+    size_t raw_count,
+    size_t word_count,
+    size_t segment_count,
+    size_t segment_stroke_count
+)
+{
+    *state = (Phrase_Plan_State) {
+        .translation = translation,
+        .previous = previous,
+        .raw_count = raw_count,
+        .word_count = word_count,
+        .segment_count = segment_count,
+        .segment_stroke_count = segment_stroke_count,
+        .reachable = true,
+    };
+}
+
+bool translation_match_find_phrase_preferred(
+    const Dictionary *dictionary,
+    const uint64_t *strokes,
+    size_t stroke_count,
+    size_t replaced_count,
+    Translation_Match *out_match,
+    bool *out_found
+)
+{
+    if (dictionary == NULL
+        || strokes == NULL
+        || stroke_count == 0
+        || stroke_count > TRANSLATION_MATCH_MAX_STROKES
+        || out_match == NULL
+        || out_found == NULL) {
+        return false;
+    }
+
+    *out_found = false;
+    Phrase_Plan_State states[TRANSLATION_MATCH_MAX_STROKES + 1] = {0};
+    states[0].reachable = true;
+    bool saw_non_plain_translation = false;
+    size_t max_outline_strokes = dictionary_longest_key(dictionary);
+    if (max_outline_strokes > TRANSLATION_MATCH_MAX_STROKES) {
+        max_outline_strokes = TRANSLATION_MATCH_MAX_STROKES;
+    }
+
+    for (size_t end = 1; end <= stroke_count; ++end) {
+        const Phrase_Plan_State *raw_previous = &states[end - 1];
+        if (raw_previous->reachable
+            && phrase_plan_candidate_is_better(
+                &states[end],
+                raw_previous->raw_count + 1,
+                raw_previous->word_count,
+                raw_previous->segment_count + 1,
+                1)) {
+            phrase_plan_set(
+                &states[end],
+                NULL,
+                end - 1,
+                raw_previous->raw_count + 1,
+                raw_previous->word_count,
+                raw_previous->segment_count + 1,
+                1
+            );
+        }
+
+        const size_t earliest = end > max_outline_strokes ? end - max_outline_strokes : 0;
+        for (size_t start = earliest; start < end; ++start) {
+            const Phrase_Plan_State *previous = &states[start];
+            if (!previous->reachable) {
+                continue;
+            }
+
+            const char *translation = dictionary_lookup_strokes(
+                dictionary,
+                strokes + start,
+                end - start
+            );
+            if (translation == NULL) {
+                continue;
+            }
+            if (!phrase_translation_is_plain(translation)) {
+                saw_non_plain_translation = true;
+                continue;
+            }
+
+            const size_t word_count = previous->word_count
+                + phrase_translation_word_count(translation);
+            const size_t segment_count = previous->segment_count + 1;
+            if (phrase_plan_candidate_is_better(
+                    &states[end],
+                    previous->raw_count,
+                    word_count,
+                    segment_count,
+                    end - start)) {
+                phrase_plan_set(
+                    &states[end],
+                    translation,
+                    start,
+                    previous->raw_count,
+                    word_count,
+                    segment_count,
+                    end - start
+                );
+            }
+        }
+    }
+
+    if (saw_non_plain_translation || !states[stroke_count].reachable) {
+        return true;
+    }
+
+    size_t segment_ends[TRANSLATION_MATCH_MAX_STROKES] = {0};
+    size_t segment_count = 0;
+    for (size_t end = stroke_count; end > 0;) {
+        segment_ends[segment_count++] = end;
+        end = states[end].previous;
+    }
+
+    char *combined = NULL;
+    Translation_Segment_Boundary *boundaries = NULL;
+    for (size_t i = segment_count; i > 0; --i) {
+        const size_t end = segment_ends[i - 1];
+        const Phrase_Plan_State *state = &states[end];
+        const size_t start = state->previous;
+        char raw_outline[TRANSLATION_MATCH_MAX_OUTLINE_BYTES] = {0};
+        const char *text = state->translation;
+        if (text == NULL) {
+            if (!stroke_sequence_to_string(
+                    strokes + start,
+                    end - start,
+                    raw_outline,
+                    sizeof(raw_outline))) {
+                segment_boundaries_destroy(&boundaries);
+                arrfree(combined);
+                return false;
+            }
+            text = raw_outline;
+        }
+
+        if (combined != NULL
+            && combined[0] != '\0'
+            && !text_append_char(&combined, ' ')) {
+            segment_boundaries_destroy(&boundaries);
+            arrfree(combined);
+            return false;
+        }
+        if (!text_append_cstring(&combined, text)) {
+            segment_boundaries_destroy(&boundaries);
+            arrfree(combined);
+            return false;
+        }
+
+        if (end < stroke_count) {
+            Translation_Segment_Boundary boundary = {
+                .stroke_count = end,
+            };
+            if (!text_append_cstring(&boundary.utf8, combined)) {
+                arrfree(boundary.utf8);
+                segment_boundaries_destroy(&boundaries);
+                arrfree(combined);
+                return false;
+            }
+            arrput(boundaries, boundary);
+        }
+    }
+
+    if (combined == NULL
+        || !set_translation_match(
+            out_match,
+            combined,
+            strokes,
+            stroke_count,
+            replaced_count)) {
+        segment_boundaries_destroy(&boundaries);
+        arrfree(combined);
+        return false;
+    }
+    out_match->owned_translation = combined;
+    out_match->segment_boundaries = boundaries;
+    out_match->source = TRANSLATION_SOURCE_MODAL;
+    *out_found = true;
     return true;
 }

@@ -12,6 +12,7 @@ typedef bool (*Stitch_Replace_Output_Fn)(void *userdata, const char *old_text, c
 typedef struct Stitch_Context {
     Translation **translations;
     Stitch_Replace_Output_Fn replace_output;
+    Translation_Source source;
     void *userdata;
 } Stitch_Context;
 

@@ -2,6 +2,7 @@
 
 #include "gemini_pr.h"
 #include "orthography.h"
+#include "runtime_config.h"
 #include "stentura.h"
 #include "steno_stroke.h"
 #include "stroke_merge.h"
@@ -21,6 +22,21 @@ bool test_core_units(void)
     const bool f16_resolved = platform_keycode_from_name("F16", &f16_keycode);
     ok = ok && expect_size("F16 key resolves", f16_resolved ? 1 : 0, 1);
     ok = ok && expect_size("F16 keycode", f16_keycode, 106);
+
+    const char *runtime_config_path = "build/test-runtime-config.json";
+    ok = ok && write_text_file(
+        runtime_config_path,
+        "{\"modal_dictionary\":\"tests/test-phrase-preference-dictionary.json\"}\n"
+    );
+    Runtime_Config runtime_config = {0};
+    ok = ok && runtime_config_load(&runtime_config, runtime_config_path, false);
+    ok = ok && expect_string(
+        "modal dictionary config field",
+        runtime_config.modal_dictionary_path,
+        "tests/test-phrase-preference-dictionary.json"
+    );
+    runtime_config_destroy(&runtime_config);
+    remove(runtime_config_path);
 
     Orthography test_orthography = {0};
     ok = ok && orthography_load(&test_orthography, "tests/test-words.txt");
@@ -70,6 +86,9 @@ bool test_core_units(void)
     ok = ok && expect_stroke_format("R-R", "R-R");
     ok = ok && expect_stroke_format("-T", "-T");
     ok = ok && expect_stroke_format("-F", "F");
+    ok = ok && expect_stroke_format("-ER", "ER");
+    ok = ok && expect_stroke_format("AO-E", "AOE");
+    ok = ok && expect_stroke_format("TKA-EURB", "TKAEURB");
     ok = ok && expect_stroke_format("#1", "#S");
     ok = ok && expect_stroke_format("#2", "#T");
     ok = ok && expect_stroke_format("#3", "#P");

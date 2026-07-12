@@ -19,12 +19,17 @@ typedef struct Translation_Match {
     const char *suffix_translation;
     char *owned_translation;
     char *partial_prefix_text;
+    Translation_Segment_Boundary *segment_boundaries;
     uint64_t strokes[TRANSLATION_MATCH_MAX_STROKES];
     size_t stroke_count;
     size_t replaced_count;
     size_t partial_prefix_stroke_count;
     char outline[TRANSLATION_MATCH_MAX_OUTLINE_BYTES];
+    Translation_Source source;
+    Case_Mode format_case_mode;
+    Case_Mode format_next_case;
     bool suffix_match;
+    bool has_format_case_state;
 } Translation_Match;
 
 size_t translation_match_lookup_stroke_limit(const Dictionary *dictionary);
@@ -33,6 +38,22 @@ bool translation_match_find(
     const Translation *history,
     uint64_t bits,
     Translation_Match *out_match
+);
+bool translation_match_find_for_source(
+    const Dictionary *dictionary,
+    const Translation *history,
+    size_t history_count,
+    Translation_Source source,
+    uint64_t bits,
+    Translation_Match *out_match
+);
+bool translation_match_find_phrase_preferred(
+    const Dictionary *dictionary,
+    const uint64_t *strokes,
+    size_t stroke_count,
+    size_t replaced_count,
+    Translation_Match *out_match,
+    bool *out_found
 );
 void translation_match_destroy(Translation_Match *match);
 

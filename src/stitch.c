@@ -188,7 +188,17 @@ bool stitch_apply_retro(
         return false;
     }
 
-    Translation next = {0};
+    Translation_Source source = stitch->source;
+    for (size_t i = replace_start; i < translation_count; ++i) {
+        if (translations[i].source != stitch->source) {
+            source = TRANSLATION_SOURCE_MIXED;
+            break;
+        }
+    }
+
+    Translation next = {
+        .source = source,
+    };
     next.utf8 = new_text;
     if (!translation_set_strokes(&next, strokes, stroke_count)) {
         arrfree(old_text);

@@ -35,6 +35,10 @@ bool test_send_text(const char *utf8, void *userdata)
     Test_Output *output = userdata;
     ++output->send_count;
     snprintf(output->last_send, sizeof(output->last_send), "%s", utf8);
+    if (output->fail_next_send) {
+        output->fail_next_send = false;
+        return false;
+    }
 
     if (output->text != NULL && arrlenu(output->text) > 0) {
         arrpop(output->text);
@@ -138,6 +142,24 @@ bool handle_phrase_test_stroke(Steno *steno, const char *stroke, Steno_Phrase_Mo
     }));
     if (!ok) {
         fprintf(stderr, "test failed: phrase stroke '%s' was not handled\n", stroke);
+    }
+    return ok;
+}
+
+bool handle_modal_dictionary_test_stroke(Steno *steno, const char *stroke)
+{
+    uint64_t bits = 0;
+    if (!stroke_string_to_bits(stroke, &bits)) {
+        fprintf(stderr, "test failed: could not parse modal dictionary stroke '%s'\n", stroke);
+        return false;
+    }
+
+    const bool ok = steno_handle_stroke(steno, ((Stroke_Input) {
+        .bits = bits,
+        .modal_dictionary = true,
+    }));
+    if (!ok) {
+        fprintf(stderr, "test failed: modal dictionary stroke '%s' was not handled\n", stroke);
     }
     return ok;
 }
@@ -395,4 +417,3 @@ bool expect_trace_contains(FILE *trace_file, const char *name, const char *expec
 {
     return expect_file_contains(trace_file, name, expected);
 }
-

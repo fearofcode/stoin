@@ -11,7 +11,7 @@
 
 typedef bool (*Retro_Replace_Output_Fn)(void *userdata, const char *old_text, const char *new_text);
 typedef bool (*Retro_Undo_Last_Translation_Fn)(void *userdata);
-typedef bool (*Retro_Translate_Bits_Fn)(void *userdata, uint64_t bits);
+typedef bool (*Retro_Translate_Bits_Fn)(void *userdata, uint64_t bits, Translation_Source source);
 
 typedef struct Retro_Context {
     Translation **translations;
@@ -19,6 +19,7 @@ typedef struct Retro_Context {
     Retro_Replace_Output_Fn replace_output;
     Retro_Undo_Last_Translation_Fn undo_last_translation;
     Retro_Translate_Bits_Fn translate_bits;
+    Translation_Source source;
     void *userdata;
 } Retro_Context;
 
