@@ -65,6 +65,8 @@ typedef struct Fv_Starter {
     char *be_contraction;
     char *have_contraction;
     char *will_contraction;
+    size_t *ender_indices;
+    bool has_ender_allowlist;
 } Fv_Starter;
 
 typedef struct Fv_Operator {
@@ -553,6 +555,17 @@ static bool find_tail_index(const Phrase_Tail *tails, const char *id, size_t *ou
     return false;
 }
 
+static bool find_ender_index(const Fv_Ender *enders, uint64_t bits, size_t *out_index)
+{
+    for (size_t i = 0; i < arrlenu(enders); ++i) {
+        if (enders[i].bits == bits) {
+            *out_index = i;
+            return true;
+        }
+    }
+    return false;
+}
+
 static void destroy_iv_stem_contents(Iv_Stem *stem)
 {
     if (stem == NULL) {
@@ -563,6 +576,18 @@ static void destroy_iv_stem_contents(Iv_Stem *stem)
     }
     arrfree(stem->forms);
     arrfree(stem->tail_indices);
+}
+
+static void destroy_fv_starter_contents(Fv_Starter *starter)
+{
+    if (starter == NULL) {
+        return;
+    }
+    free(starter->text);
+    free(starter->be_contraction);
+    free(starter->have_contraction);
+    free(starter->will_contraction);
+    arrfree(starter->ender_indices);
 }
 
 static bool parse_iv_stem_tail_allowlist(
@@ -698,7 +723,7 @@ static bool parse_fv_starters(Phrasing *phrasing, const cJSON *array, const char
         if (!copy_required_string(item, "agreement", &agreement) || !parse_agreement(agreement, &starter.agreement)) {
             print_field_error(path, context, "agreement", "must be first_singular, third_singular, or plural");
             free(agreement);
-            free(starter.text);
+            destroy_fv_starter_contents(&starter);
             return false;
         }
         free(agreement);
@@ -707,11 +732,70 @@ static bool parse_fv_starters(Phrasing *phrasing, const cJSON *array, const char
             || !copy_optional_string(item, "have_contraction", &starter.have_contraction)
             || !copy_optional_string(item, "will_contraction", &starter.will_contraction)) {
             fprintf(stderr, "stoin: phrasing '%s' %s contraction fields must be strings\n", path, context);
-            free(starter.text);
-            free(starter.be_contraction);
-            free(starter.have_contraction);
-            free(starter.will_contraction);
+            destroy_fv_starter_contents(&starter);
             return false;
+        }
+
+        const cJSON *allowlist = cJSON_GetObjectItemCaseSensitive(item, "enders");
+        if (allowlist != NULL) {
+            starter.has_ender_allowlist = true;
+            if (!cJSON_IsArray(allowlist)) {
+                print_field_error(path, context, "enders", "must be an array");
+                destroy_fv_starter_contents(&starter);
+                return false;
+            }
+
+            const cJSON *allowed_ender = NULL;
+            size_t allowed_index = 0;
+            cJSON_ArrayForEach(allowed_ender, allowlist) {
+                if (!cJSON_IsString(allowed_ender) || allowed_ender->valuestring == NULL) {
+                    fprintf(stderr,
+                        "stoin: phrasing '%s' %s.enders[%zu] must be a string\n",
+                        path,
+                        context,
+                        allowed_index);
+                    destroy_fv_starter_contents(&starter);
+                    return false;
+                }
+
+                uint64_t ender_bits = 0;
+                if (!parse_stroke_string(allowed_ender->valuestring, &ender_bits)) {
+                    fprintf(stderr,
+                        "stoin: phrasing '%s' %s.enders[%zu] has invalid outline '%s'\n",
+                        path,
+                        context,
+                        allowed_index,
+                        allowed_ender->valuestring);
+                    destroy_fv_starter_contents(&starter);
+                    return false;
+                }
+
+                size_t ender_index = 0;
+                if (!find_ender_index(phrasing->fv_enders, ender_bits, &ender_index)) {
+                    fprintf(stderr,
+                        "stoin: phrasing '%s' %s.enders[%zu] references unknown ender '%s'\n",
+                        path,
+                        context,
+                        allowed_index,
+                        allowed_ender->valuestring);
+                    destroy_fv_starter_contents(&starter);
+                    return false;
+                }
+                for (size_t i = 0; i < arrlenu(starter.ender_indices); ++i) {
+                    if (starter.ender_indices[i] == ender_index) {
+                        fprintf(stderr,
+                            "stoin: phrasing '%s' %s.enders[%zu] duplicates ender '%s'\n",
+                            path,
+                            context,
+                            allowed_index,
+                            allowed_ender->valuestring);
+                        destroy_fv_starter_contents(&starter);
+                        return false;
+                    }
+                }
+                arrput(starter.ender_indices, ender_index);
+                ++allowed_index;
+            }
         }
 
         arrput(phrasing->fv_starters, starter);
@@ -886,11 +970,11 @@ static bool parse_final_verbs(Phrasing *phrasing, const cJSON *root, const char 
     const cJSON *verbs = required_array(section, "verbs", path, "final_verbs");
     const cJSON *enders = required_array(section, "enders", path, "final_verbs");
     return starters != NULL && operators != NULL && structures != NULL && verbs != NULL && enders != NULL
-        && parse_fv_starters(phrasing, starters, path)
         && parse_fv_operators(phrasing, operators, path)
         && parse_fv_structures(phrasing, structures, path)
         && parse_fv_verbs(phrasing, verbs, path)
-        && parse_fv_enders(phrasing, enders, path);
+        && parse_fv_enders(phrasing, enders, path)
+        && parse_fv_starters(phrasing, starters, path);
 }
 
 Phrasing *phrasing_load(const char *path)
@@ -949,10 +1033,7 @@ void phrasing_destroy(Phrasing *phrasing)
     }
     arrfree(phrasing->iv_tails);
     for (size_t i = 0; i < arrlenu(phrasing->fv_starters); ++i) {
-        free(phrasing->fv_starters[i].text);
-        free(phrasing->fv_starters[i].be_contraction);
-        free(phrasing->fv_starters[i].have_contraction);
-        free(phrasing->fv_starters[i].will_contraction);
+        destroy_fv_starter_contents(&phrasing->fv_starters[i]);
     }
     arrfree(phrasing->fv_starters);
     arrfree(phrasing->fv_operators);
@@ -1288,6 +1369,18 @@ static Phrase_Lookup_Result lookup_final_verb(const Phrasing *phrasing, uint64_t
                 const Fv_Structure_Row *structure = &phrasing->fv_structures[k];
                 for (size_t m = 0; m < arrlenu(phrasing->fv_enders); ++m) {
                     const Fv_Ender *ender = &phrasing->fv_enders[m];
+                    if (starter->has_ender_allowlist) {
+                        bool allowed = false;
+                        for (size_t n = 0; n < arrlenu(starter->ender_indices); ++n) {
+                            if (starter->ender_indices[n] == m) {
+                                allowed = true;
+                                break;
+                            }
+                        }
+                        if (!allowed) {
+                            continue;
+                        }
+                    }
                     const uint64_t long_bits = starter->bits | operator.bits | structure->bits | ender->bits;
                     const bool contraction = bits == (long_bits | phrasing->contraction_bits);
                     if (bits != long_bits && !contraction) {

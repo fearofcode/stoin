@@ -1267,6 +1267,9 @@ func TestStaticPhrasingTrainerScript(t *testing.T) {
 		!strings.Contains(body, "final_verbs") ||
 		!strings.Contains(body, "generateFinalVerbPrompts") ||
 		!strings.Contains(body, "stemAllowsTail") ||
+		!strings.Contains(body, "starterAllowsEnder") ||
+		!strings.Contains(body, "starter.label") ||
+		!strings.Contains(body, "initialVerbStrokeBits") ||
 		!strings.Contains(body, "combineStrokeParts") ||
 		!strings.Contains(body, "phraseFilterInput") ||
 		!strings.Contains(body, "phraseShowOutlines") ||
@@ -1334,6 +1337,15 @@ func TestPhrasingDataRoute(t *testing.T) {
 		`"KHR"`,
 		`"TKPWH"`,
 		`"SKWHR"`,
+		`"STKH"`,
+		`"STWH"`,
+		`"STPHR"`,
+		`"label": "there (plural)"`,
+		`"text": "there"`,
+		`"will_contraction": "this'll"`,
+		`"will_contraction": "that'll"`,
+		`"have_contraction": "there've"`,
+		`"will_contraction": "there'll"`,
 		`"could expect"`,
 		`"-PGTS"`,
 		`"suffix": "like"`,

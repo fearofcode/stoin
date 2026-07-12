@@ -195,6 +195,56 @@ starter + operator + structure + ender
 | `T` | it |
 | `TWR` | we |
 | `TWH` | they |
+| `STKH` | this |
+| `STWH` | that |
+| `THR` | there (default/singular agreement) |
+| `STPHR` | there (plural agreement; shown as `there (plural)` in the trainer) |
+
+`STKH` and `STWH` retain the established Jeff full-form mnemonics for `this`
+and `that`; both use third-singular agreement. The project's shorter `THR`
+starter uses default third-singular agreement, while the `P` in Jeff's
+`STPHR` outline marks plural agreement. Thus `THR` uses `is`, `has`, `does`,
+and `was`, while `STPHR` uses `are`, `have`, `do`, and `were`. The separate
+trainer label makes that distinction visible without changing the translated
+word `there`.
+
+Unlike the personal-pronoun starters, `there` is not grammatical with every
+FV ender. Both agreement forms use the following restricted family; plural
+`STPHR` additionally permits the collision-free explicit `B` and `BD` be
+enders:
+
+| Ender family | There phrase family |
+| --- | --- |
+| empty / `D` | auxiliary-only forms |
+| `B` / `BD` | are / were (`STPHR` only) |
+| `BT` / `BTD` | be a / was a |
+| `TS` / `TSD` | have to / had to |
+| `G` / `GD`, `GT` / `GTD` | go / went, go to / went to |
+| `L` / `LD` | look / looked |
+| `PZ` / `PDZ` | happen / happened |
+| `LTS` / `LTSD` | feel like / felt like |
+| `BG` / `BGD`, `BGT` / `BGTD` | come / came, come to / came to |
+| `RPBG` / `RPBGD`, `RPBGT` / `RPBGTD` | become / became, become a / became a |
+| `R` / `RD` | run / ran |
+| `RPGT` / `RPGTD` | need to / needed to |
+| `GTS` / `GTSD` | get to / got to |
+| `RBT` / `RBTD` | take / took (for phrases such as `there takes place`) |
+| `RBG` / `RBGD`, `RBGT` / `RBGTD` | work / worked, work on / worked on |
+
+`THR` is also the IV stem for `tell`, and IV lookup has priority when the two
+families produce the same bitset. Most conflicts disappear by restricting the
+`there` enders, and the remaining colliding combinations are not generated:
+`there goes to`, `there comes`, `there has come`, `there runs`, `there ran`,
+`there is running`, `there can run`, and `there could run`. The explicit `B`
+and `BD` be enders also cannot spell the basic forms because `THR-B` and
+`THR-BD` remain `tells a` and `told a`. The empty ender with the `E` structure
+provides collision-free `there is` and `there was` instead.
+
+Affirmative contractions are starter-specific. `This` deliberately assigns
+only `this'll`, avoiding the uncommon written `this's`. `That` assigns
+`that's` for both `that is` and `that has`, plus `that'll`. Plural `there`
+assigns `there're`, `there've`, and `there'll`; default `THR` keeps `there's`
+and `there'll`.
 
 ### FV Operators
 
@@ -290,11 +340,11 @@ verb inflection.
 
 | Pattern | Output |
 | --- | --- |
-| `#` + present be | starter contraction: `I'm`, `you're`, `he's`, `she's`, `it's`, `we're`, `they're` |
+| `#` + present be | starter contraction: `I'm`, `you're`, `he's`, `she's`, `it's`, `we're`, `they're`, `that's`, `there's`, `there're`; affirmative `this is` is unassigned |
 | `#` + negative be | `isn't`, `aren't`, `wasn't`, `weren't`; `I am not` becomes `I'm not` |
-| `#` + present have/perfect | starter contraction: `I've`, `you've`, `he's`, `she's`, `it's`, `we've`, `they've` |
+| `#` + present have/perfect | starter contraction: `I've`, `you've`, `he's`, `she's`, `it's`, `we've`, `they've`, `that's`, `there's`, `there've`; affirmative `this has` is unassigned |
 | `#` + negative have/perfect | `haven't`, `hasn't`, `hadn't` |
-| `#` + `AO` present | starter + `will`: `I'll`, `you'll`, `he'll`, `she'll`, `it'll`, `we'll`, `they'll` |
+| `#` + `AO` present | starter + `will`: `I'll`, `you'll`, `he'll`, `she'll`, `it'll`, `we'll`, `they'll`, `this'll`, `that'll`, `there'll` |
 | `#` + `A*` | `can't` / `couldn't` |
 | `#` + `O*` | `shouldn't` |
 | `#` + `AO*` | `won't` / `wouldn't` |
@@ -441,6 +491,18 @@ Past affirmative be/have/will contractions are unassigned.
 | `SKWHRAO*G` | she will not go |
 | `SKWHREG` | she is going |
 | `SKWHR-FG` | she has gone |
+| `STKH-B` | this is |
+| `STKHAO*` | this will not |
+| `STWH-B` | that is |
+| `STWHAO-G` | that will go |
+| `THRE` | there is |
+| `THRED` | there was |
+| `THR*ED` | there was not |
+| `THRAO*` | there will not |
+| `THRE-F` | there has been |
+| `STPHR-B` | there are |
+| `STPHR-BD` | there were |
+| `STPHRAO*` | there will not |
 
 ### FV Contraction Samples
 
@@ -454,3 +516,13 @@ Past affirmative be/have/will contractions are unassigned.
 | `#SWR-F` | I've |
 | `#KWHR-FG` | he's gone |
 | `#TWHAO-G` | they'll go |
+| `#STKHAO` | this'll |
+| `#STWH-B` | that's |
+| `#STWHAO` | that'll |
+| `#THRE` | there's |
+| `#THR*ED` | there wasn't |
+| `#THRAO*` | there won't |
+| `#THRE-F` | there's been |
+| `#STPHR-B` | there're |
+| `#STPHR-F` | there've |
+| `#STPHRAO` | there'll |

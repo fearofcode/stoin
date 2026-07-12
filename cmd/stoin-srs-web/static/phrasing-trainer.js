@@ -449,11 +449,12 @@ function finalVerbSections() {
 		{
 			title: 'FV starters',
 			options: (finalVerbs.starters || []).map(function(starter) {
+				const label = starter.label || starter.text;
 				return sectionOption(
 					bankKey(family, 'starters', starter.stroke),
-					starter.text,
+					label,
 					starter.stroke,
-					['final verbs', starter.text, starter.stroke, starter.agreement],
+					['final verbs', label, starter.text, starter.stroke, starter.agreement],
 					defaultFamilyChecked(family)
 				);
 			}),
@@ -550,6 +551,28 @@ function findStemForm(stem, stroke) {
 
 function stemAllowsTail(stem, tail) {
 	return !Array.isArray(stem.tails) || stem.tails.includes(tail.id);
+}
+
+function initialVerbStrokeBits() {
+	const claimed = new Set();
+	const initialVerbs = phraseData.initial_verbs;
+	(initialVerbs.stems || []).forEach(function(stem) {
+		(stem.forms || []).forEach(function(form) {
+			(initialVerbs.tails || []).forEach(function(tail) {
+				if (!stemAllowsTail(stem, tail)) return;
+				try {
+					claimed.add(
+						parseStrokeBits(stem.stroke)
+						| parseStrokeBits(form.stroke)
+						| parseStrokeBits(tail.stroke)
+					);
+				} catch (error) {
+					// Invalid fragments cannot claim a runtime phrase outline.
+				}
+			});
+		});
+	});
+	return claimed;
 }
 
 function generateInitialVerbPrompts() {
@@ -796,9 +819,18 @@ function selectedFinalVerbModes() {
 	});
 }
 
+function starterAllowsEnder(starter, ender) {
+	if (!Array.isArray(starter.enders)) return true;
+	const enderBits = parseStrokeBits(ender.stroke);
+	return starter.enders.some(function(allowedStroke) {
+		return parseStrokeBits(allowedStroke) === enderBits;
+	});
+}
+
 function generateFinalVerbPrompts() {
 	if (!familyEnabled('final_verbs')) return [];
 	const finalVerbs = phraseData.final_verbs;
+	const initialVerbBits = initialVerbStrokeBits();
 	const starters = selectedFinalVerbRows('starters');
 	const operators = selectedFinalVerbRows('operators');
 	const structures = selectedFinalVerbRows('structures');
@@ -811,22 +843,38 @@ function generateFinalVerbPrompts() {
 		operators.forEach(function(op) {
 			structures.forEach(function(structure) {
 				enders.forEach(function(ender) {
+					if (!starterAllowsEnder(starter, ender)) return;
+					let longStroke = '';
+					try {
+						longStroke = combineStrokeParts([starter.stroke, op.stroke, structure.stroke, ender.stroke]);
+					} catch (error) {
+						return;
+					}
 					modes.forEach(function(mode) {
+						let stroke = longStroke;
+						if (mode === 'contraction') {
+							try {
+								stroke = combineStrokeParts([
+									finalVerbs.contraction_stroke,
+									starter.stroke,
+									op.stroke,
+									structure.stroke,
+									ender.stroke,
+								]);
+							} catch (error) {
+								return;
+							}
+						}
+						if (initialVerbBits.has(parseStrokeBits(stroke))) return;
 						const phrase = mode === 'contraction'
 							? buildFvContraction(starter, op, structure.kind, ender)
 							: buildFvLong(starter, op, structure.kind, ender);
 						if (!phrase) return;
-						try {
-							prompts.push({
-								lesson: familyLabels.final_verbs,
-								stroke: combineStrokeParts(mode === 'contraction'
-									? [finalVerbs.contraction_stroke, starter.stroke, op.stroke, structure.stroke, ender.stroke]
-									: [starter.stroke, op.stroke, structure.stroke, ender.stroke]),
-								phrase: phrase,
-							});
-						} catch (error) {
-							// Invalid generated outline; skip it just as the phrase lookup misses impossible rows.
-						}
+						prompts.push({
+							lesson: familyLabels.final_verbs,
+							stroke: stroke,
+							phrase: phrase,
+						});
 					});
 				});
 			});
@@ -1188,6 +1236,50 @@ function validatePhraseData(data) {
 	requireArray(data.final_verbs, 'structures', 'final_verbs');
 	requireArray(data.final_verbs, 'verbs', 'final_verbs');
 	requireArray(data.final_verbs, 'enders', 'final_verbs');
+	const enderBits = new Set();
+	data.final_verbs.enders.forEach(function(ender, index) {
+		if (!ender || typeof ender.stroke !== 'string') {
+			throw new Error('final_verbs.enders[' + index + '].stroke must be a string');
+		}
+		let bits = 0;
+		try {
+			bits = parseStrokeBits(ender.stroke);
+		} catch (error) {
+			throw new Error('final_verbs.enders[' + index + '].stroke has invalid outline ' + ender.stroke);
+		}
+		if (enderBits.has(bits)) {
+			throw new Error('final_verbs.enders[' + index + '].stroke duplicates ' + ender.stroke);
+		}
+		enderBits.add(bits);
+	});
+	data.final_verbs.starters.forEach(function(starter, index) {
+		if (starter.label !== undefined && typeof starter.label !== 'string') {
+			throw new Error('final_verbs.starters[' + index + '].label must be a string');
+		}
+		if (starter.enders === undefined) return;
+		if (!Array.isArray(starter.enders)) {
+			throw new Error('final_verbs.starters[' + index + '].enders must be an array');
+		}
+		const seenEnderBits = new Set();
+		starter.enders.forEach(function(enderStroke, allowedIndex) {
+			if (typeof enderStroke !== 'string') {
+				throw new Error('final_verbs.starters[' + index + '].enders[' + allowedIndex + '] must be a string');
+			}
+			let bits = 0;
+			try {
+				bits = parseStrokeBits(enderStroke);
+			} catch (error) {
+				throw new Error('final_verbs.starters[' + index + '].enders[' + allowedIndex + '] has invalid outline ' + enderStroke);
+			}
+			if (!enderBits.has(bits)) {
+				throw new Error('final_verbs.starters[' + index + '].enders references unknown ender ' + enderStroke);
+			}
+			if (seenEnderBits.has(bits)) {
+				throw new Error('final_verbs.starters[' + index + '].enders duplicates ' + enderStroke);
+			}
+			seenEnderBits.add(bits);
+		});
+	});
 	if (typeof data.final_verbs.contraction_stroke !== 'string') {
 		throw new Error('final_verbs.contraction_stroke must be a string');
 	}

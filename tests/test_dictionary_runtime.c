@@ -12,6 +12,7 @@ typedef struct Watch_Test {
 } Watch_Test;
 
 bool test_phrasing_tail_filters(void);
+bool test_phrasing_starter_filters(void);
 
 static void test_dictionary_watch_callback(void *userdata)
 {
@@ -572,6 +573,8 @@ bool test_dictionary_runtime(void)
 
     const bool phrasing_tail_filters_ok = test_phrasing_tail_filters();
     ok = phrasing_tail_filters_ok && ok;
+    const bool phrasing_starter_filters_ok = test_phrasing_starter_filters();
+    ok = phrasing_starter_filters_ok && ok;
 
     steno_destroy(steno);
     test_output_destroy(&output);
