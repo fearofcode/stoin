@@ -1,38 +1,27 @@
-# Phrasing Verb Follow-On Plan
+# Phrasing Verb Follow-On Status
 
-This is a planning reference, not implemented app behavior. The left-hand
-initial-verb assignments come from the deleted three-pedal Stoin reference. The
-right-hand final-verb assignments use Jeff Phrasing base enders where available.
-Jeff's regular final-verb suffix and past-tense variants are not listed here.
+The non-deferred assignments from the original follow-on plan are implemented
+in `phrasing.json`. The complete active IV and FV assignments are documented in
+`phrasing-keyboard-only-design.md`.
 
-| Verb | Left Hand / Initial Verb Assignment | Right Hand / Final Verb Assignment |
+Each newly implemented IV verb has every ordinary grammatical form supported
+by the layout: third-person present, simple past, base, present participle, `to`
+infinitive, `can`, and `could`. Each implemented FV verb has its base and past
+ender plus the Jeff-style optional continuation when one applies (`a`, `it`,
+`like`, `on`, `that`, `the`, or `to`). `Used to` is not treated as an ordinary
+`use` continuation because it needs fixed-form handling.
+
+New IV stems declare per-verb tail allowlists. Runtime lookup and the trainer
+both honor them, so the expanded bank excludes ungrammatical combinations while
+retaining every useful tail available to that verb.
+
+Three planned strokes required collision-safe adjustments:
+
+| Verb | Planned Assignment | Implemented Assignment |
 | --- | --- | --- |
-| to do | `TK` | `RP` |
-| to go | `TKPW` | `G` |
-| to want | `W` | `P` |
-| to ask | `SK` | `RB` |
-| to happen | `SP` | `PZ` |
-| to feel | `SW` | `LT` |
-| to come | `K` | `BG` |
-| to know | `TPH` | `PB` |
-| to get | `TKPWH` | `GS` |
-| to believe | `PWHR` | `BL` |
-| to become | `KW` | `RPBG` |
-| to run | `KH` | `R` |
-| to make | `KPL` | `RPBL` |
-| to take | `PH` | `RBT` |
-| to find | `TP` | `PBLG` |
-| to give | `STP` | `GZ` |
-| to use | `STW` | `Z` |
-| to work | `WR` | `RBG` |
-| to need | `SKP` | `RPG` |
-| to remember | `SKW` | `RPL` |
-| to understand | `SKH` | `RPB` |
-| to try | `TR` | `RT` |
-| to expect | `TKP` | `PGS` |
-| to call | `KHR` | deferred |
+| to ask, FV | `RB` | `RBS`; `RB` remains `catch` |
+| to run, IV | `KH` | `R`; `KH` remains `catch` |
+| to make, IV | `KPL` | `KPL` with only collision-free tails (`a`, `us`, `her`, `his`, `of`, `that`) |
 
-Rows with complete IV and FV support are removed from this plan. Rows from `to
-hope` downward in the old reference were removed for now because they were
-speculative and did not have a clear mnemonic rationale. `to call` is kept
-because its IV stem is implemented as `KHR`; the FV ender is still uncommitted.
+`To call` remains unchanged: its IV stem is implemented as `KHR`, while its FV
+ender is still deferred.

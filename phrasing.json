@@ -524,6 +524,1041 @@
             "text": "could call"
           }
         ]
+      },
+      {
+        "stroke": "TK",
+        "tails": [
+          "a",
+          "the",
+          "it",
+          "us",
+          "her",
+          "his",
+          "my",
+          "myself",
+          "me",
+          "that"
+        ],
+        "forms": [
+          {
+            "stroke": "",
+            "text": "does"
+          },
+          {
+            "stroke": "-D",
+            "text": "did"
+          },
+          {
+            "stroke": "E",
+            "text": "do"
+          },
+          {
+            "stroke": "-G",
+            "text": "doing"
+          },
+          {
+            "stroke": "U",
+            "text": "to do"
+          },
+          {
+            "stroke": "A",
+            "text": "can do"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could do"
+          }
+        ]
+      },
+      {
+        "stroke": "TKPW",
+        "tails": [
+          "a",
+          "the",
+          "at",
+          "it",
+          "her",
+          "his",
+          "my",
+          "myself",
+          "that"
+        ],
+        "forms": [
+          {
+            "stroke": "",
+            "text": "goes"
+          },
+          {
+            "stroke": "-D",
+            "text": "went"
+          },
+          {
+            "stroke": "E",
+            "text": "go"
+          },
+          {
+            "stroke": "-G",
+            "text": "going"
+          },
+          {
+            "stroke": "U",
+            "text": "to go"
+          },
+          {
+            "stroke": "A",
+            "text": "can go"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could go"
+          }
+        ]
+      },
+      {
+        "stroke": "W",
+        "tails": [
+          "a",
+          "the",
+          "it",
+          "us",
+          "her",
+          "his",
+          "my",
+          "myself",
+          "me",
+          "that"
+        ],
+        "forms": [
+          {
+            "stroke": "",
+            "text": "wants"
+          },
+          {
+            "stroke": "-D",
+            "text": "wanted"
+          },
+          {
+            "stroke": "E",
+            "text": "want"
+          },
+          {
+            "stroke": "-G",
+            "text": "wanting"
+          },
+          {
+            "stroke": "U",
+            "text": "to want"
+          },
+          {
+            "stroke": "A",
+            "text": "can want"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could want"
+          }
+        ]
+      },
+      {
+        "stroke": "SK",
+        "tails": [
+          "a",
+          "the",
+          "at",
+          "it",
+          "us",
+          "her",
+          "his",
+          "of",
+          "my",
+          "myself",
+          "me",
+          "that"
+        ],
+        "forms": [
+          {
+            "stroke": "",
+            "text": "asks"
+          },
+          {
+            "stroke": "-D",
+            "text": "asked"
+          },
+          {
+            "stroke": "E",
+            "text": "ask"
+          },
+          {
+            "stroke": "-G",
+            "text": "asking"
+          },
+          {
+            "stroke": "U",
+            "text": "to ask"
+          },
+          {
+            "stroke": "A",
+            "text": "can ask"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could ask"
+          }
+        ]
+      },
+      {
+        "stroke": "SP",
+        "tails": [
+          "a",
+          "the",
+          "at",
+          "that"
+        ],
+        "forms": [
+          {
+            "stroke": "",
+            "text": "happens"
+          },
+          {
+            "stroke": "-D",
+            "text": "happened"
+          },
+          {
+            "stroke": "E",
+            "text": "happen"
+          },
+          {
+            "stroke": "-G",
+            "text": "happening"
+          },
+          {
+            "stroke": "U",
+            "text": "to happen"
+          },
+          {
+            "stroke": "A",
+            "text": "can happen"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could happen"
+          }
+        ]
+      },
+      {
+        "stroke": "SW",
+        "tails": [
+          "a",
+          "the",
+          "at",
+          "it",
+          "us",
+          "her",
+          "his",
+          "my",
+          "myself",
+          "me",
+          "that"
+        ],
+        "forms": [
+          {
+            "stroke": "",
+            "text": "feels"
+          },
+          {
+            "stroke": "-D",
+            "text": "felt"
+          },
+          {
+            "stroke": "E",
+            "text": "feel"
+          },
+          {
+            "stroke": "-G",
+            "text": "feeling"
+          },
+          {
+            "stroke": "U",
+            "text": "to feel"
+          },
+          {
+            "stroke": "A",
+            "text": "can feel"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could feel"
+          }
+        ]
+      },
+      {
+        "stroke": "K",
+        "tails": [
+          "a",
+          "the",
+          "at",
+          "her",
+          "his",
+          "of",
+          "my",
+          "myself",
+          "that"
+        ],
+        "forms": [
+          {
+            "stroke": "",
+            "text": "comes"
+          },
+          {
+            "stroke": "-D",
+            "text": "came"
+          },
+          {
+            "stroke": "E",
+            "text": "come"
+          },
+          {
+            "stroke": "-G",
+            "text": "coming"
+          },
+          {
+            "stroke": "U",
+            "text": "to come"
+          },
+          {
+            "stroke": "A",
+            "text": "can come"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could come"
+          }
+        ]
+      },
+      {
+        "stroke": "TPH",
+        "tails": [
+          "a",
+          "the",
+          "at",
+          "it",
+          "us",
+          "her",
+          "his",
+          "of",
+          "my",
+          "myself",
+          "me",
+          "that"
+        ],
+        "forms": [
+          {
+            "stroke": "",
+            "text": "knows"
+          },
+          {
+            "stroke": "-D",
+            "text": "knew"
+          },
+          {
+            "stroke": "E",
+            "text": "know"
+          },
+          {
+            "stroke": "-G",
+            "text": "knowing"
+          },
+          {
+            "stroke": "U",
+            "text": "to know"
+          },
+          {
+            "stroke": "A",
+            "text": "can know"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could know"
+          }
+        ]
+      },
+      {
+        "stroke": "TKPWH",
+        "tails": [
+          "a",
+          "the",
+          "at",
+          "it",
+          "us",
+          "her",
+          "his",
+          "my",
+          "myself",
+          "me",
+          "that"
+        ],
+        "forms": [
+          {
+            "stroke": "",
+            "text": "gets"
+          },
+          {
+            "stroke": "-D",
+            "text": "got"
+          },
+          {
+            "stroke": "E",
+            "text": "get"
+          },
+          {
+            "stroke": "-G",
+            "text": "getting"
+          },
+          {
+            "stroke": "U",
+            "text": "to get"
+          },
+          {
+            "stroke": "A",
+            "text": "can get"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could get"
+          }
+        ]
+      },
+      {
+        "stroke": "PWHR",
+        "tails": [
+          "a",
+          "the",
+          "it",
+          "us",
+          "her",
+          "his",
+          "my",
+          "myself",
+          "me",
+          "that"
+        ],
+        "forms": [
+          {
+            "stroke": "",
+            "text": "believes"
+          },
+          {
+            "stroke": "-D",
+            "text": "believed"
+          },
+          {
+            "stroke": "E",
+            "text": "believe"
+          },
+          {
+            "stroke": "-G",
+            "text": "believing"
+          },
+          {
+            "stroke": "U",
+            "text": "to believe"
+          },
+          {
+            "stroke": "A",
+            "text": "can believe"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could believe"
+          }
+        ]
+      },
+      {
+        "stroke": "KW",
+        "tails": [
+          "a",
+          "the",
+          "it",
+          "us",
+          "her",
+          "his",
+          "of",
+          "my",
+          "myself",
+          "me",
+          "that"
+        ],
+        "forms": [
+          {
+            "stroke": "",
+            "text": "becomes"
+          },
+          {
+            "stroke": "-D",
+            "text": "became"
+          },
+          {
+            "stroke": "E",
+            "text": "become"
+          },
+          {
+            "stroke": "-G",
+            "text": "becoming"
+          },
+          {
+            "stroke": "U",
+            "text": "to become"
+          },
+          {
+            "stroke": "A",
+            "text": "can become"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could become"
+          }
+        ]
+      },
+      {
+        "stroke": "R",
+        "tails": [
+          "a",
+          "the",
+          "at",
+          "it",
+          "us",
+          "her",
+          "his",
+          "my",
+          "myself",
+          "me",
+          "that"
+        ],
+        "forms": [
+          {
+            "stroke": "",
+            "text": "runs"
+          },
+          {
+            "stroke": "-D",
+            "text": "ran"
+          },
+          {
+            "stroke": "E",
+            "text": "run"
+          },
+          {
+            "stroke": "-G",
+            "text": "running"
+          },
+          {
+            "stroke": "U",
+            "text": "to run"
+          },
+          {
+            "stroke": "A",
+            "text": "can run"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could run"
+          }
+        ]
+      },
+      {
+        "stroke": "KPL",
+        "tails": [
+          "a",
+          "us",
+          "her",
+          "his",
+          "of",
+          "that"
+        ],
+        "forms": [
+          {
+            "stroke": "",
+            "text": "makes"
+          },
+          {
+            "stroke": "-D",
+            "text": "made"
+          },
+          {
+            "stroke": "E",
+            "text": "make"
+          },
+          {
+            "stroke": "-G",
+            "text": "making"
+          },
+          {
+            "stroke": "U",
+            "text": "to make"
+          },
+          {
+            "stroke": "A",
+            "text": "can make"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could make"
+          }
+        ]
+      },
+      {
+        "stroke": "PH",
+        "tails": [
+          "a",
+          "the",
+          "it",
+          "us",
+          "her",
+          "his",
+          "my",
+          "myself",
+          "me",
+          "that"
+        ],
+        "forms": [
+          {
+            "stroke": "",
+            "text": "takes"
+          },
+          {
+            "stroke": "-D",
+            "text": "took"
+          },
+          {
+            "stroke": "E",
+            "text": "take"
+          },
+          {
+            "stroke": "-G",
+            "text": "taking"
+          },
+          {
+            "stroke": "U",
+            "text": "to take"
+          },
+          {
+            "stroke": "A",
+            "text": "can take"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could take"
+          }
+        ]
+      },
+      {
+        "stroke": "TP",
+        "tails": [
+          "a",
+          "the",
+          "it",
+          "us",
+          "her",
+          "his",
+          "my",
+          "myself",
+          "me",
+          "that"
+        ],
+        "forms": [
+          {
+            "stroke": "",
+            "text": "finds"
+          },
+          {
+            "stroke": "-D",
+            "text": "found"
+          },
+          {
+            "stroke": "E",
+            "text": "find"
+          },
+          {
+            "stroke": "-G",
+            "text": "finding"
+          },
+          {
+            "stroke": "U",
+            "text": "to find"
+          },
+          {
+            "stroke": "A",
+            "text": "can find"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could find"
+          }
+        ]
+      },
+      {
+        "stroke": "STP",
+        "tails": [
+          "a",
+          "the",
+          "it",
+          "us",
+          "her",
+          "his",
+          "of",
+          "my",
+          "myself",
+          "me",
+          "that"
+        ],
+        "forms": [
+          {
+            "stroke": "",
+            "text": "gives"
+          },
+          {
+            "stroke": "-D",
+            "text": "gave"
+          },
+          {
+            "stroke": "E",
+            "text": "give"
+          },
+          {
+            "stroke": "-G",
+            "text": "giving"
+          },
+          {
+            "stroke": "U",
+            "text": "to give"
+          },
+          {
+            "stroke": "A",
+            "text": "can give"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could give"
+          }
+        ]
+      },
+      {
+        "stroke": "STW",
+        "tails": [
+          "a",
+          "the",
+          "it",
+          "us",
+          "her",
+          "his",
+          "my",
+          "myself",
+          "me",
+          "that"
+        ],
+        "forms": [
+          {
+            "stroke": "",
+            "text": "uses"
+          },
+          {
+            "stroke": "-D",
+            "text": "used"
+          },
+          {
+            "stroke": "E",
+            "text": "use"
+          },
+          {
+            "stroke": "-G",
+            "text": "using"
+          },
+          {
+            "stroke": "U",
+            "text": "to use"
+          },
+          {
+            "stroke": "A",
+            "text": "can use"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could use"
+          }
+        ]
+      },
+      {
+        "stroke": "WR",
+        "tails": [
+          "a",
+          "the",
+          "at",
+          "it",
+          "us",
+          "her",
+          "his",
+          "my",
+          "myself",
+          "me",
+          "that"
+        ],
+        "forms": [
+          {
+            "stroke": "",
+            "text": "works"
+          },
+          {
+            "stroke": "-D",
+            "text": "worked"
+          },
+          {
+            "stroke": "E",
+            "text": "work"
+          },
+          {
+            "stroke": "-G",
+            "text": "working"
+          },
+          {
+            "stroke": "U",
+            "text": "to work"
+          },
+          {
+            "stroke": "A",
+            "text": "can work"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could work"
+          }
+        ]
+      },
+      {
+        "stroke": "SKP",
+        "tails": [
+          "a",
+          "the",
+          "it",
+          "us",
+          "her",
+          "his",
+          "my",
+          "myself",
+          "me",
+          "that"
+        ],
+        "forms": [
+          {
+            "stroke": "",
+            "text": "needs"
+          },
+          {
+            "stroke": "-D",
+            "text": "needed"
+          },
+          {
+            "stroke": "E",
+            "text": "need"
+          },
+          {
+            "stroke": "-G",
+            "text": "needing"
+          },
+          {
+            "stroke": "U",
+            "text": "to need"
+          },
+          {
+            "stroke": "A",
+            "text": "can need"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could need"
+          }
+        ]
+      },
+      {
+        "stroke": "SKW",
+        "tails": [
+          "a",
+          "the",
+          "it",
+          "us",
+          "her",
+          "his",
+          "my",
+          "myself",
+          "me",
+          "that"
+        ],
+        "forms": [
+          {
+            "stroke": "",
+            "text": "remembers"
+          },
+          {
+            "stroke": "-D",
+            "text": "remembered"
+          },
+          {
+            "stroke": "E",
+            "text": "remember"
+          },
+          {
+            "stroke": "-G",
+            "text": "remembering"
+          },
+          {
+            "stroke": "U",
+            "text": "to remember"
+          },
+          {
+            "stroke": "A",
+            "text": "can remember"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could remember"
+          }
+        ]
+      },
+      {
+        "stroke": "SKH",
+        "tails": [
+          "a",
+          "the",
+          "it",
+          "us",
+          "her",
+          "his",
+          "my",
+          "myself",
+          "me",
+          "that"
+        ],
+        "forms": [
+          {
+            "stroke": "",
+            "text": "understands"
+          },
+          {
+            "stroke": "-D",
+            "text": "understood"
+          },
+          {
+            "stroke": "E",
+            "text": "understand"
+          },
+          {
+            "stroke": "-G",
+            "text": "understanding"
+          },
+          {
+            "stroke": "U",
+            "text": "to understand"
+          },
+          {
+            "stroke": "A",
+            "text": "can understand"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could understand"
+          }
+        ]
+      },
+      {
+        "stroke": "TR",
+        "tails": [
+          "a",
+          "the",
+          "it",
+          "us",
+          "her",
+          "his",
+          "my",
+          "myself",
+          "me",
+          "that"
+        ],
+        "forms": [
+          {
+            "stroke": "",
+            "text": "tries"
+          },
+          {
+            "stroke": "-D",
+            "text": "tried"
+          },
+          {
+            "stroke": "E",
+            "text": "try"
+          },
+          {
+            "stroke": "-G",
+            "text": "trying"
+          },
+          {
+            "stroke": "U",
+            "text": "to try"
+          },
+          {
+            "stroke": "A",
+            "text": "can try"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could try"
+          }
+        ]
+      },
+      {
+        "stroke": "TKP",
+        "tails": [
+          "a",
+          "the",
+          "at",
+          "it",
+          "us",
+          "her",
+          "his",
+          "of",
+          "my",
+          "myself",
+          "me",
+          "that"
+        ],
+        "forms": [
+          {
+            "stroke": "",
+            "text": "expects"
+          },
+          {
+            "stroke": "-D",
+            "text": "expected"
+          },
+          {
+            "stroke": "E",
+            "text": "expect"
+          },
+          {
+            "stroke": "-G",
+            "text": "expecting"
+          },
+          {
+            "stroke": "U",
+            "text": "to expect"
+          },
+          {
+            "stroke": "A",
+            "text": "can expect"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could expect"
+          }
+        ]
       }
     ]
   },
@@ -815,6 +1850,126 @@
         "past": "tried",
         "present_participle": "trying",
         "past_participle": "tried"
+      },
+      {
+        "id": "happen",
+        "base": "happen",
+        "third": "happens",
+        "past": "happened",
+        "present_participle": "happening",
+        "past_participle": "happened"
+      },
+      {
+        "id": "feel",
+        "base": "feel",
+        "third": "feels",
+        "past": "felt",
+        "present_participle": "feeling",
+        "past_participle": "felt"
+      },
+      {
+        "id": "come",
+        "base": "come",
+        "third": "comes",
+        "past": "came",
+        "present_participle": "coming",
+        "past_participle": "come"
+      },
+      {
+        "id": "believe",
+        "base": "believe",
+        "third": "believes",
+        "past": "believed",
+        "present_participle": "believing",
+        "past_participle": "believed"
+      },
+      {
+        "id": "become",
+        "base": "become",
+        "third": "becomes",
+        "past": "became",
+        "present_participle": "becoming",
+        "past_participle": "become"
+      },
+      {
+        "id": "run",
+        "base": "run",
+        "third": "runs",
+        "past": "ran",
+        "present_participle": "running",
+        "past_participle": "run"
+      },
+      {
+        "id": "make",
+        "base": "make",
+        "third": "makes",
+        "past": "made",
+        "present_participle": "making",
+        "past_participle": "made"
+      },
+      {
+        "id": "take",
+        "base": "take",
+        "third": "takes",
+        "past": "took",
+        "present_participle": "taking",
+        "past_participle": "taken"
+      },
+      {
+        "id": "give",
+        "base": "give",
+        "third": "gives",
+        "past": "gave",
+        "present_participle": "giving",
+        "past_participle": "given"
+      },
+      {
+        "id": "use",
+        "base": "use",
+        "third": "uses",
+        "past": "used",
+        "present_participle": "using",
+        "past_participle": "used"
+      },
+      {
+        "id": "work",
+        "base": "work",
+        "third": "works",
+        "past": "worked",
+        "present_participle": "working",
+        "past_participle": "worked"
+      },
+      {
+        "id": "remember",
+        "base": "remember",
+        "third": "remembers",
+        "past": "remembered",
+        "present_participle": "remembering",
+        "past_participle": "remembered"
+      },
+      {
+        "id": "understand",
+        "base": "understand",
+        "third": "understands",
+        "past": "understood",
+        "present_participle": "understanding",
+        "past_participle": "understood"
+      },
+      {
+        "id": "expect",
+        "base": "expect",
+        "third": "expects",
+        "past": "expected",
+        "present_participle": "expecting",
+        "past_participle": "expected"
+      },
+      {
+        "id": "ask",
+        "base": "ask",
+        "third": "asks",
+        "past": "asked",
+        "present_participle": "asking",
+        "past_participle": "asked"
       }
     ],
     "enders": [
@@ -1178,6 +2333,264 @@
         "stroke": "-RTSD",
         "verb": "try",
         "suffix": "to",
+        "past": true
+      },
+      {
+        "stroke": "-PZ",
+        "verb": "happen",
+        "past": false
+      },
+      {
+        "stroke": "-PDZ",
+        "verb": "happen",
+        "past": true
+      },
+      {
+        "stroke": "-LT",
+        "verb": "feel",
+        "past": false
+      },
+      {
+        "stroke": "-LTD",
+        "verb": "feel",
+        "past": true
+      },
+      {
+        "stroke": "-LTS",
+        "verb": "feel",
+        "suffix": "like",
+        "past": false
+      },
+      {
+        "stroke": "-LTSD",
+        "verb": "feel",
+        "suffix": "like",
+        "past": true
+      },
+      {
+        "stroke": "-BG",
+        "verb": "come",
+        "past": false
+      },
+      {
+        "stroke": "-BGD",
+        "verb": "come",
+        "past": true
+      },
+      {
+        "stroke": "-BGT",
+        "verb": "come",
+        "suffix": "to",
+        "past": false
+      },
+      {
+        "stroke": "-BGTD",
+        "verb": "come",
+        "suffix": "to",
+        "past": true
+      },
+      {
+        "stroke": "-BL",
+        "verb": "believe",
+        "past": false
+      },
+      {
+        "stroke": "-BLD",
+        "verb": "believe",
+        "past": true
+      },
+      {
+        "stroke": "-BLT",
+        "verb": "believe",
+        "suffix": "that",
+        "past": false
+      },
+      {
+        "stroke": "-BLTD",
+        "verb": "believe",
+        "suffix": "that",
+        "past": true
+      },
+      {
+        "stroke": "-RPBG",
+        "verb": "become",
+        "past": false
+      },
+      {
+        "stroke": "-RPBGD",
+        "verb": "become",
+        "past": true
+      },
+      {
+        "stroke": "-RPBGT",
+        "verb": "become",
+        "suffix": "a",
+        "past": false
+      },
+      {
+        "stroke": "-RPBGTD",
+        "verb": "become",
+        "suffix": "a",
+        "past": true
+      },
+      {
+        "stroke": "-R",
+        "verb": "run",
+        "past": false
+      },
+      {
+        "stroke": "-RD",
+        "verb": "run",
+        "past": true
+      },
+      {
+        "stroke": "-RPBL",
+        "verb": "make",
+        "past": false
+      },
+      {
+        "stroke": "-RPBLD",
+        "verb": "make",
+        "past": true
+      },
+      {
+        "stroke": "-RPBLT",
+        "verb": "make",
+        "suffix": "a",
+        "past": false
+      },
+      {
+        "stroke": "-RPBLTD",
+        "verb": "make",
+        "suffix": "a",
+        "past": true
+      },
+      {
+        "stroke": "-RBT",
+        "verb": "take",
+        "past": false
+      },
+      {
+        "stroke": "-RBTD",
+        "verb": "take",
+        "past": true
+      },
+      {
+        "stroke": "-GZ",
+        "verb": "give",
+        "past": false
+      },
+      {
+        "stroke": "-GDZ",
+        "verb": "give",
+        "past": true
+      },
+      {
+        "stroke": "-Z",
+        "verb": "use",
+        "past": false
+      },
+      {
+        "stroke": "-DZ",
+        "verb": "use",
+        "past": true
+      },
+      {
+        "stroke": "-RBG",
+        "verb": "work",
+        "past": false
+      },
+      {
+        "stroke": "-RBGD",
+        "verb": "work",
+        "past": true
+      },
+      {
+        "stroke": "-RBGT",
+        "verb": "work",
+        "suffix": "on",
+        "past": false
+      },
+      {
+        "stroke": "-RBGTD",
+        "verb": "work",
+        "suffix": "on",
+        "past": true
+      },
+      {
+        "stroke": "-RPL",
+        "verb": "remember",
+        "past": false
+      },
+      {
+        "stroke": "-RPLD",
+        "verb": "remember",
+        "past": true
+      },
+      {
+        "stroke": "-RPLT",
+        "verb": "remember",
+        "suffix": "that",
+        "past": false
+      },
+      {
+        "stroke": "-RPLTD",
+        "verb": "remember",
+        "suffix": "that",
+        "past": true
+      },
+      {
+        "stroke": "-RPB",
+        "verb": "understand",
+        "past": false
+      },
+      {
+        "stroke": "-RPBD",
+        "verb": "understand",
+        "past": true
+      },
+      {
+        "stroke": "-RPBT",
+        "verb": "understand",
+        "suffix": "the",
+        "past": false
+      },
+      {
+        "stroke": "-RPBTD",
+        "verb": "understand",
+        "suffix": "the",
+        "past": true
+      },
+      {
+        "stroke": "-PGS",
+        "verb": "expect",
+        "past": false
+      },
+      {
+        "stroke": "-PGSD",
+        "verb": "expect",
+        "past": true
+      },
+      {
+        "stroke": "-PGTS",
+        "verb": "expect",
+        "suffix": "that",
+        "past": false
+      },
+      {
+        "stroke": "-PGTSD",
+        "verb": "expect",
+        "suffix": "that",
+        "past": true
+      },
+      {
+        "stroke": "-RBS",
+        "verb": "ask",
+        "past": false
+      },
+      {
+        "stroke": "-RBSD",
+        "verb": "ask",
         "past": true
       }
     ]

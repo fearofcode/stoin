@@ -1266,6 +1266,7 @@ func TestStaticPhrasingTrainerScript(t *testing.T) {
 		!strings.Contains(body, "initial_verbs") ||
 		!strings.Contains(body, "final_verbs") ||
 		!strings.Contains(body, "generateFinalVerbPrompts") ||
+		!strings.Contains(body, "stemAllowsTail") ||
 		!strings.Contains(body, "combineStrokeParts") ||
 		!strings.Contains(body, "phraseFilterInput") ||
 		!strings.Contains(body, "phraseShowOutlines") ||
@@ -1331,7 +1332,11 @@ func TestPhrasingDataRoute(t *testing.T) {
 		`"initial_verbs"`,
 		`"final_verbs"`,
 		`"KHR"`,
+		`"TKPWH"`,
 		`"SKWHR"`,
+		`"could expect"`,
+		`"-PGTS"`,
+		`"suffix": "like"`,
 		`"present_participle"`,
 	} {
 		if !strings.Contains(body, want) {

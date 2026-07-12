@@ -11,6 +11,8 @@ typedef struct Watch_Test {
     size_t reload_count;
 } Watch_Test;
 
+bool test_phrasing_tail_filters(void);
+
 static void test_dictionary_watch_callback(void *userdata)
 {
     Watch_Test *watch = userdata;
@@ -567,6 +569,9 @@ bool test_dictionary_runtime(void)
         fclose(suggestion_log_file);
     }
 
+
+    const bool phrasing_tail_filters_ok = test_phrasing_tail_filters();
+    ok = phrasing_tail_filters_ok && ok;
 
     steno_destroy(steno);
     test_output_destroy(&output);

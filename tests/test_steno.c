@@ -398,6 +398,235 @@ int main(void)
             final_verb_contraction_cases[i].expected);
     }
 
+    Steno_Config follow_on_config = config;
+    follow_on_config.phrasing_path = "phrasing.json";
+    const char *follow_on_form_strokes[] = { "", "-D", "E", "-G", "U", "A", "A-D" };
+    const struct {
+        const char *stem;
+        const char *forms[7];
+    } follow_on_iv_rows[] = {
+        { "TK", { "does", "did", "do", "doing", "to do", "can do", "could do" } },
+        { "TKPW", { "goes", "went", "go", "going", "to go", "can go", "could go" } },
+        { "W", { "wants", "wanted", "want", "wanting", "to want", "can want", "could want" } },
+        { "SK", { "asks", "asked", "ask", "asking", "to ask", "can ask", "could ask" } },
+        { "SP", { "happens", "happened", "happen", "happening", "to happen", "can happen", "could happen" } },
+        { "SW", { "feels", "felt", "feel", "feeling", "to feel", "can feel", "could feel" } },
+        { "K", { "comes", "came", "come", "coming", "to come", "can come", "could come" } },
+        { "TPH", { "knows", "knew", "know", "knowing", "to know", "can know", "could know" } },
+        { "TKPWH", { "gets", "got", "get", "getting", "to get", "can get", "could get" } },
+        { "PWHR", { "believes", "believed", "believe", "believing", "to believe", "can believe", "could believe" } },
+        { "KW", { "becomes", "became", "become", "becoming", "to become", "can become", "could become" } },
+        { "R", { "runs", "ran", "run", "running", "to run", "can run", "could run" } },
+        { "KPL", { "makes", "made", "make", "making", "to make", "can make", "could make" } },
+        { "PH", { "takes", "took", "take", "taking", "to take", "can take", "could take" } },
+        { "TP", { "finds", "found", "find", "finding", "to find", "can find", "could find" } },
+        { "STP", { "gives", "gave", "give", "giving", "to give", "can give", "could give" } },
+        { "STW", { "uses", "used", "use", "using", "to use", "can use", "could use" } },
+        { "WR", { "works", "worked", "work", "working", "to work", "can work", "could work" } },
+        { "SKP", { "needs", "needed", "need", "needing", "to need", "can need", "could need" } },
+        { "SKW", { "remembers", "remembered", "remember", "remembering", "to remember", "can remember", "could remember" } },
+        { "SKH", { "understands", "understood", "understand", "understanding", "to understand", "can understand", "could understand" } },
+        { "TR", { "tries", "tried", "try", "trying", "to try", "can try", "could try" } },
+        { "TKP", { "expects", "expected", "expect", "expecting", "to expect", "can expect", "could expect" } },
+    };
+    uint64_t follow_on_tail_bits = 0;
+    ok = ok && stroke_string_to_bits("-RT", &follow_on_tail_bits);
+    for (size_t i = 0; ok && i < sizeof(follow_on_iv_rows) / sizeof(follow_on_iv_rows[0]); ++i) {
+        for (size_t j = 0; ok && j < sizeof(follow_on_form_strokes) / sizeof(follow_on_form_strokes[0]); ++j) {
+            uint64_t stem_bits = 0;
+            uint64_t form_bits = 0;
+            ok = ok && stroke_string_to_bits(follow_on_iv_rows[i].stem, &stem_bits);
+            if (follow_on_form_strokes[j][0] != '\0') {
+                ok = ok && stroke_string_to_bits(follow_on_form_strokes[j], &form_bits);
+            }
+            ok = ok && reset_test_steno(&steno, &follow_on_config);
+            clear_test_output(&output);
+            reset_output_log(&output);
+            ok = ok && steno_handle_stroke(steno, ((Stroke_Input) {
+                .bits = stem_bits | form_bits | follow_on_tail_bits,
+                .phrase_mode = STENO_PHRASE_MODE_VERBS,
+                .phrase_namespace = true,
+            }));
+            char expected[128] = {0};
+            char name[128] = {0};
+            snprintf(expected, sizeof(expected), "%s that", follow_on_iv_rows[i].forms[j]);
+            snprintf(name, sizeof(name), "verb follow-on IV %s %s", follow_on_iv_rows[i].stem, follow_on_form_strokes[j]);
+            ok = ok && expect_string(name, output.text, expected);
+        }
+    }
+
+    const struct {
+        const char *id;
+        const char *ender;
+        const char *past_ender;
+        const char *forms[5];
+    } follow_on_fv_rows[] = {
+        { "happen", "-PZ", "-PDZ", { "happen", "happens", "happened", "happening", "happened" } },
+        { "feel", "-LT", "-LTD", { "feel", "feels", "felt", "feeling", "felt" } },
+        { "come", "-BG", "-BGD", { "come", "comes", "came", "coming", "come" } },
+        { "believe", "-BL", "-BLD", { "believe", "believes", "believed", "believing", "believed" } },
+        { "become", "-RPBG", "-RPBGD", { "become", "becomes", "became", "becoming", "become" } },
+        { "run", "-R", "-RD", { "run", "runs", "ran", "running", "run" } },
+        { "make", "-RPBL", "-RPBLD", { "make", "makes", "made", "making", "made" } },
+        { "take", "-RBT", "-RBTD", { "take", "takes", "took", "taking", "taken" } },
+        { "give", "-GZ", "-GDZ", { "give", "gives", "gave", "giving", "given" } },
+        { "use", "-Z", "-DZ", { "use", "uses", "used", "using", "used" } },
+        { "work", "-RBG", "-RBGD", { "work", "works", "worked", "working", "worked" } },
+        { "remember", "-RPL", "-RPLD", { "remember", "remembers", "remembered", "remembering", "remembered" } },
+        { "understand", "-RPB", "-RPBD", { "understand", "understands", "understood", "understanding", "understood" } },
+        { "expect", "-PGS", "-PGSD", { "expect", "expects", "expected", "expecting", "expected" } },
+        { "ask", "-RBS", "-RBSD", { "ask", "asks", "asked", "asking", "asked" } },
+    };
+    const struct {
+        const char *starter;
+        const char *structure;
+        bool past;
+        const char *prefix;
+    } follow_on_fv_forms[] = {
+        { "SWR", "", false, "I " },
+        { "SKWHR", "", false, "she " },
+        { "SKWHR", "", true, "she " },
+        { "SKWHR", "E", false, "she is " },
+        { "SKWHR", "-F", false, "she has " },
+    };
+    for (size_t i = 0; ok && i < sizeof(follow_on_fv_rows) / sizeof(follow_on_fv_rows[0]); ++i) {
+        for (size_t j = 0; ok && j < sizeof(follow_on_fv_forms) / sizeof(follow_on_fv_forms[0]); ++j) {
+            uint64_t starter_bits = 0;
+            uint64_t structure_bits = 0;
+            uint64_t ender_bits = 0;
+            ok = ok && stroke_string_to_bits(follow_on_fv_forms[j].starter, &starter_bits);
+            if (follow_on_fv_forms[j].structure[0] != '\0') {
+                ok = ok && stroke_string_to_bits(follow_on_fv_forms[j].structure, &structure_bits);
+            }
+            ok = ok && stroke_string_to_bits(
+                follow_on_fv_forms[j].past ? follow_on_fv_rows[i].past_ender : follow_on_fv_rows[i].ender,
+                &ender_bits
+            );
+            ok = ok && reset_test_steno(&steno, &follow_on_config);
+            clear_test_output(&output);
+            reset_output_log(&output);
+            ok = ok && steno_handle_stroke(steno, ((Stroke_Input) {
+                .bits = starter_bits | structure_bits | ender_bits,
+                .phrase_mode = STENO_PHRASE_MODE_VERBS,
+                .phrase_namespace = true,
+            }));
+            char expected[128] = {0};
+            char name[128] = {0};
+            snprintf(expected, sizeof(expected), "%s%s", follow_on_fv_forms[j].prefix, follow_on_fv_rows[i].forms[j]);
+            snprintf(name, sizeof(name), "verb follow-on FV %s form %zu", follow_on_fv_rows[i].id, j);
+            ok = ok && expect_string(name, output.text, expected);
+        }
+    }
+
+    const struct {
+        const char *stroke;
+        const char *expected;
+    } verb_follow_on_cases[] = {
+        { "TK-P", "does it" },
+        { "TK-PD", "did it" },
+        { "TKE-P", "do it" },
+        { "TK-PG", "doing it" },
+        { "TKU-P", "to do it" },
+        { "TKA-P", "can do it" },
+        { "TKA-PD", "could do it" },
+        { "TKPW-LTD", "went at" },
+        { "W-PG", "wanting it" },
+        { "SKU-PLT", "to ask me" },
+        { "SP-LTD", "happened at" },
+        { "SW-RT", "feels that" },
+        { "KE-LT", "come at" },
+        { "TPHA-RT", "can know that" },
+        { "TKPWH-PG", "getting it" },
+        { "PWHR-RTD", "believed that" },
+        { "KW-B", "becomes a" },
+        { "PH-PG", "taking it" },
+        { "TPA-RT", "can find that" },
+        { "STP-PD", "gave it" },
+        { "STWE-P", "use it" },
+        { "WR-LGT", "working at" },
+        { "SKPU-P", "to need it" },
+        { "SKW-RTD", "remembered that" },
+        { "SKHE-RT", "understand that" },
+        { "TRA-PD", "could try it" },
+        { "TKP-RT", "expects that" },
+        { "KH-P", "catches it" },
+        { "R-P", "runs it" },
+        { "KPL-RTD", "made that" },
+        { "KPL-P", "keeps my" },
+        { "SP-PLT", "SP-PLT" },
+        { "K-S", "K-S" },
+        { "KW-LT", "KWLT" },
+        { "STW-FB", "STWFB" },
+        { "SKWHR-RB", "she catches" },
+        { "SKWHR-RBS", "she asks" },
+        { "SKWHR-RBSD", "she asked" },
+        { "SKWHR-PZ", "she happens" },
+        { "SKWHR-PDZ", "she happened" },
+        { "SKWHR-LT", "she feels" },
+        { "SKWHR-LTD", "she felt" },
+        { "SKWHR-LTS", "she feels like" },
+        { "SKWHR-LTSD", "she felt like" },
+        { "SKWHR-BG", "she comes" },
+        { "SKWHR-BGD", "she came" },
+        { "SKWHR-BGT", "she comes to" },
+        { "SKWHR-BGTD", "she came to" },
+        { "SKWHR-BL", "she believes" },
+        { "SKWHR-BLD", "she believed" },
+        { "SKWHR-BLT", "she believes that" },
+        { "SKWHR-BLTD", "she believed that" },
+        { "SKWHR-RPBG", "she becomes" },
+        { "SKWHR-RPBGD", "she became" },
+        { "SKWHR-RPBGT", "she becomes a" },
+        { "SKWHR-RPBGTD", "she became a" },
+        { "SKWHR-R", "she runs" },
+        { "SKWHR-RD", "she ran" },
+        { "SKWHR-RPBL", "she makes" },
+        { "SKWHR-RPBLD", "she made" },
+        { "SKWHR-RPBLT", "she makes a" },
+        { "SKWHR-RPBLTD", "she made a" },
+        { "SKWHR-RBT", "she takes" },
+        { "SKWHR-RBTD", "she took" },
+        { "SKWHR-GZ", "she gives" },
+        { "SKWHR-GDZ", "she gave" },
+        { "SKWHR-Z", "she uses" },
+        { "SKWHR-DZ", "she used" },
+        { "SKWHR-RBG", "she works" },
+        { "SKWHR-RBGD", "she worked" },
+        { "SKWHR-RBGT", "she works on" },
+        { "SKWHR-RBGTD", "she worked on" },
+        { "SKWHR-RPL", "she remembers" },
+        { "SKWHR-RPLD", "she remembered" },
+        { "SKWHR-RPLT", "she remembers that" },
+        { "SKWHR-RPLTD", "she remembered that" },
+        { "SKWHR-RPB", "she understands" },
+        { "SKWHR-RPBD", "she understood" },
+        { "SKWHR-RPBT", "she understands the" },
+        { "SKWHR-RPBTD", "she understood the" },
+        { "SKWHR-PGS", "she expects" },
+        { "SKWHR-PGSD", "she expected" },
+        { "SKWHR-PGTS", "she expects that" },
+        { "SKWHR-PGTSD", "she expected that" },
+        { "SKWHR-FBG", "she has come" },
+        { "SKWHR-FR", "she has run" },
+        { "SKWHR-FRPBL", "she has made" },
+        { "SKWHR-FRBT", "she has taken" },
+        { "SKWHR-FGZ", "she has given" },
+        { "SKWHR-FRPB", "she has understood" },
+        { "SKWHRE-BG", "she is coming" },
+        { "SKWHRE-R", "she is running" },
+        { "SKWHRE-Z", "she is using" },
+    };
+    for (size_t i = 0; i < sizeof(verb_follow_on_cases) / sizeof(verb_follow_on_cases[0]); ++i) {
+        ok = ok && expect_phrase_stroke_output(
+            &steno,
+            &follow_on_config,
+            &output,
+            "verb follow-on coverage",
+            verb_follow_on_cases[i].stroke,
+            STENO_PHRASE_MODE_VERBS,
+            verb_follow_on_cases[i].expected);
+    }
+
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
     ok = ok && handle_phrase_test_stroke(steno, "PW-PB", STENO_PHRASE_MODE_VERBS);

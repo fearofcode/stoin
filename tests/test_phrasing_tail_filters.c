@@ -1,0 +1,149 @@
+#include "test_support.h"
+
+#include "phrasing.h"
+#include "steno_stroke.h"
+
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+static bool write_phrasing_fixture(
+    const char *path,
+    const char *tails_json,
+    const char *stems_json
+)
+{
+    char json[8192] = {0};
+    const int length = snprintf(json, sizeof(json),
+        "{\n"
+        "  \"initial_verbs\": {\n"
+        "    \"tails\": [%s],\n"
+        "    \"stems\": [%s]\n"
+        "  },\n"
+        "  \"final_verbs\": {\n"
+        "    \"contraction_stroke\": \"#\",\n"
+        "    \"starters\": [],\n"
+        "    \"operators\": [],\n"
+        "    \"structures\": [],\n"
+        "    \"verbs\": [],\n"
+        "    \"enders\": []\n"
+        "  }\n"
+        "}\n",
+        tails_json,
+        stems_json);
+    if (length < 0 || (size_t)length >= sizeof(json)) {
+        fputs("test failed: phrasing tail-filter fixture exceeded buffer\n", stderr);
+        return false;
+    }
+    return write_text_file(path, json);
+}
+
+static bool expect_phrase_lookup(
+    const Phrasing *phrasing,
+    const char *name,
+    const char *stroke,
+    const char *expected
+)
+{
+    uint64_t bits = 0;
+    if (!stroke_string_to_bits(stroke, &bits)) {
+        fprintf(stderr, "test failed: %s could not parse stroke '%s'\n", name, stroke);
+        return false;
+    }
+
+    char *text = NULL;
+    const Phrase_Lookup_Result result = phrasing_lookup(phrasing, bits, &text);
+    bool ok = true;
+    if (expected == NULL) {
+        ok = expect_size(name, result, PHRASE_LOOKUP_MISS)
+            && expect_size("tail-filter miss has no text", text != NULL ? 1 : 0, 0);
+    } else {
+        ok = expect_size(name, result, PHRASE_LOOKUP_HIT)
+            && expect_string(name, text, expected);
+    }
+    free(text);
+    return ok;
+}
+
+static bool expect_invalid_tail_allowlist(
+    const char *path,
+    const char *name,
+    const char *tails_json,
+    const char *stem_tails_field
+)
+{
+    char stem[1024] = {0};
+    const int length = snprintf(stem, sizeof(stem),
+        "{\"stroke\":\"PW\",%s\"forms\":[{\"stroke\":\"\",\"text\":\"is\"}]}",
+        stem_tails_field);
+    if (length < 0 || (size_t)length >= sizeof(stem)) {
+        fputs("test failed: invalid phrasing tail-filter fixture exceeded buffer\n", stderr);
+        return false;
+    }
+    if (!write_phrasing_fixture(path, tails_json, stem)) {
+        return false;
+    }
+
+    Phrasing *phrasing = phrasing_load(path);
+    const bool ok = expect_size(name, phrasing != NULL ? 1 : 0, 0);
+    phrasing_destroy(phrasing);
+    return ok;
+}
+
+bool test_phrasing_tail_filters(void)
+{
+    const char *path = "build/test-phrasing-tail-filters.json";
+    const char *tails =
+        "{\"id\":\"a\",\"stroke\":\"-B\",\"text\":\"a\"},"
+        "{\"id\":\"the\",\"stroke\":\"-T\",\"text\":\"the\"},"
+        "{\"id\":\"us\",\"stroke\":\"-S\",\"text\":\"us\"}";
+    const char *stems =
+        "{\"stroke\":\"PW\",\"tails\":[\"a\",\"us\"],"
+            "\"forms\":[{\"stroke\":\"\",\"text\":\"is\"}]},"
+        "{\"stroke\":\"H\","
+            "\"forms\":[{\"stroke\":\"\",\"text\":\"has\"}]},"
+        "{\"stroke\":\"ST\",\"tails\":[],"
+            "\"forms\":[{\"stroke\":\"\",\"text\":\"says\"}]}";
+
+    bool ok = write_phrasing_fixture(path, tails, stems);
+    Phrasing *phrasing = ok ? phrasing_load(path) : NULL;
+    ok = expect_size("valid IV tail allowlists load", phrasing != NULL ? 1 : 0, 1) && ok;
+    if (phrasing != NULL) {
+        ok = expect_phrase_lookup(phrasing, "IV allowlist permits first tail", "PW-B", "is a") && ok;
+        ok = expect_phrase_lookup(phrasing, "IV allowlist permits later tail", "PW-S", "is us") && ok;
+        ok = expect_phrase_lookup(phrasing, "IV allowlist rejects omitted tail", "PW-T", NULL) && ok;
+        ok = expect_phrase_lookup(phrasing, "absent IV allowlist permits every tail", "H-T", "has the") && ok;
+        ok = expect_phrase_lookup(phrasing, "empty IV allowlist permits no tails", "ST-B", NULL) && ok;
+    }
+    phrasing_destroy(phrasing);
+
+    ok = expect_invalid_tail_allowlist(
+        path,
+        "IV tail allowlist must be an array",
+        tails,
+        "\"tails\":{},") && ok;
+    ok = expect_invalid_tail_allowlist(
+        path,
+        "IV tail allowlist values must be strings",
+        tails,
+        "\"tails\":[1],") && ok;
+    ok = expect_invalid_tail_allowlist(
+        path,
+        "IV tail allowlist rejects unknown IDs",
+        tails,
+        "\"tails\":[\"missing\"],") && ok;
+    ok = expect_invalid_tail_allowlist(
+        path,
+        "IV tail allowlist rejects duplicate IDs",
+        tails,
+        "\"tails\":[\"a\",\"a\"],") && ok;
+    ok = expect_invalid_tail_allowlist(
+        path,
+        "initial verb tails reject duplicate IDs",
+        "{\"id\":\"a\",\"stroke\":\"-B\",\"text\":\"a\"},"
+        "{\"id\":\"a\",\"stroke\":\"-T\",\"text\":\"another\"}",
+        "") && ok;
+
+    remove(path);
+    return ok;
+}

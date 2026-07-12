@@ -104,17 +104,40 @@ tail, ender, or flag should not require listing every drill prompt by hand.
 | `PHR` | to pull |
 | `KP` | to keep |
 | `KHR` | to call |
+| `TK` | to do |
+| `TKPW` | to go |
+| `W` | to want |
+| `SK` | to ask |
+| `SP` | to happen |
+| `SW` | to feel |
+| `K` | to come |
+| `TPH` | to know |
+| `TKPWH` | to get |
+| `PWHR` | to believe |
+| `KW` | to become |
+| `R` | to run |
+| `KPL` | to make |
+| `PH` | to take |
+| `TP` | to find |
+| `STP` | to give |
+| `STW` | to use |
+| `WR` | to work |
+| `SKP` | to need |
+| `SKW` | to remember |
+| `SKH` | to understand |
+| `TR` | to try |
+| `TKP` | to expect |
 
 ### IV Flags
 
 | Flag | Meaning |
 | --- | --- |
-| empty | third-person present: `is`, `has`, `calls`, `says`, `thinks`, `tells`, `catches`, `looks`, `holds`, `sells`, `spells`, `pulls`, `keeps` |
-| `D` | past: `was`, `had`, `called`, `said`, `thought`, `told`, `caught`, `looked`, `held`, `sold`, `spelled`, `pulled`, `kept` |
-| `E` | base/non-third present or imperative: `are`, `have`, `call`, `say`, `think`, `tell`, `catch`, `look`, `hold`, `sell`, `spell`, `pull`, `keep` |
+| empty | third-person present: `is`, `has`, or the stem's third-person form |
+| `D` | simple past: `was`, `had`, or the stem's past form |
+| `E` | base/non-third present or imperative: `are`, `have`, or the stem's base form |
 | `ED` | plural past for `PW`: `were` |
-| `G` | present participle/gerund for stems that define one: `seeing`, `saying`, `thinking`, `telling`, `catching`, `looking`, `holding`, `selling`, `spelling`, `pulling`, `keeping`, `calling` |
-| `U` | infinitive with `to`: `to be`, `to have`, `to call`, `to say`, `to think`, `to tell`, `to catch`, `to look`, `to hold`, `to sell`, `to spell`, `to pull`, `to keep` |
+| `G` | present participle/gerund for stems that define one |
+| `U` | infinitive with `to` |
 | `A` | modal base: `can` + base verb |
 | `AD` | modal past: `could` + base verb |
 
@@ -123,10 +146,12 @@ that slot as `are`. `U` names the infinitive-with-`to` slot for IV only; the FV
 grammar does not generate forms like `he to be`. `F` is reserved for `have` /
 perfect work outside IV. `A` follows the FV can/could mnemonic.
 
-IV stems should avoid right-hand `G` because `-G` is the IV gerund/progressive
-flag. A verb whose best mnemonic needs right-hand `G` should either choose a
-different IV stem or omit the `-G` form for that stem. FV enders may use `G`
-normally because FV progressive uses `E`.
+IV stems should normally stay on the left hand. Right-hand bits overlap the
+global tail bank and can make distinct phrases share an outline. The `KPL`
+`make` stem is the exception: its per-stem tail allowlist excludes combinations
+that alias existing `KP` (`keep`) phrases. Planned `KH` for `run` is already the
+`catch` stem, so `run` uses the free, mnemonic left-hand `R` instead. FV enders
+may use the full right hand because FV progressive uses `E` instead of `-G`.
 
 ### IV Tails
 
@@ -144,6 +169,12 @@ normally because FV progressive uses `E`.
 | `PLS` | `PLSD` | myself |
 | `PLT` | `PLTD` | me |
 | `RT` | `RTD` | that |
+
+An IV stem may declare a `tails` array containing tail IDs from this table.
+When present, only those verb-tail combinations translate and appear in the
+trainer; omitting the field preserves the original all-tail behavior. The
+follow-on verbs use allowlists to exclude combinations such as `happens me`,
+`comes us`, `becomes at`, and `uses of`.
 
 ## FV Set 1
 
@@ -225,6 +256,35 @@ starter + operator + structure + ender
 | `PBLGT` / `PBLGTD` | find that | found that |
 | `RT` / `RTD` | try | tried |
 | `RTS` / `RTSD` | try to | tried to |
+| `PZ` / `PDZ` | happen | happened |
+| `LT` / `LTD` | feel | felt |
+| `LTS` / `LTSD` | feel like | felt like |
+| `BG` / `BGD` | come | came |
+| `BGT` / `BGTD` | come to | came to |
+| `BL` / `BLD` | believe | believed |
+| `BLT` / `BLTD` | believe that | believed that |
+| `RPBG` / `RPBGD` | become | became |
+| `RPBGT` / `RPBGTD` | become a | became a |
+| `R` / `RD` | run | ran |
+| `RPBL` / `RPBLD` | make | made |
+| `RPBLT` / `RPBLTD` | make a | made a |
+| `RBT` / `RBTD` | take | took |
+| `GZ` / `GDZ` | give | gave |
+| `Z` / `DZ` | use | used |
+| `RBG` / `RBGD` | work | worked |
+| `RBGT` / `RBGTD` | work on | worked on |
+| `RPL` / `RPLD` | remember | remembered |
+| `RPLT` / `RPLTD` | remember that | remembered that |
+| `RPB` / `RPBD` | understand | understood |
+| `RPBT` / `RPBTD` | understand the | understood the |
+| `PGS` / `PGSD` | expect | expected |
+| `PGTS` / `PGTSD` | expect that | expected that |
+| `RBS` / `RBSD` | ask | asked |
+
+The planned `RB` final assignment for `ask` is already the implemented `catch`
+ender, so `ask` adds mnemonic `-S` and uses `RBS`. `Use` deliberately has no
+ordinary `to` suffix: `used to` requires fixed-form handling rather than normal
+verb inflection.
 
 ### FV Contraction Patterns
 

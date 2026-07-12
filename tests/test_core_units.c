@@ -2,6 +2,7 @@
 
 #include "gemini_pr.h"
 #include "orthography.h"
+#include "phrasing.h"
 #include "runtime_config.h"
 #include "stentura.h"
 #include "steno_stroke.h"
@@ -37,6 +38,10 @@ bool test_core_units(void)
     );
     runtime_config_destroy(&runtime_config);
     remove(runtime_config_path);
+
+    Phrasing *production_phrasing = phrasing_load("phrasing.json");
+    ok = ok && expect_size("production phrasing loads", production_phrasing != NULL ? 1 : 0, 1);
+    phrasing_destroy(production_phrasing);
 
     Orthography test_orthography = {0};
     ok = ok && orthography_load(&test_orthography, "tests/test-words.txt");

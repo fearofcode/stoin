@@ -48,6 +48,8 @@ typedef struct Phrase_Form {
 typedef struct Iv_Stem {
     uint64_t bits;
     Phrase_Form *forms;
+    size_t *tail_indices;
+    bool has_tail_allowlist;
 } Iv_Stem;
 
 typedef struct Phrase_Tail {
@@ -277,6 +279,26 @@ static bool tail_stroke_is_unique(
     return true;
 }
 
+static bool tail_id_is_unique(
+    const Phrase_Tail *tails,
+    const char *id,
+    const char *path,
+    const char *context
+)
+{
+    for (size_t i = 0; i < arrlenu(tails); ++i) {
+        if (strcmp(tails[i].id, id) == 0) {
+            fprintf(stderr,
+                "stoin: phrasing '%s' %s.id duplicates tail id '%s'\n",
+                path,
+                context,
+                id);
+            return false;
+        }
+    }
+    return true;
+}
+
 static bool iv_stem_stroke_is_unique(
     const Iv_Stem *stems,
     uint64_t bits,
@@ -497,6 +519,10 @@ static bool parse_tail_array(Phrase_Tail **out_tails, const cJSON *array, const 
             print_field_error(path, item_context, "id", "must be a string");
             return false;
         }
+        if (!tail_id_is_unique(*out_tails, tail.id, path, item_context)) {
+            free(tail.id);
+            return false;
+        }
         if (!parse_required_stroke(item, "stroke", &tail.bits, path, item_context)) {
             free(tail.id);
             return false;
@@ -512,6 +538,87 @@ static bool parse_tail_array(Phrase_Tail **out_tails, const cJSON *array, const 
         }
         arrput(*out_tails, tail);
         ++index;
+    }
+    return true;
+}
+
+static bool find_tail_index(const Phrase_Tail *tails, const char *id, size_t *out_index)
+{
+    for (size_t i = 0; i < arrlenu(tails); ++i) {
+        if (strcmp(tails[i].id, id) == 0) {
+            *out_index = i;
+            return true;
+        }
+    }
+    return false;
+}
+
+static void destroy_iv_stem_contents(Iv_Stem *stem)
+{
+    if (stem == NULL) {
+        return;
+    }
+    for (size_t i = 0; i < arrlenu(stem->forms); ++i) {
+        free(stem->forms[i].text);
+    }
+    arrfree(stem->forms);
+    arrfree(stem->tail_indices);
+}
+
+static bool parse_iv_stem_tail_allowlist(
+    Iv_Stem *stem,
+    const cJSON *stem_object,
+    const Phrase_Tail *tails,
+    const char *path,
+    const char *context
+)
+{
+    const cJSON *allowlist = cJSON_GetObjectItemCaseSensitive(stem_object, "tails");
+    if (allowlist == NULL) {
+        return true;
+    }
+
+    stem->has_tail_allowlist = true;
+    if (!cJSON_IsArray(allowlist)) {
+        print_field_error(path, context, "tails", "must be an array");
+        return false;
+    }
+
+    const cJSON *item = NULL;
+    size_t item_index = 0;
+    cJSON_ArrayForEach(item, allowlist) {
+        if (!cJSON_IsString(item) || item->valuestring == NULL) {
+            fprintf(stderr,
+                "stoin: phrasing '%s' %s.tails[%zu] must be a string\n",
+                path,
+                context,
+                item_index);
+            return false;
+        }
+
+        size_t tail_index = 0;
+        if (!find_tail_index(tails, item->valuestring, &tail_index)) {
+            fprintf(stderr,
+                "stoin: phrasing '%s' %s.tails[%zu] references unknown tail id '%s'\n",
+                path,
+                context,
+                item_index,
+                item->valuestring);
+            return false;
+        }
+        for (size_t i = 0; i < arrlenu(stem->tail_indices); ++i) {
+            if (stem->tail_indices[i] == tail_index) {
+                fprintf(stderr,
+                    "stoin: phrasing '%s' %s.tails[%zu] duplicates tail id '%s'\n",
+                    path,
+                    context,
+                    item_index,
+                    item->valuestring);
+                return false;
+            }
+        }
+        arrput(stem->tail_indices, tail_index);
+        ++item_index;
     }
     return true;
 }
@@ -547,8 +654,14 @@ static bool parse_initial_verbs(Phrasing *phrasing, const cJSON *root, const cha
             return false;
         }
 
+        if (!parse_iv_stem_tail_allowlist(&stem, item, phrasing->iv_tails, path, context)) {
+            destroy_iv_stem_contents(&stem);
+            return false;
+        }
+
         const cJSON *forms = required_array(item, "forms", path, context);
         if (forms == NULL || !parse_phrase_form_array(&stem.forms, forms, path, "initial_verbs.forms")) {
+            destroy_iv_stem_contents(&stem);
             return false;
         }
         arrput(phrasing->iv_stems, stem);
@@ -827,10 +940,7 @@ void phrasing_destroy(Phrasing *phrasing)
         return;
     }
     for (size_t i = 0; i < arrlenu(phrasing->iv_stems); ++i) {
-        for (size_t j = 0; j < arrlenu(phrasing->iv_stems[i].forms); ++j) {
-            free(phrasing->iv_stems[i].forms[j].text);
-        }
-        arrfree(phrasing->iv_stems[i].forms);
+        destroy_iv_stem_contents(&phrasing->iv_stems[i]);
     }
     arrfree(phrasing->iv_stems);
     for (size_t i = 0; i < arrlenu(phrasing->iv_tails); ++i) {
@@ -872,6 +982,18 @@ static Phrase_Lookup_Result lookup_initial_verb(const Phrasing *phrasing, uint64
             const Phrase_Form *form = &stem->forms[j];
             for (size_t k = 0; k < arrlenu(phrasing->iv_tails); ++k) {
                 const Phrase_Tail *tail = &phrasing->iv_tails[k];
+                if (stem->has_tail_allowlist) {
+                    bool allowed = false;
+                    for (size_t m = 0; m < arrlenu(stem->tail_indices); ++m) {
+                        if (stem->tail_indices[m] == k) {
+                            allowed = true;
+                            break;
+                        }
+                    }
+                    if (!allowed) {
+                        continue;
+                    }
+                }
                 if (bits == (stem->bits | form->bits | tail->bits)) {
                     return copy_phrase_words(form->text, tail->text, out_utf8);
                 }

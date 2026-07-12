@@ -548,6 +548,10 @@ function findStemForm(stem, stroke) {
 	return null;
 }
 
+function stemAllowsTail(stem, tail) {
+	return !Array.isArray(stem.tails) || stem.tails.includes(tail.id);
+}
+
 function generateInitialVerbPrompts() {
 	if (!familyEnabled('initial_verbs')) return [];
 	const prompts = [];
@@ -556,6 +560,7 @@ function generateInitialVerbPrompts() {
 			const form = findStemForm(stem, formOption.stroke);
 			if (!form) return;
 			selectedInitialTails().forEach(function(tail) {
+				if (!stemAllowsTail(stem, tail)) return;
 				prompts.push({
 					lesson: familyLabels.initial_verbs,
 					stroke: combineStrokeParts([stem.stroke, form.stroke, tail.stroke]),
@@ -1152,6 +1157,32 @@ function validatePhraseData(data) {
 	}
 	requireArray(data.initial_verbs, 'stems', 'initial_verbs');
 	requireArray(data.initial_verbs, 'tails', 'initial_verbs');
+	const tailIds = new Set();
+	data.initial_verbs.tails.forEach(function(tail, index) {
+		if (!tail || typeof tail.id !== 'string') {
+			throw new Error('initial_verbs.tails[' + index + '].id must be a string');
+		}
+		if (tailIds.has(tail.id)) {
+			throw new Error('initial_verbs.tails[' + index + '].id duplicates ' + tail.id);
+		}
+		tailIds.add(tail.id);
+	});
+	data.initial_verbs.stems.forEach(function(stem, index) {
+		if (stem.tails === undefined) return;
+		if (!Array.isArray(stem.tails)) {
+			throw new Error('initial_verbs.stems[' + index + '].tails must be an array');
+		}
+		const seenTailIds = new Set();
+		stem.tails.forEach(function(tailId) {
+			if (typeof tailId !== 'string' || !tailIds.has(tailId)) {
+				throw new Error('initial_verbs.stems[' + index + '].tails references unknown tail ' + String(tailId));
+			}
+			if (seenTailIds.has(tailId)) {
+				throw new Error('initial_verbs.stems[' + index + '].tails duplicates ' + tailId);
+			}
+			seenTailIds.add(tailId);
+		});
+	});
 	requireArray(data.final_verbs, 'starters', 'final_verbs');
 	requireArray(data.final_verbs, 'operators', 'final_verbs');
 	requireArray(data.final_verbs, 'structures', 'final_verbs');
