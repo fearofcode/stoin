@@ -218,11 +218,14 @@ func generateCandidateClaims(sources map[string]sourceEntry) map[string]*candida
 				return
 			}
 			states[candidateKey] = candidate
-			queue = append(queue, candidate)
 
-			if _, exists := sources[candidateKey]; exists {
+			if source, exists := sources[candidateKey]; exists {
+				if source.value == entry.value {
+					queue = append(queue, candidate)
+				}
 				return
 			}
+			queue = append(queue, candidate)
 			claim := claims[candidateKey]
 			if claim == nil {
 				claims[candidateKey] = &candidateClaim{
@@ -285,6 +288,18 @@ func generateCandidateClaims(sources map[string]sourceEntry) map[string]*candida
 					addCandidate(candidate)
 				}
 			}
+
+			for strokeIndex := 1; strokeIndex+1 < len(outline); strokeIndex++ {
+				candidate, ok := foldInteriorConsonantVowelStroke(outline, strokeIndex)
+				if ok {
+					addCandidate(candidate)
+				}
+			}
+
+			if len(outline) > 3 {
+				candidate := append([]uint32(nil), outline[:len(outline)-1]...)
+				addCandidate(candidate)
+			}
 		}
 	}
 
@@ -297,6 +312,75 @@ func aouStroke() uint32 {
 
 func vowelMask() uint32 {
 	return bit(keyA) | bit(keyO) | bit(keyE) | bit(keyU)
+}
+
+func leftHandMask() uint32 {
+	return bit(keyLeftS) |
+		bit(keyLeftT) |
+		bit(keyLeftK) |
+		bit(keyLeftP) |
+		bit(keyLeftW) |
+		bit(keyLeftH) |
+		bit(keyLeftR)
+}
+
+func foldInteriorConsonantVowelStroke(outline []uint32, middleIndex int) ([]uint32, bool) {
+	if len(outline) < 3 || middleIndex <= 0 || middleIndex+1 >= len(outline) {
+		return nil, false
+	}
+
+	middle := outline[middleIndex]
+	consonants := middle & leftHandMask()
+	vowels := middle & vowelMask()
+	if consonants == 0 || vowels == 0 || middle != consonants|vowels {
+		return nil, false
+	}
+
+	foldedConsonants, ok := rightHandConsonantFold(consonants)
+	if !ok || outline[middleIndex-1]&foldedConsonants != 0 {
+		return nil, false
+	}
+
+	candidate := make([]uint32, 0, len(outline)-1)
+	candidate = append(candidate, outline[:middleIndex-1]...)
+	candidate = append(candidate, outline[middleIndex-1]|foldedConsonants)
+	candidate = append(candidate, outline[middleIndex+1:]...)
+	return candidate, true
+}
+
+func rightHandConsonantFold(consonants uint32) (uint32, bool) {
+	// These are the complete-consonant moves used by Lapwing's alternate
+	// syllable splitting. Requiring an exact chord avoids partial phonetic
+	// rewrites while still covering ordinary single-key folds such as T -> -T.
+	folds := []struct {
+		left  uint32
+		right uint32
+	}{
+		{bit(keyLeftS), bit(keyRightS)},
+		{bit(keyLeftT), bit(keyRightT)},
+		{bit(keyLeftP), bit(keyRightP)},
+		{bit(keyLeftR), bit(keyRightR)},
+		{bit(keyLeftP) | bit(keyLeftW), bit(keyRightB)},
+		{bit(keyLeftT) | bit(keyLeftK), bit(keyRightD)},
+		{bit(keyLeftT) | bit(keyLeftP), bit(keyRightF)},
+		{bit(keyLeftT) | bit(keyLeftK) | bit(keyLeftP) | bit(keyLeftW), bit(keyRightP) | bit(keyRightB) | bit(keyRightL) | bit(keyRightG)},
+		{bit(keyLeftS) | bit(keyLeftK) | bit(keyLeftW) | bit(keyLeftR), bit(keyRightP) | bit(keyRightB) | bit(keyRightL) | bit(keyRightG)},
+		{bit(keyLeftK), bit(keyRightB) | bit(keyRightG)},
+		{bit(keyLeftH) | bit(keyLeftR), bit(keyRightL)},
+		{bit(keyLeftP) | bit(keyLeftH), bit(keyRightP) | bit(keyRightL)},
+		{bit(keyLeftT) | bit(keyLeftP) | bit(keyLeftH), bit(keyRightP) | bit(keyRightB)},
+		{bit(keyLeftS) | bit(keyLeftR), bit(keyRightF)},
+		{bit(keyLeftT) | bit(keyLeftH), bit(keyStar) | bit(keyRightT)},
+		{bit(keyLeftK) | bit(keyLeftH), bit(keyRightF) | bit(keyRightP)},
+		{bit(keyLeftS) | bit(keyLeftH), bit(keyRightR) | bit(keyRightB)},
+		{bit(keyLeftS) | bit(keyLeftT) | bit(keyLeftK) | bit(keyLeftP) | bit(keyLeftW), bit(keyRightZ)},
+	}
+	for _, fold := range folds {
+		if consonants == fold.left {
+			return fold.right, true
+		}
+	}
+	return 0, false
 }
 
 func redistributeVowellessLBridge(outline []uint32, middleIndex int) ([]uint32, bool) {
