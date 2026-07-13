@@ -17,11 +17,14 @@ different source translation, as in `STAB/-G` becoming `STABDZ` because
 A following stroke made from vowels and a right-hand consonant coda, optionally
 preceded by an exact `KWR` linker, can drop its linker and vowels and fold the
 complete coda into the preceding stroke when all of its keys are free and both
-strokes have exactly the same vowel bank. Thus `AEUR/AEUGZ` becomes `AEURGZ`,
-while `TPHAOEU/AEBL` does not become `TPHAOEUBL`: `AOEU` and `AE` encode
-different vowel sounds. A starred preceding vowel bank is also considered
-different. A result is still omitted when its canonical chord is already
-assigned.
+strokes have exactly the same vowel bank. A narrow plural exception allows an
+exact `AEZ` stroke to add `-Z` when the preceding stroke's complete right-hand
+coda is `-PS`, so `HREUPS/AEZ` becomes `HREUPSZ`. Other mismatched vowels may
+not be dropped: `TPHAOEU/AEBL` does not become `TPHAOEUBL`, `SES/AEBL` does
+not collapse "accessibly" toward "accessible(s)", and `SRORS/AEZ` does not
+collapse "divorcees" toward "divorces". A vowelless or starred preceding
+stroke is also rejected. A result is still omitted when its canonical chord is
+already assigned.
 An interior stroke consisting of exact `KWR` plus vowels and no right-hand coda
 may be omitted completely. For example, `TKEU/PHEUPB/KWRU/T-FB` becomes
 the Stoin-canonical `TKEU/PHEUPB/TFB`. A first or final `KWR`-vowel stroke is

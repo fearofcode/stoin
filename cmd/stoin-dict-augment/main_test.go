@@ -2,7 +2,7 @@ package main
 
 import "testing"
 
-func TestFoldVowelCodaStrokeRequiresMatchingVowels(t *testing.T) {
+func TestFoldVowelCodaStrokeRequiresMatchingVowelsOrPluralPSes(t *testing.T) {
 	tests := []struct {
 		name     string
 		outline  string
@@ -18,14 +18,33 @@ func TestFoldVowelCodaStrokeRequiresMatchingVowels(t *testing.T) {
 			ok:       true,
 		},
 		{
-			name:     "different vowel bank",
+			name:     "mismatch would collapse deniably",
 			outline:  "TK/TPHAOEU/AEBL",
 			boundary: 1,
 			ok:       false,
 		},
 		{
-			name:     "subset is not enough",
-			outline:  "STAOE/AEGZ",
+			name:     "plural pses preserves ellipses",
+			outline:  "HREUPS/AEZ",
+			boundary: 0,
+			want:     "HREUPSZ",
+			ok:       true,
+		},
+		{
+			name:     "other new vowels are rejected",
+			outline:  "ABG/SES/AEBL",
+			boundary: 1,
+			ok:       false,
+		},
+		{
+			name:     "plural exception rejects divorcees collapse",
+			outline:  "SRORS/AEZ",
+			boundary: 0,
+			ok:       false,
+		},
+		{
+			name:     "plural exception requires exact ps coda",
+			outline:  "HREUPLS/AEZ",
 			boundary: 0,
 			ok:       false,
 		},
