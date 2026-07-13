@@ -60,6 +60,23 @@ type candidateClaim struct {
 	conflict bool
 }
 
+type stringListFlag []string
+
+func (values *stringListFlag) String() string {
+	return strings.Join(*values, ",")
+}
+
+func (values *stringListFlag) Set(value string) error {
+	*values = append(*values, value)
+	return nil
+}
+
+type supplementalStats struct {
+	exactPrimaryOverlaps   int
+	exactGeneratedOverlaps int
+	rrExcluded             int
+}
+
 type trieNode struct {
 	children map[uint32]*trieNode
 }
@@ -97,10 +114,12 @@ func (t *outlineTrie) hasPrefix(outline []uint32) bool {
 
 func main() {
 	var outputPath string
+	var additionalPaths stringListFlag
 	flag.StringVar(&outputPath, "output", "", "path for the generated augmentation dictionary")
 	flag.StringVar(&outputPath, "o", "", "path for the generated augmentation dictionary (shorthand)")
+	flag.Var(&additionalPaths, "additional", "supplemental dictionary whose non-conflicting entries are copied (repeatable)")
 	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s -output <augmentations.json> <source.json> [source.json ...]\n", filepath.Base(os.Args[0]))
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s -output <augmentations.json> [-additional <supplemental.json>] <source.json> [source.json ...]\n", filepath.Base(os.Args[0]))
 		flag.PrintDefaults()
 	}
 	flag.Parse()
@@ -110,14 +129,15 @@ func main() {
 		os.Exit(2)
 	}
 
-	if err := run(outputPath, flag.Args(), os.Stdout, os.Stderr); err != nil {
+	if err := run(outputPath, flag.Args(), additionalPaths, os.Stdout, os.Stderr); err != nil {
 		fmt.Fprintf(os.Stderr, "stoin-dict-augment: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(outputPath string, inputPaths []string, stdout, stderr io.Writer) error {
-	if err := ensureDistinctOutput(outputPath, inputPaths); err != nil {
+func run(outputPath string, inputPaths, additionalPaths []string, stdout, stderr io.Writer) error {
+	allInputPaths := append(append([]string(nil), inputPaths...), additionalPaths...)
+	if err := ensureDistinctOutput(outputPath, allInputPaths); err != nil {
 		return err
 	}
 
@@ -131,21 +151,66 @@ func run(outputPath string, inputPaths []string, stdout, stderr io.Writer) error
 
 	excludedTranslations := rrMarkedTranslations(sources)
 	claims := generateCandidateClaims(sources, excludedTranslations)
-	augmentations, ambiguousCount, boundaryCount := selectSafeCandidates(sources, claims)
+	augmentations, ambiguousCount, joinCount, boundaryCount := selectSafeCandidates(sources, claims)
+
+	var supplemental map[string]sourceEntry
+	var supplementalKeys map[string]struct{}
+	var importStats supplementalStats
+	if len(additionalPaths) != 0 {
+		supplemental, invalidCount, err = loadSources(additionalPaths)
+		if err != nil {
+			return err
+		}
+		if invalidCount != 0 {
+			fmt.Fprintf(stderr, "Skipped %d supplemental entries whose outlines Stoin cannot parse.\n", invalidCount)
+		}
+
+		supplementalExcluded := rrMarkedTranslations(supplemental)
+		for translation := range excludedTranslations {
+			supplementalExcluded[translation] = struct{}{}
+		}
+		retainAcceptedClaims(claims, augmentations)
+		importStats, supplementalKeys = addSupplementalClaims(sources, supplemental, claims, supplementalExcluded)
+
+		var additionalAmbiguous, additionalJoin, additionalBoundary int
+		augmentations, additionalAmbiguous, additionalJoin, additionalBoundary = selectSafeCandidates(sources, claims)
+		ambiguousCount += additionalAmbiguous
+		joinCount += additionalJoin
+		boundaryCount += additionalBoundary
+	}
+
 	if err := writeDictionary(outputPath, augmentations); err != nil {
 		return err
 	}
 
 	fmt.Fprintf(
 		stdout,
-		"Read %d canonical source entries; excluded %d R-R-marked translations; wrote %d augmentations to %s (%d ambiguous and %d boundary-conflicting candidates skipped).\n",
+		"Read %d canonical source entries; excluded %d R-R-marked translations; wrote %d additions to %s (%d ambiguous, %d trailing-P-P, and %d boundary-conflicting candidates skipped).\n",
 		len(sources),
 		len(excludedTranslations),
 		len(augmentations),
 		outputPath,
 		ambiguousCount,
+		joinCount,
 		boundaryCount,
 	)
+	if len(additionalPaths) != 0 {
+		importedCount := 0
+		for key := range supplementalKeys {
+			if _, imported := augmentations[key]; imported {
+				importedCount++
+			}
+		}
+		fmt.Fprintf(
+			stdout,
+			"Read %d canonical supplemental entries; imported %d after skipping %d exact primary overlaps, %d existing augmentation overlaps, and %d entries with R-R-marked translations.\n",
+			len(supplemental),
+			importedCount,
+			importStats.exactPrimaryOverlaps,
+			importStats.exactGeneratedOverlaps,
+			importStats.rrExcluded,
+		)
+	}
 	return nil
 }
 
@@ -220,13 +285,67 @@ func rrMarkedTranslations(sources map[string]sourceEntry) map[string]struct{} {
 	return excluded
 }
 
+func endsWithJoinStroke(outline []uint32) bool {
+	joinStroke := bit(keyLeftP) | bit(keyRightP)
+	return len(outline) != 0 && outline[len(outline)-1] == joinStroke
+}
+
+func addClaim(claims map[string]*candidateClaim, key string, outline []uint32, value string) {
+	claim := claims[key]
+	if claim == nil {
+		claims[key] = &candidateClaim{
+			outline: append([]uint32(nil), outline...),
+			value:   value,
+		}
+	} else if claim.value != value {
+		claim.conflict = true
+	}
+}
+
+func retainAcceptedClaims(claims map[string]*candidateClaim, accepted map[string]string) {
+	for key := range claims {
+		if _, ok := accepted[key]; !ok {
+			delete(claims, key)
+		}
+	}
+}
+
+func addSupplementalClaims(
+	sources, supplemental map[string]sourceEntry,
+	claims map[string]*candidateClaim,
+	excludedTranslations map[string]struct{},
+) (supplementalStats, map[string]struct{}) {
+	stats := supplementalStats{}
+	keys := make(map[string]struct{})
+
+	for _, key := range sortedKeys(supplemental) {
+		entry := supplemental[key]
+		if _, overlaps := sources[key]; overlaps {
+			stats.exactPrimaryOverlaps++
+			continue
+		}
+		if _, overlaps := claims[key]; overlaps {
+			stats.exactGeneratedOverlaps++
+			continue
+		}
+		if _, excluded := excludedTranslations[entry.value]; excluded {
+			stats.rrExcluded++
+			continue
+		}
+		keys[key] = struct{}{}
+		addClaim(claims, key, entry.outline, entry.value)
+	}
+
+	return stats, keys
+}
+
 func generateCandidateClaims(sources map[string]sourceEntry, excludedTranslations map[string]struct{}) map[string]*candidateClaim {
 	claims := make(map[string]*candidateClaim)
 	keys := sortedKeys(sources)
 
 	for _, sourceKey := range keys {
 		entry := sources[sourceKey]
-		if _, excluded := excludedTranslations[entry.value]; excluded {
+		if _, excluded := excludedTranslations[entry.value]; excluded || endsWithJoinStroke(entry.outline) {
 			continue
 		}
 		states := map[string][]uint32{sourceKey: entry.outline}
@@ -238,22 +357,17 @@ func generateCandidateClaims(sources map[string]sourceEntry, excludedTranslation
 			}
 			states[candidateKey] = candidate
 
+			trailingJoin := endsWithJoinStroke(candidate)
 			if source, exists := sources[candidateKey]; exists {
-				if source.value == entry.value {
+				if source.value == entry.value && !trailingJoin {
 					queue = append(queue, candidate)
 				}
 				return
 			}
-			queue = append(queue, candidate)
-			claim := claims[candidateKey]
-			if claim == nil {
-				claims[candidateKey] = &candidateClaim{
-					outline: append([]uint32(nil), candidate...),
-					value:   entry.value,
-				}
-			} else if claim.value != entry.value {
-				claim.conflict = true
+			if !trailingJoin {
+				queue = append(queue, candidate)
 			}
+			addClaim(claims, candidateKey, candidate, entry.value)
 		}
 
 		for len(queue) != 0 {
@@ -309,6 +423,13 @@ func generateCandidateClaims(sources map[string]sourceEntry, excludedTranslation
 			}
 
 			for strokeIndex := 1; strokeIndex+1 < len(outline); strokeIndex++ {
+				candidate, ok := omitInteriorKWRVowelStroke(outline, strokeIndex)
+				if ok {
+					addCandidate(candidate)
+				}
+			}
+
+			for strokeIndex := 1; strokeIndex+1 < len(outline); strokeIndex++ {
 				candidate, ok := redistributeVowellessLBridge(outline, strokeIndex)
 				if ok {
 					addCandidate(candidate)
@@ -322,7 +443,12 @@ func generateCandidateClaims(sources map[string]sourceEntry, excludedTranslation
 				}
 			}
 
-			candidate, ok := collapseLeadingConsonantVowelStroke(outline)
+			candidate, ok := omitSecondConsonantVowelStroke(outline)
+			if ok {
+				addCandidate(candidate)
+			}
+
+			candidate, ok = collapseLeadingConsonantVowelStroke(outline)
 			if ok {
 				addCandidate(candidate)
 			}
@@ -346,6 +472,10 @@ func aouStroke() uint32 {
 	return bit(keyA) | bit(keyO) | bit(keyU)
 }
 
+func kwrLinkerStroke() uint32 {
+	return bit(keyLeftK) | bit(keyLeftW) | bit(keyLeftR)
+}
+
 func vowelMask() uint32 {
 	return bit(keyA) | bit(keyO) | bit(keyE) | bit(keyU)
 }
@@ -355,6 +485,23 @@ func omitLeadingVowelStroke(outline []uint32) ([]uint32, bool) {
 		return nil, false
 	}
 	return append([]uint32(nil), outline[1:]...), true
+}
+
+func omitInteriorKWRVowelStroke(outline []uint32, strokeIndex int) ([]uint32, bool) {
+	if len(outline) < 3 || strokeIndex <= 0 || strokeIndex+1 >= len(outline) {
+		return nil, false
+	}
+
+	stroke := outline[strokeIndex]
+	vowels := stroke & vowelMask()
+	if vowels == 0 || stroke != kwrLinkerStroke()|vowels {
+		return nil, false
+	}
+
+	candidate := make([]uint32, 0, len(outline)-1)
+	candidate = append(candidate, outline[:strokeIndex]...)
+	candidate = append(candidate, outline[strokeIndex+1:]...)
+	return candidate, true
 }
 
 func leftHandMask() uint32 {
@@ -388,6 +535,24 @@ func foldInteriorConsonantVowelStroke(outline []uint32, middleIndex int) ([]uint
 	candidate = append(candidate, outline[:middleIndex-1]...)
 	candidate = append(candidate, outline[middleIndex-1]|foldedConsonants)
 	candidate = append(candidate, outline[middleIndex+1:]...)
+	return candidate, true
+}
+
+func omitSecondConsonantVowelStroke(outline []uint32) ([]uint32, bool) {
+	if len(outline) < 3 {
+		return nil, false
+	}
+
+	second := outline[1]
+	consonants := second & leftHandMask()
+	vowels := second & vowelMask()
+	if consonants == 0 || vowels == 0 || second != consonants|vowels {
+		return nil, false
+	}
+
+	candidate := make([]uint32, 0, len(outline)-1)
+	candidate = append(candidate, outline[0])
+	candidate = append(candidate, outline[2:]...)
 	return candidate, true
 }
 
@@ -582,7 +747,7 @@ func foldableSuffixBits(stroke uint32) (uint32, bool) {
 		return stroke, true
 	}
 
-	kwrLinker := bit(keyLeftK) | bit(keyLeftW) | bit(keyLeftR)
+	kwrLinker := kwrLinkerStroke()
 	if stroke&kwrLinker != kwrLinker {
 		return 0, false
 	}
@@ -615,7 +780,7 @@ func foldVowelCodaStroke(outline []uint32, boundary int) ([]uint32, bool) {
 	linker := following & leftHandMask()
 	vowels := following & vowelMask()
 	coda := following & rightHandMask()
-	kwrLinker := bit(keyLeftK) | bit(keyLeftW) | bit(keyLeftR)
+	kwrLinker := kwrLinkerStroke()
 	if linker != 0 && linker != kwrLinker {
 		return nil, false
 	}
@@ -655,14 +820,19 @@ func mergeSuffixStroke(left, suffix uint32, forceDZForG bool) (uint32, bool) {
 	return merged, true
 }
 
-func selectSafeCandidates(sources map[string]sourceEntry, claims map[string]*candidateClaim) (map[string]string, int, int) {
+func selectSafeCandidates(sources map[string]sourceEntry, claims map[string]*candidateClaim) (map[string]string, int, int, int) {
 	additional := make(map[string]string)
 	outlineByKey := make(map[string][]uint32)
 	ambiguousCount := 0
+	joinCount := 0
 
 	for key, claim := range claims {
 		if claim.conflict {
 			ambiguousCount++
+			continue
+		}
+		if endsWithJoinStroke(claim.outline) {
+			joinCount++
 			continue
 		}
 		additional[key] = claim.value
@@ -689,7 +859,7 @@ func selectSafeCandidates(sources map[string]sourceEntry, claims map[string]*can
 	}
 	boundaryCount = len(boundaryConflicts)
 
-	return additional, ambiguousCount, boundaryCount
+	return additional, ambiguousCount, joinCount, boundaryCount
 }
 
 func validWordBoundaries(

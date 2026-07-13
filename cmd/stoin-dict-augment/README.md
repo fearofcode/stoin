@@ -2,7 +2,10 @@
 
 `stoin-dict-augment` creates a small augmentation dictionary containing safe,
 shorter variants of outlines in one or more source dictionaries. The output
-contains additions only, so it can be loaded after the source dictionaries.
+contains additions only, so it can be loaded after the source dictionaries. A
+repeatable `-additional` option can also copy non-conflicting entries from a
+supplemental dictionary without allowing it to override or augment the primary
+sources.
 
 The tool merges right-hand suffix strokes made from `R`, `L`, `G`, `T`, `S`,
 `D`, and `Z` into the preceding stroke whenever none of the required keys are
@@ -17,6 +20,10 @@ complete coda into the preceding stroke when all of its keys are free. For
 example, `AEUR/AEUGZ` becomes `AEURGZ`. A result is still omitted when its
 canonical chord is already assigned: `AEUP/KWRAER` would become `AEURP`, which
 Phoenix already defines as "airplane".
+An interior stroke consisting of exact `KWR` plus vowels and no right-hand coda
+may be omitted completely. For example, `TKEU/PHEUPB/KWRU/T-FB` becomes
+the Stoin-canonical `TKEU/PHEUPB/TFB`. A first or final `KWR`-vowel stroke is
+not removed.
 A leading stroke made only from vowel-bank keys can be omitted. Existing source
 outlines still win, so `E/HREUPS` cannot replace `HREUPS` ("lips"), while
 `E/HREUPS/AEZ` can become `HREUPS/AEZ` and then `HREUPSZ`.
@@ -36,6 +43,12 @@ drop its linker vowels. This is a limited form of Lapwing's alternate syllable
 splitting rather than general split generation: for example,
 `KUL/TU/SRAEUT` becomes `KULT/SRAEUT`. The complete consonant must have a
 Lapwing left-to-right mapping and its destination keys must be free.
+For outlines of at least three strokes, a second stroke made only from
+left-hand consonants followed by vowels may instead be omitted completely.
+This covers Phoenix's redundant medial syllable strokes, for example
+`KAUZ/PHO/PAUL/T-PB` becoming `KAUZ/PAUL/T-PB` and `KAUZ/PHU/TAULG`
+becoming `KAUZ/TAULG`. The rule applies only to the second stroke and does not
+accept a right-hand coda.
 A leading consonant-vowel stroke can similarly collapse into the following
 vowel stroke. Its vowels are omitted, its left-hand consonants are retained,
 and a complete right-hand coda moves to its Lapwing left-hand equivalent. The
@@ -58,9 +71,26 @@ conflict check adapted from `lapwing_augmentor`. A translation is excluded from
 augmentation entirely when any of its source outlines contains a standalone
 `R-R` stroke after the first stroke; Phoenix uses that stroke to disambiguate
 homophones, so shortening those entries is likely to erase the distinction.
+Generated outlines ending in the exact standalone `P-P` stroke are also
+discarded. Phoenix uses it as a hyphen/join marker whose translation depends on
+the stroke that follows, so emitting such a generated outline can prematurely
+commit the wrong compound word. Source outlines ending in `P-P` do not seed
+augmentation, and generated outlines ending there are not expanded further;
+an internal `P-P` with a following completion stroke remains eligible.
+
+Supplemental dictionaries passed with `-additional` have lower authority than
+every positional source dictionary. Their entries do not seed folding or other
+generation rules. An entry is copied only when its canonical outline does not
+already exist in the primary sources or the accepted generated augmentations,
+and it survives the same candidate ambiguity, word-boundary, `R-R`, and
+trailing-`P-P` safeguards as generated entries. Rejected generated candidates
+do not reserve their outlines. This allows an unused Magnum outline such as
+`AUBLGS` for "auxiliary" to be imported without replacing a Phoenix definition
+or a usable generated entry.
 
 ```sh
 go run ./cmd/stoin-dict-augment \
   -output /path/to/augmentations.json \
+  -additional /path/to/magnum.json \
   /path/to/source.json [/path/to/another-source.json ...]
 ```
