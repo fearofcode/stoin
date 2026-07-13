@@ -11,6 +11,15 @@ already occupied, `DZ` is used for the `-ing` suffix when both keys are free.
 `DZ` is also tried when the ordinary `G` fold is already assigned to a
 different source translation, as in `STAB/-G` becoming `STABDZ` because
 `STABG` means "stack".
+A following stroke made from vowels and a right-hand consonant coda, optionally
+preceded by an exact `KWR` linker, can drop its linker and vowels and fold the
+complete coda into the preceding stroke when all of its keys are free. For
+example, `AEUR/AEUGZ` becomes `AEURGZ`. A result is still omitted when its
+canonical chord is already assigned: `AEUP/KWRAER` would become `AEURP`, which
+Phoenix already defines as "airplane".
+A leading stroke made only from vowel-bank keys can be omitted. Existing source
+outlines still win, so `E/HREUPS` cannot replace `HREUPS` ("lips"), while
+`E/HREUPS/AEZ` can become `HREUPS/AEZ` and then `HREUPSZ`.
 An internal `AOU` stroke may also be omitted, for example
 `ABG/AOU/PH-PB` becomes `ABG/PH-PB`.
 An exact `KWR` linker followed by any right-hand suffix chord can be removed
@@ -37,15 +46,18 @@ closure repeats this until three strokes remain, matching Lapwing's conservative
 floor. Competing translations for the same shortened prefix make it ambiguous
 and therefore omit it.
 
-All compatible adjacent merges, linker folds, bridge redistributions,
-consonant-vowel collapses, `AOU` omissions, and trailing-stroke drops are
-explored, including changes made possible by earlier variations. For example,
-both `STPHUG/-LG` and `STPHUG/-L/-G` can produce `STPHULGDZ`. Generated outlines
-use Stoin's canonical stroke spelling.
+All compatible adjacent merges, vowel-coda and linker folds, bridge
+redistributions, consonant-vowel collapses, vowel-stroke omissions, and
+trailing-stroke drops are explored, including changes made possible by earlier
+variations. For example, both `STPHUG/-LG` and `STPHUG/-L/-G` can produce
+`STPHULGDZ`. Generated outlines use Stoin's canonical stroke spelling.
 
 Existing source outlines are never replaced. A generated outline is omitted if
 different source translations claim it, or if it fails the word-boundary
-conflict check adapted from `lapwing_augmentor`.
+conflict check adapted from `lapwing_augmentor`. A translation is excluded from
+augmentation entirely when any of its source outlines contains a standalone
+`R-R` stroke after the first stroke; Phoenix uses that stroke to disambiguate
+homophones, so shortening those entries is likely to erase the distinction.
 
 ```sh
 go run ./cmd/stoin-dict-augment \

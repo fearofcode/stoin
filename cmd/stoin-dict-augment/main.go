@@ -129,7 +129,8 @@ func run(outputPath string, inputPaths []string, stdout, stderr io.Writer) error
 		fmt.Fprintf(stderr, "Skipped %d source entries whose outlines Stoin cannot parse.\n", invalidCount)
 	}
 
-	claims := generateCandidateClaims(sources)
+	excludedTranslations := rrMarkedTranslations(sources)
+	claims := generateCandidateClaims(sources, excludedTranslations)
 	augmentations, ambiguousCount, boundaryCount := selectSafeCandidates(sources, claims)
 	if err := writeDictionary(outputPath, augmentations); err != nil {
 		return err
@@ -137,8 +138,9 @@ func run(outputPath string, inputPaths []string, stdout, stderr io.Writer) error
 
 	fmt.Fprintf(
 		stdout,
-		"Read %d canonical source entries; wrote %d augmentations to %s (%d ambiguous and %d boundary-conflicting candidates skipped).\n",
+		"Read %d canonical source entries; excluded %d R-R-marked translations; wrote %d augmentations to %s (%d ambiguous and %d boundary-conflicting candidates skipped).\n",
 		len(sources),
+		len(excludedTranslations),
 		len(augmentations),
 		outputPath,
 		ambiguousCount,
@@ -204,12 +206,29 @@ func loadSources(paths []string) (map[string]sourceEntry, int, error) {
 	return sources, invalidCount, nil
 }
 
-func generateCandidateClaims(sources map[string]sourceEntry) map[string]*candidateClaim {
+func rrMarkedTranslations(sources map[string]sourceEntry) map[string]struct{} {
+	rrStroke := bit(keyLeftR) | bit(keyRightR)
+	excluded := make(map[string]struct{})
+	for _, entry := range sources {
+		for strokeIndex := 1; strokeIndex < len(entry.outline); strokeIndex++ {
+			if entry.outline[strokeIndex] == rrStroke {
+				excluded[entry.value] = struct{}{}
+				break
+			}
+		}
+	}
+	return excluded
+}
+
+func generateCandidateClaims(sources map[string]sourceEntry, excludedTranslations map[string]struct{}) map[string]*candidateClaim {
 	claims := make(map[string]*candidateClaim)
 	keys := sortedKeys(sources)
 
 	for _, sourceKey := range keys {
 		entry := sources[sourceKey]
+		if _, excluded := excludedTranslations[entry.value]; excluded {
+			continue
+		}
 		states := map[string][]uint32{sourceKey: entry.outline}
 		queue := [][]uint32{entry.outline}
 		addCandidate := func(candidate []uint32) {
@@ -272,6 +291,13 @@ func generateCandidateClaims(sources map[string]sourceEntry) map[string]*candida
 				}
 			}
 
+			for boundary := 0; boundary+1 < len(outline); boundary++ {
+				candidate, ok := foldVowelCodaStroke(outline, boundary)
+				if ok {
+					addCandidate(candidate)
+				}
+			}
+
 			for strokeIndex := 1; strokeIndex+1 < len(outline); strokeIndex++ {
 				if outline[strokeIndex] != aouStroke() {
 					continue
@@ -301,6 +327,11 @@ func generateCandidateClaims(sources map[string]sourceEntry) map[string]*candida
 				addCandidate(candidate)
 			}
 
+			candidate, ok = omitLeadingVowelStroke(outline)
+			if ok {
+				addCandidate(candidate)
+			}
+
 			if len(outline) > 3 {
 				candidate := append([]uint32(nil), outline[:len(outline)-1]...)
 				addCandidate(candidate)
@@ -317,6 +348,13 @@ func aouStroke() uint32 {
 
 func vowelMask() uint32 {
 	return bit(keyA) | bit(keyO) | bit(keyE) | bit(keyU)
+}
+
+func omitLeadingVowelStroke(outline []uint32) ([]uint32, bool) {
+	if len(outline) < 2 || outline[0] == 0 || outline[0]&^vowelMask() != 0 {
+		return nil, false
+	}
+	return append([]uint32(nil), outline[1:]...), true
 }
 
 func leftHandMask() uint32 {
@@ -566,6 +604,29 @@ func rightHandMask() uint32 {
 		bit(keyRightS) |
 		bit(keyRightD) |
 		bit(keyRightZ)
+}
+
+func foldVowelCodaStroke(outline []uint32, boundary int) ([]uint32, bool) {
+	if boundary < 0 || boundary+1 >= len(outline) {
+		return nil, false
+	}
+
+	following := outline[boundary+1]
+	linker := following & leftHandMask()
+	vowels := following & vowelMask()
+	coda := following & rightHandMask()
+	kwrLinker := bit(keyLeftK) | bit(keyLeftW) | bit(keyLeftR)
+	if linker != 0 && linker != kwrLinker {
+		return nil, false
+	}
+	if vowels == 0 || coda == 0 || following != linker|vowels|coda {
+		return nil, false
+	}
+	if outline[boundary]&coda != 0 {
+		return nil, false
+	}
+
+	return outlineWithMergedBoundary(outline, boundary, outline[boundary]|coda), true
 }
 
 func mergeSuffixStroke(left, suffix uint32, forceDZForG bool) (uint32, bool) {
