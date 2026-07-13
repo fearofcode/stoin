@@ -2,6 +2,61 @@ package main
 
 import "testing"
 
+func TestFoldVowelCodaStrokeRequiresMatchingVowels(t *testing.T) {
+	tests := []struct {
+		name     string
+		outline  string
+		boundary int
+		want     string
+		ok       bool
+	}{
+		{
+			name:     "matching vowel bank",
+			outline:  "AEUR/AEUGZ",
+			boundary: 0,
+			want:     "AEURGZ",
+			ok:       true,
+		},
+		{
+			name:     "different vowel bank",
+			outline:  "TK/TPHAOEU/AEBL",
+			boundary: 1,
+			ok:       false,
+		},
+		{
+			name:     "subset is not enough",
+			outline:  "STAOE/AEGZ",
+			boundary: 0,
+			ok:       false,
+		},
+		{
+			name:     "star changes preceding vowel bank",
+			outline:  "AE*UR/AEUGZ",
+			boundary: 0,
+			ok:       false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			outline, parsed := parseOutline(test.outline)
+			if !parsed {
+				t.Fatalf("parseOutline(%q) failed", test.outline)
+			}
+			got, ok := foldVowelCodaStroke(outline, test.boundary)
+			if ok != test.ok {
+				t.Fatalf("foldVowelCodaStroke(%q, %d) ok = %v, want %v", test.outline, test.boundary, ok, test.ok)
+			}
+			if !ok {
+				return
+			}
+			if gotOutline := formatOutline(got); gotOutline != test.want {
+				t.Fatalf("foldVowelCodaStroke(%q, %d) = %q, want %q", test.outline, test.boundary, gotOutline, test.want)
+			}
+		})
+	}
+}
+
 func TestOmitSecondConsonantVowelStroke(t *testing.T) {
 	tests := []struct {
 		name    string

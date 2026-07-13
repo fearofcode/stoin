@@ -787,6 +787,10 @@ func foldVowelCodaStroke(outline []uint32, boundary int) ([]uint32, bool) {
 	if vowels == 0 || coda == 0 || following != linker|vowels|coda {
 		return nil, false
 	}
+	precedingVowels := outline[boundary] & (vowelMask() | bit(keyStar))
+	if precedingVowels != vowels {
+		return nil, false
+	}
 	if outline[boundary]&coda != 0 {
 		return nil, false
 	}
