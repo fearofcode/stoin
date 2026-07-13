@@ -240,7 +240,10 @@ func generateCandidateClaims(sources map[string]sourceEntry) map[string]*candida
 
 			for boundary := 0; boundary+1 < len(outline); boundary++ {
 				left := outline[boundary]
-				suffix := outline[boundary+1]
+				suffix, ok := foldableSuffixBits(outline[boundary+1])
+				if !ok {
+					continue
+				}
 				merged, ok := mergeSuffixStroke(left, suffix, false)
 				if !ok {
 					continue
@@ -275,6 +278,13 @@ func generateCandidateClaims(sources map[string]sourceEntry) map[string]*candida
 				candidate = append(candidate, outline[strokeIndex+1:]...)
 				addCandidate(candidate)
 			}
+
+			for strokeIndex := 1; strokeIndex+1 < len(outline); strokeIndex++ {
+				candidate, ok := redistributeVowellessLBridge(outline, strokeIndex)
+				if ok {
+					addCandidate(candidate)
+				}
+			}
 		}
 	}
 
@@ -285,6 +295,68 @@ func aouStroke() uint32 {
 	return bit(keyA) | bit(keyO) | bit(keyU)
 }
 
+func vowelMask() uint32 {
+	return bit(keyA) | bit(keyO) | bit(keyE) | bit(keyU)
+}
+
+func redistributeVowellessLBridge(outline []uint32, middleIndex int) ([]uint32, bool) {
+	if len(outline) < 3 || middleIndex <= 0 || middleIndex+1 >= len(outline) {
+		return nil, false
+	}
+
+	previous := outline[middleIndex-1]
+	middle := outline[middleIndex]
+	next := outline[middleIndex+1]
+	if previous&vowelMask() == 0 || next&vowelMask() == 0 || middle&vowelMask() != 0 {
+		return nil, false
+	}
+
+	leftToRight := []struct {
+		left  stenoKey
+		right stenoKey
+	}{
+		{keyLeftS, keyRightS},
+		{keyLeftT, keyRightT},
+		{keyLeftP, keyRightP},
+		{keyLeftR, keyRightR},
+	}
+	movableLeft := uint32(0)
+	for _, pair := range leftToRight {
+		movableLeft |= bit(pair.left)
+	}
+	allowedMiddle := movableLeft | bit(keyRightL)
+	if middle&bit(keyRightL) == 0 || middle&^allowedMiddle != 0 {
+		return nil, false
+	}
+	middleLeft := middle & movableLeft
+	if middleLeft == 0 {
+		return nil, false
+	}
+
+	redistributedPrevious := previous
+	for _, pair := range leftToRight {
+		if middleLeft&bit(pair.left) == 0 {
+			continue
+		}
+		if redistributedPrevious&bit(pair.right) != 0 {
+			return nil, false
+		}
+		redistributedPrevious |= bit(pair.right)
+	}
+
+	leftL := bit(keyLeftH) | bit(keyLeftR)
+	if next&leftL != 0 {
+		return nil, false
+	}
+	redistributedNext := next | leftL
+
+	candidate := make([]uint32, 0, len(outline)-1)
+	candidate = append(candidate, outline[:middleIndex-1]...)
+	candidate = append(candidate, redistributedPrevious, redistributedNext)
+	candidate = append(candidate, outline[middleIndex+2:]...)
+	return candidate, true
+}
+
 func outlineWithMergedBoundary(outline []uint32, boundary int, merged uint32) []uint32 {
 	candidate := make([]uint32, 0, len(outline)-1)
 	candidate = append(candidate, outline[:boundary]...)
@@ -293,15 +365,44 @@ func outlineWithMergedBoundary(outline []uint32, boundary int, merged uint32) []
 	return candidate
 }
 
-func mergeSuffixStroke(left, suffix uint32, forceDZForG bool) (uint32, bool) {
-	direct := bit(keyRightR) |
+func foldableSuffixBits(stroke uint32) (uint32, bool) {
+	plainSuffixes := bit(keyRightR) |
 		bit(keyRightL) |
+		bit(keyRightG) |
 		bit(keyRightT) |
 		bit(keyRightS) |
 		bit(keyRightD) |
 		bit(keyRightZ)
-	allowed := direct | bit(keyRightG)
-	if suffix == 0 || suffix & ^allowed != 0 {
+	if stroke != 0 && stroke & ^plainSuffixes == 0 {
+		return stroke, true
+	}
+
+	kwrLinker := bit(keyLeftK) | bit(keyLeftW) | bit(keyLeftR)
+	if stroke&kwrLinker != kwrLinker {
+		return 0, false
+	}
+	kwrSuffix := stroke &^ kwrLinker
+	if kwrSuffix == 0 || kwrSuffix & ^rightHandMask() != 0 {
+		return 0, false
+	}
+	return kwrSuffix, true
+}
+
+func rightHandMask() uint32 {
+	return bit(keyRightF) |
+		bit(keyRightR) |
+		bit(keyRightP) |
+		bit(keyRightB) |
+		bit(keyRightL) |
+		bit(keyRightG) |
+		bit(keyRightT) |
+		bit(keyRightS) |
+		bit(keyRightD) |
+		bit(keyRightZ)
+}
+
+func mergeSuffixStroke(left, suffix uint32, forceDZForG bool) (uint32, bool) {
+	if suffix == 0 || suffix & ^rightHandMask() != 0 {
 		return 0, false
 	}
 
