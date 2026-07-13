@@ -27,16 +27,21 @@ drop its linker vowels. This is a limited form of Lapwing's alternate syllable
 splitting rather than general split generation: for example,
 `KUL/TU/SRAEUT` becomes `KULT/SRAEUT`. The complete consonant must have a
 Lapwing left-to-right mapping and its destination keys must be free.
+A leading consonant-vowel stroke can similarly collapse into the following
+vowel stroke. Its vowels are omitted, its left-hand consonants are retained,
+and a complete right-hand coda moves to its Lapwing left-hand equivalent. The
+moved keys must remain in order and cannot overlap the following stroke. Thus
+both `TOR/EPBLGS` and `TU/REPBLGS` collapse to `TREPBLGS`.
 Trailing strokes may be dropped from outlines longer than three strokes. The
 closure repeats this until three strokes remain, matching Lapwing's conservative
 floor. Competing translations for the same shortened prefix make it ambiguous
 and therefore omit it.
 
-All compatible adjacent merges, linker folds, bridge redistributions, interior
-consonant-vowel folds, `AOU` omissions, and trailing-stroke drops are explored,
-including changes made possible by earlier variations. For example, both
-`STPHUG/-LG` and `STPHUG/-L/-G` can produce `STPHULGDZ`. Generated outlines use
-Stoin's canonical stroke spelling.
+All compatible adjacent merges, linker folds, bridge redistributions,
+consonant-vowel collapses, `AOU` omissions, and trailing-stroke drops are
+explored, including changes made possible by earlier variations. For example,
+both `STPHUG/-LG` and `STPHUG/-L/-G` can produce `STPHULGDZ`. Generated outlines
+use Stoin's canonical stroke spelling.
 
 Existing source outlines are never replaced. A generated outline is omitted if
 different source translations claim it, or if it fails the word-boundary

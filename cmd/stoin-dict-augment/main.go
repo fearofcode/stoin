@@ -296,6 +296,11 @@ func generateCandidateClaims(sources map[string]sourceEntry) map[string]*candida
 				}
 			}
 
+			candidate, ok := collapseLeadingConsonantVowelStroke(outline)
+			if ok {
+				addCandidate(candidate)
+			}
+
 			if len(outline) > 3 {
 				candidate := append([]uint32(nil), outline[:len(outline)-1]...)
 				addCandidate(candidate)
@@ -381,6 +386,84 @@ func rightHandConsonantFold(consonants uint32) (uint32, bool) {
 		}
 	}
 	return 0, false
+}
+
+func collapseLeadingConsonantVowelStroke(outline []uint32) ([]uint32, bool) {
+	if len(outline) < 2 || outline[1]&vowelMask() == 0 {
+		return nil, false
+	}
+
+	leading := outline[0]
+	leadingLeft := leading & leftHandMask()
+	leadingVowels := leading & vowelMask()
+	leadingRight := leading & rightHandMask()
+	if leadingVowels == 0 || leading != leadingLeft|leadingVowels|leadingRight {
+		return nil, false
+	}
+
+	foldedRight, ok := leftHandConsonantFold(leadingRight)
+	if !ok || !leftKeysPrecede(leadingLeft, foldedRight) {
+		return nil, false
+	}
+	movedLeft := leadingLeft | foldedRight
+	if movedLeft == 0 {
+		return nil, false
+	}
+	nextLeft := outline[1] & leftHandMask()
+	if !leftKeysPrecede(movedLeft, nextLeft) {
+		return nil, false
+	}
+
+	candidate := make([]uint32, 0, len(outline)-1)
+	candidate = append(candidate, outline[1]|movedLeft)
+	candidate = append(candidate, outline[2:]...)
+	return candidate, true
+}
+
+func leftHandConsonantFold(consonants uint32) (uint32, bool) {
+	// Prefer the same unambiguous complete-chord moves as Lapwing when a
+	// right-hand consonant coda becomes the beginning of the following stroke.
+	folds := []struct {
+		right uint32
+		left  uint32
+	}{
+		{0, 0},
+		{bit(keyRightS), bit(keyLeftS)},
+		{bit(keyRightT), bit(keyLeftT)},
+		{bit(keyRightP), bit(keyLeftP)},
+		{bit(keyRightR), bit(keyLeftR)},
+		{bit(keyRightB), bit(keyLeftP) | bit(keyLeftW)},
+		{bit(keyRightD), bit(keyLeftT) | bit(keyLeftK)},
+		{bit(keyRightF), bit(keyLeftT) | bit(keyLeftP)},
+		{bit(keyRightP) | bit(keyRightB) | bit(keyRightL) | bit(keyRightG), bit(keyLeftS) | bit(keyLeftK) | bit(keyLeftW) | bit(keyLeftR)},
+		{bit(keyRightB) | bit(keyRightG), bit(keyLeftK)},
+		{bit(keyRightL), bit(keyLeftH) | bit(keyLeftR)},
+		{bit(keyRightP) | bit(keyRightL), bit(keyLeftP) | bit(keyLeftH)},
+		{bit(keyRightP) | bit(keyRightB), bit(keyLeftT) | bit(keyLeftP) | bit(keyLeftH)},
+		{bit(keyRightF) | bit(keyRightP), bit(keyLeftK) | bit(keyLeftH)},
+		{bit(keyRightR) | bit(keyRightB), bit(keyLeftS) | bit(keyLeftH)},
+		{bit(keyRightZ), bit(keyLeftS) | bit(keyLeftT) | bit(keyLeftK) | bit(keyLeftP) | bit(keyLeftW)},
+	}
+	for _, fold := range folds {
+		if consonants == fold.right {
+			return fold.left, true
+		}
+	}
+	return 0, false
+}
+
+func leftKeysPrecede(prefix, suffix uint32) bool {
+	for prefixKey := keyLeftS; prefixKey <= keyLeftR; prefixKey++ {
+		if prefix&bit(prefixKey) == 0 {
+			continue
+		}
+		for suffixKey := keyLeftS; suffixKey <= prefixKey; suffixKey++ {
+			if suffix&bit(suffixKey) != 0 {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func redistributeVowellessLBridge(outline []uint32, middleIndex int) ([]uint32, bool) {
