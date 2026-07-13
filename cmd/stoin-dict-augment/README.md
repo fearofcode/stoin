@@ -1,0 +1,27 @@
+# stoin-dict-augment
+
+`stoin-dict-augment` creates a small augmentation dictionary containing safe,
+shorter variants of outlines in one or more source dictionaries. The output
+contains additions only, so it can be loaded after the source dictionaries.
+
+The tool merges right-hand suffix strokes made from `R`, `L`, `G`, `T`, `S`,
+`D`, and `Z` into the preceding stroke whenever none of the required keys are
+already occupied. A suffix `G` is added directly when possible. If `G` is
+already occupied, `DZ` is used for the `-ing` suffix when both keys are free.
+An internal `AOU` stroke may also be omitted, for example
+`ABG/AOU/PH-PB` becomes `ABG/PH-PB`.
+
+All compatible adjacent merges and `AOU` omissions are explored, including
+changes made possible by earlier variations. For example, both `STPHUG/-LG`
+and `STPHUG/-L/-G` can produce `STPHULGDZ`. Generated outlines use Stoin's
+canonical stroke spelling.
+
+Existing source outlines are never replaced. A generated outline is omitted if
+different source translations claim it, or if it fails the word-boundary
+conflict check adapted from `lapwing_augmentor`.
+
+```sh
+go run ./cmd/stoin-dict-augment \
+  -output /path/to/augmentations.json \
+  /path/to/source.json [/path/to/another-source.json ...]
+```
