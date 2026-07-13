@@ -105,6 +105,9 @@ int main(void)
     uint64_t defer_bits = 0;
     uint64_t deferred_bits = 0;
     uint64_t failing_bits = 0;
+    uint64_t stacking_bits = 0;
+    uint64_t dz_prefix_conflict_bits = 0;
+    uint64_t dz_d_prefix_bits = 0;
     uint64_t nonfinal_d_suffix_bits = 0;
     uint64_t nonfinal_s_suffix_bits = 0;
     uint64_t nonfinal_g_suffix_bits = 0;
@@ -172,6 +175,9 @@ int main(void)
     ok = ok && stroke_string_to_bits("TKEFR", &defer_bits);
     ok = ok && stroke_string_to_bits("TKEFRD", &deferred_bits);
     ok = ok && stroke_string_to_bits("TPAEULG", &failing_bits);
+    ok = ok && stroke_string_to_bits("STABGDZ", &stacking_bits);
+    ok = ok && stroke_string_to_bits("TPADZ", &dz_prefix_conflict_bits);
+    ok = ok && stroke_string_to_bits("KWADZ", &dz_d_prefix_bits);
     ok = ok && stroke_string_to_bits("WADZ", &nonfinal_d_suffix_bits);
     ok = ok && stroke_string_to_bits("KASD", &nonfinal_s_suffix_bits);
     ok = ok && stroke_string_to_bits("KAURBGS", &nonfinal_g_suffix_bits);
@@ -1195,6 +1201,30 @@ int main(void)
         reset_output_log(&output);
         ok = ok && steno_handle_stroke_bits(suffix_key_steno, failing_bits);
         ok = ok && expect_string("suffix key g", output.text, "failing");
+
+        ok = ok && reset_test_steno(&suffix_key_steno, &config);
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(suffix_key_steno, stacking_bits);
+        ok = ok && expect_string("suffix key dz uses ing", output.text, "stacking");
+
+        ok = ok && reset_test_steno(&suffix_key_steno, &config);
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(suffix_key_steno, dz_prefix_conflict_bits);
+        ok = ok && expect_string(
+            "suffix key dz does not steal existing prefix z",
+            output.text,
+            "TPADZ");
+
+        ok = ok && reset_test_steno(&suffix_key_steno, &config);
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(suffix_key_steno, dz_d_prefix_bits);
+        ok = ok && expect_string(
+            "suffix key dz does not steal existing prefix d",
+            output.text,
+            "quads");
 
         ok = ok && reset_test_steno(&suffix_key_steno, &config);
         clear_test_output(&output);

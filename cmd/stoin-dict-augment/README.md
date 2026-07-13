@@ -8,6 +8,9 @@ The tool merges right-hand suffix strokes made from `R`, `L`, `G`, `T`, `S`,
 `D`, and `Z` into the preceding stroke whenever none of the required keys are
 already occupied. A suffix `G` is added directly when possible. If `G` is
 already occupied, `DZ` is used for the `-ing` suffix when both keys are free.
+`DZ` is also tried when the ordinary `G` fold is already assigned to a
+different source translation, as in `STAB/-G` becoming `STABDZ` because
+`STABG` means "stack".
 An internal `AOU` stroke may also be omitted, for example
 `ABG/AOU/PH-PB` becomes `ABG/PH-PB`.
 

@@ -173,6 +173,73 @@ static uint64_t bits_after_steno_key(Steno_Key key)
     return bits;
 }
 
+static bool try_suffix_bits_translation_match(
+    const Dictionary *dictionary,
+    const uint64_t *candidate,
+    size_t candidate_count,
+    size_t replaced_count,
+    uint64_t suffix_bits,
+    uint64_t translation_bits,
+    Translation_Match *out_match,
+    bool *out_found
+)
+{
+    *out_found = false;
+
+    uint64_t base_candidate[TRANSLATION_MATCH_MAX_STROKES] = {0};
+    memcpy(base_candidate, candidate, candidate_count * sizeof(candidate[0]));
+    base_candidate[candidate_count - 1] &= ~suffix_bits;
+    if (base_candidate[candidate_count - 1] == 0) {
+        return true;
+    }
+
+    const char *base_translation = dictionary_lookup_strokes(
+        dictionary,
+        base_candidate,
+        candidate_count
+    );
+    if (base_translation == NULL || base_translation[0] == '=') {
+        return true;
+    }
+
+    const char *suffix_translation = dictionary_lookup_bits(dictionary, translation_bits);
+    if (suffix_translation == NULL || suffix_translation[0] == '=') {
+        return true;
+    }
+
+    if (!set_suffix_translation_match(
+            out_match,
+            base_translation,
+            suffix_translation,
+            candidate,
+            candidate_count,
+            replaced_count)) {
+        return false;
+    }
+    *out_found = true;
+    return true;
+}
+
+static bool dictionary_matches_with_only_one_dz_bit_removed(
+    const Dictionary *dictionary,
+    const uint64_t *candidate,
+    size_t candidate_count,
+    uint64_t d_bit,
+    uint64_t z_bit
+)
+{
+    const uint64_t bits_to_remove[] = { d_bit, z_bit };
+    for (size_t i = 0; i < sizeof(bits_to_remove) / sizeof(bits_to_remove[0]); ++i) {
+        uint64_t possible_prefix[TRANSLATION_MATCH_MAX_STROKES] = {0};
+        memcpy(possible_prefix, candidate, candidate_count * sizeof(candidate[0]));
+        possible_prefix[candidate_count - 1] &= ~bits_to_remove[i];
+        if (dictionary_lookup_strokes(dictionary, possible_prefix, candidate_count) != NULL) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static bool try_suffix_translation_match(
     const Dictionary *dictionary,
     const uint64_t *candidate,
@@ -208,37 +275,53 @@ static bool try_suffix_translation_match(
             continue;
         }
 
-        uint64_t base_candidate[TRANSLATION_MATCH_MAX_STROKES] = {0};
-        memcpy(base_candidate, candidate, candidate_count * sizeof(candidate[0]));
-        base_candidate[candidate_count - 1] &= ~suffix_bit;
-        if (base_candidate[candidate_count - 1] == 0) {
-            continue;
-        }
-
-        const char *base_translation = dictionary_lookup_strokes(dictionary, base_candidate, candidate_count);
-        if (base_translation == NULL || base_translation[0] == '=') {
-            continue;
-        }
-
-        const char *suffix_translation = dictionary_lookup_bits(dictionary, suffix_bit);
-        if (suffix_translation == NULL || suffix_translation[0] == '=') {
-            continue;
-        }
-
-        if (!set_suffix_translation_match(
-                out_match,
-                base_translation,
-                suffix_translation,
+        bool suffix_found = false;
+        if (!try_suffix_bits_translation_match(
+                dictionary,
                 candidate,
                 candidate_count,
-                replaced_count)) {
+                replaced_count,
+                suffix_bit,
+                suffix_bit,
+                out_match,
+                &suffix_found)) {
             return false;
         }
-        *out_found = true;
+        if (suffix_found) {
+            *out_found = true;
+            return true;
+        }
+    }
+
+    const uint64_t d_bit = steno_bit(STENO_RIGHT_D);
+    const uint64_t z_bit = steno_bit(STENO_RIGHT_Z);
+    const uint64_t dz_bits = d_bit | z_bit;
+    if ((last_stroke & dz_bits) != dz_bits) {
         return true;
     }
 
-    return true;
+    // DZ is an alternate -ing chord only when both keys are newly available
+    // on the matching prefix stroke. Prefer a dictionary prefix that retains
+    // either D or Z rather than stealing one of its keys for this suffix.
+    if (dictionary_matches_with_only_one_dz_bit_removed(
+            dictionary,
+            candidate,
+            candidate_count,
+            d_bit,
+            z_bit)) {
+        return true;
+    }
+
+    return try_suffix_bits_translation_match(
+        dictionary,
+        candidate,
+        candidate_count,
+        replaced_count,
+        dz_bits,
+        steno_bit(STENO_RIGHT_G),
+        out_match,
+        out_found
+    );
 }
 
 static bool try_candidate_translation_match(

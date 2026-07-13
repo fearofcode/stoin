@@ -239,16 +239,31 @@ func generateCandidateClaims(sources map[string]sourceEntry) map[string]*candida
 			queue = queue[1:]
 
 			for boundary := 0; boundary+1 < len(outline); boundary++ {
-				merged, ok := mergeSuffixStroke(outline[boundary], outline[boundary+1])
+				left := outline[boundary]
+				suffix := outline[boundary+1]
+				merged, ok := mergeSuffixStroke(left, suffix, false)
 				if !ok {
 					continue
 				}
 
-				candidate := make([]uint32, 0, len(outline)-1)
-				candidate = append(candidate, outline[:boundary]...)
-				candidate = append(candidate, merged)
-				candidate = append(candidate, outline[boundary+2:]...)
+				candidate := outlineWithMergedBoundary(outline, boundary, merged)
 				addCandidate(candidate)
+
+				// Prefer an ordinary G fold when the key is free. If that exact
+				// outline is already assigned to a different source translation,
+				// try the DZ -ing chord as a collision fallback too.
+				if suffix&bit(keyRightG) == 0 || left&bit(keyRightG) != 0 {
+					continue
+				}
+				directKey := formatOutline(candidate)
+				directSource, occupied := sources[directKey]
+				if !occupied || directSource.value == entry.value {
+					continue
+				}
+				fallback, ok := mergeSuffixStroke(left, suffix, true)
+				if ok {
+					addCandidate(outlineWithMergedBoundary(outline, boundary, fallback))
+				}
 			}
 
 			for strokeIndex := 1; strokeIndex+1 < len(outline); strokeIndex++ {
@@ -270,7 +285,15 @@ func aouStroke() uint32 {
 	return bit(keyA) | bit(keyO) | bit(keyU)
 }
 
-func mergeSuffixStroke(left, suffix uint32) (uint32, bool) {
+func outlineWithMergedBoundary(outline []uint32, boundary int, merged uint32) []uint32 {
+	candidate := make([]uint32, 0, len(outline)-1)
+	candidate = append(candidate, outline[:boundary]...)
+	candidate = append(candidate, merged)
+	candidate = append(candidate, outline[boundary+2:]...)
+	return candidate
+}
+
+func mergeSuffixStroke(left, suffix uint32, forceDZForG bool) (uint32, bool) {
 	direct := bit(keyRightR) |
 		bit(keyRightL) |
 		bit(keyRightT) |
@@ -289,7 +312,7 @@ func mergeSuffixStroke(left, suffix uint32) (uint32, bool) {
 	merged := left | nonG
 
 	if suffix&bit(keyRightG) != 0 {
-		if merged&bit(keyRightG) == 0 {
+		if merged&bit(keyRightG) == 0 && !forceDZForG {
 			merged |= bit(keyRightG)
 		} else {
 			ingReplacement := bit(keyRightD) | bit(keyRightZ)
