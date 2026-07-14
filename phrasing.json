@@ -7,6 +7,11 @@
         "text": "a"
       },
       {
+        "id": "an",
+        "stroke": "-PB",
+        "text": "an"
+      },
+      {
         "id": "the",
         "stroke": "-T",
         "text": "the"
@@ -529,6 +534,7 @@
         "stroke": "TK",
         "tails": [
           "a",
+          "an",
           "the",
           "it",
           "us",
@@ -574,6 +580,7 @@
         "stroke": "TKPW",
         "tails": [
           "a",
+          "an",
           "the",
           "at",
           "it",
@@ -618,6 +625,7 @@
         "stroke": "W",
         "tails": [
           "a",
+          "an",
           "the",
           "it",
           "us",
@@ -663,6 +671,7 @@
         "stroke": "SK",
         "tails": [
           "a",
+          "an",
           "the",
           "at",
           "it",
@@ -710,6 +719,7 @@
         "stroke": "SP",
         "tails": [
           "a",
+          "an",
           "the",
           "at",
           "that"
@@ -749,6 +759,7 @@
         "stroke": "SW",
         "tails": [
           "a",
+          "an",
           "the",
           "at",
           "it",
@@ -795,6 +806,7 @@
         "stroke": "K",
         "tails": [
           "a",
+          "an",
           "the",
           "at",
           "her",
@@ -839,6 +851,7 @@
         "stroke": "TPH",
         "tails": [
           "a",
+          "an",
           "the",
           "at",
           "it",
@@ -886,6 +899,7 @@
         "stroke": "TKPWH",
         "tails": [
           "a",
+          "an",
           "the",
           "at",
           "it",
@@ -932,6 +946,7 @@
         "stroke": "PWHR",
         "tails": [
           "a",
+          "an",
           "the",
           "it",
           "us",
@@ -977,6 +992,7 @@
         "stroke": "KW",
         "tails": [
           "a",
+          "an",
           "the",
           "it",
           "us",
@@ -1023,6 +1039,7 @@
         "stroke": "R",
         "tails": [
           "a",
+          "an",
           "the",
           "at",
           "it",
@@ -1069,6 +1086,7 @@
         "stroke": "KPL",
         "tails": [
           "a",
+          "an",
           "us",
           "her",
           "his",
@@ -1110,6 +1128,7 @@
         "stroke": "PH",
         "tails": [
           "a",
+          "an",
           "the",
           "it",
           "us",
@@ -1155,6 +1174,7 @@
         "stroke": "TP",
         "tails": [
           "a",
+          "an",
           "the",
           "it",
           "us",
@@ -1200,6 +1220,7 @@
         "stroke": "STP",
         "tails": [
           "a",
+          "an",
           "the",
           "it",
           "us",
@@ -1246,6 +1267,7 @@
         "stroke": "STW",
         "tails": [
           "a",
+          "an",
           "the",
           "it",
           "us",
@@ -1291,6 +1313,7 @@
         "stroke": "WR",
         "tails": [
           "a",
+          "an",
           "the",
           "at",
           "it",
@@ -1337,6 +1360,7 @@
         "stroke": "SKP",
         "tails": [
           "a",
+          "an",
           "the",
           "it",
           "us",
@@ -1382,6 +1406,7 @@
         "stroke": "SKW",
         "tails": [
           "a",
+          "an",
           "the",
           "it",
           "us",
@@ -1427,6 +1452,7 @@
         "stroke": "SKH",
         "tails": [
           "a",
+          "an",
           "the",
           "it",
           "us",
@@ -1472,6 +1498,7 @@
         "stroke": "TR",
         "tails": [
           "a",
+          "an",
           "the",
           "it",
           "us",
@@ -1517,6 +1544,7 @@
         "stroke": "TKP",
         "tails": [
           "a",
+          "an",
           "the",
           "at",
           "it",

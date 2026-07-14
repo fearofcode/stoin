@@ -1269,6 +1269,9 @@ func TestStaticPhrasingTrainerScript(t *testing.T) {
 		!strings.Contains(body, "d_contraction") ||
 		!strings.Contains(body, "fvDoNegativeContraction") ||
 		!strings.Contains(body, "stemAllowsTail") ||
+		!strings.Contains(body, "initialFormLabel") ||
+		!strings.Contains(body, "third-person present") ||
+		!strings.Contains(body, "could *") ||
 		!strings.Contains(body, "starterAllowsEnder") ||
 		!strings.Contains(body, "starter.label") ||
 		!strings.Contains(body, "initialVerbStrokeBits") ||
@@ -1283,6 +1286,10 @@ func TestStaticPhrasingTrainerScript(t *testing.T) {
 		!strings.Contains(body, "repeatedPromptBlocks") ||
 		!strings.Contains(body, "normalizedPromptPhrase") {
 		t.Fatalf("expected trainer script contents, got %q", rec.Body.String())
+	}
+	if strings.Contains(body, "uniqueStrings(entry.texts).join(' / ')") ||
+		strings.Contains(body, "examples.join(' / ')") {
+		t.Fatalf("expected compact IV labels instead of combined verb lists, got %q", body)
 	}
 	if strings.Contains(body, "nonverbs") {
 		t.Fatalf("expected trainer script to omit removed nonverb phrasing, got %q", body)
@@ -1336,6 +1343,8 @@ func TestPhrasingDataRoute(t *testing.T) {
 	for _, want := range []string{
 		`"initial_verbs"`,
 		`"final_verbs"`,
+		`"id": "an"`,
+		`"text": "an"`,
 		`"KHR"`,
 		`"TKPWH"`,
 		`"SKWHR"`,

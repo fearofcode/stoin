@@ -354,14 +354,33 @@ function initialFormOptions() {
 		});
 	});
 	return Array.from(byStroke.values()).map(function(entry) {
-		entry.label = uniqueStrings(entry.texts).join(' / ');
+		entry.texts = uniqueStrings(entry.texts);
+		entry.label = initialFormLabel(entry.stroke);
 		return entry;
 	});
 }
 
+function initialFormLabel(stroke) {
+	switch (stroke) {
+	case '': return 'third-person present';
+	case '-D': return 'past tense';
+	case 'E': return 'base / non-third present';
+	case 'E-D': return 'plural past tense';
+	case '-G': return 'present participle';
+	case 'U': return 'to *';
+	case 'EU': return 'bare infinitive';
+	case 'A': return 'can *';
+	case 'A-D': return 'could *';
+	default: return displayStroke(stroke);
+	}
+}
+
 function initialStemLabel(stem) {
-	const examples = uniqueStrings((stem.forms || []).map(function(form) { return form.text; }));
-	return examples.length ? examples.join(' / ') : stem.stroke;
+	const forms = stem.forms || [];
+	for (let i = 0; i < forms.length; i++) {
+		if (forms[i].stroke === 'U') return forms[i].text;
+	}
+	return forms.length ? forms[0].text : stem.stroke;
 }
 
 function initialSections() {
@@ -373,11 +392,13 @@ function initialSections() {
 		{
 			title: 'IV stems',
 			options: stems.map(function(stem) {
+				const label = initialStemLabel(stem);
+				const formTexts = (stem.forms || []).map(function(form) { return form.text; });
 				return sectionOption(
 					bankKey(family, 'stems', stem.stroke),
-					initialStemLabel(stem),
+					label,
 					stem.stroke,
-					['initial verbs', stem.stroke, initialStemLabel(stem)],
+					['initial verbs', stem.stroke, label].concat(formTexts),
 					defaultFamilyChecked(family)
 				);
 			}),
@@ -389,7 +410,7 @@ function initialSections() {
 					bankKey(family, 'forms', form.stroke),
 					form.label,
 					displayStroke(form.stroke),
-					['initial verbs', form.stroke, form.label],
+					['initial verbs', form.stroke, form.label].concat(form.texts),
 					defaultFamilyChecked(family)
 				);
 			}),

@@ -21,7 +21,7 @@ Three planned strokes required collision-safe adjustments:
 | --- | --- | --- |
 | to ask, FV | `RB` | `RBS`; `RB` remains `catch` |
 | to run, IV | `KH` | `R`; `KH` remains `catch` |
-| to make, IV | `KPL` | `KPL` with only collision-free tails (`a`, `us`, `her`, `his`, `of`, `that`) |
+| to make, IV | `KPL` | `KPL` with only collision-free tails (`a`, `an`, `us`, `her`, `his`, `of`, `that`) |
 
 `To call` remains unchanged: its IV stem is implemented as `KHR`, while its FV
 ender is still deferred.

@@ -158,6 +158,7 @@ may use the full right hand because FV progressive uses `E` instead of `-G`.
 | Present Tail | Past Tail | Object |
 | --- | --- | --- |
 | `B` | `BD` | a |
+| `PB` | `PBD` | an |
 | `T` | `TD` | the |
 | `LT` | `LTD` | at |
 | `P` | `PD` | it |
