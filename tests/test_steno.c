@@ -231,6 +231,18 @@ int main(void)
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
     reset_output_log(&output);
+    ok = ok && handle_phrase_test_stroke(steno, "PW-B", STENO_PHRASE_MODE_NONVERBS);
+    ok = ok && expect_string("nonverb pedal selects overlapping nonverb phrase", output.text, "near a");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    reset_output_log(&output);
+    ok = ok && handle_phrase_test_stroke(steno, "PW-B", STENO_PHRASE_MODE_ALL);
+    ok = ok && expect_string("combined phrase mode keeps verb precedence", output.text, "is a");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    reset_output_log(&output);
     ok = ok && handle_phrase_test_stroke(steno, "PW-B", STENO_PHRASE_MODE_VERBS);
     ok = ok && expect_string("initial verb is a", output.text, "is a");
     ok = ok && handle_phrase_test_stroke(steno, "PW-T", STENO_PHRASE_MODE_VERBS);
@@ -317,6 +329,34 @@ int main(void)
             initial_verb_cases[i].stroke,
             STENO_PHRASE_MODE_VERBS,
             initial_verb_cases[i].expected);
+    }
+
+    const struct {
+        const char *stroke;
+        const char *expected;
+    } nonverb_cases[] = {
+        { "W-B", "with a" },
+        { "W-PB", "with an" },
+        { "W-S", "with us" },
+        { "TKPWH*-RT", "anything that" },
+        { "TKPWH*-BL", "anything like" },
+        { "TKPWH*-LS", "anything else" },
+        { "S*-PB", "as an" },
+        { "S*-F", "as if" },
+        { "S*-GT", "as though" },
+        { "SRAO*E-S", "even us" },
+        { "SRAO*E-RT", "even that" },
+        { "SRAO*E-GT", "even though" },
+    };
+    for (size_t i = 0; i < sizeof(nonverb_cases) / sizeof(nonverb_cases[0]); ++i) {
+        ok = ok && expect_phrase_stroke_output(
+            &steno,
+            &config,
+            &output,
+            "nonverb set 1",
+            nonverb_cases[i].stroke,
+            STENO_PHRASE_MODE_NONVERBS,
+            nonverb_cases[i].expected);
     }
 
     ok = ok && reset_test_steno(&steno, &config);
@@ -429,7 +469,7 @@ int main(void)
         { "PWHR", { "believes", "believed", "believe", "believing", "to believe", "can believe", "could believe" } },
         { "KW", { "becomes", "became", "become", "becoming", "to become", "can become", "could become" } },
         { "R", { "runs", "ran", "run", "running", "to run", "can run", "could run" } },
-        { "KPL", { "makes", "made", "make", "making", "to make", "can make", "could make" } },
+        { "KPHR", { "makes", "made", "make", "making", "to make", "can make", "could make" } },
         { "PH", { "takes", "took", "take", "taking", "to take", "can take", "could take" } },
         { "TP", { "finds", "found", "find", "finding", "to find", "can find", "could find" } },
         { "STP", { "gives", "gave", "give", "giving", "to give", "can give", "could give" } },
@@ -627,10 +667,15 @@ int main(void)
         { "TKA-P", "can do it" },
         { "TKA-PD", "could do it" },
         { "TKPW-LTD", "went at" },
+        { "W-B", "wants a" },
         { "W-PG", "wanting it" },
         { "SKU-PLT", "to ask me" },
         { "SP-LTD", "happened at" },
         { "SW-RT", "feels that" },
+        { "SW-BL", "feels like" },
+        { "SWE-BL", "feel like" },
+        { "SW-BLD", "felt like" },
+        { "SW-BLG", "feeling like" },
         { "KE-LT", "come at" },
         { "TPHA-RT", "can know that" },
         { "TKPWH-PG", "getting it" },
@@ -648,8 +693,10 @@ int main(void)
         { "TKP-RT", "expects that" },
         { "KH-P", "catches it" },
         { "R-P", "runs it" },
-        { "KPL-RTD", "made that" },
-        { "KPL-P", "keeps my" },
+        { "KPHR-RTD", "made that" },
+        { "KPHR-BL", "makes like" },
+        { "KP-BL", "keeps like" },
+        { "KP-PL", "keeps my" },
         { "SP-PLT", "SP-PLT" },
         { "K-S", "K-S" },
         { "KW-LT", "KWLT" },
@@ -723,6 +770,47 @@ int main(void)
             STENO_PHRASE_MODE_VERBS,
             verb_follow_on_cases[i].expected);
     }
+
+    ok = ok && expect_phrase_stroke_output(
+        &steno,
+        &follow_on_config,
+        &output,
+        "production nonverb pedal disambiguates with",
+        "W-B",
+        STENO_PHRASE_MODE_NONVERBS,
+        "with a");
+    ok = ok && expect_phrase_stroke_output(
+        &steno,
+        &follow_on_config,
+        &output,
+        "production nonverb an tail",
+        "W-PB",
+        STENO_PHRASE_MODE_NONVERBS,
+        "with an");
+    ok = ok && expect_phrase_stroke_output(
+        &steno,
+        &follow_on_config,
+        &output,
+        "production nonverb like tail",
+        "TKPWH*-BL",
+        STENO_PHRASE_MODE_NONVERBS,
+        "anything like");
+    ok = ok && expect_phrase_stroke_output(
+        &steno,
+        &follow_on_config,
+        &output,
+        "production nonverb universal an tail",
+        "THA-PB",
+        STENO_PHRASE_MODE_NONVERBS,
+        "that an");
+    ok = ok && expect_phrase_stroke_output(
+        &steno,
+        &follow_on_config,
+        &output,
+        "production nonverb as an",
+        "S*-PB",
+        STENO_PHRASE_MODE_NONVERBS,
+        "as an");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);

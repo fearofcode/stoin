@@ -96,10 +96,11 @@ bool test_phrasing_tail_filters(void)
     const char *tails =
         "{\"id\":\"a\",\"stroke\":\"-B\",\"text\":\"a\"},"
         "{\"id\":\"an\",\"stroke\":\"-PB\",\"text\":\"an\"},"
+        "{\"id\":\"like\",\"stroke\":\"-BL\",\"text\":\"like\"},"
         "{\"id\":\"the\",\"stroke\":\"-T\",\"text\":\"the\"},"
         "{\"id\":\"us\",\"stroke\":\"-S\",\"text\":\"us\"}";
     const char *stems =
-        "{\"stroke\":\"PW\",\"tails\":[\"a\",\"an\",\"us\"],"
+        "{\"stroke\":\"PW\",\"tails\":[\"a\",\"an\",\"like\",\"us\"],"
             "\"forms\":[{\"stroke\":\"\",\"text\":\"is\"}]},"
         "{\"stroke\":\"H\","
             "\"forms\":[{\"stroke\":\"\",\"text\":\"has\"}]},"
@@ -112,6 +113,7 @@ bool test_phrasing_tail_filters(void)
     if (phrasing != NULL) {
         ok = expect_phrase_lookup(phrasing, "IV allowlist permits first tail", "PW-B", "is a") && ok;
         ok = expect_phrase_lookup(phrasing, "IV allowlist permits multi-key tail", "PW-PB", "is an") && ok;
+        ok = expect_phrase_lookup(phrasing, "IV allowlist permits like tail", "PW-BL", "is like") && ok;
         ok = expect_phrase_lookup(phrasing, "IV allowlist permits later tail", "PW-S", "is us") && ok;
         ok = expect_phrase_lookup(phrasing, "IV allowlist rejects omitted tail", "PW-T", NULL) && ok;
         ok = expect_phrase_lookup(phrasing, "absent IV allowlist permits every tail", "H-T", "has the") && ok;

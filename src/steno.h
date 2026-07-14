@@ -27,6 +27,7 @@ typedef enum Steno_Phrase_Mode {
     STENO_PHRASE_MODE_NONE,
     STENO_PHRASE_MODE_ALL,
     STENO_PHRASE_MODE_VERBS,
+    STENO_PHRASE_MODE_NONVERBS,
 } Steno_Phrase_Mode;
 
 typedef struct Stroke_Input {

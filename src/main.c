@@ -43,6 +43,11 @@ typedef struct App {
     Platform_Atomic_Bool *phrase_stroke_latched;
     uint16_t phrase_toggle_keycode;
     const char *phrase_toggle_name;
+    bool nonverb_phrase_toggle_enabled;
+    Platform_Atomic_Bool *nonverb_phrase_toggle_down;
+    Platform_Atomic_Bool *nonverb_phrase_stroke_latched;
+    uint16_t nonverb_phrase_toggle_keycode;
+    const char *nonverb_phrase_toggle_name;
     bool modal_dictionary_toggle_enabled;
     Platform_Atomic_Bool *modal_dictionary_toggle_down;
     Platform_Atomic_Bool *modal_dictionary_stroke_latched;
@@ -171,7 +176,8 @@ static bool app_session_active_callback(void *userdata)
 
 static bool app_phrase_namespace_enabled(const App *app)
 {
-    return app != NULL && app->phrase_toggle_enabled;
+    return app != NULL
+        && (app->phrase_toggle_enabled || app->nonverb_phrase_toggle_enabled);
 }
 
 static bool app_toggle_active(
@@ -187,6 +193,26 @@ static bool app_toggle_active(
     return is_down || was_latched;
 }
 
+static Steno_Phrase_Mode app_phrase_mode_from_active(
+    const App *app,
+    bool phrase_active,
+    bool nonverb_active
+)
+{
+    if (phrase_active && nonverb_active) {
+        return STENO_PHRASE_MODE_ALL;
+    }
+    if (phrase_active) {
+        return app != NULL && app->nonverb_phrase_toggle_enabled
+            ? STENO_PHRASE_MODE_VERBS
+            : STENO_PHRASE_MODE_ALL;
+    }
+    if (nonverb_active) {
+        return STENO_PHRASE_MODE_NONVERBS;
+    }
+    return STENO_PHRASE_MODE_NONE;
+}
+
 static Steno_Phrase_Mode app_current_phrase_mode(App *app, bool consume_latches)
 {
     if (app == NULL) {
@@ -195,7 +221,13 @@ static Steno_Phrase_Mode app_current_phrase_mode(App *app, bool consume_latches)
 
     const bool phrase_active = app->phrase_toggle_enabled
         && app_toggle_active(app->phrase_toggle_down, app->phrase_stroke_latched, consume_latches);
-    return phrase_active ? STENO_PHRASE_MODE_ALL : STENO_PHRASE_MODE_NONE;
+    const bool nonverb_active = app->nonverb_phrase_toggle_enabled
+        && app_toggle_active(
+            app->nonverb_phrase_toggle_down,
+            app->nonverb_phrase_stroke_latched,
+            consume_latches
+        );
+    return app_phrase_mode_from_active(app, phrase_active, nonverb_active);
 }
 
 static Steno_Phrase_Mode app_current_phrase_down_mode(const App *app)
@@ -206,7 +238,9 @@ static Steno_Phrase_Mode app_current_phrase_down_mode(const App *app)
 
     const bool phrase_active = app->phrase_toggle_enabled
         && platform_atomic_bool_load(app->phrase_toggle_down);
-    return phrase_active ? STENO_PHRASE_MODE_ALL : STENO_PHRASE_MODE_NONE;
+    const bool nonverb_active = app->nonverb_phrase_toggle_enabled
+        && platform_atomic_bool_load(app->nonverb_phrase_toggle_down);
+    return app_phrase_mode_from_active(app, phrase_active, nonverb_active);
 }
 
 static bool app_current_modal_dictionary(App *app, bool consume_latch)
@@ -305,6 +339,19 @@ static bool update_toggle_from_event(App *app, const Input_Event *event, bool up
         return true;
     }
 
+    if (app->nonverb_phrase_toggle_enabled
+        && event->keycode == app->nonverb_phrase_toggle_keycode) {
+        update_toggle_state(
+            app->nonverb_phrase_toggle_down,
+            app->nonverb_phrase_stroke_latched,
+            event
+        );
+        if (update_steno) {
+            steno_set_phrase_mode_family(app->steno, app_current_phrase_down_mode(app));
+        }
+        return true;
+    }
+
     if (app->modal_dictionary_toggle_enabled
         && event->keycode == app->modal_dictionary_toggle_keycode) {
         update_toggle_state(
@@ -365,6 +412,7 @@ static bool app_wants_keyboard_events(const App *app)
 {
     return app != NULL
         && (app->phrase_toggle_enabled
+            || app->nonverb_phrase_toggle_enabled
             || app->modal_dictionary_toggle_enabled
             || app->trace_key_events);
 }
@@ -376,10 +424,14 @@ static void app_destroy_toggle_state(App *app)
     }
     platform_atomic_bool_destroy(app->phrase_toggle_down);
     platform_atomic_bool_destroy(app->phrase_stroke_latched);
+    platform_atomic_bool_destroy(app->nonverb_phrase_toggle_down);
+    platform_atomic_bool_destroy(app->nonverb_phrase_stroke_latched);
     platform_atomic_bool_destroy(app->modal_dictionary_toggle_down);
     platform_atomic_bool_destroy(app->modal_dictionary_stroke_latched);
     app->phrase_toggle_down = NULL;
     app->phrase_stroke_latched = NULL;
+    app->nonverb_phrase_toggle_down = NULL;
+    app->nonverb_phrase_stroke_latched = NULL;
     app->modal_dictionary_toggle_down = NULL;
     app->modal_dictionary_stroke_latched = NULL;
 }
@@ -391,10 +443,14 @@ static bool app_init_toggle_state(App *app)
     }
     app->phrase_toggle_down = platform_atomic_bool_create(false);
     app->phrase_stroke_latched = platform_atomic_bool_create(false);
+    app->nonverb_phrase_toggle_down = platform_atomic_bool_create(false);
+    app->nonverb_phrase_stroke_latched = platform_atomic_bool_create(false);
     app->modal_dictionary_toggle_down = platform_atomic_bool_create(false);
     app->modal_dictionary_stroke_latched = platform_atomic_bool_create(false);
     if (app->phrase_toggle_down == NULL
         || app->phrase_stroke_latched == NULL
+        || app->nonverb_phrase_toggle_down == NULL
+        || app->nonverb_phrase_stroke_latched == NULL
         || app->modal_dictionary_toggle_down == NULL
         || app->modal_dictionary_stroke_latched == NULL) {
         app_destroy_toggle_state(app);
@@ -406,9 +462,15 @@ static bool app_init_toggle_state(App *app)
 static void print_toggle_status(const App *app)
 {
     if (app != NULL && app->phrase_toggle_enabled) {
-        printf("stoin: phrase toggle %s enabled (keycode %u)\n",
+        printf("stoin: %sphrase toggle %s enabled (keycode %u)\n",
+            app->nonverb_phrase_toggle_enabled ? "verb " : "",
             app->phrase_toggle_name,
             (unsigned int)app->phrase_toggle_keycode);
+    }
+    if (app != NULL && app->nonverb_phrase_toggle_enabled) {
+        printf("stoin: nonverb phrase toggle %s enabled (keycode %u)\n",
+            app->nonverb_phrase_toggle_name,
+            (unsigned int)app->nonverb_phrase_toggle_keycode);
     }
     if (app != NULL && app->modal_dictionary_toggle_enabled) {
         printf("stoin: modal dictionary toggle %s enabled (keycode %u)\n",
@@ -445,7 +507,8 @@ static void print_usage(void)
     fputs("             [--input tx-bolt|gemini-pr|stentura|qwerty]\n", stderr);
     fputs("             [--serial-port PATH] [--serial-baud BAUD]\n", stderr);
     fputs("             [--multiple-inputs] [--multi-input-window-ms MS]\n", stderr);
-    fputs("             [--phrase-toggle KEY] [--modal-dictionary-toggle KEY]\n", stderr);
+    fputs("             [--phrase-toggle KEY] [--nonverb-phrase-toggle KEY]\n", stderr);
+    fputs("             [--modal-dictionary-toggle KEY]\n", stderr);
     fputs("             [--trace-key-events]\n", stderr);
     fputs("             [--print-suggestions] [--suggestion-log PATH]\n", stderr);
     fputs("             [--time-translations]\n", stderr);
@@ -885,6 +948,9 @@ int main(int argc, char **argv)
     bool phrase_toggle_enabled = false;
     uint16_t phrase_toggle_keycode = 0;
     const char *phrase_toggle_name = NULL;
+    bool nonverb_phrase_toggle_enabled = false;
+    uint16_t nonverb_phrase_toggle_keycode = 0;
+    const char *nonverb_phrase_toggle_name = NULL;
     bool modal_dictionary_toggle_enabled = false;
     uint16_t modal_dictionary_toggle_keycode = 0;
     const char *modal_dictionary_toggle_name = NULL;
@@ -983,6 +1049,20 @@ int main(int argc, char **argv)
                 return 1;
             }
             phrase_toggle_enabled = true;
+        } else if ((strcmp(argv[i], "--nonverb-phrase-toggle") == 0
+                || strcmp(argv[i], "--nonverb-phase-toggle") == 0
+                || strcmp(argv[i], "--nonverb-toggle") == 0) && i + 1 < argc) {
+            nonverb_phrase_toggle_name = argv[++i];
+            if (!platform_keycode_from_name(
+                    nonverb_phrase_toggle_name,
+                    &nonverb_phrase_toggle_keycode)) {
+                fprintf(stderr,
+                    "stoin: unknown nonverb phrase toggle key '%s'\n",
+                    nonverb_phrase_toggle_name);
+                runtime_config_destroy(&runtime_config);
+                return 1;
+            }
+            nonverb_phrase_toggle_enabled = true;
         } else if ((strcmp(argv[i], "--modal-dictionary-toggle") == 0
                 || strcmp(argv[i], "--modal-toggle") == 0) && i + 1 < argc) {
             modal_dictionary_toggle_name = argv[++i];
@@ -1054,11 +1134,29 @@ int main(int argc, char **argv)
         return 1;
     }
     if (phrase_toggle_enabled
+        && nonverb_phrase_toggle_enabled
+        && phrase_toggle_keycode == nonverb_phrase_toggle_keycode) {
+        fprintf(stderr,
+            "stoin: --phrase-toggle and --nonverb-phrase-toggle must use distinct keys; both resolved to keycode %u\n",
+            (unsigned int)phrase_toggle_keycode);
+        runtime_config_destroy(&runtime_config);
+        return 1;
+    }
+    if (phrase_toggle_enabled
         && modal_dictionary_toggle_enabled
         && phrase_toggle_keycode == modal_dictionary_toggle_keycode) {
         fprintf(stderr,
             "stoin: --phrase-toggle and --modal-dictionary-toggle must use distinct keys; both resolved to keycode %u\n",
             (unsigned int)phrase_toggle_keycode);
+        runtime_config_destroy(&runtime_config);
+        return 1;
+    }
+    if (nonverb_phrase_toggle_enabled
+        && modal_dictionary_toggle_enabled
+        && nonverb_phrase_toggle_keycode == modal_dictionary_toggle_keycode) {
+        fprintf(stderr,
+            "stoin: --nonverb-phrase-toggle and --modal-dictionary-toggle must use distinct keys; both resolved to keycode %u\n",
+            (unsigned int)nonverb_phrase_toggle_keycode);
         runtime_config_destroy(&runtime_config);
         return 1;
     }
@@ -1167,6 +1265,9 @@ int main(int argc, char **argv)
         .phrase_toggle_enabled = phrase_toggle_enabled,
         .phrase_toggle_keycode = phrase_toggle_keycode,
         .phrase_toggle_name = phrase_toggle_name,
+        .nonverb_phrase_toggle_enabled = nonverb_phrase_toggle_enabled,
+        .nonverb_phrase_toggle_keycode = nonverb_phrase_toggle_keycode,
+        .nonverb_phrase_toggle_name = nonverb_phrase_toggle_name,
         .modal_dictionary_toggle_enabled = modal_dictionary_toggle_enabled,
         .modal_dictionary_toggle_keycode = modal_dictionary_toggle_keycode,
         .modal_dictionary_toggle_name = modal_dictionary_toggle_name,

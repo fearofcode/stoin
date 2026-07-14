@@ -6,7 +6,7 @@
 | --- | --- |
 | Activation | `--phrase-toggle KEY` selects the phrase namespace for a stroke |
 | Match order | while the phrase pedal is active, phrase matching replaces dictionary lookup |
-| Families | `IV`, `FV` |
+| Families | `IV`, `FV`, `NV` |
 | Contractions | only when `#` is pressed |
 | Default output | long forms, never contractions |
 | Follow-ons | none |
@@ -14,10 +14,18 @@
 
 ## Optional Pedal Namespace
 
-`--phrase-toggle KEY` enables a separate IV/FV phrase namespace. The key is
-intended for a pedal remapped to something like `F13`. Ordinary strokes use the
-main dictionary stack; a stroke is a phrase stroke if the pedal is down during
-any part of chord gathering, so the pedal may be released before the chord.
+`--phrase-toggle KEY` enables a separate phrase namespace. The key is intended
+for a pedal remapped to something like `F13`. When it is the only phrase pedal,
+it selects all phrase families for backward compatibility.
+
+`--nonverb-phrase-toggle KEY` adds a separate pedal for the `NV` family. When
+both phrase pedals are configured, `--phrase-toggle` selects only `IV` and `FV`,
+while `--nonverb-phrase-toggle` selects only `NV`. Holding both selects all
+families. The pedal keycodes must be distinct.
+
+Ordinary strokes use the main dictionary stack; a stroke is a phrase stroke if
+either applicable pedal is down during any part of chord gathering, so the
+pedal may be released before the chord.
 
 Phrase strokes print the `[phrase]` trace marker. A phrase miss emits raw steno
 instead of falling through to a dictionary word, except star-only strokes,
@@ -35,8 +43,8 @@ It is not merged into the main dictionary stack. Configure its path in JSON:
 ```
 
 The equivalent command-line path is `--modal-dictionary PATH`. Assign the
-pedal with `--modal-dictionary-toggle F14` (or `--modal-toggle F14`). The phrase
-and modal pedals must resolve to different keycodes.
+pedal with `--modal-dictionary-toggle F14` (or `--modal-toggle F14`). The verb,
+nonverb, and modal pedals must all resolve to different keycodes.
 
 While the modal pedal is active, lookup uses only the modal dictionary. It does
 not fall through to IV/FV phrasing or the main dictionary, and a miss emits raw
@@ -83,7 +91,7 @@ course be written more slowly by composing ordinary dictionary strokes.
 ## IV Set 1
 
 Initial-verb phrases are generated assignments. The trainer reads the phrasing
-sections directly and presents selectable IV/FV banks, so adding a stem,
+sections directly and presents selectable IV/FV/NV banks, so adding a stem,
 tail, ender, or flag should not require listing every drill prompt by hand.
 
 ### IV Verb Stems
@@ -116,7 +124,7 @@ tail, ender, or flag should not require listing every drill prompt by hand.
 | `PWHR` | to believe |
 | `KW` | to become |
 | `R` | to run |
-| `KPL` | to make |
+| `KPHR` | to make |
 | `PH` | to take |
 | `TP` | to find |
 | `STP` | to give |
@@ -146,12 +154,11 @@ that slot as `are`. `U` names the infinitive-with-`to` slot for IV only; the FV
 grammar does not generate forms like `he to be`. `F` is reserved for `have` /
 perfect work outside IV. `A` follows the FV can/could mnemonic.
 
-IV stems should normally stay on the left hand. Right-hand bits overlap the
-global tail bank and can make distinct phrases share an outline. The `KPL`
-`make` stem is the exception: its per-stem tail allowlist excludes combinations
-that alias existing `KP` (`keep`) phrases. Planned `KH` for `run` is already the
-`catch` stem, so `run` uses the free, mnemonic left-hand `R` instead. FV enders
-may use the full right hand because FV progressive uses `E` instead of `-G`.
+IV stems stay on the left hand so their bits cannot disappear into right-hand
+tails. `Make` uses `KPHR`, which remains distinct from both `KP` (`keep`) and
+`KHR` (`call`). Planned `KH` for `run` is already the `catch` stem, so `run`
+uses the free, mnemonic left-hand `R` instead. FV enders may use the full right
+hand because FV progressive uses `E` instead of `-G`.
 
 ### IV Tails
 
@@ -159,6 +166,7 @@ may use the full right hand because FV progressive uses `E` instead of `-G`.
 | --- | --- | --- |
 | `B` | `BD` | a |
 | `PB` | `PBD` | an |
+| `BL` | `BLD` | like |
 | `T` | `TD` | the |
 | `LT` | `LTD` | at |
 | `P` | `PD` | it |
@@ -356,6 +364,41 @@ verb inflection.
 Past affirmative `be` contractions remain unassigned because standard English
 has no general subject contraction for `was` or `were`.
 
+## NV Set 1
+
+The nonverb pedal selects combinations from an independent prefix-and-tail
+bank. The `anything` stem is written in canonical steno order as `TKPWH*`.
+
+### NV Prefixes
+
+| Keys | Output Pattern |
+| --- | --- |
+| `W` | with `*` |
+| `THA` | that `*` |
+| `TPO` | for `*` |
+| `OF` | of `*` |
+| `TKPWH*` | anything `*` |
+| `S*` | as `*` |
+| `SRAO*E` | even `*` |
+
+### NV Tails
+
+| Keys | Output | Allowed Prefixes |
+| --- | --- | --- |
+| `-R` | her | every NV prefix |
+| `-B` | a | every NV prefix |
+| `-PB` | an | every NV prefix |
+| `-BL` | like | `TKPWH*` |
+| `-F` | if | `THA`, `TPO`, `S*`, `SRAO*E` |
+| `-GT` | though | `THA`, `TPO`, `S*`, `SRAO*E` |
+| `-LS` | else | `TKPWH*` |
+| `-P` | it | every NV prefix |
+| `-PLT` | them | `W`, `TPO`, `OF`, `S*`, `SRAO*E` |
+| `-RT` | that | every NV prefix |
+| `-S` | us | `W`, `THA`, `TPO`, `OF`, `S*`, `SRAO*E` |
+| `-T` | the | every NV prefix |
+| `-Z` | his | every NV prefix |
+
 ## Samples
 
 ### IV Samples
@@ -390,6 +433,11 @@ has no general subject contraction for `was` or `were`.
 | `TH-PG` | thinking it |
 | `THA-P` | can think it |
 | `THE-FB` | think of |
+| `SW-BL` | feels like |
+| `SWE-BL` | feel like |
+| `SW-BLG` | feeling like |
+| `KP-BL` | keeps like |
+| `KPHR-BL` | makes like |
 | `THR-S` | tells us |
 | `THR-SD` | told us |
 | `THRE-S` | tell us |
@@ -537,3 +585,33 @@ has no general subject contraction for `was` or `were`.
 | `#STPHR-B` | there're |
 | `#STPHR-F` | there've |
 | `#STPHRAO` | there'll |
+
+### NV Samples
+
+| Stroke | Output |
+| --- | --- |
+| `W-B` | with a |
+| `W-PB` | with an |
+| `W-T` | with the |
+| `W-PLT` | with them |
+| `W-S` | with us |
+| `W-R` | with her |
+| `W-RT` | with that |
+| `THA-B` | that a |
+| `THA-PB` | that an |
+| `THAT` | that the |
+| `TPOR` | for her |
+| `TPOT` | for the |
+| `OFR` | of her |
+| `OFP` | of it |
+| `OFZ` | of his |
+| `TKPWH*-RT` | anything that |
+| `TKPWH*-BL` | anything like |
+| `TKPWH*-LS` | anything else |
+| `S*-F` | as if |
+| `S*-PB` | as an |
+| `S*-GT` | as though |
+| `SRAO*E-S` | even us |
+| `SRAO*E-B` | even a |
+| `SRAO*E-F` | even if |
+| `SRAO*E-GT` | even though |

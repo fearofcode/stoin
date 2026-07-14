@@ -58,6 +58,12 @@ typedef struct Phrase_Tail {
     char *text;
 } Phrase_Tail;
 
+typedef struct Nv_Prefix {
+    uint64_t bits;
+    char *text;
+    size_t *tail_indices;
+} Nv_Prefix;
+
 typedef struct Fv_Starter {
     uint64_t bits;
     Fv_Agreement agreement;
@@ -102,6 +108,8 @@ typedef struct Fv_Ender {
 struct Phrasing {
     Iv_Stem *iv_stems;
     Phrase_Tail *iv_tails;
+    Nv_Prefix *nv_prefixes;
+    Phrase_Tail *nv_tails;
     Fv_Starter *fv_starters;
     Fv_Operator *fv_operators;
     Fv_Structure_Row *fv_structures;
@@ -311,6 +319,21 @@ static bool iv_stem_stroke_is_unique(
 {
     for (size_t i = 0; i < arrlenu(stems); ++i) {
         if (stems[i].bits == bits) {
+            return report_duplicate_stroke(path, context, bits);
+        }
+    }
+    return true;
+}
+
+static bool nv_prefix_stroke_is_unique(
+    const Nv_Prefix *prefixes,
+    uint64_t bits,
+    const char *path,
+    const char *context
+)
+{
+    for (size_t i = 0; i < arrlenu(prefixes); ++i) {
+        if (prefixes[i].bits == bits) {
             return report_duplicate_stroke(path, context, bits);
         }
     }
@@ -579,6 +602,15 @@ static void destroy_iv_stem_contents(Iv_Stem *stem)
     arrfree(stem->tail_indices);
 }
 
+static void destroy_nv_prefix_contents(Nv_Prefix *prefix)
+{
+    if (prefix == NULL) {
+        return;
+    }
+    free(prefix->text);
+    arrfree(prefix->tail_indices);
+}
+
 static void destroy_fv_starter_contents(Fv_Starter *starter)
 {
     if (starter == NULL) {
@@ -692,6 +724,95 @@ static bool parse_initial_verbs(Phrasing *phrasing, const cJSON *root, const cha
             return false;
         }
         arrput(phrasing->iv_stems, stem);
+        ++index;
+    }
+
+    return true;
+}
+
+static bool parse_nonverbs(Phrasing *phrasing, const cJSON *root, const char *path)
+{
+    const cJSON *section = cJSON_GetObjectItemCaseSensitive(root, "nonverbs");
+    if (section == NULL) {
+        return true;
+    }
+    if (!cJSON_IsObject(section)) {
+        print_field_error(path, "root", "nonverbs", "must be an object");
+        return false;
+    }
+
+    const cJSON *tails = required_array(section, "tails", path, "nonverbs");
+    const cJSON *prefixes = required_array(section, "prefixes", path, "nonverbs");
+    if (tails == NULL || prefixes == NULL
+        || !parse_tail_array(&phrasing->nv_tails, tails, path, "nonverbs.tails")) {
+        return false;
+    }
+
+    const cJSON *item = NULL;
+    size_t index = 0;
+    cJSON_ArrayForEach(item, prefixes) {
+        char context[128] = {0};
+        snprintf(context, sizeof(context), "nonverbs.prefixes[%zu]", index);
+        if (!cJSON_IsObject(item)) {
+            fprintf(stderr, "stoin: phrasing '%s' %s must be an object\n", path, context);
+            return false;
+        }
+
+        Nv_Prefix prefix = {0};
+        if (!parse_required_stroke(item, "stroke", &prefix.bits, path, context)
+            || !nv_prefix_stroke_is_unique(phrasing->nv_prefixes, prefix.bits, path, context)) {
+            return false;
+        }
+        if (!copy_required_string(item, "text", &prefix.text)) {
+            print_field_error(path, context, "text", "must be a string");
+            return false;
+        }
+
+        const cJSON *tail_ids = required_array(item, "tails", path, context);
+        if (tail_ids == NULL) {
+            destroy_nv_prefix_contents(&prefix);
+            return false;
+        }
+        const cJSON *tail_id = NULL;
+        size_t tail_id_index = 0;
+        cJSON_ArrayForEach(tail_id, tail_ids) {
+            if (!cJSON_IsString(tail_id) || tail_id->valuestring == NULL) {
+                fprintf(stderr,
+                    "stoin: phrasing '%s' %s.tails[%zu] must be a string\n",
+                    path,
+                    context,
+                    tail_id_index);
+                destroy_nv_prefix_contents(&prefix);
+                return false;
+            }
+
+            size_t tail_index = 0;
+            if (!find_tail_index(phrasing->nv_tails, tail_id->valuestring, &tail_index)) {
+                fprintf(stderr,
+                    "stoin: phrasing '%s' %s.tails[%zu] references unknown tail id '%s'\n",
+                    path,
+                    context,
+                    tail_id_index,
+                    tail_id->valuestring);
+                destroy_nv_prefix_contents(&prefix);
+                return false;
+            }
+            for (size_t i = 0; i < arrlenu(prefix.tail_indices); ++i) {
+                if (prefix.tail_indices[i] == tail_index) {
+                    fprintf(stderr,
+                        "stoin: phrasing '%s' %s.tails[%zu] duplicates tail id '%s'\n",
+                        path,
+                        context,
+                        tail_id_index,
+                        tail_id->valuestring);
+                    destroy_nv_prefix_contents(&prefix);
+                    return false;
+                }
+            }
+            arrput(prefix.tail_indices, tail_index);
+            ++tail_id_index;
+        }
+        arrput(phrasing->nv_prefixes, prefix);
         ++index;
     }
 
@@ -1011,6 +1132,7 @@ Phrasing *phrasing_load(const char *path)
     }
 
     const bool ok = parse_initial_verbs(phrasing, root, path)
+        && parse_nonverbs(phrasing, root, path)
         && parse_final_verbs(phrasing, root, path);
     cJSON_Delete(root);
     free(file);
@@ -1035,6 +1157,15 @@ void phrasing_destroy(Phrasing *phrasing)
         free(phrasing->iv_tails[i].text);
     }
     arrfree(phrasing->iv_tails);
+    for (size_t i = 0; i < arrlenu(phrasing->nv_prefixes); ++i) {
+        destroy_nv_prefix_contents(&phrasing->nv_prefixes[i]);
+    }
+    arrfree(phrasing->nv_prefixes);
+    for (size_t i = 0; i < arrlenu(phrasing->nv_tails); ++i) {
+        free(phrasing->nv_tails[i].id);
+        free(phrasing->nv_tails[i].text);
+    }
+    arrfree(phrasing->nv_tails);
     for (size_t i = 0; i < arrlenu(phrasing->fv_starters); ++i) {
         destroy_fv_starter_contents(&phrasing->fv_starters[i]);
     }
@@ -1081,6 +1212,20 @@ static Phrase_Lookup_Result lookup_initial_verb(const Phrasing *phrasing, uint64
                 if (bits == (stem->bits | form->bits | tail->bits)) {
                     return copy_phrase_words(form->text, tail->text, out_utf8);
                 }
+            }
+        }
+    }
+    return PHRASE_LOOKUP_MISS;
+}
+
+static Phrase_Lookup_Result lookup_nonverb(const Phrasing *phrasing, uint64_t bits, char **out_utf8)
+{
+    for (size_t i = 0; i < arrlenu(phrasing->nv_prefixes); ++i) {
+        const Nv_Prefix *prefix = &phrasing->nv_prefixes[i];
+        for (size_t j = 0; j < arrlenu(prefix->tail_indices); ++j) {
+            const Phrase_Tail *tail = &phrasing->nv_tails[prefix->tail_indices[j]];
+            if (bits == (prefix->bits | tail->bits)) {
+                return copy_phrase_words(prefix->text, tail->text, out_utf8);
             }
         }
     }
@@ -1426,9 +1571,10 @@ static Phrase_Lookup_Result lookup_final_verb(const Phrasing *phrasing, uint64_t
     return PHRASE_LOOKUP_MISS;
 }
 
-Phrase_Lookup_Result phrasing_lookup(
+Phrase_Lookup_Result phrasing_lookup_mode(
     const Phrasing *phrasing,
     uint64_t stroke_bits,
+    Phrase_Lookup_Mode mode,
     char **out_utf8
 )
 {
@@ -1440,8 +1586,33 @@ Phrase_Lookup_Result phrasing_lookup(
         return PHRASE_LOOKUP_MISS;
     }
 
-    Phrase_Lookup_Result result = lookup_initial_verb(phrasing, stroke_bits, out_utf8);
-    return result != PHRASE_LOOKUP_MISS
-        ? result
-        : lookup_final_verb(phrasing, stroke_bits, out_utf8);
+    if (mode == PHRASE_LOOKUP_ALL || mode == PHRASE_LOOKUP_VERBS) {
+        Phrase_Lookup_Result result = lookup_initial_verb(phrasing, stroke_bits, out_utf8);
+        if (result != PHRASE_LOOKUP_MISS) {
+            return result;
+        }
+        if (mode == PHRASE_LOOKUP_VERBS) {
+            return lookup_final_verb(phrasing, stroke_bits, out_utf8);
+        }
+    }
+
+    if (mode == PHRASE_LOOKUP_ALL || mode == PHRASE_LOOKUP_NONVERBS) {
+        Phrase_Lookup_Result result = lookup_nonverb(phrasing, stroke_bits, out_utf8);
+        if (result != PHRASE_LOOKUP_MISS || mode == PHRASE_LOOKUP_NONVERBS) {
+            return result;
+        }
+    }
+
+    return mode == PHRASE_LOOKUP_ALL
+        ? lookup_final_verb(phrasing, stroke_bits, out_utf8)
+        : PHRASE_LOOKUP_MISS;
+}
+
+Phrase_Lookup_Result phrasing_lookup(
+    const Phrasing *phrasing,
+    uint64_t stroke_bits,
+    char **out_utf8
+)
+{
+    return phrasing_lookup_mode(phrasing, stroke_bits, PHRASE_LOOKUP_ALL, out_utf8);
 }

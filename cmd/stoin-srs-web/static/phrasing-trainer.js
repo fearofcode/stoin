@@ -26,6 +26,7 @@ const phraseStorageKey = 'stoin.phrasingTrainer.v4';
 const familyLabels = {
 	initial_verbs: 'Initial verbs',
 	final_verbs: 'Final verbs',
+	nonverbs: 'Nonverbs',
 };
 
 const stenoIndexes = {
@@ -316,6 +317,7 @@ function availableFamilies() {
 	const families = [];
 	if (phraseData && phraseData.initial_verbs) families.push('initial_verbs');
 	if (phraseData && phraseData.final_verbs) families.push('final_verbs');
+	if (phraseData && phraseData.nonverbs) families.push('nonverbs');
 	return families;
 }
 
@@ -423,6 +425,38 @@ function initialSections() {
 					tail.text,
 					tail.stroke,
 					['initial verbs', tail.id, tail.text, tail.stroke],
+					defaultFamilyChecked(family)
+				);
+			}),
+		},
+	];
+}
+
+function nonverbSections() {
+	const family = 'nonverbs';
+	const prefixes = phraseData.nonverbs.prefixes || [];
+	const tails = phraseData.nonverbs.tails || [];
+	return [
+		{
+			title: 'NV prefixes',
+			options: prefixes.map(function(prefix) {
+				return sectionOption(
+					bankKey(family, 'prefixes', prefix.stroke),
+					prefix.text,
+					prefix.stroke,
+					['nonverbs', prefix.text, prefix.stroke],
+					defaultFamilyChecked(family)
+				);
+			}),
+		},
+		{
+			title: 'NV tails',
+			options: tails.map(function(tail) {
+				return sectionOption(
+					bankKey(family, 'tails', tail.id),
+					tail.text,
+					tail.stroke,
+					['nonverbs', tail.id, tail.text, tail.stroke],
 					defaultFamilyChecked(family)
 				);
 			}),
@@ -542,6 +576,9 @@ function focusSections() {
 	if (familyEnabled('final_verbs') && phraseData.final_verbs) {
 		sections.push.apply(sections, finalVerbSections());
 	}
+	if (familyEnabled('nonverbs') && phraseData.nonverbs) {
+		sections.push.apply(sections, nonverbSections());
+	}
 	return sections;
 }
 
@@ -610,6 +647,28 @@ function generateInitialVerbPrompts() {
 					stroke: combineStrokeParts([stem.stroke, form.stroke, tail.stroke]),
 					phrase: phraseFromWords([form.text, tail.text]),
 				});
+			});
+		});
+	});
+	return prompts;
+}
+
+function generateNonverbPrompts() {
+	if (!familyEnabled('nonverbs')) return [];
+	const prefixes = (phraseData.nonverbs.prefixes || []).filter(function(prefix) {
+		return bankOptionChecked('nonverbs', 'prefixes', prefix.stroke);
+	});
+	const tails = (phraseData.nonverbs.tails || []).filter(function(tail) {
+		return bankOptionChecked('nonverbs', 'tails', tail.id);
+	});
+	const prompts = [];
+	prefixes.forEach(function(prefix) {
+		tails.forEach(function(tail) {
+			if (!Array.isArray(prefix.tails) || prefix.tails.indexOf(tail.id) === -1) return;
+			prompts.push({
+				lesson: familyLabels.nonverbs,
+				stroke: combineStrokeParts([prefix.stroke, tail.stroke]),
+				phrase: phraseFromWords([prefix.text, tail.text]),
 			});
 		});
 	});
@@ -933,7 +992,8 @@ function uniquePrompts(prompts) {
 function currentPool() {
 	return uniquePrompts([]
 		.concat(generateInitialVerbPrompts())
-		.concat(generateFinalVerbPrompts()));
+		.concat(generateFinalVerbPrompts())
+		.concat(generateNonverbPrompts()));
 }
 
 function shuffle(items) {
@@ -1265,6 +1325,35 @@ function validatePhraseData(data) {
 			seenTailIds.add(tailId);
 		});
 	});
+	if (data.nonverbs !== undefined) {
+		requireArray(data.nonverbs, 'prefixes', 'nonverbs');
+		requireArray(data.nonverbs, 'tails', 'nonverbs');
+		const nonverbTailIds = new Set();
+		data.nonverbs.tails.forEach(function(tail, index) {
+			if (!tail || typeof tail.id !== 'string') {
+				throw new Error('nonverbs.tails[' + index + '].id must be a string');
+			}
+			if (nonverbTailIds.has(tail.id)) {
+				throw new Error('nonverbs.tails[' + index + '].id duplicates ' + tail.id);
+			}
+			nonverbTailIds.add(tail.id);
+		});
+		data.nonverbs.prefixes.forEach(function(prefix, index) {
+			if (!prefix || !Array.isArray(prefix.tails)) {
+				throw new Error('nonverbs.prefixes[' + index + '].tails must be an array');
+			}
+			const seenTailIds = new Set();
+			prefix.tails.forEach(function(tailId) {
+				if (typeof tailId !== 'string' || !nonverbTailIds.has(tailId)) {
+					throw new Error('nonverbs.prefixes[' + index + '].tails references unknown tail ' + String(tailId));
+				}
+				if (seenTailIds.has(tailId)) {
+					throw new Error('nonverbs.prefixes[' + index + '].tails duplicates ' + tailId);
+				}
+				seenTailIds.add(tailId);
+			});
+		});
+	}
 	requireArray(data.final_verbs, 'starters', 'final_verbs');
 	requireArray(data.final_verbs, 'operators', 'final_verbs');
 	requireArray(data.final_verbs, 'structures', 'final_verbs');

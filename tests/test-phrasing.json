@@ -663,5 +663,97 @@
         "past": false
       }
     ]
+  },
+  "nonverbs": {
+    "tails": [
+      {
+        "id": "a",
+        "stroke": "-B",
+        "text": "a"
+      },
+      {
+        "id": "an",
+        "stroke": "-PB",
+        "text": "an"
+      },
+      {
+        "id": "like",
+        "stroke": "-BL",
+        "text": "like"
+      },
+      {
+        "id": "us",
+        "stroke": "-S",
+        "text": "us"
+      },
+      {
+        "id": "that",
+        "stroke": "-RT",
+        "text": "that"
+      },
+      {
+        "id": "if",
+        "stroke": "-F",
+        "text": "if"
+      },
+      {
+        "id": "though",
+        "stroke": "-GT",
+        "text": "though"
+      },
+      {
+        "id": "else",
+        "stroke": "-LS",
+        "text": "else"
+      }
+    ],
+    "prefixes": [
+      {
+        "stroke": "W",
+        "text": "with",
+        "tails": [
+          "a",
+          "an",
+          "us"
+        ]
+      },
+      {
+        "stroke": "PW",
+        "text": "near",
+        "tails": [
+          "a",
+          "an"
+        ]
+      },
+      {
+        "stroke": "TKPWH*",
+        "text": "anything",
+        "tails": [
+          "an",
+          "that",
+          "like",
+          "else"
+        ]
+      },
+      {
+        "stroke": "S*",
+        "text": "as",
+        "tails": [
+          "an",
+          "if",
+          "though"
+        ]
+      },
+      {
+        "stroke": "SRAO*E",
+        "text": "even",
+        "tails": [
+          "an",
+          "that",
+          "us",
+          "though"
+        ]
+      }
+    ]
   }
 }
