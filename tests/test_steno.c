@@ -224,6 +224,21 @@ int main(void)
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
+    ok = ok && handle_test_stroke(steno, "PW-T");
+    ok = ok && expect_string("dictionary miss uses IV fallback", output.text, "is the");
+    ok = ok && handle_test_stroke(steno, "TO");
+    ok = ok && expect_string(
+        "IV fallback remains open to a longer dictionary outline",
+        output.text,
+        "dictionary extended phrase fallback");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    ok = ok && handle_test_stroke(steno, "SWR-B");
+    ok = ok && expect_string("ordinary fallback excludes FV phrases", output.text, "SWRB");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
     reset_output_log(&output);
     ok = ok && handle_phrase_test_stroke(steno, "PW-B", STENO_PHRASE_MODE_VERBS);
     ok = ok && expect_string("phrase wins over dictionary conflict when active", output.text, "is a");
@@ -363,7 +378,10 @@ int main(void)
     steno_set_phrase_namespace_enabled(steno, true);
     clear_test_output(&output);
     ok = ok && handle_test_stroke(steno, "KHREP");
-    ok = ok && expect_string("phrase namespace normal KHREP skips phrase lookup", output.text, "KHREP");
+    ok = ok && expect_string(
+        "phrase namespace normal dictionary miss uses IV fallback",
+        output.text,
+        "call it");
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
     ok = ok && steno_handle_stroke(steno, ((Stroke_Input) {
@@ -668,6 +686,7 @@ int main(void)
         { "TKA-P", "can do it" },
         { "TKA-PD", "could do it" },
         { "P-P", "puts it" },
+        { "SPHR-SZ", "spells out" },
         { "TKPW-LTD", "went at" },
         { "W-B", "wants a" },
         { "W-PG", "wanting it" },
@@ -822,6 +841,9 @@ int main(void)
         { "TP-P", "if it" },
         { "TPHRO-F", "only if" },
         { "PW-GT", "but though" },
+        { "THAU", "that you" },
+        { "K-SZ", "can they" },
+        { "THA-BG", "that can" },
     };
     for (size_t i = 0; i < sizeof(production_nonverb_prefix_cases) / sizeof(production_nonverb_prefix_cases[0]); ++i) {
         ok = ok && expect_phrase_stroke_output(
@@ -1596,6 +1618,35 @@ int main(void)
         ok = ok && steno_handle_stroke_bits(format_steno, cat_bits);
         ok = ok && expect_string("capitalization after undo redo", output.text, "cat. Cat");
         ok = ok && expect_string("capitalization after undo redo insert", output.last_send, " Cat");
+
+        ok = ok && reset_test_steno(&format_steno, &config);
+        clear_test_output(&output);
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(format_steno, cat_bits);
+        ok = ok && steno_handle_stroke_bits(format_steno, period_bits);
+        ok = ok && handle_test_stroke(format_steno, "HURD");
+        ok = ok && expect_string("capitalized provisional dictionary outline", output.text, "cat. Heard");
+
+        reset_output_log(&output);
+        ok = ok && handle_test_stroke(format_steno, "R-R");
+        ok = ok && expect_string(
+            "retroactive dictionary replacement preserves capitalization",
+            output.text,
+            "cat. Herd");
+
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(format_steno, plural_bits);
+        ok = ok && expect_string(
+            "chained retroactive replacement preserves capitalization",
+            output.text,
+            "cat. Herds");
+
+        reset_output_log(&output);
+        ok = ok && steno_handle_stroke_bits(format_steno, cat_bits);
+        ok = ok && expect_string(
+            "retroactive replacement preserves resulting capitalization state",
+            output.text,
+            "cat. Herds cat");
 
         ok = ok && reset_test_steno(&format_steno, &config);
         clear_test_output(&output);

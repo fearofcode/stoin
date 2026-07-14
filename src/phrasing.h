@@ -14,6 +14,7 @@ typedef enum Phrase_Lookup_Result {
 typedef enum Phrase_Lookup_Mode {
     PHRASE_LOOKUP_ALL,
     PHRASE_LOOKUP_VERBS,
+    PHRASE_LOOKUP_INITIAL_VERBS,
     PHRASE_LOOKUP_NONVERBS,
 } Phrase_Lookup_Mode;
 

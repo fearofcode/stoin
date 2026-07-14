@@ -6,6 +6,7 @@
 | --- | --- |
 | Activation | `--phrase-toggle KEY` selects the phrase namespace for a stroke |
 | Match order | while a phrase pedal is active, phrase matching runs first and misses fall through to the main dictionary stack |
+| Ordinary fallback | without a phrase pedal, a dictionary miss tries the IV bank before emitting raw steno |
 | Families | `IV`, `FV`, `NV` |
 | Contractions | only when `#` is pressed |
 | Default output | long forms, never contractions |
@@ -26,6 +27,11 @@ families. The pedal keycodes must be distinct.
 Ordinary strokes use the main dictionary stack; a stroke is a phrase stroke if
 either applicable pedal is down during any part of chord gathering, so the
 pedal may be released before the chord.
+
+Without a phrase pedal, ordinary strokes check the dictionary stack first and
+then the IV bank. This fallback does not include FV or NV phrases. IV fallback
+translations remain eligible for replacement when a later stroke completes a
+longer dictionary outline.
 
 Phrase matches print the `[phrase]` trace marker. A phrase miss uses the main
 dictionary stack and traces as `[phase fallback]`; it emits raw steno only when
@@ -171,6 +177,8 @@ hand because FV progressive uses `E` instead of `-G`.
 | `T` | `TD` | the |
 | `LT` | `LTD` | at |
 | `RP` | `RPD` | up |
+| `SZ` | `SDZ` | out |
+| `RB` | `RBD` | with |
 | `P` | `PD` | it |
 | `S` | `SD` | us |
 | `R` | `RD` | her |
@@ -185,7 +193,8 @@ An IV stem may declare a `tails` array containing tail IDs from this table.
 When present, only those verb-tail combinations translate and appear in the
 trainer; omitting the field preserves the original all-tail behavior. The
 follow-on verbs use allowlists to exclude combinations such as `happens me`,
-`comes us`, `becomes at`, and `uses of`.
+`comes us`, `becomes at`, and `uses of`. `Tell` omits the `with` tail because
+`THR-RBG` is already the FV phrase `there works`.
 
 ## FV Set 1
 
@@ -377,6 +386,10 @@ bank. The `anything` stem is written in canonical steno order as `TKPWH*`.
 | --- | --- |
 | `W` | with `*` |
 | `T` | at `*` |
+| `T*` | it `*` |
+| `AUF` | off `*` |
+| `UP` | up `*` |
+| `K` | can `*` |
 | `SKWR` | just `*` |
 | `HR` | all `*` |
 | `TP` | if `*` |
@@ -395,17 +408,20 @@ bank. The `anything` stem is written in canonical steno order as `TKPWH*`.
 | --- | --- | --- |
 | `-R` | her | every NV prefix |
 | `-B` | a | every NV prefix |
-| `-PB` | an | every NV prefix |
-| `-BL` | like | `SKWR`, `HR`, `TPHRO`, `PW`, `TKPWH*` |
-| `-F` | if | `SKWR`, `TPHRO`, `PW`, `THA`, `TPO`, `S*`, `SRAO*E` |
-| `-GT` | though | `PW`, `THA`, `TPO`, `S*`, `SRAO*E` |
+| `-PB` | an | every NV prefix except `UP` |
+| `-BL` | like | `T*`, `AUF`, `UP`, `K`, `SKWR`, `HR`, `TPHRO`, `PW`, `TKPWH*` |
+| `-F` | if | `T*`, `K`, `SKWR`, `TPHRO`, `PW`, `THA`, `TPO`, `S*`, `SRAO*E` |
+| `-GT` | though | `T*`, `K`, `PW`, `THA`, `TPO`, `S*`, `SRAO*E` |
 | `-LS` | else | `HR`, `TKPWH*` |
 | `-P` | it | every NV prefix |
-| `-PLT` | them | `W`, `T`, `SKWR`, `TPHRO`, `PW`, `TPO`, `OF`, `S*`, `SRAO*E` |
+| `-PLT` | them | `W`, `T`, `AUF`, `UP`, `SKWR`, `TPHRO`, `PW`, `TPO`, `OF`, `S*`, `SRAO*E` |
 | `-RT` | that | every NV prefix |
-| `-S` | us | `W`, `T`, `SKWR`, `TPHRO`, `PW`, `THA`, `TPO`, `OF`, `S*`, `SRAO*E` |
+| `-S` | us | `W`, `T`, `AUF`, `SKWR`, `TPHRO`, `PW`, `THA`, `TPO`, `OF`, `S*`, `SRAO*E` |
+| `U` | you | every NV prefix except `AUF` and `UP` |
+| `-SZ` | they | `T*`, `UP`, `K`, `SKWR`, `HR`, `TP`, `TPHRO`, `PW`, `THA`, `TPO`, `TKPWH*`, `S*`, `SRAO*E` |
 | `-T` | the | every NV prefix |
 | `-Z` | his | every NV prefix |
+| `-BG` | can | `T*`, `SKWR`, `HR`, `TPHRO`, `PW`, `THA`, `TKPWH*`, `S*`, `SRAO*E` |
 
 ## Samples
 
@@ -491,6 +507,11 @@ bank. The `anything` stem is written in canonical steno order as `TKPWH*`.
 | `SPHRU-S` | to spell us |
 | `SPHR-GS` | spelling us |
 | `SPHRA-P` | can spell it |
+| `SPHR-SZ` | spells out |
+| `SPHR-SDZ` | spelled out |
+| `KHR-RB` | calls with |
+| `KHR-RBD` | called with |
+| `KHR-RBG` | calling with |
 | `PHR-P` | pulls it |
 | `PHR-PD` | pulled it |
 | `PHRE-P` | pull it |
@@ -606,12 +627,24 @@ bank. The `anything` stem is written in canonical steno order as `TKPWH*`.
 | `W-T` | with the |
 | `W-PLT` | with them |
 | `W-S` | with us |
+| `WU` | with you |
 | `W-R` | with her |
 | `W-RT` | with that |
 | `T-B` | at a |
 | `T-PB` | at an |
 | `T-R` | at her |
 | `T-RT` | at that |
+| `T*-B` | it a |
+| `T*-F` | it if |
+| `T*-GT` | it though |
+| `T*-BG` | it can |
+| `AUFT` | off the |
+| `UPT` | up the |
+| `K-P` | can it |
+| `KU` | can you |
+| `K-SZ` | can they |
+| `K-F` | can if |
+| `K-GT` | can though |
 | `SKWR-BL` | just like |
 | `HR-LS` | all else |
 | `TP-P` | if it |
@@ -619,6 +652,9 @@ bank. The `anything` stem is written in canonical steno order as `TKPWH*`.
 | `PW-GT` | but though |
 | `THA-B` | that a |
 | `THA-PB` | that an |
+| `THAU` | that you |
+| `THA-SZ` | that they |
+| `THA-BG` | that can |
 | `THAT` | that the |
 | `TPOR` | for her |
 | `TPOT` | for the |
@@ -627,6 +663,8 @@ bank. The `anything` stem is written in canonical steno order as `TKPWH*`.
 | `OFZ` | of his |
 | `TKPWH*-RT` | anything that |
 | `TKPWH*-BL` | anything like |
+| `TKPWH*U` | anything you |
+| `TKPWH*-BG` | anything can |
 | `TKPWH*-LS` | anything else |
 | `S*-F` | as if |
 | `S*-PB` | as an |

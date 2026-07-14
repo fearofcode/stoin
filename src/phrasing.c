@@ -1586,10 +1586,15 @@ Phrase_Lookup_Result phrasing_lookup_mode(
         return PHRASE_LOOKUP_MISS;
     }
 
-    if (mode == PHRASE_LOOKUP_ALL || mode == PHRASE_LOOKUP_VERBS) {
+    if (mode == PHRASE_LOOKUP_ALL
+        || mode == PHRASE_LOOKUP_VERBS
+        || mode == PHRASE_LOOKUP_INITIAL_VERBS) {
         Phrase_Lookup_Result result = lookup_initial_verb(phrasing, stroke_bits, out_utf8);
         if (result != PHRASE_LOOKUP_MISS) {
             return result;
+        }
+        if (mode == PHRASE_LOOKUP_INITIAL_VERBS) {
+            return PHRASE_LOOKUP_MISS;
         }
         if (mode == PHRASE_LOOKUP_VERBS) {
             return lookup_final_verb(phrasing, stroke_bits, out_utf8);

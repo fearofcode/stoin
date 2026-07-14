@@ -17,6 +17,7 @@ typedef enum Trace_Stroke_Mode {
     TRACE_STROKE_NORMAL,
     TRACE_STROKE_PHRASE,
     TRACE_STROKE_PHASE_FALLBACK,
+    TRACE_STROKE_IV_FALLBACK,
     TRACE_STROKE_MODAL,
     TRACE_STROKE_MODAL_FALLBACK,
 } Trace_Stroke_Mode;
@@ -28,6 +29,8 @@ static const char *trace_stroke_mode_label(Trace_Stroke_Mode mode)
         return " [phrase]";
     case TRACE_STROKE_PHASE_FALLBACK:
         return " [phase fallback]";
+    case TRACE_STROKE_IV_FALLBACK:
+        return " [iv fallback]";
     case TRACE_STROKE_MODAL:
         return " [modal]";
     case TRACE_STROKE_MODAL_FALLBACK:
@@ -179,6 +182,39 @@ static bool translate_phrase_bits(
     return ok;
 }
 
+static void set_replacement_format_case_state(
+    const Steno *steno,
+    Translation_Match *match
+)
+{
+    if (steno == NULL
+        || match == NULL
+        || match->has_format_case_state
+        || match->replaced_count == 0
+        || match->partial_prefix_stroke_count != 0) {
+        return;
+    }
+
+    const size_t translation_count = arrlenu(steno->translations);
+    if (match->replaced_count > translation_count) {
+        return;
+    }
+
+    const Translation *first = &steno->translations[
+        translation_count - match->replaced_count
+    ];
+    while (arrlenu(first->replaced) > 0) {
+        first = &first->replaced[0];
+    }
+    if (!first->has_case_state) {
+        return;
+    }
+
+    match->format_case_mode = first->previous_case_mode;
+    match->format_next_case = first->previous_next_case;
+    match->has_format_case_state = true;
+}
+
 static bool translate_dictionary_bits_with_trace(
     Steno *steno,
     uint64_t bits,
@@ -219,6 +255,7 @@ static bool translate_dictionary_bits_with_trace(
             &match)) {
         return false;
     }
+    set_replacement_format_case_state(steno, &match);
 
     bool modal_fallback = false;
     if (match.translation == NULL && steno->modal_dictionary_loaded) {
@@ -246,19 +283,44 @@ static bool translate_dictionary_bits_with_trace(
         }
     }
 
+    char *iv_fallback_translation = NULL;
+    bool iv_fallback = false;
+    if (match.translation == NULL
+        && !modal_fallback
+        && trace_mode == TRACE_STROKE_NORMAL) {
+        const Phrase_Lookup_Result result = phrasing_lookup_mode(
+            steno->phrasing,
+            bits,
+            PHRASE_LOOKUP_INITIAL_VERBS,
+            &iv_fallback_translation
+        );
+        if (result == PHRASE_LOOKUP_ERROR) {
+            free(iv_fallback_translation);
+            translation_match_destroy(&match);
+            return false;
+        }
+        if (result == PHRASE_LOOKUP_HIT) {
+            match.translation = iv_fallback_translation;
+            iv_fallback = true;
+        }
+    }
+
     trace_stroke_with_mode(
         steno,
         match.outline,
         match.translation,
-        modal_fallback ? TRACE_STROKE_MODAL_FALLBACK : trace_mode
+        modal_fallback
+            ? TRACE_STROKE_MODAL_FALLBACK
+            : iv_fallback ? TRACE_STROKE_IV_FALLBACK : trace_mode
     );
     const bool ok = steno_apply_translation_match(steno, &match);
     if (ok) {
-        if (match.translation != NULL && !modal_fallback) {
+        if (match.translation != NULL && !modal_fallback && !iv_fallback) {
             steno_maybe_emit_brevity_suggestion(steno);
         }
         count_completed_stroke(steno);
     }
+    free(iv_fallback_translation);
     translation_match_destroy(&match);
     return ok;
 }
