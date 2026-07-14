@@ -2,6 +2,104 @@ package main
 
 import "testing"
 
+func TestLeadingCollapseRequiresCompleteTwoStrokeOutline(t *testing.T) {
+	tests := []struct {
+		name    string
+		outline string
+		want    string
+		ok      bool
+	}{
+		{
+			name:    "torrential",
+			outline: "TOR/EPBLGS",
+			want:    "TREPBLGS",
+			ok:      true,
+		},
+		{
+			name:    "alternate torrential split",
+			outline: "TU/REPBLGS",
+			want:    "TREPBLGS",
+			ok:      true,
+		},
+		{
+			name:    "partial jai alai collapse",
+			outline: "HEU/U/HRAOEU",
+			ok:      false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			outline, parsed := parseOutline(test.outline)
+			if !parsed {
+				t.Fatalf("parseOutline(%q) failed", test.outline)
+			}
+			got, ok := collapseLeadingConsonantVowelStroke(outline)
+			if ok != test.ok {
+				t.Fatalf("collapseLeadingConsonantVowelStroke(%q) ok = %v, want %v", test.outline, ok, test.ok)
+			}
+			if !ok {
+				return
+			}
+			if gotOutline := formatOutline(got); gotOutline != test.want {
+				t.Fatalf("collapseLeadingConsonantVowelStroke(%q) = %q, want %q", test.outline, gotOutline, test.want)
+			}
+		})
+	}
+}
+
+func TestTrailingDropDoesNotShadowJoinedComposition(t *testing.T) {
+	entry := func(rawOutline, value string) (string, sourceEntry) {
+		outline, ok := parseOutline(rawOutline)
+		if !ok {
+			t.Fatalf("parseOutline(%q) failed", rawOutline)
+		}
+		key := formatOutline(outline)
+		return key, sourceEntry{outline: outline, value: value}
+	}
+
+	sources := make(map[string]sourceEntry)
+	for _, source := range []struct {
+		outline string
+		value   string
+	}{
+		{outline: "HU/HRAOUS", value: "{halluc^}"},
+		{outline: "TPHAEUT", value: "{^inate}"},
+		{outline: "HU/HRAOUS/TPHAEUT/-FB", value: "hallucinative"},
+		{outline: "PAT/RU/KHRAOEUPB/-S", value: "patriclinous"},
+	} {
+		key, parsed := entry(source.outline, source.value)
+		sources[key] = parsed
+	}
+
+	claims := generateCandidateClaims(sources, nil)
+	if _, generated := claims["HU/HRAOUS/TPHAEUT"]; generated {
+		t.Fatal("trailing drop shadowed {halluc^} + {^inate}")
+	}
+	if claim := claims["PAT/RU/KHRAOEUPB"]; claim == nil || claim.value != "patriclinous" {
+		t.Fatalf("ordinary trailing drop = %#v, want patriclinous", claim)
+	}
+
+	prefixOnlySources := make(map[string]sourceEntry)
+	for _, source := range []struct {
+		outline string
+		value   string
+	}{
+		{outline: "KA/TO", value: "{cat^}"},
+		{outline: "PWU", value: "boo"},
+	} {
+		key, parsed := entry(source.outline, source.value)
+		prefixOnlySources[key] = parsed
+	}
+	candidate, ok := parseOutline("KA/TO/PWU")
+	if !ok {
+		t.Fatal("parseOutline for prefix-only join fixture failed")
+	}
+	if shadowsJoinedFinalStroke(candidate, prefixOnlySources) {
+		t.Fatal("prefix-only join should not trigger the final-stroke suffix guard")
+	}
+}
+
 func TestFoldVowelCodaStrokeRequiresMatchingVowelsOrPluralPSes(t *testing.T) {
 	tests := []struct {
 		name     string

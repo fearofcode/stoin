@@ -54,15 +54,22 @@ This covers Phoenix's redundant medial syllable strokes, for example
 `KAUZ/PHO/PAUL/T-PB` becoming `KAUZ/PAUL/T-PB` and `KAUZ/PHU/TAULG`
 becoming `KAUZ/TAULG`. The rule applies only to the second stroke and does not
 accept a right-hand coda.
-A leading consonant-vowel stroke can similarly collapse into the following
-vowel stroke. Its vowels are omitted, its left-hand consonants are retained,
-and a complete right-hand coda moves to its Lapwing left-hand equivalent. The
-moved keys must remain in order and cannot overlap the following stroke. Thus
-both `TOR/EPBLGS` and `TU/REPBLGS` collapse to `TREPBLGS`.
+A two-stroke outline can similarly collapse completely into one stroke when its
+leading consonant-vowel stroke moves into the following vowel stroke. Its
+vowels are omitted, its left-hand consonants are retained, and a complete
+right-hand coda moves to its Lapwing left-hand equivalent. The moved keys must
+remain in order and cannot overlap the following stroke. Thus both
+`TOR/EPBLGS` and `TU/REPBLGS` collapse to `TREPBLGS`. Longer outlines are not
+partially collapsed; in particular, `HEU/U/HRAOEU` does not become
+`HU/HRAOEU`.
 Trailing strokes may be dropped from outlines longer than three strokes. The
 closure repeats this until three strokes remain, matching Lapwing's conservative
 floor. Competing translations for the same shortened prefix make it ambiguous
-and therefore omit it.
+and therefore omit it. A drop is also refused when the shortened outline's
+all-but-final prefix and final stroke are separately defined source entries
+and the final stroke uses a left-joining Plover suffix command. This prevents
+`HU/HRAOUS/TPHAEUT/-FB` ("hallucinative") from shadowing the compositional
+`HU/HRAOUS` + `TPHAEUT` ("hallucinate").
 
 All compatible adjacent merges, vowel-coda and linker folds, bridge
 redistributions, consonant-vowel collapses, vowel-stroke omissions, and

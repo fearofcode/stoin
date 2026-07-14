@@ -460,12 +460,27 @@ func generateCandidateClaims(sources map[string]sourceEntry, excludedTranslation
 
 			if len(outline) > 3 {
 				candidate := append([]uint32(nil), outline[:len(outline)-1]...)
-				addCandidate(candidate)
+				if !shadowsJoinedFinalStroke(candidate, sources) {
+					addCandidate(candidate)
+				}
 			}
 		}
 	}
 
 	return claims
+}
+
+func shadowsJoinedFinalStroke(outline []uint32, sources map[string]sourceEntry) bool {
+	if len(outline) < 2 {
+		return false
+	}
+
+	_, prefixExists := sources[formatOutline(outline[:len(outline)-1])]
+	finalStroke, finalExists := sources[formatOutline(outline[len(outline)-1:])]
+	if !prefixExists || !finalExists {
+		return false
+	}
+	return strings.HasPrefix(finalStroke.value, "{^")
 }
 
 func aouStroke() uint32 {
@@ -592,7 +607,7 @@ func rightHandConsonantFold(consonants uint32) (uint32, bool) {
 }
 
 func collapseLeadingConsonantVowelStroke(outline []uint32) ([]uint32, bool) {
-	if len(outline) < 2 || outline[1]&vowelMask() == 0 {
+	if len(outline) != 2 || outline[1]&vowelMask() == 0 {
 		return nil, false
 	}
 
