@@ -110,6 +110,7 @@ tail, ender, or flag should not require listing every drill prompt by hand.
 | `SHR` | to sell |
 | `SPHR` | to spell |
 | `PHR` | to pull |
+| `P` | to put |
 | `KP` | to keep |
 | `KHR` | to call |
 | `TK` | to do |
@@ -169,6 +170,7 @@ hand because FV progressive uses `E` instead of `-G`.
 | `BL` | `BLD` | like |
 | `T` | `TD` | the |
 | `LT` | `LTD` | at |
+| `RP` | `RPD` | up |
 | `P` | `PD` | it |
 | `S` | `SD` | us |
 | `R` | `RD` | her |
@@ -374,6 +376,12 @@ bank. The `anything` stem is written in canonical steno order as `TKPWH*`.
 | Keys | Output Pattern |
 | --- | --- |
 | `W` | with `*` |
+| `T` | at `*` |
+| `SKWR` | just `*` |
+| `HR` | all `*` |
+| `TP` | if `*` |
+| `TPHRO` | only `*` |
+| `PW` | but `*` |
 | `THA` | that `*` |
 | `TPO` | for `*` |
 | `OF` | of `*` |
@@ -388,14 +396,14 @@ bank. The `anything` stem is written in canonical steno order as `TKPWH*`.
 | `-R` | her | every NV prefix |
 | `-B` | a | every NV prefix |
 | `-PB` | an | every NV prefix |
-| `-BL` | like | `TKPWH*` |
-| `-F` | if | `THA`, `TPO`, `S*`, `SRAO*E` |
-| `-GT` | though | `THA`, `TPO`, `S*`, `SRAO*E` |
-| `-LS` | else | `TKPWH*` |
+| `-BL` | like | `SKWR`, `HR`, `TPHRO`, `PW`, `TKPWH*` |
+| `-F` | if | `SKWR`, `TPHRO`, `PW`, `THA`, `TPO`, `S*`, `SRAO*E` |
+| `-GT` | though | `PW`, `THA`, `TPO`, `S*`, `SRAO*E` |
+| `-LS` | else | `HR`, `TKPWH*` |
 | `-P` | it | every NV prefix |
-| `-PLT` | them | `W`, `TPO`, `OF`, `S*`, `SRAO*E` |
+| `-PLT` | them | `W`, `T`, `SKWR`, `TPHRO`, `PW`, `TPO`, `OF`, `S*`, `SRAO*E` |
 | `-RT` | that | every NV prefix |
-| `-S` | us | `W`, `THA`, `TPO`, `OF`, `S*`, `SRAO*E` |
+| `-S` | us | `W`, `T`, `SKWR`, `TPHRO`, `PW`, `THA`, `TPO`, `OF`, `S*`, `SRAO*E` |
 | `-T` | the | every NV prefix |
 | `-Z` | his | every NV prefix |
 
@@ -438,6 +446,9 @@ bank. The `anything` stem is written in canonical steno order as `TKPWH*`.
 | `SW-BLG` | feeling like |
 | `KP-BL` | keeps like |
 | `KPHR-BL` | makes like |
+| `P-P` | puts it |
+| `PE-P` | put it |
+| `PU-P` | to put it |
 | `THR-S` | tells us |
 | `THR-SD` | told us |
 | `THRE-S` | tell us |
@@ -597,6 +608,15 @@ bank. The `anything` stem is written in canonical steno order as `TKPWH*`.
 | `W-S` | with us |
 | `W-R` | with her |
 | `W-RT` | with that |
+| `T-B` | at a |
+| `T-PB` | at an |
+| `T-R` | at her |
+| `T-RT` | at that |
+| `SKWR-BL` | just like |
+| `HR-LS` | all else |
+| `TP-P` | if it |
+| `TPHRO-F` | only if |
+| `PW-GT` | but though |
 | `THA-B` | that a |
 | `THA-PB` | that an |
 | `THAT` | that the |

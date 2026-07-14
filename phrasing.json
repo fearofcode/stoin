@@ -27,6 +27,11 @@
         "text": "at"
       },
       {
+        "id": "up",
+        "stroke": "-RP",
+        "text": "up"
+      },
+      {
         "id": "it",
         "stroke": "-P",
         "text": "it"
@@ -470,6 +475,54 @@
         ]
       },
       {
+        "stroke": "P",
+        "tails": [
+          "a",
+          "an",
+          "the",
+          "at",
+          "it",
+          "us",
+          "her",
+          "his",
+          "my",
+          "myself",
+          "me",
+          "that",
+          "up"
+        ],
+        "forms": [
+          {
+            "stroke": "",
+            "text": "puts"
+          },
+          {
+            "stroke": "-D",
+            "text": "put"
+          },
+          {
+            "stroke": "E",
+            "text": "put"
+          },
+          {
+            "stroke": "-G",
+            "text": "putting"
+          },
+          {
+            "stroke": "U",
+            "text": "to put"
+          },
+          {
+            "stroke": "A",
+            "text": "can put"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could put"
+          }
+        ]
+      },
+      {
         "stroke": "KP",
         "forms": [
           {
@@ -549,7 +602,8 @@
           "myself",
           "me",
           "that",
-          "like"
+          "like",
+          "up"
         ],
         "forms": [
           {
@@ -595,7 +649,8 @@
           "my",
           "myself",
           "that",
-          "like"
+          "like",
+          "up"
         ],
         "forms": [
           {
@@ -642,7 +697,8 @@
           "myself",
           "me",
           "that",
-          "like"
+          "like",
+          "up"
         ],
         "forms": [
           {
@@ -691,7 +747,8 @@
           "myself",
           "me",
           "that",
-          "like"
+          "like",
+          "up"
         ],
         "forms": [
           {
@@ -780,7 +837,8 @@
           "myself",
           "me",
           "that",
-          "like"
+          "like",
+          "up"
         ],
         "forms": [
           {
@@ -826,7 +884,8 @@
           "my",
           "myself",
           "that",
-          "like"
+          "like",
+          "up"
         ],
         "forms": [
           {
@@ -923,7 +982,8 @@
           "myself",
           "me",
           "that",
-          "like"
+          "like",
+          "up"
         ],
         "forms": [
           {
@@ -1066,7 +1126,8 @@
           "myself",
           "me",
           "that",
-          "like"
+          "like",
+          "up"
         ],
         "forms": [
           {
@@ -1114,7 +1175,8 @@
           "myself",
           "me",
           "that",
-          "like"
+          "like",
+          "up"
         ],
         "forms": [
           {
@@ -1161,7 +1223,8 @@
           "myself",
           "me",
           "that",
-          "like"
+          "like",
+          "up"
         ],
         "forms": [
           {
@@ -1256,7 +1319,8 @@
           "myself",
           "me",
           "that",
-          "like"
+          "like",
+          "up"
         ],
         "forms": [
           {
@@ -1303,7 +1367,8 @@
           "myself",
           "me",
           "that",
-          "like"
+          "like",
+          "up"
         ],
         "forms": [
           {
@@ -1351,7 +1416,8 @@
           "myself",
           "me",
           "that",
-          "like"
+          "like",
+          "up"
         ],
         "forms": [
           {
@@ -2857,6 +2923,101 @@
           "it",
           "his",
           "that"
+        ]
+      },
+      {
+        "stroke": "T",
+        "text": "at",
+        "tails": [
+          "a",
+          "an",
+          "the",
+          "them",
+          "us",
+          "her",
+          "it",
+          "his",
+          "that"
+        ]
+      },
+      {
+        "stroke": "SKWR",
+        "text": "just",
+        "tails": [
+          "a",
+          "an",
+          "like",
+          "the",
+          "them",
+          "us",
+          "her",
+          "it",
+          "his",
+          "that",
+          "if"
+        ]
+      },
+      {
+        "stroke": "HR",
+        "text": "all",
+        "tails": [
+          "a",
+          "an",
+          "like",
+          "the",
+          "her",
+          "it",
+          "his",
+          "that",
+          "else"
+        ]
+      },
+      {
+        "stroke": "TP",
+        "text": "if",
+        "tails": [
+          "a",
+          "an",
+          "the",
+          "her",
+          "it",
+          "his",
+          "that"
+        ]
+      },
+      {
+        "stroke": "TPHRO",
+        "text": "only",
+        "tails": [
+          "a",
+          "an",
+          "like",
+          "the",
+          "them",
+          "us",
+          "her",
+          "it",
+          "his",
+          "that",
+          "if"
+        ]
+      },
+      {
+        "stroke": "PW",
+        "text": "but",
+        "tails": [
+          "a",
+          "an",
+          "like",
+          "the",
+          "them",
+          "us",
+          "her",
+          "it",
+          "his",
+          "that",
+          "if",
+          "though"
         ]
       },
       {

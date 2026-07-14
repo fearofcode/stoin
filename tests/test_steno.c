@@ -460,6 +460,7 @@ int main(void)
         { "TK", { "does", "did", "do", "doing", "to do", "can do", "could do" } },
         { "TKPW", { "goes", "went", "go", "going", "to go", "can go", "could go" } },
         { "W", { "wants", "wanted", "want", "wanting", "to want", "can want", "could want" } },
+        { "P", { "puts", "put", "put", "putting", "to put", "can put", "could put" } },
         { "SK", { "asks", "asked", "ask", "asking", "to ask", "can ask", "could ask" } },
         { "SP", { "happens", "happened", "happen", "happening", "to happen", "can happen", "could happen" } },
         { "SW", { "feels", "felt", "feel", "feeling", "to feel", "can feel", "could feel" } },
@@ -666,6 +667,7 @@ int main(void)
         { "TKU-P", "to do it" },
         { "TKA-P", "can do it" },
         { "TKA-PD", "could do it" },
+        { "P-P", "puts it" },
         { "TKPW-LTD", "went at" },
         { "W-B", "wants a" },
         { "W-PG", "wanting it" },
@@ -811,6 +813,26 @@ int main(void)
         "S*-PB",
         STENO_PHRASE_MODE_NONVERBS,
         "as an");
+    const struct {
+        const char *stroke;
+        const char *expected;
+    } production_nonverb_prefix_cases[] = {
+        { "SKWR-BL", "just like" },
+        { "HR-LS", "all else" },
+        { "TP-P", "if it" },
+        { "TPHRO-F", "only if" },
+        { "PW-GT", "but though" },
+    };
+    for (size_t i = 0; i < sizeof(production_nonverb_prefix_cases) / sizeof(production_nonverb_prefix_cases[0]); ++i) {
+        ok = ok && expect_phrase_stroke_output(
+            &steno,
+            &follow_on_config,
+            &output,
+            "production nonverb prefix",
+            production_nonverb_prefix_cases[i].stroke,
+            STENO_PHRASE_MODE_NONVERBS,
+            production_nonverb_prefix_cases[i].expected);
+    }
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
