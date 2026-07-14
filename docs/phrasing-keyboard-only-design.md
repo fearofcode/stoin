@@ -5,7 +5,7 @@
 | Topic | Rule |
 | --- | --- |
 | Activation | `--phrase-toggle KEY` selects the phrase namespace for a stroke |
-| Match order | while the phrase pedal is active, phrase matching replaces dictionary lookup |
+| Match order | while a phrase pedal is active, phrase matching runs first and misses fall through to the main dictionary stack |
 | Families | `IV`, `FV`, `NV` |
 | Contractions | only when `#` is pressed |
 | Default output | long forms, never contractions |
@@ -27,9 +27,9 @@ Ordinary strokes use the main dictionary stack; a stroke is a phrase stroke if
 either applicable pedal is down during any part of chord gathering, so the
 pedal may be released before the chord.
 
-Phrase strokes print the `[phrase]` trace marker. A phrase miss emits raw steno
-instead of falling through to a dictionary word, except star-only strokes,
-which use the dictionary fallback path and trace as `[phase fallback]`.
+Phrase matches print the `[phrase]` trace marker. A phrase miss uses the main
+dictionary stack and traces as `[phase fallback]`; it emits raw steno only when
+the dictionary stack also misses.
 
 ## Modal Dictionary Pedal
 

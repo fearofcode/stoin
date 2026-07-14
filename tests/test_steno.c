@@ -853,10 +853,19 @@ int main(void)
     clear_test_output(&output);
     ok = ok && steno_handle_stroke(steno, ((Stroke_Input) {
         .bits = phrase_fallback_test_bits,
-        .phrase_mode = STENO_PHRASE_MODE_ALL,
+        .phrase_mode = STENO_PHRASE_MODE_VERBS,
         .phrase_namespace = true,
     }));
-    ok = ok && expect_string("phrase miss skips dictionary lookup", output.text, "#KW");
+    ok = ok && expect_string("phrase miss uses dictionary lookup", output.text, "test");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    ok = ok && handle_phrase_test_stroke(steno, "KAT", STENO_PHRASE_MODE_NONVERBS);
+    ok = ok && handle_phrase_test_stroke(steno, "TO", STENO_PHRASE_MODE_NONVERBS);
+    ok = ok && expect_string(
+        "phrase misses preserve multi-stroke dictionary lookup",
+        output.text,
+        "main combined");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
@@ -903,7 +912,7 @@ int main(void)
         .phrase = true,
         .phrase_namespace = true,
     }));
-    ok = ok && expect_string("phrase namespace phrase miss skips dictionary lookup", output.text, "#KW");
+    ok = ok && expect_string("phrase namespace phrase miss uses dictionary lookup", output.text, "test");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);

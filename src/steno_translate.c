@@ -179,35 +179,6 @@ static bool translate_phrase_bits(
     return ok;
 }
 
-static bool translate_raw_chord_bits_with_trace(
-    Steno *steno,
-    uint64_t bits,
-    Trace_Stroke_Mode trace_mode
-)
-{
-    char raw_chord[64] = {0};
-    if (!chord_bits_to_string(bits, raw_chord, sizeof(raw_chord))) {
-        return false;
-    }
-
-    Translation_Match match = {0};
-    match.translation = NULL;
-    match.strokes[0] = bits;
-    match.stroke_count = 1;
-    match.replaced_count = 0;
-    match.source = trace_mode == TRACE_STROKE_PHRASE
-        ? TRANSLATION_SOURCE_PHRASE
-        : TRANSLATION_SOURCE_NORMAL;
-    snprintf(match.outline, sizeof(match.outline), "%s", raw_chord);
-
-    trace_stroke_with_mode(steno, raw_chord, match.translation, trace_mode);
-    const bool ok = steno_apply_translation_match(steno, &match);
-    if (ok) {
-        count_completed_stroke(steno);
-    }
-    return ok;
-}
-
 static bool translate_dictionary_bits_with_trace(
     Steno *steno,
     uint64_t bits,
@@ -479,13 +450,6 @@ static bool translate_modal_dictionary_bits(Steno *steno, uint64_t bits)
     return ok;
 }
 
-static bool phrase_namespace_should_fallback_to_dictionary(uint64_t bits)
-{
-    const uint64_t star_bits = steno_bit(STENO_STAR);
-    const uint64_t allowed_bits = star_bits | steno_bit(STENO_NUM);
-    return (bits & star_bits) != 0 && (bits & ~allowed_bits) == 0;
-}
-
 static bool translate_phrase_namespace_bits(
     Steno *steno,
     uint64_t bits,
@@ -504,11 +468,7 @@ static bool translate_phrase_namespace_bits(
         return true;
     }
 
-    if (phrase_namespace_should_fallback_to_dictionary(bits)) {
-        return translate_dictionary_bits_with_trace(steno, bits, TRACE_STROKE_PHASE_FALLBACK);
-    }
-
-    return translate_raw_chord_bits_with_trace(steno, bits, TRACE_STROKE_PHRASE);
+    return translate_dictionary_bits_with_trace(steno, bits, TRACE_STROKE_PHASE_FALLBACK);
 }
 
 bool steno_translate_chord_bits(Steno *steno, uint64_t bits)
