@@ -91,7 +91,7 @@ course be written more slowly by composing ordinary dictionary strokes.
 | `#SWRE-FPBG` | I've been thinking | FV contracted perfect progressive |
 | `#TWRAO-RTS` | we'll try to | FV contracted `will` modal |
 | `KPWRO-PBT` | you should know that | FV `should` modal |
-| `#SKWHR*-FBTS` | she hasn't said that | FV contracted negative perfect |
+| `#SH*-FBTS` | she hasn't said that | FV contracted negative perfect |
 | `#KPWRA*-PBLGTD` | you couldn't find that | FV contracted negative past modal |
 
 ## IV Set 1
@@ -183,6 +183,7 @@ hand because FV progressive uses `E` instead of `-G`.
 | `S` | `SD` | us |
 | `R` | `RD` | her |
 | `Z` | `ZD` | his |
+| `RZ` | `RDZ` | your |
 | `FB` | `FBD` | of |
 | `PL` | `PLD` | my |
 | `PLS` | `PLSD` | myself |
@@ -211,32 +212,36 @@ starter + operator + structure + ender
 | `SWR` | I |
 | `KPWR` | you |
 | `KWHR` | he |
-| `SKWHR` | she |
+| `SH` | she |
 | `T` | it |
 | `TWR` | we |
 | `TWH` | they |
-| `STKH` | this |
+| `STH` | this |
 | `STWH` | that |
 | `THR` | there (default/singular agreement) |
-| `STPHR` | there (plural agreement; shown as `there (plural)` in the trainer) |
+| `TPHR` | there (plural agreement; shown as `there (plural)` in the trainer) |
 
-`STKH` and `STWH` retain the established Jeff full-form mnemonics for `this`
-and `that`; both use third-singular agreement. The project's shorter `THR`
-starter uses default third-singular agreement, while the `P` in Jeff's
-`STPHR` outline marks plural agreement. Thus `THR` uses `is`, `has`, `does`,
-and `was`, while `STPHR` uses `are`, `have`, `do`, and `were`. The separate
-trainer label makes that distinction visible without changing the translated
-word `there`.
+`STH` and `STWH` are the left-hand starters for `this` and `that`; both use
+third-singular agreement. The shorter `THR` starter uses default
+third-singular agreement, while the extra `P` in `TPHR` marks plural
+agreement. Thus `THR` uses `is`, `has`, `does`, and `was`, while `TPHR` uses
+`are`, `have`, `do`, and `were`. The separate trainer label makes that
+distinction visible without changing the translated word `there`.
+
+`KWHR`, `TWR`, and `TWH` remain the expanded starters for `he`, `we`, and
+`they`. Their proposed short forms `H`, `W`, and `TH` are already IV stems for
+`have`, `want`, and `think`, so reusing them would make dozens of verb-pedal
+strokes ambiguous.
 
 Unlike the personal-pronoun starters, `there` is not grammatical with every
 FV ender. Both agreement forms use the following restricted family; plural
-`STPHR` additionally permits the collision-free explicit `B` and `BD` be
+`TPHR` additionally permits the collision-free explicit `B` and `BD` be
 enders:
 
 | Ender family | There phrase family |
 | --- | --- |
 | empty / `D` | auxiliary-only forms |
-| `B` / `BD` | are / were (`STPHR` only) |
+| `B` / `BD` | are / were (`TPHR` only) |
 | `BT` / `BTD` | be a / was a |
 | `TS` / `TSD` | have to / had to |
 | `G` / `GD`, `GT` / `GTD` | go / went, go to / went to |
@@ -541,43 +546,43 @@ bank. The `anything` stem is written in canonical steno order as `TKPWH*`.
 
 | Stroke | Output |
 | --- | --- |
-| `SKWHR-B` | she is |
-| `SKWHR-BD` | she was |
-| `SKWHR*E` | she is not |
-| `SKWHR*ED` | she was not |
+| `SH-B` | she is |
+| `SH-BD` | she was |
+| `SH*E` | she is not |
+| `SH*ED` | she was not |
 | `KWHR-B` | he is |
 | `TWH-BD` | they were |
 | `SWR-F` | I have |
 | `SWR-FD` | I had |
 | `KPWR-G` | you go |
 | `KPWR-GD` | you went |
-| `SKWHR-GTD` | she went to |
-| `SKWHR-PBG` | she thinks |
-| `SKWHR-PBGD` | she thought |
-| `SKWHR-L` | she looks |
-| `SKWHR-LD` | she looked |
-| `SKWHR-BS` | she says |
-| `SKWHR-BSD` | she said |
-| `SKWHR-RLT` | she tells |
-| `SKWHR-RLTD` | she told |
-| `SKWHR-RB` | she catches |
-| `SKWHR-RBD` | she caught |
-| `SKWHR-FPL` | she holds |
-| `SKWHR-FPLD` | she held |
-| `SKWHR-LS` | she sells |
-| `SKWHR-LSD` | she sold |
-| `SKWHR-PLS` | she spells |
-| `SKWHR-PLSD` | she spelled |
-| `SKWHR-PL` | she pulls |
-| `SKWHR-PLD` | she pulled |
-| `SKWHR-RPBTS` | she keeps |
-| `SKWHR-RPBTSD` | she kept |
-| `SKWHRAO-G` | she will go |
-| `SKWHRAO*G` | she will not go |
-| `SKWHREG` | she is going |
-| `SKWHR-FG` | she has gone |
-| `STKH-B` | this is |
-| `STKHAO*` | this will not |
+| `SH-GTD` | she went to |
+| `SH-PBG` | she thinks |
+| `SH-PBGD` | she thought |
+| `SH-L` | she looks |
+| `SH-LD` | she looked |
+| `SH-BS` | she says |
+| `SH-BSD` | she said |
+| `SH-RLT` | she tells |
+| `SH-RLTD` | she told |
+| `SH-RB` | she catches |
+| `SH-RBD` | she caught |
+| `SH-FPL` | she holds |
+| `SH-FPLD` | she held |
+| `SH-LS` | she sells |
+| `SH-LSD` | she sold |
+| `SH-PLS` | she spells |
+| `SH-PLSD` | she spelled |
+| `SH-PL` | she pulls |
+| `SH-PLD` | she pulled |
+| `SH-RPBTS` | she keeps |
+| `SH-RPBTSD` | she kept |
+| `SHAO-G` | she will go |
+| `SHAO*G` | she will not go |
+| `SHEG` | she is going |
+| `SH-FG` | she has gone |
+| `STH-B` | this is |
+| `STHAO*` | this will not |
 | `STWH-B` | that is |
 | `STWHAO-G` | that will go |
 | `THRE` | there is |
@@ -585,19 +590,19 @@ bank. The `anything` stem is written in canonical steno order as `TKPWH*`.
 | `THR*ED` | there was not |
 | `THRAO*` | there will not |
 | `THRE-F` | there has been |
-| `STPHR-B` | there are |
-| `STPHR-BD` | there were |
-| `STPHRAO*` | there will not |
+| `TPHR-B` | there are |
+| `TPHR-BD` | there were |
+| `TPHRAO*` | there will not |
 
 ### FV Contraction Samples
 
 | Stroke | Output |
 | --- | --- |
-| `#SKWHR-B` | she's |
-| `#SKWHR*E` | she isn't |
-| `#SKWHR*ED` | she wasn't |
-| `#SKWHRAO-G` | she'll go |
-| `#SKWHRAO*G` | she won't go |
+| `#SH-B` | she's |
+| `#SH*E` | she isn't |
+| `#SH*ED` | she wasn't |
+| `#SHAO-G` | she'll go |
+| `#SHAO*G` | she won't go |
 | `#SWR-F` | I've |
 | `#KWHR-FG` | he's gone |
 | `#TWHAO-G` | they'll go |
@@ -606,17 +611,17 @@ bank. The `anything` stem is written in canonical steno order as `TKPWH*`.
 | `#TWHAO-RLTD` | they'd tell |
 | `#TWHAO-FRLTD` | they'd have told |
 | `#TWH*RLTD` | they didn't tell |
-| `#SKWHR*RLT` | she doesn't tell |
-| `#STKHAO` | this'll |
+| `#SH*RLT` | she doesn't tell |
+| `#STHAO` | this'll |
 | `#STWH-B` | that's |
 | `#STWHAO` | that'll |
 | `#THRE` | there's |
 | `#THR*ED` | there wasn't |
 | `#THRAO*` | there won't |
 | `#THRE-F` | there's been |
-| `#STPHR-B` | there're |
-| `#STPHR-F` | there've |
-| `#STPHRAO` | there'll |
+| `#TPHR-B` | there're |
+| `#TPHR-F` | there've |
+| `#TPHRAO` | there'll |
 
 ### NV Samples
 
