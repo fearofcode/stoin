@@ -645,6 +645,11 @@ static bool apply_suffix_translation_match(Steno *steno, const Translation_Match
 
     size_t replaced_count = match->replaced_count;
     bool auto_split_prefix = false;
+    const char *auto_split_prefix_text = NULL;
+    const size_t matched_replace_start = translation_count - match->replaced_count;
+    const bool retroactive_attach = base.attach_prev
+        && match->replaced_count > 0
+        && !match_has_partial_prefix(match);
     if (replaced_count == 0 && translation_count > 0) {
         const Translation *previous = &steno->translations[translation_count - 1];
         if (base.stitch && previous->glue) {
@@ -659,6 +664,19 @@ static bool apply_suffix_translation_match(Steno *steno, const Translation_Match
             replaced_count = 1;
             base.attach_prev = true;
             auto_split_prefix = true;
+            auto_split_prefix_text = previous->utf8;
+        }
+    } else if (retroactive_attach && matched_replace_start > 0) {
+        size_t prefix_start = matched_replace_start;
+        while (prefix_start > 0) {
+            --prefix_start;
+            const Translation *prefix = &steno->translations[prefix_start];
+            if (prefix->utf8 != NULL && prefix->utf8[0] != '\0') {
+                replaced_count += matched_replace_start - prefix_start;
+                auto_split_prefix = true;
+                auto_split_prefix_text = prefix->utf8;
+                break;
+            }
         }
     }
 
@@ -681,11 +699,14 @@ static bool apply_suffix_translation_match(Steno *steno, const Translation_Match
             &base
         );
     } else {
+        const char *format_base_text = retroactive_attach
+            ? (auto_split_prefix_text != NULL ? auto_split_prefix_text : "")
+            : (auto_split_prefix ? auto_split_prefix_text : old_text);
         base_text = build_emitted_text(
             steno,
-            old_text,
+            format_base_text,
             &base,
-            should_prepend_spacing(steno, previous, old_text, &base));
+            should_prepend_spacing(steno, previous, format_base_text, &base));
     }
     if (base_text == NULL) {
         arrfree(old_text);
@@ -726,7 +747,7 @@ static bool apply_suffix_translation_match(Steno *steno, const Translation_Match
             return false;
         }
     } else if (auto_split_prefix) {
-        for (size_t i = replace_start; i < translation_count; ++i) {
+        for (size_t i = replace_start; i < matched_replace_start; ++i) {
             if (!translation_set_strokes(
                     &next,
                     steno->translations[i].strokes,
@@ -766,8 +787,11 @@ static bool apply_suffix_translation_match(Steno *steno, const Translation_Match
                 match->partial_prefix_text,
                 match->partial_prefix_stroke_count))
         || (auto_split_prefix
-            && text_has_prefix(next.utf8, old_text)
-            && !translation_set_split_prefix(&next, old_text, split_prefix_stroke_count))) {
+            && text_has_prefix(next.utf8, auto_split_prefix_text)
+            && !translation_set_split_prefix(
+                &next,
+                auto_split_prefix_text,
+                split_prefix_stroke_count))) {
         arrfree(old_text);
         arrfree(base_text);
         formatted_text_destroy(&base);
@@ -902,6 +926,11 @@ bool steno_apply_translation_match(Steno *steno, const Translation_Match *match)
 
     size_t replaced_count = match->replaced_count;
     bool auto_split_prefix = false;
+    const char *auto_split_prefix_text = NULL;
+    const size_t matched_replace_start = translation_count - match->replaced_count;
+    const bool retroactive_attach = formatted.attach_prev
+        && match->replaced_count > 0
+        && !match_has_partial_prefix(match);
     if (replaced_count == 0 && translation_count > 0) {
         const Translation *previous = &steno->translations[translation_count - 1];
         if (formatted.stitch && previous->glue) {
@@ -917,6 +946,19 @@ bool steno_apply_translation_match(Steno *steno, const Translation_Match *match)
             replaced_count = 1;
             formatted.attach_prev = true;
             auto_split_prefix = true;
+            auto_split_prefix_text = previous->utf8;
+        }
+    } else if (retroactive_attach && matched_replace_start > 0) {
+        size_t prefix_start = matched_replace_start;
+        while (prefix_start > 0) {
+            --prefix_start;
+            const Translation *prefix = &steno->translations[prefix_start];
+            if (prefix->utf8 != NULL && prefix->utf8[0] != '\0') {
+                replaced_count += matched_replace_start - prefix_start;
+                auto_split_prefix = true;
+                auto_split_prefix_text = prefix->utf8;
+                break;
+            }
         }
     }
 
@@ -937,11 +979,18 @@ bool steno_apply_translation_match(Steno *steno, const Translation_Match *match)
             &formatted
         );
     } else {
+        const char *format_base_text = retroactive_attach
+            ? (auto_split_prefix_text != NULL ? auto_split_prefix_text : "")
+            : (auto_split_prefix ? auto_split_prefix_text : old_text);
         next.utf8 = build_emitted_text(
             steno,
-            old_text,
+            format_base_text,
             &formatted,
-            should_prepend_spacing(steno, previous, old_text, &formatted));
+            should_prepend_spacing(
+                steno,
+                previous,
+                format_base_text,
+                &formatted));
     }
     next.glue = formatted.glue;
     next.next_attach = formatted.attach_next;
@@ -968,7 +1017,7 @@ bool steno_apply_translation_match(Steno *steno, const Translation_Match *match)
             return false;
         }
     } else if (auto_split_prefix) {
-        for (size_t i = replace_start; i < translation_count; ++i) {
+        for (size_t i = replace_start; i < matched_replace_start; ++i) {
             if (!translation_set_strokes(
                     &next,
                     steno->translations[i].strokes,
@@ -1002,8 +1051,11 @@ bool steno_apply_translation_match(Steno *steno, const Translation_Match *match)
                 match->partial_prefix_text,
                 match->partial_prefix_stroke_count))
         || (auto_split_prefix
-            && text_has_prefix(next.utf8, old_text)
-            && !translation_set_split_prefix(&next, old_text, split_prefix_stroke_count))) {
+            && text_has_prefix(next.utf8, auto_split_prefix_text)
+            && !translation_set_split_prefix(
+                &next,
+                auto_split_prefix_text,
+                split_prefix_stroke_count))) {
         arrfree(old_text);
         formatted_text_destroy(&formatted);
         translation_destroy(&next);

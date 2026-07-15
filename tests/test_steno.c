@@ -984,6 +984,58 @@ int main(void)
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
+    ok = ok && handle_test_stroke(steno, "APL");
+    ok = ok && handle_test_stroke(steno, "PAOU");
+    ok = ok && expect_string(
+        "forward-attached prefix with provisional outline",
+        output.text,
+        "ampew");
+    reset_output_log(&output);
+    ok = ok && handle_test_stroke(steno, "TAEUGZ");
+    ok = ok && expect_string(
+        "retroactive left attachment replaces provisional outline",
+        output.text,
+        "amputation");
+    ok = ok && expect_string("retroactive left attachment delete", output.last_delete, "ew");
+    ok = ok && expect_string("retroactive left attachment insert", output.last_send, "utation");
+    reset_output_log(&output);
+    ok = ok && steno_handle_stroke_bits(steno, undo_bits);
+    ok = ok && expect_string(
+        "undo retroactive left attachment",
+        output.text,
+        "ampew");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    ok = ok && handle_test_stroke(steno, "PAOU");
+    ok = ok && handle_test_stroke(steno, "TAEUGZ");
+    ok = ok && expect_string(
+        "retroactive left attachment without a prefix",
+        output.text,
+        "putation");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    ok = ok && handle_test_stroke(steno, "KHER");
+    ok = ok && handle_test_stroke(steno, "PAOU");
+    ok = ok && handle_test_stroke(steno, "TAEUGS");
+    ok = ok && expect_string(
+        "retroactive left attachment applies orthography to preceding word",
+        output.text,
+        "cherries");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    ok = ok && handle_test_stroke(steno, "APL");
+    ok = ok && handle_test_stroke(steno, "PAOU");
+    ok = ok && handle_test_stroke(steno, "TAEUGD");
+    ok = ok && expect_string(
+        "retroactive left attachment with suffix-key fallback",
+        output.text,
+        "amputated");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
     ok = ok && handle_test_stroke(steno, "KAT");
     ok = ok && handle_test_stroke(steno, "ET");
     ok = ok && handle_test_stroke(steno, "SET");
