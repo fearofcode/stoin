@@ -25,7 +25,7 @@ if not exist "%OBJ_DIR%" mkdir "%OBJ_DIR%"
 if not exist "%TEST_OBJ_DIR%" mkdir "%TEST_OBJ_DIR%"
 if not exist "%RELEASE_OBJ_DIR%" mkdir "%RELEASE_OBJ_DIR%"
 
-set "COMMON_SOURCES=src\dictionary.c src\dictionary_stack.c src\format.c src\gemini_pr.c src\keymap.c src\orthography.c src\phrasing.c src\raw_serial.c src\retro.c src\runtime_config.c src\stentura.c src\steno.c src\steno_apply.c src\steno_suggestions.c src\steno_stroke.c src\steno_translate.c src\stroke_merge.c src\stb_ds_impl.c src\stitch.c src\text_util.c src\translation_history.c src\translation_match.c src\tx_bolt.c src\tx_bolt_multiple.c src\util.c src\platform_windows.c src\platform_windows_atomic.c third_party\cjson\cJSON.c"
+set "COMMON_SOURCES=src\dictionary.c src\dictionary_stack.c src\format.c src\gemini_pr.c src\keymap.c src\orthography.c src\phrasing.c src\raw_serial.c src\retro.c src\runtime_config.c src\stentura.c src\steno.c src\steno_apply.c src\steno_suggestions.c src\steno_stroke.c src\steno_translate.c src\stroke_merge.c src\stb_ds_impl.c src\stitch.c src\text_util.c src\translation_history.c src\translation_match.c src\tx_bolt.c src\tx_bolt_multiple.c src\util.c src\platform_windows.c third_party\cjson\cJSON.c"
 set "TEST_SOURCES=tests\test_steno.c tests\test_support.c tests\test_core_units.c tests\test_dictionary_runtime.c tests\test_phrasing_tail_filters.c tests\test_phrasing_starter_filters.c"
 set "BASE_CFLAGS=/nologo /TC /std:c11 /W3 /D_CRT_SECURE_NO_WARNINGS /D_WIN32_WINNT=0x0601 /I src"
 set "LDFLAGS=user32.lib setupapi.lib advapi32.lib"

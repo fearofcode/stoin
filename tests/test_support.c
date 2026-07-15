@@ -127,7 +127,7 @@ bool handle_test_stroke(Steno *steno, const char *stroke)
     return ok;
 }
 
-bool handle_phrase_test_stroke(Steno *steno, const char *stroke, Steno_Phrase_Mode phrase_mode)
+bool handle_phrase_test_stroke(Steno *steno, const char *stroke)
 {
     uint64_t bits = 0;
     if (!stroke_string_to_bits(stroke, &bits)) {
@@ -135,31 +135,9 @@ bool handle_phrase_test_stroke(Steno *steno, const char *stroke, Steno_Phrase_Mo
         return false;
     }
 
-    const bool ok = steno_handle_stroke(steno, ((Stroke_Input) {
-        .bits = bits,
-        .phrase_mode = phrase_mode,
-        .phrase_namespace = true,
-    }));
+    const bool ok = steno_handle_stroke_bits(steno, bits);
     if (!ok) {
         fprintf(stderr, "test failed: phrase stroke '%s' was not handled\n", stroke);
-    }
-    return ok;
-}
-
-bool handle_modal_dictionary_test_stroke(Steno *steno, const char *stroke)
-{
-    uint64_t bits = 0;
-    if (!stroke_string_to_bits(stroke, &bits)) {
-        fprintf(stderr, "test failed: could not parse modal dictionary stroke '%s'\n", stroke);
-        return false;
-    }
-
-    const bool ok = steno_handle_stroke(steno, ((Stroke_Input) {
-        .bits = bits,
-        .modal_dictionary = true,
-    }));
-    if (!ok) {
-        fprintf(stderr, "test failed: modal dictionary stroke '%s' was not handled\n", stroke);
     }
     return ok;
 }
@@ -188,7 +166,6 @@ bool expect_phrase_stroke_output(
     Test_Output *output,
     const char *name,
     const char *stroke,
-    Steno_Phrase_Mode phrase_mode,
     const char *expected
 )
 {
@@ -197,7 +174,7 @@ bool expect_phrase_stroke_output(
     }
     clear_test_output(output);
     reset_output_log(output);
-    return handle_phrase_test_stroke(*steno, stroke, phrase_mode)
+    return handle_phrase_test_stroke(*steno, stroke)
         && expect_string(name, output->text, expected);
 }
 

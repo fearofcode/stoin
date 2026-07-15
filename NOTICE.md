@@ -2,9 +2,8 @@
 
 ## Lapwing Dictionaries
 
-The bundled `lapwing-base.json`, `lapwing-commands.json`, and
-`lapwing-semi-modal-movement.json` dictionaries are derived from
-`aerickt/plover-lapwing-aio`:
+The bundled `lapwing-base.json` and `lapwing-commands.json` dictionaries are
+derived from `aerickt/plover-lapwing-aio`:
 
 <https://github.com/aerickt/plover-lapwing-aio>
 

@@ -299,26 +299,13 @@ static bool retro_undo_last_translation_callback(void *userdata)
 
 static bool retro_translate_bits_callback(
     void *userdata,
-    uint64_t bits,
-    Translation_Source source
+    uint64_t bits
 )
 {
-    Steno *steno = userdata;
-    if (source == TRANSLATION_SOURCE_MODAL) {
-        steno_prepare_modal_retro_retranslation(steno);
-        const bool was_retranslating = steno->modal_retranslation_in_progress;
-        steno->modal_retranslation_in_progress = true;
-        const bool ok = steno_translate_stroke_input(steno, ((Stroke_Input) {
-            .bits = bits,
-            .modal_dictionary = true,
-        }));
-        steno->modal_retranslation_in_progress = was_retranslating;
-        return ok;
-    }
-    return steno_translate_chord_bits(steno, bits);
+    return steno_translate_chord_bits(userdata, bits);
 }
 
-static Retro_Context make_retro_context(Steno *steno, Translation_Source source)
+static Retro_Context make_retro_context(Steno *steno)
 {
     Retro_Context context = {
         .translations = &steno->translations,
@@ -326,18 +313,16 @@ static Retro_Context make_retro_context(Steno *steno, Translation_Source source)
         .replace_output = replace_output_callback,
         .undo_last_translation = retro_undo_last_translation_callback,
         .translate_bits = retro_translate_bits_callback,
-        .source = source,
         .userdata = steno,
     };
     return context;
 }
 
-static Stitch_Context make_stitch_context(Steno *steno, Translation_Source source)
+static Stitch_Context make_stitch_context(Steno *steno)
 {
     Stitch_Context context = {
         .translations = &steno->translations,
         .replace_output = replace_output_callback,
-        .source = source,
         .userdata = steno,
     };
     return context;
@@ -346,8 +331,7 @@ static Stitch_Context make_stitch_context(Steno *steno, Translation_Source sourc
 static bool repeat_last_translation(
     Steno *steno,
     const uint64_t *strokes,
-    size_t stroke_count,
-    Translation_Source source
+    size_t stroke_count
 )
 {
     const size_t translation_count = arrlenu(steno->translations);
@@ -360,7 +344,6 @@ static bool repeat_last_translation(
     Translation next = {
         .glue = last->glue,
         .next_attach = last->next_attach,
-        .source = last->source == source ? source : TRANSLATION_SOURCE_MIXED,
     };
     const bool repeat_needs_spacing = steno->spacing.mode == SPACING_MODE_BEFORE_WORD
         && !last->glue
@@ -392,15 +375,14 @@ bool steno_execute_command(
     Steno *steno,
     const char *command,
     const uint64_t *strokes,
-    size_t stroke_count,
-    Translation_Source source
+    size_t stroke_count
 )
 {
     if (strcmp(command, "=undo") == 0) {
         return undo_last_translation(steno);
     }
     if (strcmp(command, "=repeat_last_translation") == 0) {
-        return repeat_last_translation(steno, strokes, stroke_count, source);
+        return repeat_last_translation(steno, strokes, stroke_count);
     }
 
     fprintf(stderr, "stoin: unknown dictionary command '%s'\n", command);
@@ -507,59 +489,6 @@ static bool formatted_has_deferred_action(const Formatted_Text *formatted)
         || formatted->mode_command != NULL
         || formatted->plover_command != NULL
         || arrlenu(formatted->key_combos) != 0;
-}
-
-static bool translation_set_segment_boundaries(
-    Steno *steno,
-    Translation *translation,
-    const Translation_Match *match,
-    const Translation *previous,
-    const char *old_text
-)
-{
-    if (arrlenu(match->segment_boundaries) == 0) {
-        return true;
-    }
-    if (!match->has_format_case_state) {
-        return false;
-    }
-
-    const Steno_Case_State resulting_case_state = steno_case_state(steno);
-    bool ok = true;
-    for (size_t i = 0; i < arrlenu(match->segment_boundaries); ++i) {
-        const Translation_Segment_Boundary *source = &match->segment_boundaries[i];
-        Formatted_Text formatted = {0};
-        if (!format_translation_text(source->utf8, &formatted)
-            || formatted_has_deferred_action(&formatted)) {
-            formatted_text_destroy(&formatted);
-            ok = false;
-            break;
-        }
-
-        steno_restore_case_state(steno, ((Steno_Case_State) {
-            .case_mode = match->format_case_mode,
-            .next_case = match->format_next_case,
-        }));
-        apply_case_state_to_formatted(steno, &formatted);
-
-        Translation_Segment_Boundary boundary = {
-            .stroke_count = source->stroke_count,
-            .utf8 = build_emitted_text(
-                steno,
-                old_text,
-                &formatted,
-                should_prepend_spacing(steno, previous, old_text, &formatted)
-            ),
-        };
-        formatted_text_destroy(&formatted);
-        if (boundary.utf8 == NULL) {
-            ok = false;
-            break;
-        }
-        arrput(translation->segment_boundaries, boundary);
-    }
-    steno_restore_case_state(steno, resulting_case_state);
-    return ok;
 }
 
 static bool text_has_prefix(const char *text, const char *prefix)
@@ -774,19 +703,10 @@ static bool apply_suffix_translation_match(Steno *steno, const Translation_Match
         return false;
     }
 
-    Translation_Source next_source = match->source;
-    for (size_t i = replace_start; i < translation_count; ++i) {
-        if (steno->translations[i].source != match->source) {
-            next_source = TRANSLATION_SOURCE_MIXED;
-            break;
-        }
-    }
-
     Translation next = {
         .utf8 = final_text,
         .glue = suffix.glue,
         .next_attach = suffix.attach_next,
-        .source = next_source,
     };
     translation_set_previous_case_state(&next, previous_case_state);
     final_text = NULL;
@@ -907,7 +827,7 @@ bool steno_apply_translation_match(Steno *steno, const Translation_Match *match)
     }
 
     if (formatted.retro_command != RETRO_COMMAND_NONE) {
-        Retro_Context retro = make_retro_context(steno, match->source);
+        Retro_Context retro = make_retro_context(steno);
         bool ok = false;
         switch (formatted.retro_command) {
         case RETRO_COMMAND_TOGGLE_ASTERISK:
@@ -928,7 +848,7 @@ bool steno_apply_translation_match(Steno *steno, const Translation_Match *match)
     }
 
     if (formatted.stitch_last_word) {
-        Stitch_Context stitch = make_stitch_context(steno, match->source);
+        Stitch_Context stitch = make_stitch_context(steno);
         const bool ok = stitch_apply_retro(
             &stitch,
             match->strokes,
@@ -942,7 +862,7 @@ bool steno_apply_translation_match(Steno *steno, const Translation_Match *match)
     }
 
     if (formatted.retro_case != CASE_MODE_NORMAL) {
-        Retro_Context retro = make_retro_context(steno, match->source);
+        Retro_Context retro = make_retro_context(steno);
         const bool ok = retro_apply_case(&retro, match->strokes, match->stroke_count, formatted.retro_case);
         formatted_text_destroy(&formatted);
         return ok;
@@ -1007,17 +927,7 @@ bool steno_apply_translation_match(Steno *steno, const Translation_Match *match)
         return false;
     }
 
-    Translation_Source next_source = match->source;
-    for (size_t i = replace_start; i < translation_count; ++i) {
-        if (steno->translations[i].source != match->source) {
-            next_source = TRANSLATION_SOURCE_MIXED;
-            break;
-        }
-    }
-
-    Translation next = {
-        .source = next_source,
-    };
+    Translation next = {0};
     const Translation *previous = previous_visible_translation(steno->translations, replace_start);
     if (match_has_partial_prefix(match)) {
         next.utf8 = build_partial_replacement_text(
@@ -1037,13 +947,7 @@ bool steno_apply_translation_match(Steno *steno, const Translation_Match *match)
     next.next_attach = formatted.attach_next;
     translation_set_previous_case_state(&next, previous_case_state);
 
-    if (next.utf8 == NULL
-        || !translation_set_segment_boundaries(
-            steno,
-            &next,
-            match,
-            previous,
-            old_text)) {
+    if (next.utf8 == NULL) {
         arrfree(old_text);
         formatted_text_destroy(&formatted);
         translation_destroy(&next);

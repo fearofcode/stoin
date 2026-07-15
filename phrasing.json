@@ -94,7 +94,7 @@
     ],
     "stems": [
       {
-        "stroke": "PW",
+        "stroke": "#PW",
         "forms": [
           {
             "stroke": "",
@@ -131,7 +131,7 @@
         ]
       },
       {
-        "stroke": "H",
+        "stroke": "#H",
         "forms": [
           {
             "stroke": "",
@@ -160,7 +160,7 @@
         ]
       },
       {
-        "stroke": "S",
+        "stroke": "#S",
         "forms": [
           {
             "stroke": "",
@@ -175,7 +175,7 @@
             "text": "see"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "seeing"
           },
           {
@@ -193,7 +193,7 @@
         ]
       },
       {
-        "stroke": "ST",
+        "stroke": "#ST",
         "forms": [
           {
             "stroke": "",
@@ -208,7 +208,7 @@
             "text": "say"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "saying"
           },
           {
@@ -226,7 +226,7 @@
         ]
       },
       {
-        "stroke": "TH",
+        "stroke": "#TH",
         "forms": [
           {
             "stroke": "",
@@ -241,7 +241,7 @@
             "text": "think"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "thinking"
           },
           {
@@ -259,7 +259,7 @@
         ]
       },
       {
-        "stroke": "THR",
+        "stroke": "#THR",
         "tails": [
           "a",
           "an",
@@ -293,7 +293,7 @@
             "text": "tell"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "telling"
           },
           {
@@ -311,7 +311,7 @@
         ]
       },
       {
-        "stroke": "KH",
+        "stroke": "#KH",
         "forms": [
           {
             "stroke": "",
@@ -326,7 +326,7 @@
             "text": "catch"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "catching"
           },
           {
@@ -344,7 +344,7 @@
         ]
       },
       {
-        "stroke": "HR",
+        "stroke": "#HR",
         "forms": [
           {
             "stroke": "",
@@ -359,7 +359,7 @@
             "text": "look"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "looking"
           },
           {
@@ -377,7 +377,7 @@
         ]
       },
       {
-        "stroke": "TKH",
+        "stroke": "#TKH",
         "forms": [
           {
             "stroke": "",
@@ -392,7 +392,7 @@
             "text": "hold"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "holding"
           },
           {
@@ -410,7 +410,7 @@
         ]
       },
       {
-        "stroke": "SHR",
+        "stroke": "#SHR",
         "forms": [
           {
             "stroke": "",
@@ -425,7 +425,7 @@
             "text": "sell"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "selling"
           },
           {
@@ -443,7 +443,7 @@
         ]
       },
       {
-        "stroke": "SPHR",
+        "stroke": "#SPHR",
         "forms": [
           {
             "stroke": "",
@@ -458,7 +458,7 @@
             "text": "spell"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "spelling"
           },
           {
@@ -476,7 +476,7 @@
         ]
       },
       {
-        "stroke": "PHR",
+        "stroke": "#PHR",
         "forms": [
           {
             "stroke": "",
@@ -491,7 +491,7 @@
             "text": "pull"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "pulling"
           },
           {
@@ -509,7 +509,7 @@
         ]
       },
       {
-        "stroke": "P",
+        "stroke": "#P",
         "tails": [
           "a",
           "an",
@@ -542,7 +542,7 @@
             "text": "put"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "putting"
           },
           {
@@ -560,7 +560,7 @@
         ]
       },
       {
-        "stroke": "KP",
+        "stroke": "#KP",
         "forms": [
           {
             "stroke": "",
@@ -575,7 +575,7 @@
             "text": "keep"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "keeping"
           },
           {
@@ -593,7 +593,7 @@
         ]
       },
       {
-        "stroke": "KHR",
+        "stroke": "#KHR",
         "forms": [
           {
             "stroke": "",
@@ -608,7 +608,7 @@
             "text": "call"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "calling"
           },
           {
@@ -626,7 +626,7 @@
         ]
       },
       {
-        "stroke": "TK",
+        "stroke": "#TK",
         "tails": [
           "a",
           "an",
@@ -659,7 +659,7 @@
             "text": "do"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "doing"
           },
           {
@@ -677,13 +677,11 @@
         ]
       },
       {
-        "stroke": "TKPW",
+        "stroke": "#TKPW",
         "tails": [
           "a",
           "an",
-          "the",
           "at",
-          "it",
           "her",
           "his",
           "your",
@@ -709,7 +707,7 @@
             "text": "go"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "going"
           },
           {
@@ -727,7 +725,7 @@
         ]
       },
       {
-        "stroke": "W",
+        "stroke": "#W",
         "tails": [
           "a",
           "an",
@@ -760,7 +758,7 @@
             "text": "want"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "wanting"
           },
           {
@@ -778,7 +776,7 @@
         ]
       },
       {
-        "stroke": "SK",
+        "stroke": "#SK",
         "tails": [
           "a",
           "an",
@@ -813,7 +811,7 @@
             "text": "ask"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "asking"
           },
           {
@@ -831,7 +829,7 @@
         ]
       },
       {
-        "stroke": "SP",
+        "stroke": "#SP",
         "tails": [
           "a",
           "an",
@@ -855,7 +853,7 @@
             "text": "happen"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "happening"
           },
           {
@@ -873,7 +871,7 @@
         ]
       },
       {
-        "stroke": "SW",
+        "stroke": "#SW",
         "tails": [
           "a",
           "an",
@@ -907,7 +905,7 @@
             "text": "feel"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "feeling"
           },
           {
@@ -925,11 +923,10 @@
         ]
       },
       {
-        "stroke": "K",
+        "stroke": "#K",
         "tails": [
           "a",
           "an",
-          "the",
           "at",
           "her",
           "his",
@@ -957,7 +954,7 @@
             "text": "come"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "coming"
           },
           {
@@ -975,7 +972,7 @@
         ]
       },
       {
-        "stroke": "TPH",
+        "stroke": "#TPH",
         "tails": [
           "a",
           "an",
@@ -1008,7 +1005,7 @@
             "text": "know"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "knowing"
           },
           {
@@ -1026,7 +1023,7 @@
         ]
       },
       {
-        "stroke": "TKPWH",
+        "stroke": "#TKPWH",
         "tails": [
           "a",
           "an",
@@ -1060,7 +1057,7 @@
             "text": "get"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "getting"
           },
           {
@@ -1078,7 +1075,7 @@
         ]
       },
       {
-        "stroke": "PWHR",
+        "stroke": "#PWHR",
         "tails": [
           "a",
           "an",
@@ -1109,7 +1106,7 @@
             "text": "believe"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "believing"
           },
           {
@@ -1127,7 +1124,7 @@
         ]
       },
       {
-        "stroke": "KW",
+        "stroke": "#KW",
         "tails": [
           "a",
           "an",
@@ -1158,7 +1155,7 @@
             "text": "become"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "becoming"
           },
           {
@@ -1176,7 +1173,7 @@
         ]
       },
       {
-        "stroke": "R",
+        "stroke": "#R",
         "tails": [
           "a",
           "an",
@@ -1210,7 +1207,7 @@
             "text": "run"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "running"
           },
           {
@@ -1228,7 +1225,7 @@
         ]
       },
       {
-        "stroke": "KPHR",
+        "stroke": "#KPHR",
         "tails": [
           "a",
           "an",
@@ -1262,7 +1259,7 @@
             "text": "make"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "making"
           },
           {
@@ -1280,7 +1277,7 @@
         ]
       },
       {
-        "stroke": "PH",
+        "stroke": "#PH",
         "tails": [
           "a",
           "an",
@@ -1313,7 +1310,7 @@
             "text": "take"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "taking"
           },
           {
@@ -1331,7 +1328,7 @@
         ]
       },
       {
-        "stroke": "TP",
+        "stroke": "#TP",
         "tails": [
           "a",
           "an",
@@ -1363,7 +1360,7 @@
             "text": "find"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "finding"
           },
           {
@@ -1381,7 +1378,7 @@
         ]
       },
       {
-        "stroke": "STP",
+        "stroke": "#STP",
         "tails": [
           "a",
           "an",
@@ -1415,7 +1412,7 @@
             "text": "give"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "giving"
           },
           {
@@ -1433,7 +1430,7 @@
         ]
       },
       {
-        "stroke": "STW",
+        "stroke": "#STW",
         "tails": [
           "a",
           "an",
@@ -1465,7 +1462,7 @@
             "text": "use"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "using"
           },
           {
@@ -1483,7 +1480,7 @@
         ]
       },
       {
-        "stroke": "WR",
+        "stroke": "#WR",
         "tails": [
           "a",
           "an",
@@ -1517,7 +1514,7 @@
             "text": "work"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "working"
           },
           {
@@ -1535,7 +1532,7 @@
         ]
       },
       {
-        "stroke": "SKP",
+        "stroke": "#SKP",
         "tails": [
           "a",
           "an",
@@ -1567,7 +1564,7 @@
             "text": "need"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "needing"
           },
           {
@@ -1585,7 +1582,7 @@
         ]
       },
       {
-        "stroke": "SKW",
+        "stroke": "#SKW",
         "tails": [
           "a",
           "an",
@@ -1616,7 +1613,7 @@
             "text": "remember"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "remembering"
           },
           {
@@ -1634,7 +1631,7 @@
         ]
       },
       {
-        "stroke": "SKH",
+        "stroke": "#SKH",
         "tails": [
           "a",
           "an",
@@ -1665,7 +1662,7 @@
             "text": "understand"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "understanding"
           },
           {
@@ -1683,7 +1680,7 @@
         ]
       },
       {
-        "stroke": "TR",
+        "stroke": "#TR",
         "tails": [
           "a",
           "an",
@@ -1715,7 +1712,7 @@
             "text": "try"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "trying"
           },
           {
@@ -1733,7 +1730,7 @@
         ]
       },
       {
-        "stroke": "TKP",
+        "stroke": "#TKP",
         "tails": [
           "a",
           "an",
@@ -1767,7 +1764,7 @@
             "text": "expect"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "expecting"
           },
           {
@@ -1790,7 +1787,7 @@
     "contraction_stroke": "#",
     "starters": [
       {
-        "stroke": "SWR",
+        "stroke": "SWHR",
         "text": "I",
         "agreement": "first_singular",
         "be_contraction": "I'm",
@@ -1799,7 +1796,7 @@
         "d_contraction": "I'd"
       },
       {
-        "stroke": "KPWR",
+        "stroke": "SKPWR",
         "text": "you",
         "agreement": "plural",
         "be_contraction": "you're",
@@ -1817,7 +1814,7 @@
         "d_contraction": "he'd"
       },
       {
-        "stroke": "SH",
+        "stroke": "SKWHR",
         "text": "she",
         "agreement": "third_singular",
         "be_contraction": "she's",
@@ -1826,7 +1823,7 @@
         "d_contraction": "she'd"
       },
       {
-        "stroke": "T",
+        "stroke": "KPWH",
         "text": "it",
         "agreement": "third_singular",
         "be_contraction": "it's",
@@ -1835,7 +1832,7 @@
         "d_contraction": "it'd"
       },
       {
-        "stroke": "TWR",
+        "stroke": "STWR",
         "text": "we",
         "agreement": "plural",
         "be_contraction": "we're",
@@ -1844,7 +1841,7 @@
         "d_contraction": "we'd"
       },
       {
-        "stroke": "TWH",
+        "stroke": "TKWH",
         "text": "they",
         "agreement": "plural",
         "be_contraction": "they're",
@@ -1853,7 +1850,7 @@
         "d_contraction": "they'd"
       },
       {
-        "stroke": "STH",
+        "stroke": "STKWH",
         "text": "this",
         "agreement": "third_singular",
         "will_contraction": "this'll"
@@ -1868,7 +1865,7 @@
         "d_contraction": "that'd"
       },
       {
-        "stroke": "THR",
+        "stroke": "STWHR",
         "text": "there",
         "agreement": "third_singular",
         "be_contraction": "there's",
@@ -1915,7 +1912,7 @@
         ]
       },
       {
-        "stroke": "TPHR",
+        "stroke": "STPWHR",
         "text": "there",
         "label": "there (plural)",
         "agreement": "plural",
@@ -2497,12 +2494,12 @@
         "past": true
       },
       {
-        "stroke": "-FPL",
+        "stroke": "-PBL",
         "verb": "hold",
         "past": false
       },
       {
-        "stroke": "-FPLD",
+        "stroke": "-PBLD",
         "verb": "hold",
         "past": true
       },
@@ -3002,7 +2999,7 @@
       },
       {
         "id": "can",
-        "stroke": "-BG",
+        "stroke": "-G",
         "text": "can"
       },
       {
@@ -3023,7 +3020,7 @@
     ],
     "prefixes": [
       {
-        "stroke": "W",
+        "stroke": "#WO",
         "text": "with",
         "tails": [
           "a",
@@ -3039,7 +3036,7 @@
         ]
       },
       {
-        "stroke": "T",
+        "stroke": "#TO",
         "text": "at",
         "tails": [
           "a",
@@ -3055,7 +3052,7 @@
         ]
       },
       {
-        "stroke": "T*",
+        "stroke": "#TO*",
         "text": "it",
         "tails": [
           "a",
@@ -3074,7 +3071,7 @@
         ]
       },
       {
-        "stroke": "AUF",
+        "stroke": "#AOUF",
         "text": "off",
         "tails": [
           "a",
@@ -3090,7 +3087,7 @@
         ]
       },
       {
-        "stroke": "UP",
+        "stroke": "#OUP",
         "text": "up",
         "tails": [
           "a",
@@ -3105,7 +3102,7 @@
         ]
       },
       {
-        "stroke": "K",
+        "stroke": "#KO",
         "text": "can",
         "tails": [
           "a",
@@ -3123,7 +3120,7 @@
         ]
       },
       {
-        "stroke": "SKWR",
+        "stroke": "#SKWRO",
         "text": "just",
         "tails": [
           "a",
@@ -3143,7 +3140,7 @@
         ]
       },
       {
-        "stroke": "HR",
+        "stroke": "#HRO",
         "text": "all",
         "tails": [
           "a",
@@ -3161,7 +3158,7 @@
         ]
       },
       {
-        "stroke": "TP",
+        "stroke": "#TPO",
         "text": "if",
         "tails": [
           "a",
@@ -3176,7 +3173,7 @@
         ]
       },
       {
-        "stroke": "TPHRO",
+        "stroke": "#TPHRO",
         "text": "only",
         "tails": [
           "a",
@@ -3196,7 +3193,7 @@
         ]
       },
       {
-        "stroke": "PW",
+        "stroke": "#PWO",
         "text": "but",
         "tails": [
           "a",
@@ -3217,7 +3214,7 @@
         ]
       },
       {
-        "stroke": "THA",
+        "stroke": "#THAO",
         "text": "that",
         "tails": [
           "a",
@@ -3236,7 +3233,7 @@
         ]
       },
       {
-        "stroke": "TPO",
+        "stroke": "#TPAO",
         "text": "for",
         "tails": [
           "a",
@@ -3255,7 +3252,7 @@
         ]
       },
       {
-        "stroke": "OF",
+        "stroke": "#OF",
         "text": "of",
         "tails": [
           "a",
@@ -3271,7 +3268,7 @@
         ]
       },
       {
-        "stroke": "TKPWH*",
+        "stroke": "#TKPWHO*",
         "text": "anything",
         "tails": [
           "a",
@@ -3289,7 +3286,7 @@
         ]
       },
       {
-        "stroke": "S*",
+        "stroke": "#SO*",
         "text": "as",
         "tails": [
           "a",
@@ -3309,7 +3306,7 @@
         ]
       },
       {
-        "stroke": "SRAO*E",
+        "stroke": "#SRAO*E",
         "text": "even",
         "tails": [
           "a",

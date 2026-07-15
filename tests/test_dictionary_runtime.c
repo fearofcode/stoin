@@ -36,17 +36,6 @@ static void test_phrasing_watch_callback(void *userdata)
     }
 }
 
-static void test_modal_dictionary_watch_callback(void *userdata)
-{
-    Watch_Test *watch = userdata;
-    if (watch == NULL) {
-        return;
-    }
-    if (steno_reload_modal_dictionary_if_changed(watch->steno)) {
-        ++watch->reload_count;
-    }
-}
-
 bool test_dictionary_runtime(void)
 {
     Test_Output output = {0};
@@ -78,10 +67,11 @@ bool test_dictionary_runtime(void)
 
     const char *phrase_lookup = NULL;
     ok = ok && steno_lookup_stroke(steno, "PW-B", &phrase_lookup);
-    ok = ok && expect_string("lookup uses dictionary without phrase namespace", phrase_lookup, "dictionary is a");
+    ok = ok && expect_string("dictionary wins exact phrase-shaped lookup", phrase_lookup, "dictionary is a");
 
     const char *have_phrase_lookup = NULL;
-    ok = ok && !steno_lookup_stroke(steno, "H-BD", &have_phrase_lookup);
+    ok = ok && steno_lookup_stroke(steno, "#H-BD", &have_phrase_lookup);
+    ok = ok && expect_string("lookup includes generated phrases", have_phrase_lookup, "had a");
 
     const char *ampersand = NULL;
     ok = ok && steno_lookup_stroke(steno, "PH", &ampersand);
@@ -157,79 +147,12 @@ bool test_dictionary_runtime(void)
         ok = ok && steno_handle_stroke_bits(reload_steno, reload_bits);
         ok = ok && expect_string("platform dictionary watcher reload", output.text, " watched");
 
-        const char *reload_modal_path = "build/test-hot-reload-modal-dictionary.json";
-        ok = ok && write_text_file(reload_modal_path, "{ \"S\": \"modal old\" }\n");
-        Steno_Config modal_reload_config = config;
-        modal_reload_config.modal_dictionary_path = reload_modal_path;
-        Steno *modal_reload_steno = steno_create(&modal_reload_config);
-        ok = ok && modal_reload_steno != NULL;
-        if (modal_reload_steno != NULL) {
-            const char *configured_modal_path = NULL;
-            ok = ok && steno_get_modal_dictionary_path(
-                modal_reload_steno,
-                &configured_modal_path
-            );
-            ok = ok && expect_string(
-                "configured modal dictionary path",
-                configured_modal_path,
-                reload_modal_path);
-
-            clear_test_output(&output);
-            ok = ok && handle_modal_dictionary_test_stroke(modal_reload_steno, "S");
-            ok = ok && expect_string("hot reload initial modal dictionary", output.text, "modal old");
-
-            ok = ok && write_text_file(reload_modal_path, "{");
-            ok = ok && !steno_reload_modal_dictionary(modal_reload_steno);
-            ok = ok && handle_test_stroke(modal_reload_steno, "F");
-            ok = ok && handle_modal_dictionary_test_stroke(modal_reload_steno, "S");
-            ok = ok && expect_string(
-                "hot reload keeps old modal dictionary on parse failure",
-                output.text,
-                "modal old fee modal old");
-
-            ok = ok && write_text_file(reload_modal_path, "{ \"S\": \"modal newer\" }\n");
-            ok = ok && steno_reload_modal_dictionary(modal_reload_steno);
-            ok = ok && handle_test_stroke(modal_reload_steno, "F");
-            ok = ok && handle_modal_dictionary_test_stroke(modal_reload_steno, "S");
-            ok = ok && expect_string(
-                "hot reload updates modal dictionary",
-                output.text,
-                "modal old fee modal old fee modal newer");
-
-            Watch_Test modal_watch = {
-                .steno = modal_reload_steno,
-            };
-            const char *const modal_watch_paths[] = { reload_modal_path };
-            ok = ok && platform_file_watcher_start(
-                modal_watch_paths,
-                sizeof(modal_watch_paths) / sizeof(modal_watch_paths[0]),
-                test_modal_dictionary_watch_callback,
-                &modal_watch
-            );
-            ok = ok && write_text_file(reload_modal_path, "{ \"S\": \"modal watched\" }\n");
-            for (size_t attempt = 0; ok && modal_watch.reload_count == 0 && attempt < 50; ++attempt) {
-                platform_file_watcher_poll();
-                platform_sleep_ms(10);
-            }
-            platform_file_watcher_stop();
-            ok = ok && modal_watch.reload_count > 0;
-            ok = ok && handle_test_stroke(modal_reload_steno, "F");
-            ok = ok && handle_modal_dictionary_test_stroke(modal_reload_steno, "S");
-            ok = ok && expect_string(
-                "platform modal dictionary watcher reload",
-                output.text,
-                "modal old fee modal old fee modal newer fee modal watched");
-
-            steno_destroy(modal_reload_steno);
-        }
-        remove(reload_modal_path);
-
         const char *reload_phrasing_path = "build/test-hot-reload-phrasing.json";
         const char *phrasing_is =
             "{\n"
             "  \"initial_verbs\": {\n"
             "    \"tails\": [{\"id\": \"a\", \"stroke\": \"-B\", \"text\": \"a\"}],\n"
-            "    \"stems\": [{\"stroke\": \"PW\", \"forms\": [{\"stroke\": \"\", \"text\": \"is\"}]}]\n"
+            "    \"stems\": [{\"stroke\": \"#PW\", \"forms\": [{\"stroke\": \"\", \"text\": \"is\"}]}]\n"
             "  },\n"
             "  \"final_verbs\": {\n"
             "    \"contraction_stroke\": \"#\",\n"
@@ -244,7 +167,7 @@ bool test_dictionary_runtime(void)
             "{\n"
             "  \"initial_verbs\": {\n"
             "    \"tails\": [{\"id\": \"a\", \"stroke\": \"-B\", \"text\": \"a\"}],\n"
-            "    \"stems\": [{\"stroke\": \"PW\", \"forms\": [{\"stroke\": \"\", \"text\": \"was\"}]}]\n"
+            "    \"stems\": [{\"stroke\": \"#PW\", \"forms\": [{\"stroke\": \"\", \"text\": \"was\"}]}]\n"
             "  },\n"
             "  \"final_verbs\": {\n"
             "    \"contraction_stroke\": \"#\",\n"
@@ -259,7 +182,7 @@ bool test_dictionary_runtime(void)
             "{\n"
             "  \"initial_verbs\": {\n"
             "    \"tails\": [{\"id\": \"a\", \"stroke\": \"-B\", \"text\": \"a\"}],\n"
-            "    \"stems\": [{\"stroke\": \"PW\", \"forms\": [{\"stroke\": \"\", \"text\": \"are\"}]}]\n"
+            "    \"stems\": [{\"stroke\": \"#PW\", \"forms\": [{\"stroke\": \"\", \"text\": \"are\"}]}]\n"
             "  },\n"
             "  \"final_verbs\": {\n"
             "    \"contraction_stroke\": \"#\",\n"
@@ -277,7 +200,7 @@ bool test_dictionary_runtime(void)
             "      {\"id\": \"a\", \"stroke\": \"-B\", \"text\": \"a\"},\n"
             "      {\"id\": \"the\", \"stroke\": \"-B\", \"text\": \"the\"}\n"
             "    ],\n"
-            "    \"stems\": [{\"stroke\": \"PW\", \"forms\": [{\"stroke\": \"\", \"text\": \"is\"}]}]\n"
+            "    \"stems\": [{\"stroke\": \"#PW\", \"forms\": [{\"stroke\": \"\", \"text\": \"is\"}]}]\n"
             "  },\n"
             "  \"final_verbs\": {\n"
             "    \"contraction_stroke\": \"#\",\n"
@@ -295,25 +218,25 @@ bool test_dictionary_runtime(void)
         ok = ok && phrasing_reload_steno != NULL;
         if (phrasing_reload_steno != NULL) {
             clear_test_output(&output);
-            ok = ok && handle_phrase_test_stroke(phrasing_reload_steno, "PW-B", STENO_PHRASE_MODE_VERBS);
+            ok = ok && handle_phrase_test_stroke(phrasing_reload_steno, "#PW-B");
             ok = ok && expect_string("hot reload initial phrasing", output.text, "is a");
 
             ok = ok && write_text_file(reload_phrasing_path, "{");
             ok = ok && !steno_reload_phrasing(phrasing_reload_steno);
             clear_test_output(&output);
-            ok = ok && handle_phrase_test_stroke(phrasing_reload_steno, "PW-B", STENO_PHRASE_MODE_VERBS);
+            ok = ok && handle_phrase_test_stroke(phrasing_reload_steno, "#PW-B");
             ok = ok && expect_string("hot reload keeps old phrasing on parse failure", output.text, " is a");
 
             ok = ok && write_text_file(reload_phrasing_path, phrasing_duplicate_iv_tail);
             ok = ok && !steno_reload_phrasing(phrasing_reload_steno);
             clear_test_output(&output);
-            ok = ok && handle_phrase_test_stroke(phrasing_reload_steno, "PW-B", STENO_PHRASE_MODE_VERBS);
+            ok = ok && handle_phrase_test_stroke(phrasing_reload_steno, "#PW-B");
             ok = ok && expect_string("hot reload keeps old phrasing on duplicate stroke", output.text, " is a");
 
             ok = ok && write_text_file(reload_phrasing_path, phrasing_was);
             ok = ok && steno_reload_phrasing(phrasing_reload_steno);
             clear_test_output(&output);
-            ok = ok && handle_phrase_test_stroke(phrasing_reload_steno, "PW-B", STENO_PHRASE_MODE_VERBS);
+            ok = ok && handle_phrase_test_stroke(phrasing_reload_steno, "#PW-B");
             ok = ok && expect_string("hot reload updated phrasing", output.text, " was a");
 
             Watch_Test phrase_watch = {
@@ -334,7 +257,7 @@ bool test_dictionary_runtime(void)
             platform_file_watcher_stop();
             ok = ok && phrase_watch.reload_count > 0;
             clear_test_output(&output);
-            ok = ok && handle_phrase_test_stroke(phrasing_reload_steno, "PW-B", STENO_PHRASE_MODE_VERBS);
+            ok = ok && handle_phrase_test_stroke(phrasing_reload_steno, "#PW-B");
             ok = ok && expect_string("platform phrasing watcher reload", output.text, " are a");
             steno_destroy(phrasing_reload_steno);
         }
@@ -391,24 +314,22 @@ bool test_dictionary_runtime(void)
             ok = ok && stroke_string_to_bits("KAT", &trace_cat_bits);
             ok = ok && stroke_string_to_bits("#*", &trace_toggle_star_bits);
             ok = ok && steno_handle_stroke_bits(trace_steno, trace_bits);
-            ok = ok && handle_phrase_test_stroke(trace_steno, "PW-B", STENO_PHRASE_MODE_VERBS);
+            ok = ok && handle_phrase_test_stroke(trace_steno, "#PW-B");
             ok = ok && handle_test_stroke(trace_steno, "#KW");
             ok = ok && handle_test_stroke(trace_steno, "SAO");
             ok = ok && steno_handle_stroke_bits(trace_steno, trace_cat_bits);
             ok = ok && steno_handle_stroke(trace_steno, ((Stroke_Input) {
                 .bits = trace_toggle_star_bits,
-                .phrase = true,
-                .phrase_namespace = true,
             }));
             ok = ok && expect_trace_contains(trace_file, "trace translated stroke", "-T -> the\n");
             ok = ok && expect_trace_contains(
                 trace_file,
                 "trace phrase stroke",
-                "PWB [phrase] -> is a\n");
+                "#PWB [phrase] -> is a\n");
             ok = ok && expect_trace_contains(
                 trace_file,
-                "trace phase fallback stroke",
-                "#* [phase fallback] -> {*}\n");
+                "trace dictionary stroke with number bar",
+                "#* -> {*}\n");
             ok = ok && expect_trace_contains(
                 trace_file,
                 "trace dictionary stroke",

@@ -368,7 +368,7 @@ function initialFormLabel(stroke) {
 	case '-D': return 'past tense';
 	case 'E': return 'base / non-third present';
 	case 'E-D': return 'plural past tense';
-	case '-G': return 'present participle';
+	case '*': return 'present participle';
 	case 'U': return 'to *';
 	case 'EU': return 'bare infinitive';
 	case 'A': return 'can *';

@@ -39,24 +39,6 @@ static bool retro_replace_output(Retro_Context *retro, const char *old_text, con
         && retro->replace_output(retro->userdata, old_text, new_text);
 }
 
-static Translation_Source retro_replacement_source(
-    const Retro_Context *retro,
-    const Translation *translations,
-    size_t start,
-    size_t count
-)
-{
-    const Translation_Source source = retro != NULL
-        ? retro->source
-        : TRANSLATION_SOURCE_NORMAL;
-    for (size_t i = 0; i < count; ++i) {
-        if (translations[start + i].source != source) {
-            return TRANSLATION_SOURCE_MIXED;
-        }
-    }
-    return source;
-}
-
 bool retro_apply_case(
     Retro_Context *retro,
     const uint64_t *strokes,
@@ -83,13 +65,7 @@ bool retro_apply_case(
     }
     formatted_text_apply_case(new_text, mode);
 
-    Translation next = {
-        .source = retro_replacement_source(
-            retro,
-            translations,
-            translation_count - 1,
-            1),
-    };
+    Translation next = {0};
     if (!text_append_cstring(&next.utf8, new_text)
         || !translation_set_strokes(
             &next,
@@ -152,7 +128,6 @@ bool retro_apply_delete_space(Retro_Context *retro, const uint64_t *strokes, siz
 
     Translation next = {
         .utf8 = new_text,
-        .source = retro_replacement_source(retro, translations, replace_start, 2),
         .retro_space_command = true,
     };
     new_text = NULL;
@@ -204,11 +179,6 @@ bool retro_apply_insert_space(Retro_Context *retro, const uint64_t *strokes, siz
 
     Translation next = {
         .utf8 = new_text,
-        .source = retro_replacement_source(
-            retro,
-            translations,
-            translation_count - 1,
-            1),
     };
     new_text = NULL;
     if (!translation_set_strokes(&next, strokes, stroke_count)) {
@@ -254,5 +224,5 @@ bool retro_apply_toggle_asterisk(Retro_Context *retro)
 
     const uint64_t toggled_bits = last->strokes[stroke_count - 1] ^ steno_bit(STENO_STAR);
     return retro->undo_last_translation(retro->userdata)
-        && retro->translate_bits(retro->userdata, toggled_bits, retro->source);
+        && retro->translate_bits(retro->userdata, toggled_bits);
 }

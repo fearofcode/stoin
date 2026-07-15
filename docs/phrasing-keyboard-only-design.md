@@ -1,680 +1,212 @@
-# Phrasing Reference
+# Non-Pedal Phrasing Reference
 
-## Global Rules
+Phrases are ordinary one-stroke chords. They do not use a pedal, phrase mode,
+or separate runtime namespace.
 
-| Topic | Rule |
-| --- | --- |
-| Activation | `--phrase-toggle KEY` selects the phrase namespace for a stroke |
-| Match order | while a phrase pedal is active, phrase matching runs first and misses fall through to the main dictionary stack |
-| Ordinary fallback | without a phrase pedal, a dictionary miss tries the IV bank before emitting raw steno |
-| Families | `IV`, `FV`, `NV` |
-| Contractions | only when `#` is pressed |
-| Default output | long forms, never contractions |
-| Follow-ons | none |
-| Custom chunks | default config loads `stoin-custom.json`; when overriding config, include it after base dictionaries with `--dictionary` |
+The main dictionary stack is checked first. If it has no translation for the
+stroke, Stoin checks the generated IV, NV, and FV phrase banks. This makes an
+explicit dictionary entry an override while allowing a generated phrase to be
+retroactively replaced when a later stroke completes a longer dictionary
+outline.
 
-## Optional Pedal Namespace
+## Collision rule
 
-`--phrase-toggle KEY` enables a separate phrase namespace. The key is intended
-for a pedal remapped to something like `F13`. When it is the only phrase pedal,
-it selects all phrase families for backward compatibility.
+Every structurally possible phrase outline must be absent from Phoenix, not
+just the outlines shown in examples. Phrase families must also be disjoint from
+one another.
 
-`--nonverb-phrase-toggle KEY` adds a separate pedal for the `NV` family. When
-both phrase pedals are configured, `--phrase-toggle` selects only `IV` and `FV`,
-while `--nonverb-phrase-toggle` selects only `NV`. Holding both selects all
-families. The pedal keycodes must be distinct.
+Run the conservative structural audit with:
 
-Ordinary strokes use the main dictionary stack; a stroke is a phrase stroke if
-either applicable pedal is down during any part of chord gathering, so the
-pedal may be released before the chord.
-
-Without a phrase pedal, ordinary strokes check the dictionary stack first and
-then the IV bank. This fallback does not include FV or NV phrases. IV fallback
-translations remain eligible for replacement when a later stroke completes a
-longer dictionary outline.
-
-Phrase matches print the `[phrase]` trace marker. A phrase miss uses the main
-dictionary stack and traces as `[phase fallback]`; it emits raw steno only when
-the dictionary stack also misses.
-
-## Modal Dictionary Pedal
-
-A second, separately loaded dictionary can be assigned to a momentary pedal.
-It is not merged into the main dictionary stack. Configure its path in JSON:
-
-```json
-{
-  "modal_dictionary": "/absolute/path/to/magnum.json"
-}
+```sh
+scripts/check-phrasing-collisions.py phrasing.json ~/Downloads/phoenix.json
 ```
 
-The equivalent command-line path is `--modal-dictionary PATH`. Assign the
-pedal with `--modal-dictionary-toggle F14` (or `--modal-toggle F14`). The verb,
-nonverb, and modal pedals must all resolve to different keycodes.
+The checker understands Plover number-bar aliases, ignores multi-stroke
+dictionary entries because every generated phrase is one stroke, and fails on
+either an internal phrase collision or a Phoenix collision. It checks the full
+FV Cartesian product, including combinations the formatter later rejects, so a
+clean result is stronger than checking only phrases which currently emit text.
 
-While the modal pedal is active, lookup uses only the modal dictionary. It does
-not fall through to IV/FV phrasing or the main dictionary, and a miss emits raw
-steno. Modal state is latched for a chord in the same way as phrase state.
-Consecutive modal strokes form one run; normal or phrase input closes the run,
-so outlines cannot cross a dictionary-mode boundary. A modal history-changing
-command also starts a new run when it cannot preserve an equivalent stroke
-sequence.
+## Family summary
 
-For plain-text modal entries, Stoin evaluates complete segmentations of the
-run. It first minimizes untranslated strokes, then prefers the segmentation
-that emits the most whitespace-delimited words. Ties prefer fewer dictionary
-segments and then a longer final segment. Thus Magnum's `but if` plus `I can`
-wins over its conflicting two-stroke `glyphic` entry. If any competing entry
-uses a Plover formatting or command value, Stoin retains ordinary longest-match
-behavior rather than trying to concatenate or score side effects.
-
-Outside modal mode, an exact single stroke that the main stack cannot translate
-is delegated to the modal dictionary. This supports supplemental words such as
-Magnum `STPHULGDZ` -> `snuggling` without enabling Magnum's multi-stroke
-boundary conflicts during normal typing. Main-stack entries always win, and
-the fallback never considers a multi-stroke modal outline.
-
-## Why Keep Verb Phrasing
-
-The production IV/FV grammar still supplies natural everyday phrases that are
-not direct entries in the checked Magnum or Phoenix dictionaries. These
-examples were checked as exact, case-sensitive dictionary values; they may of
-course be written more slowly by composing ordinary dictionary strokes.
-
-| Stoin outline | Output | Family / form |
+| Family | Layout | Purpose |
 | --- | --- | --- |
-| `SA-P` | can see it | IV modal + object |
-| `TH-RGT` | thinking that | IV present participle + complement |
-| `KPU-P` | to keep it | IV infinitive + object |
-| `#SWR*E-BTS` | I'm not saying that | FV contracted negative progressive |
-| `SWRE-PBGTD` | I was thinking that | FV past progressive |
-| `#SWRE-FPBG` | I've been thinking | FV contracted perfect progressive |
-| `#TWRAO-RTS` | we'll try to | FV contracted `will` modal |
-| `KPWRO-PBT` | you should know that | FV `should` modal |
-| `#SH*-FBTS` | she hasn't said that | FV contracted negative perfect |
-| `#KPWRA*-PBLGTD` | you couldn't find that | FV contracted negative past modal |
+| IV | `# + verb stem + form + tail` | verb-first phrases such as `say it` |
+| FV | `unique subject starter + operator + structure + ender` | subject-first phrases such as `she has gone` |
+| NV | `#O + unique prefix + tail` | nonverb phrases such as `with a` |
 
-## IV Set 1
+`#` and `#O` are keys in the phrase chord, not mode-switch strokes. FV uses
+Phoenix-empty left-hand starter banks. Contracted FV outlines add `#`; their
+left-hand banks remain distinct from every IV and NV bank.
 
-Initial-verb phrases are generated assignments. The trainer reads the phrasing
-sections directly and presents selectable IV/FV/NV banks, so adding a stem,
-tail, ender, or flag should not require listing every drill prompt by hand.
+## Initial-verb phrases
 
-### IV Verb Stems
+IV outlines are constructed as:
 
-| Stem | Verb |
+```text
+# + stem + form + right-hand tail
+```
+
+### IV stems
+
+The table shows the stem component. The complete outline always includes `#`.
+
+| Stem | Verb | Stem | Verb |
+| --- | --- | --- | --- |
+| `PW` | be | `H` | have |
+| `S` | see | `ST` | say |
+| `TH` | think | `THR` | tell |
+| `KH` | catch | `HR` | look |
+| `TKH` | hold | `SHR` | sell |
+| `SPHR` | spell | `PHR` | pull |
+| `P` | put | `KP` | keep |
+| `KHR` | call | `TK` | do |
+| `TKPW` | go | `W` | want |
+| `SK` | ask | `SP` | happen |
+| `SW` | feel | `K` | come |
+| `TPH` | know | `TKPWH` | get |
+| `PWHR` | believe | `KW` | become |
+| `R` | run | `KPHR` | make |
+| `PH` | take | `TP` | find |
+| `STP` | give | `STW` | use |
+| `WR` | work | `SKP` | need |
+| `SKW` | remember | `SKH` | understand |
+| `TR` | try | `TKP` | expect |
+
+### IV forms
+
+| Form component | Meaning |
 | --- | --- |
-| `PW` | to be |
-| `H` | to have |
-| `S` | to see |
-| `ST` | to say |
-| `TH` | to think |
-| `THR` | to tell |
-| `KH` | to catch |
-| `HR` | to look |
-| `TKH` | to hold |
-| `SHR` | to sell |
-| `SPHR` | to spell |
-| `PHR` | to pull |
-| `P` | to put |
-| `KP` | to keep |
-| `KHR` | to call |
-| `TK` | to do |
-| `TKPW` | to go |
-| `W` | to want |
-| `SK` | to ask |
-| `SP` | to happen |
-| `SW` | to feel |
-| `K` | to come |
-| `TPH` | to know |
-| `TKPWH` | to get |
-| `PWHR` | to believe |
-| `KW` | to become |
-| `R` | to run |
-| `KPHR` | to make |
-| `PH` | to take |
-| `TP` | to find |
-| `STP` | to give |
-| `STW` | to use |
-| `WR` | to work |
-| `SKP` | to need |
-| `SKW` | to remember |
-| `SKH` | to understand |
-| `TR` | to try |
-| `TKP` | to expect |
-
-### IV Flags
-
-| Flag | Meaning |
-| --- | --- |
-| empty | third-person present: `is`, `has`, or the stem's third-person form |
-| `D` | simple past: `was`, `had`, or the stem's past form |
-| `E` | base/non-third present or imperative: `are`, `have`, or the stem's base form |
-| `ED` | plural past for `PW`: `were` |
-| `G` | present participle/gerund for stems that define one |
+| empty | third-person present |
+| `-D` | simple past |
+| `E` | base/non-third present |
+| `E-D` | plural past for `be` |
+| `*` | present participle/gerund |
 | `U` | infinitive with `to` |
-| `A` | modal base: `can` + base verb |
-| `AD` | modal past: `could` + base verb |
+| `EU` | bare `be` form |
+| `A` | `can` + base verb |
+| `A-D` | `could` + base verb |
 
-`E` names the base-form slot, not the word `are`; `PW` happens to surface
-that slot as `are`. `U` names the infinitive-with-`to` slot for IV only; the FV
-grammar does not generate forms like `he to be`. `F` is reserved for `have` /
-perfect work outside IV. `A` follows the FV can/could mnemonic.
+The star is reserved for the IV progressive form. It keeps IV progressive
+outlines separate from the `#O` NV family.
 
-IV stems stay on the left hand so their bits cannot disappear into right-hand
-tails. `Make` uses `KPHR`, which remains distinct from both `KP` (`keep`) and
-`KHR` (`call`). Planned `KH` for `run` is already the `catch` stem, so `run`
-uses the free, mnemonic left-hand `R` instead. FV enders may use the full right
-hand because FV progressive uses `E` instead of `-G`.
+### IV tails
 
-### IV Tails
+| Tail | Text | Tail | Text |
+| --- | --- | --- | --- |
+| `-B` | a | `-PB` | an |
+| `-BL` | like | `-T` | the |
+| `-LT` | at | `-RP` | up |
+| `-SZ` | out | `-RB` | with |
+| `-P` | it | `-S` | us |
+| `-R` | her | `-Z` | his |
+| `-RZ` | your | `-FB` | of |
+| `-PL` | my | `-PLS` | myself |
+| `-PLT` | me | `-RT` | that |
 
-| Present Tail | Past Tail | Object |
-| --- | --- | --- |
-| `B` | `BD` | a |
-| `PB` | `PBD` | an |
-| `BL` | `BLD` | like |
-| `T` | `TD` | the |
-| `LT` | `LTD` | at |
-| `RP` | `RPD` | up |
-| `SZ` | `SDZ` | out |
-| `RB` | `RBD` | with |
-| `P` | `PD` | it |
-| `S` | `SD` | us |
-| `R` | `RD` | her |
-| `Z` | `ZD` | his |
-| `RZ` | `RDZ` | your |
-| `FB` | `FBD` | of |
-| `PL` | `PLD` | my |
-| `PLS` | `PLSD` | myself |
-| `PLT` | `PLTD` | me |
-| `RT` | `RTD` | that |
+Per-verb allowlists in `phrasing.json` remove ungrammatical combinations. In
+particular, `go the`, `go it`, and `come the` are omitted because their number
+bar chords are Phoenix numeric aliases and are not useful standalone phrases.
 
-An IV stem may declare a `tails` array containing tail IDs from this table.
-When present, only those verb-tail combinations translate and appear in the
-trainer; omitting the field preserves the original all-tail behavior. The
-follow-on verbs use allowlists to exclude combinations such as `happens me`,
-`comes us`, `becomes at`, and `uses of`. `Tell` omits the `with` tail because
-`THR-RBG` is already the FV phrase `there works`.
+Examples:
 
-## FV Set 1
+| Outline | Output |
+| --- | --- |
+| `#PW-B` | is a |
+| `#PWA-BD` | could be a |
+| `#ST-P` | says it |
+| `#ST*-P` | saying it |
+| `#THU-RT` | to think that |
+| `#KPU-P` | to keep it |
 
-Final-verb phrases use:
+## Final-verb phrases
+
+FV outlines retain the existing grammar:
 
 ```text
 starter + operator + structure + ender
 ```
 
-### FV Starters
+The starter assignments follow Jeff phrasing's unique-starter idea, but the
+seven starters which occupy Phoenix left-hand banks gain one extra left-hand
+key. Every selected bank is completely empty in Phoenix.
 
-| Stroke | Starter |
+### FV starters
+
+| Starter | Subject / agreement |
 | --- | --- |
-| `SWR` | I |
-| `KPWR` | you |
-| `KWHR` | he |
-| `SH` | she |
-| `T` | it |
-| `TWR` | we |
-| `TWH` | they |
-| `STH` | this |
-| `STWH` | that |
-| `THR` | there (default/singular agreement) |
-| `TPHR` | there (plural agreement; shown as `there (plural)` in the trainer) |
+| `SWHR` | I / first singular |
+| `SKPWR` | you / plural agreement |
+| `KWHR` | he / third singular |
+| `SKWHR` | she / third singular |
+| `KPWH` | it / third singular |
+| `STWR` | we / plural agreement |
+| `TKWH` | they / plural agreement |
+| `STKWH` | this / third singular |
+| `STWH` | that / third singular |
+| `STWHR` | there / third singular |
+| `STPWHR` | there / plural agreement |
 
-`STH` and `STWH` are the left-hand starters for `this` and `that`; both use
-third-singular agreement. The shorter `THR` starter uses default
-third-singular agreement, while the extra `P` in `TPHR` marks plural
-agreement. Thus `THR` uses `is`, `has`, `does`, and `was`, while `TPHR` uses
-`are`, `have`, `do`, and `were`. The separate trainer label makes that
-distinction visible without changing the translated word `there`.
+### FV operators and structures
 
-`KWHR`, `TWR`, and `TWH` remain the expanded starters for `he`, `we`, and
-`they`. Their proposed short forms `H`, `W`, and `TH` are already IV stems for
-`have`, `want`, and `think`, so reusing them would make dozens of verb-pedal
-strokes ambiguous.
-
-Unlike the personal-pronoun starters, `there` is not grammatical with every
-FV ender. Both agreement forms use the following restricted family; plural
-`TPHR` additionally permits the collision-free explicit `B` and `BD` be
-enders:
-
-| Ender family | There phrase family |
+| Operator | Meaning |
 | --- | --- |
-| empty / `D` | auxiliary-only forms |
-| `B` / `BD` | are / were (`TPHR` only) |
-| `BT` / `BTD` | be a / was a |
-| `TS` / `TSD` | have to / had to |
-| `G` / `GD`, `GT` / `GTD` | go / went, go to / went to |
-| `L` / `LD` | look / looked |
-| `PZ` / `PDZ` | happen / happened |
-| `LTS` / `LTSD` | feel like / felt like |
-| `BG` / `BGD`, `BGT` / `BGTD` | come / came, come to / came to |
-| `RPBG` / `RPBGD`, `RPBGT` / `RPBGTD` | become / became, become a / became a |
-| `R` / `RD` | run / ran |
-| `RPGT` / `RPGTD` | need to / needed to |
-| `GTS` / `GTSD` | get to / got to |
-| `RBT` / `RBTD` | take / took (for phrases such as `there takes place`) |
-| `RBG` / `RBGD`, `RBGT` / `RBGTD` | work / worked, work on / worked on |
+| empty / `*` | ordinary / negative |
+| `A` / `A*` | can / cannot |
+| `O` / `O*` | should / should not |
+| `AO` / `AO*` | will / will not |
 
-`THR` is also the IV stem for `tell`, and IV lookup has priority when the two
-families produce the same bitset. Most conflicts disappear by restricting the
-`there` enders, and the remaining colliding combinations are not generated:
-`there goes to`, `there comes`, `there has come`, `there runs`, `there ran`,
-`there is running`, `there can run`, and `there could run`. The explicit `B`
-and `BD` be enders also cannot spell the basic forms because `THR-B` and
-`THR-BD` remain `tells a` and `told a`. The empty ender with the `E` structure
-provides collision-free `there is` and `there was` instead.
-
-Affirmative contractions are starter-specific. `This` deliberately assigns
-only `this'll`, avoiding the uncommon written `this's` and `this'd`. `That`
-assigns `that's` for both `that is` and `that has`, plus `that'll` and
-`that'd`. Plural `there` assigns `there're`, `there've`, `there'll`, and
-`there'd`; default `THR` keeps `there's`, `there'll`, and `there'd`.
-
-### FV Operators
-
-| Keys | Long Output |
+| Structure | Meaning |
 | --- | --- |
-| empty | plain finite verb |
-| `*` | not |
-| `A` | can / could |
-| `A*` | cannot / could not |
-| `O` | should |
-| `O*` | should not |
-| `AO` | will / would |
-| `AO*` | will not / would not |
+| empty | simple |
+| `E` | progressive |
+| `-F` | perfect |
+| `E-F` | perfect progressive |
 
-### FV Structures
+Enders and their optional continuation words are defined in `phrasing.json`.
+No ender contains `-F`, which is reserved for the perfect structure. The hold
+ender is therefore `-PBL` / `-PBLD` rather than the old `-FPL` pair.
 
-| Keys | Long Output |
+Adding `#` requests the grammatically valid contracted version of an FV
+outline. Long form remains the default.
+
+Examples:
+
+| Outline | Output |
 | --- | --- |
-| empty | simple verb |
-| `E` | be + present participle |
-| `F` | have + past participle |
-| `EF` | have been + present participle |
-
-### FV Enders
-
-| Ender | Present Output | Past Output |
-| --- | --- | --- |
-| empty / `D` | auxiliary only | auxiliary only, past |
-| `B` / `BD` | be | was/were |
-| `BT` / `BTD` | be a | was/were a |
-| `T` / `TD` | have | had |
-| `TS` / `TSD` | have to | had to |
-| `RP` / `RPD` | do | did |
-| `RPT` / `RPTD` | do it | did it |
-| `G` / `GD` | go | went |
-| `GT` / `GTD` | go to | went to |
-| `PB` / `PBD` | know | knew |
-| `PBT` / `PBTD` | know that | knew that |
-| `L` / `LD` | look | looked |
-| `PBG` / `PBGD` | think | thought |
-| `PBGT` / `PBGTD` | think that | thought that |
-| `RPBTS` / `RPBTSD` | keep | kept |
-| `RLT` / `RLTD` | tell | told |
-| `RB` / `RBD` | catch | caught |
-| `FPL` / `FPLD` | hold | held |
-| `LS` / `LSD` | sell | sold |
-| `PLS` / `PLSD` | spell | spelled |
-| `PL` / `PLD` | pull | pulled |
-| `P` / `PD` | want | wanted |
-| `PT` / `PTD` | want to | wanted to |
-| `RPG` / `RPGD` | need | needed |
-| `RPGT` / `RPGTD` | need to | needed to |
-| `S` / `SD` | see | saw |
-| `BS` / `BSD` | say | said |
-| `BTS` / `BTSD` | say that | said that |
-| `GS` / `GSD` | get | got |
-| `GTS` / `GTSD` | get to | got to |
-| `PBLG` / `PBLGD` | find | found |
-| `PBLGT` / `PBLGTD` | find that | found that |
-| `RT` / `RTD` | try | tried |
-| `RTS` / `RTSD` | try to | tried to |
-| `PZ` / `PDZ` | happen | happened |
-| `LT` / `LTD` | feel | felt |
-| `LTS` / `LTSD` | feel like | felt like |
-| `BG` / `BGD` | come | came |
-| `BGT` / `BGTD` | come to | came to |
-| `BL` / `BLD` | believe | believed |
-| `BLT` / `BLTD` | believe that | believed that |
-| `RPBG` / `RPBGD` | become | became |
-| `RPBGT` / `RPBGTD` | become a | became a |
-| `R` / `RD` | run | ran |
-| `RPBL` / `RPBLD` | make | made |
-| `RPBLT` / `RPBLTD` | make a | made a |
-| `RBT` / `RBTD` | take | took |
-| `GZ` / `GDZ` | give | gave |
-| `Z` / `DZ` | use | used |
-| `RBG` / `RBGD` | work | worked |
-| `RBGT` / `RBGTD` | work on | worked on |
-| `RPL` / `RPLD` | remember | remembered |
-| `RPLT` / `RPLTD` | remember that | remembered that |
-| `RPB` / `RPBD` | understand | understood |
-| `RPBT` / `RPBTD` | understand the | understood the |
-| `PGS` / `PGSD` | expect | expected |
-| `PGTS` / `PGTSD` | expect that | expected that |
-| `RBS` / `RBSD` | ask | asked |
-
-The planned `RB` final assignment for `ask` is already the implemented `catch`
-ender, so `ask` adds mnemonic `-S` and uses `RBS`. `Use` deliberately has no
-ordinary `to` suffix: `used to` requires fixed-form handling rather than normal
-verb inflection.
-
-### FV Contraction Patterns
-
-| Pattern | Output |
-| --- | --- |
-| `#` + present be | starter contraction: `I'm`, `you're`, `he's`, `she's`, `it's`, `we're`, `they're`, `that's`, `there's`, `there're`; affirmative `this is` is unassigned |
-| `#` + negative be | `isn't`, `aren't`, `wasn't`, `weren't`; `I am not` becomes `I'm not` |
-| `#` + present have/perfect | starter contraction: `I've`, `you've`, `he's`, `she's`, `it's`, `we've`, `they've`, `that's`, `there's`, `there've`; affirmative `this has` is unassigned |
-| `#` + past have/perfect | configured starter + `'d`: `I'd`, `you'd`, `he'd`, `she'd`, `it'd`, `we'd`, `they'd`, `that'd`, `there'd`; `this had` is unassigned |
-| `#` + negative have/perfect | `haven't`, `hasn't`, `hadn't` |
-| `#` + simple negative lexical verb | agreement-aware `don't`, `doesn't`, or `didn't` |
-| `#` + `AO` present | starter + `will`: `I'll`, `you'll`, `he'll`, `she'll`, `it'll`, `we'll`, `they'll`, `this'll`, `that'll`, `there'll` |
-| `#` + `AO` past | configured starter + `would` contraction: `I'd`, `you'd`, `he'd`, `she'd`, `it'd`, `we'd`, `they'd`, `that'd`, `there'd` |
-| `#` + `A*` | `can't` / `couldn't` |
-| `#` + `O*` | `shouldn't` |
-| `#` + `AO*` | `won't` / `wouldn't` |
-
-Past affirmative `be` contractions remain unassigned because standard English
-has no general subject contraction for `was` or `were`.
-
-## NV Set 1
-
-The nonverb pedal selects combinations from an independent prefix-and-tail
-bank. The `anything` stem is written in canonical steno order as `TKPWH*`.
-
-### NV Prefixes
-
-| Keys | Output Pattern |
-| --- | --- |
-| `W` | with `*` |
-| `T` | at `*` |
-| `T*` | it `*` |
-| `AUF` | off `*` |
-| `UP` | up `*` |
-| `K` | can `*` |
-| `SKWR` | just `*` |
-| `HR` | all `*` |
-| `TP` | if `*` |
-| `TPHRO` | only `*` |
-| `PW` | but `*` |
-| `THA` | that `*` |
-| `TPO` | for `*` |
-| `OF` | of `*` |
-| `TKPWH*` | anything `*` |
-| `S*` | as `*` |
-| `SRAO*E` | even `*` |
-
-### NV Tails
-
-| Keys | Output | Allowed Prefixes |
-| --- | --- | --- |
-| `-R` | her | every NV prefix |
-| `-B` | a | every NV prefix |
-| `-PB` | an | every NV prefix except `UP` |
-| `-BL` | like | `T*`, `AUF`, `UP`, `K`, `SKWR`, `HR`, `TPHRO`, `PW`, `TKPWH*` |
-| `-F` | if | `T*`, `K`, `SKWR`, `TPHRO`, `PW`, `THA`, `TPO`, `S*`, `SRAO*E` |
-| `-GT` | though | `T*`, `K`, `PW`, `THA`, `TPO`, `S*`, `SRAO*E` |
-| `-LS` | else | `HR`, `TKPWH*` |
-| `-P` | it | every NV prefix |
-| `-PLT` | them | `W`, `T`, `AUF`, `UP`, `SKWR`, `TPHRO`, `PW`, `TPO`, `OF`, `S*`, `SRAO*E` |
-| `-RT` | that | every NV prefix |
-| `-S` | us | `W`, `T`, `AUF`, `SKWR`, `TPHRO`, `PW`, `THA`, `TPO`, `OF`, `S*`, `SRAO*E` |
-| `U` | you | every NV prefix except `AUF` and `UP` |
-| `-SZ` | they | `T*`, `UP`, `K`, `SKWR`, `HR`, `TP`, `TPHRO`, `PW`, `THA`, `TPO`, `TKPWH*`, `S*`, `SRAO*E` |
-| `-T` | the | every NV prefix |
-| `-Z` | his | every NV prefix |
-| `-BG` | can | `T*`, `SKWR`, `HR`, `TPHRO`, `PW`, `THA`, `TKPWH*`, `S*`, `SRAO*E` |
-
-## Samples
-
-### IV Samples
-
-| Stroke | Output |
-| --- | --- |
-| `PW-B` | is a |
-| `PW-T` | is the |
-| `PWE-B` | are a |
-| `PWU-B` | to be a |
-| `PWE-BD` | were a |
-| `PWA-B` | can be a |
-| `PWA-BD` | could be a |
-| `PW-RTD` | was that |
-| `H-B` | has a |
-| `H-BD` | had a |
-| `HE-B` | have a |
-| `HU-B` | to have a |
-| `HA-P` | can have it |
-| `HA-PD` | could have it |
-| `H-RTD` | had that |
-| `ST-P` | says it |
-| `ST-PD` | said it |
-| `STE-P` | say it |
-| `STU-P` | to say it |
-| `ST-PG` | saying it |
-| `STA-P` | can say it |
-| `TH-P` | thinks it |
-| `TH-PD` | thought it |
-| `THE-P` | think it |
-| `THU-P` | to think it |
-| `TH-PG` | thinking it |
-| `THA-P` | can think it |
-| `THE-FB` | think of |
-| `SW-BL` | feels like |
-| `SWE-BL` | feel like |
-| `SW-BLG` | feeling like |
-| `KP-BL` | keeps like |
-| `KPHR-BL` | makes like |
-| `P-P` | puts it |
-| `PE-P` | put it |
-| `PU-P` | to put it |
-| `THR-S` | tells us |
-| `THR-SD` | told us |
-| `THRE-S` | tell us |
-| `THRU-S` | to tell us |
-| `THR-GS` | telling us |
-| `THRA-S` | can tell us |
-| `KH-P` | catches it |
-| `KH-PD` | caught it |
-| `KHE-P` | catch it |
-| `KHU-P` | to catch it |
-| `KH-PG` | catching it |
-| `KHA-P` | can catch it |
-| `KHE-R` | catch her |
-| `KHE-Z` | catch his |
-| `KHE-PL` | catch my |
-| `KHE-PLS` | catch myself |
-| `KHE-PLT` | catch me |
-| `HR-P` | looks it |
-| `HR-PD` | looked it |
-| `HRE-P` | look it |
-| `HRU-P` | to look it |
-| `HR-PG` | looking it |
-| `HRA-P` | can look it |
-| `HRELT` | look at |
-| `TKH-P` | holds it |
-| `TKH-PD` | held it |
-| `TKHE-P` | hold it |
-| `TKHU-P` | to hold it |
-| `TKH-PG` | holding it |
-| `TKHA-P` | can hold it |
-| `SHR-S` | sells us |
-| `SHR-SD` | sold us |
-| `SHRE-S` | sell us |
-| `SHRU-S` | to sell us |
-| `SHR-GS` | selling us |
-| `SHRA-P` | can sell it |
-| `SPHR-S` | spells us |
-| `SPHR-SD` | spelled us |
-| `SPHRE-S` | spell us |
-| `SPHRU-S` | to spell us |
-| `SPHR-GS` | spelling us |
-| `SPHRA-P` | can spell it |
-| `SPHR-SZ` | spells out |
-| `SPHR-SDZ` | spelled out |
-| `KHR-RB` | calls with |
-| `KHR-RBD` | called with |
-| `KHR-RBG` | calling with |
-| `PHR-P` | pulls it |
-| `PHR-PD` | pulled it |
-| `PHRE-P` | pull it |
-| `PHRU-P` | to pull it |
-| `PHR-PG` | pulling it |
-| `PHRA-P` | can pull it |
-| `KP-P` | keeps it |
-| `KP-PD` | kept it |
-| `KPE-P` | keep it |
-| `KPU-P` | to keep it |
-| `KP-PG` | keeping it |
-| `KP-S` | keeps us |
-| `KP-SD` | kept us |
-| `KPE-S` | keep us |
-| `KPU-S` | to keep us |
-| `KP-GS` | keeping us |
-| `KPA-P` | can keep it |
-| `KHR-B` | calls a |
-| `KHRE-B` | call a |
-| `KHRU-B` | to call a |
-| `KHRA-P` | can call it |
-| `KHRA-PD` | could call it |
-| `KHR-PG` | calling it |
-| `KHR-RTD` | called that |
-
-### FV Long-Form Samples
-
-| Stroke | Output |
-| --- | --- |
-| `SH-B` | she is |
-| `SH-BD` | she was |
-| `SH*E` | she is not |
-| `SH*ED` | she was not |
-| `KWHR-B` | he is |
-| `TWH-BD` | they were |
-| `SWR-F` | I have |
-| `SWR-FD` | I had |
-| `KPWR-G` | you go |
-| `KPWR-GD` | you went |
-| `SH-GTD` | she went to |
-| `SH-PBG` | she thinks |
-| `SH-PBGD` | she thought |
-| `SH-L` | she looks |
-| `SH-LD` | she looked |
-| `SH-BS` | she says |
-| `SH-BSD` | she said |
-| `SH-RLT` | she tells |
-| `SH-RLTD` | she told |
-| `SH-RB` | she catches |
-| `SH-RBD` | she caught |
-| `SH-FPL` | she holds |
-| `SH-FPLD` | she held |
-| `SH-LS` | she sells |
-| `SH-LSD` | she sold |
-| `SH-PLS` | she spells |
-| `SH-PLSD` | she spelled |
-| `SH-PL` | she pulls |
-| `SH-PLD` | she pulled |
-| `SH-RPBTS` | she keeps |
-| `SH-RPBTSD` | she kept |
-| `SHAO-G` | she will go |
-| `SHAO*G` | she will not go |
-| `SHEG` | she is going |
-| `SH-FG` | she has gone |
-| `STH-B` | this is |
-| `STHAO*` | this will not |
-| `STWH-B` | that is |
-| `STWHAO-G` | that will go |
-| `THRE` | there is |
-| `THRED` | there was |
-| `THR*ED` | there was not |
-| `THRAO*` | there will not |
-| `THRE-F` | there has been |
-| `TPHR-B` | there are |
-| `TPHR-BD` | there were |
-| `TPHRAO*` | there will not |
-
-### FV Contraction Samples
-
-| Stroke | Output |
-| --- | --- |
-| `#SH-B` | she's |
-| `#SH*E` | she isn't |
-| `#SH*ED` | she wasn't |
-| `#SHAO-G` | she'll go |
-| `#SHAO*G` | she won't go |
-| `#SWR-F` | I've |
-| `#KWHR-FG` | he's gone |
-| `#TWHAO-G` | they'll go |
-| `#TWH-FRLTD` | they'd told |
-| `#TWHE-FRLTD` | they'd been telling |
-| `#TWHAO-RLTD` | they'd tell |
-| `#TWHAO-FRLTD` | they'd have told |
-| `#TWH*RLTD` | they didn't tell |
-| `#SH*RLT` | she doesn't tell |
-| `#STHAO` | this'll |
-| `#STWH-B` | that's |
+| `SKWHR-B` | she is |
+| `SKWHRE-G` | she is going |
+| `SWHR-FPBG` | I have thought |
+| `TKWHAO-RLT` | they will tell |
+| `#SKWHR*RLT` | she doesn't tell |
 | `#STWHAO` | that'll |
-| `#THRE` | there's |
-| `#THR*ED` | there wasn't |
-| `#THRAO*` | there won't |
-| `#THRE-F` | there's been |
-| `#TPHR-B` | there're |
-| `#TPHR-F` | there've |
-| `#TPHRAO` | there'll |
 
-### NV Samples
+## Nonverb phrases
 
-| Stroke | Output |
+Every NV prefix includes the `#O` family marker in its stored outline.
+
+| Outline prefix | Text | Outline prefix | Text |
+| --- | --- | --- | --- |
+| `#WO` | with | `#TO` | at |
+| `#TO*` | it | `#AOUF` | off |
+| `#OUP` | up | `#KO` | can |
+| `#SKWRO` | just | `#HRO` | all |
+| `#TPO` | if | `#TPHRO` | only |
+| `#PWO` | but | `#THAO` | that |
+| `#TPAO` | for | `#OF` | of |
+| `#TKPWHO*` | anything | `#SO*` | as |
+| `#SRAO*E` | even |  |  |
+
+NV tails are defined in `phrasing.json`. They include `a`, `an`, `like`,
+`the`, pronouns, `that`, `can`, `if`, `though`, and `else`, with per-prefix
+allowlists. The `can` tail is `-G`; `-BG` would make `as can` collide with
+Phoenix's `10:00` outline.
+
+Examples:
+
+| Outline | Output |
 | --- | --- |
-| `W-B` | with a |
-| `W-PB` | with an |
-| `W-T` | with the |
-| `W-PLT` | with them |
-| `W-S` | with us |
-| `WU` | with you |
-| `W-R` | with her |
-| `W-RT` | with that |
-| `T-B` | at a |
-| `T-PB` | at an |
-| `T-R` | at her |
-| `T-RT` | at that |
-| `T*-B` | it a |
-| `T*-F` | it if |
-| `T*-GT` | it though |
-| `T*-BG` | it can |
-| `AUFT` | off the |
-| `UPT` | up the |
-| `K-P` | can it |
-| `KU` | can you |
-| `K-SZ` | can they |
-| `K-F` | can if |
-| `K-GT` | can though |
-| `SKWR-BL` | just like |
-| `HR-LS` | all else |
-| `TP-P` | if it |
-| `TPHRO-F` | only if |
-| `PW-GT` | but though |
-| `THA-B` | that a |
-| `THA-PB` | that an |
-| `THAU` | that you |
-| `THA-SZ` | that they |
-| `THA-BG` | that can |
-| `THAT` | that the |
-| `TPOR` | for her |
-| `TPOT` | for the |
-| `OFR` | of her |
-| `OFP` | of it |
-| `OFZ` | of his |
-| `TKPWH*-RT` | anything that |
-| `TKPWH*-BL` | anything like |
-| `TKPWH*U` | anything you |
-| `TKPWH*-BG` | anything can |
-| `TKPWH*-LS` | anything else |
-| `S*-F` | as if |
-| `S*-PB` | as an |
-| `S*-GT` | as though |
-| `SRAO*E-S` | even us |
-| `SRAO*E-B` | even a |
-| `SRAO*E-F` | even if |
-| `SRAO*E-GT` | even though |
+| `#WO-B` | with a |
+| `#TKPWHO*-BL` | anything like |
+| `#SO*-F` | as if |
+| `#SRAO*E-GT` | even though |

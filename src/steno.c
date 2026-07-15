@@ -29,18 +29,6 @@ static void reset_chord(Steno *steno)
 {
     steno->down_keycodes = 0;
     steno->chord_bits = 0;
-    steno->chord_phrase_mode = STENO_PHRASE_MODE_NONE;
-    steno->chord_modal_dictionary = false;
-}
-
-static void reset_modal_run(Steno *steno)
-{
-    if (steno == NULL) {
-        return;
-    }
-    arrsetlen(steno->modal_run_strokes, 0);
-    steno->modal_run_translation_count = 0;
-    steno->modal_run_open = false;
 }
 
 enum {
@@ -88,36 +76,6 @@ bool steno_reload_dictionary(Steno *steno)
 bool steno_reload_dictionary_if_changed(Steno *steno)
 {
     return steno != NULL && dictionary_stack_reload_if_changed(&steno->dictionary_stack);
-}
-
-bool steno_reload_modal_dictionary(Steno *steno)
-{
-    if (steno == NULL) {
-        return false;
-    }
-    if (!steno->modal_dictionary_loaded) {
-        return true;
-    }
-    const bool ok = dictionary_stack_reload(&steno->modal_dictionary_stack);
-    if (ok) {
-        reset_modal_run(steno);
-    }
-    return ok;
-}
-
-bool steno_reload_modal_dictionary_if_changed(Steno *steno)
-{
-    if (steno == NULL) {
-        return false;
-    }
-    if (!steno->modal_dictionary_loaded) {
-        return true;
-    }
-    const bool ok = dictionary_stack_reload_if_changed(&steno->modal_dictionary_stack);
-    if (ok) {
-        reset_modal_run(steno);
-    }
-    return ok;
 }
 
 static bool refresh_phrasing_stamp(Steno *steno)
@@ -221,30 +179,6 @@ bool steno_get_dictionary_paths(const Steno *steno, const char *const **out_path
     );
 }
 
-bool steno_get_modal_dictionary_path(const Steno *steno, const char **out_path)
-{
-    if (steno == NULL || out_path == NULL) {
-        return false;
-    }
-    *out_path = NULL;
-    if (!steno->modal_dictionary_loaded) {
-        return true;
-    }
-
-    const char *const *paths = NULL;
-    size_t path_count = 0;
-    if (!dictionary_stack_get_paths(
-            &steno->modal_dictionary_stack,
-            &paths,
-            &path_count)) {
-        return false;
-    }
-    if (path_count > 0) {
-        *out_path = paths[0];
-    }
-    return true;
-}
-
 bool steno_get_phrasing_path(const Steno *steno, const char **out_path)
 {
     if (steno == NULL || out_path == NULL) {
@@ -309,20 +243,6 @@ Steno *steno_create(const Steno_Config *config)
         return NULL;
     }
 
-    if (config->modal_dictionary_path != NULL) {
-        if (!dictionary_stack_set_paths(
-                &steno->modal_dictionary_stack,
-                config->modal_dictionary_path,
-                NULL,
-                NULL,
-                0)
-            || !dictionary_stack_load(&steno->modal_dictionary_stack)) {
-            steno_destroy(steno);
-            return NULL;
-        }
-        steno->modal_dictionary_loaded = true;
-    }
-
     if (config->word_list_path != NULL && !orthography_load(&steno->orthography, config->word_list_path)) {
         steno_destroy(steno);
         return NULL;
@@ -345,8 +265,7 @@ void steno_destroy(Steno *steno)
     orthography_destroy(&steno->orthography);
     phrasing_destroy(steno->phrasing);
     dictionary_stack_destroy(&steno->dictionary_stack);
-    dictionary_stack_destroy(&steno->modal_dictionary_stack);
-    arrfree(steno->modal_run_strokes);
+    free(steno->lookup_phrase);
     free(steno->phrasing_path);
     free(steno->spacing.spacing);
     free(steno);
@@ -400,12 +319,6 @@ bool steno_handle_event(Steno *steno, const Input_Event *event)
         if ((steno->down_keycodes & physical_bit) == 0 && !event->is_repeat) {
             steno->down_keycodes |= physical_bit;
             steno->chord_bits |= binding->bits;
-            if (steno->phrase_mode != STENO_PHRASE_MODE_NONE) {
-                steno->chord_phrase_mode = steno->phrase_mode;
-            }
-            if (steno->modal_dictionary_mode) {
-                steno->chord_modal_dictionary = true;
-            }
         }
         return true;
     }
@@ -414,53 +327,11 @@ bool steno_handle_event(Steno *steno, const Input_Event *event)
     if (steno->down_keycodes == 0) {
         Stroke_Input stroke = {
             .bits = steno->chord_bits,
-            .phrase_mode = steno->chord_phrase_mode,
-            .phrase_namespace = steno->phrase_namespace_enabled,
-            .modal_dictionary = steno->chord_modal_dictionary,
         };
         (void)steno_translate_stroke_input(steno, stroke);
         reset_chord(steno);
     }
     return true;
-}
-
-void steno_set_phrase_namespace_enabled(Steno *steno, bool enabled)
-{
-    if (steno == NULL) {
-        return;
-    }
-    steno->phrase_namespace_enabled = enabled;
-    if (!enabled) {
-        steno->phrase_mode = STENO_PHRASE_MODE_NONE;
-        steno->chord_phrase_mode = STENO_PHRASE_MODE_NONE;
-    }
-}
-
-void steno_set_phrase_mode(Steno *steno, bool active)
-{
-    steno_set_phrase_mode_family(steno, active ? STENO_PHRASE_MODE_ALL : STENO_PHRASE_MODE_NONE);
-}
-
-void steno_set_phrase_mode_family(Steno *steno, Steno_Phrase_Mode mode)
-{
-    if (steno == NULL) {
-        return;
-    }
-    steno->phrase_mode = mode;
-    if (mode != STENO_PHRASE_MODE_NONE && steno->down_keycodes != 0) {
-        steno->chord_phrase_mode = mode;
-    }
-}
-
-void steno_set_modal_dictionary_mode(Steno *steno, bool active)
-{
-    if (steno == NULL) {
-        return;
-    }
-    steno->modal_dictionary_mode = active;
-    if (active && steno->down_keycodes != 0) {
-        steno->chord_modal_dictionary = true;
-    }
 }
 
 bool steno_handle_stroke(Steno *steno, Stroke_Input stroke)
@@ -497,11 +368,6 @@ void steno_set_session_active(Steno *steno, bool active)
     steno->control_down = false;
     steno->option_down = false;
     steno->command_down = false;
-    steno->phrase_mode = STENO_PHRASE_MODE_NONE;
-    steno->chord_phrase_mode = STENO_PHRASE_MODE_NONE;
-    steno->modal_dictionary_mode = false;
-    steno->chord_modal_dictionary = false;
-    reset_modal_run(steno);
 }
 
 size_t steno_key_binding_count(const Steno *steno)
@@ -530,23 +396,23 @@ bool steno_lookup_stroke(Steno *steno, const char *stroke, const char **out_tran
             out_translation)) {
         return true;
     }
-    if (!steno->modal_dictionary_loaded) {
-        return false;
-    }
 
     uint64_t bits = 0;
     if (!stroke_string_to_bits(stroke, &bits)) {
         return false;
     }
-    const char *fallback = dictionary_lookup_bits(
-        &steno->modal_dictionary_stack.dictionary,
-        bits
+    free(steno->lookup_phrase);
+    steno->lookup_phrase = NULL;
+    const Phrase_Lookup_Result phrase_result = phrasing_lookup(
+        steno->phrasing,
+        bits,
+        &steno->lookup_phrase
     );
-    if (fallback == NULL) {
-        return false;
+    if (phrase_result == PHRASE_LOOKUP_HIT) {
+        *out_translation = steno->lookup_phrase;
+        return true;
     }
-    *out_translation = fallback;
-    return true;
+    return false;
 }
 
 bool steno_dump_dictionary_json(const Steno *steno, const char *path)

@@ -27,14 +27,14 @@ bool test_core_units(void)
     const char *runtime_config_path = "build/test-runtime-config.json";
     ok = ok && write_text_file(
         runtime_config_path,
-        "{\"modal_dictionary\":\"tests/test-phrase-preference-dictionary.json\"}\n"
+        "{\"phrasing\":\"tests/test-phrasing.json\"}\n"
     );
     Runtime_Config runtime_config = {0};
     ok = ok && runtime_config_load(&runtime_config, runtime_config_path, false);
     ok = ok && expect_string(
-        "modal dictionary config field",
-        runtime_config.modal_dictionary_path,
-        "tests/test-phrase-preference-dictionary.json"
+        "phrasing config field",
+        runtime_config.phrasing_path,
+        "tests/test-phrasing.json"
     );
     runtime_config_destroy(&runtime_config);
     remove(runtime_config_path);

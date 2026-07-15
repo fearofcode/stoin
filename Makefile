@@ -63,7 +63,6 @@ PLATFORM_SOURCES := \
 	src/platform_macos.c \
 	src/platform_macos_file_watcher.c \
 	src/platform_macos_output.c \
-	src/platform_posix_atomic.c \
 	src/platform_posix_serial.c
 else ifeq ($(PLATFORM),linux)
 PLATFORM_CFLAGS += -D_DEFAULT_SOURCE
@@ -71,14 +70,12 @@ PLATFORM_SOURCES := \
 	src/platform_linux.c \
 	src/platform_linux_file_watcher.c \
 	src/platform_linux_output.c \
-	src/platform_posix_atomic.c \
 	src/platform_posix_serial.c
 else ifeq ($(PLATFORM),windows)
 PLATFORM_CFLAGS += -D_WIN32_WINNT=0x0601
 PLATFORM_LDFLAGS += -luser32 -lsetupapi -ladvapi32
 PLATFORM_SOURCES := \
-	src/platform_windows.c \
-	src/platform_windows_atomic.c
+	src/platform_windows.c
 EXE_EXT := .exe
 else
 $(error Unsupported PLATFORM '$(PLATFORM)'; use PLATFORM=macos, PLATFORM=linux, or PLATFORM=windows)

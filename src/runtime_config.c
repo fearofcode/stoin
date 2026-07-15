@@ -78,17 +78,6 @@ bool runtime_config_set_phrasing(Runtime_Config *config, const char *path)
     return true;
 }
 
-bool runtime_config_set_modal_dictionary(Runtime_Config *config, const char *path)
-{
-    char *copy = copy_cstring(path);
-    if (copy == NULL) {
-        return false;
-    }
-    free(config->modal_dictionary_path);
-    config->modal_dictionary_path = copy;
-    return true;
-}
-
 void runtime_config_destroy(Runtime_Config *config)
 {
     if (config == NULL) {
@@ -97,7 +86,6 @@ void runtime_config_destroy(Runtime_Config *config)
     runtime_config_clear_dictionaries(config);
     free(config->word_list_path);
     free(config->phrasing_path);
-    free(config->modal_dictionary_path);
     memset(config, 0, sizeof(*config));
 }
 
@@ -208,14 +196,7 @@ bool runtime_config_load(Runtime_Config *config, const char *path, bool missing_
 
     if (ok) {
         ok = runtime_config_parse_string_field(config, root, path, "word_list", runtime_config_set_word_list)
-            && runtime_config_parse_string_field(config, root, path, "phrasing", runtime_config_set_phrasing)
-            && runtime_config_parse_string_field(
-                config,
-                root,
-                path,
-                "modal_dictionary",
-                runtime_config_set_modal_dictionary
-            );
+            && runtime_config_parse_string_field(config, root, path, "phrasing", runtime_config_set_phrasing);
     }
 
     if (ok) {

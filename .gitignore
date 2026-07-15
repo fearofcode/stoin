@@ -13,6 +13,8 @@ build/
 .vscode/
 .idea/
 compile_commands.json
+__pycache__/
+*.py[cod]
 
 # Local runtime logs
 *.log

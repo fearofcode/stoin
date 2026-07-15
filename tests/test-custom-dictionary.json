@@ -1,4 +1,4 @@
 {
-  "STPH": "{plover:toggle_dict:!test-modal-dictionary.json}",
+  "STPH": "{plover:toggle_dict:!test-toggle-dictionary.json}",
   "KAT": "kitten"
 }

@@ -9,13 +9,6 @@
 
 typedef struct Translation Translation;
 
-typedef enum Translation_Source {
-    TRANSLATION_SOURCE_NORMAL,
-    TRANSLATION_SOURCE_PHRASE,
-    TRANSLATION_SOURCE_MODAL,
-    TRANSLATION_SOURCE_MIXED,
-} Translation_Source;
-
 typedef struct Translation_Segment_Boundary {
     char *utf8;
     size_t stroke_count;
@@ -32,7 +25,6 @@ struct Translation {
     Case_Mode previous_next_case;
     Case_Mode resulting_case_mode;
     Case_Mode resulting_next_case;
-    Translation_Source source;
     bool glue;
     bool next_attach;
     bool retro_space_command;

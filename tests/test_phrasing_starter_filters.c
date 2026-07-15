@@ -77,7 +77,7 @@ static bool expect_invalid_starter_allowlist(
 {
     char starter[1024] = {0};
     const int length = snprintf(starter, sizeof(starter),
-        "{\"stroke\":\"SWR\",\"text\":\"I\",\"agreement\":\"first_singular\",%s}",
+        "{\"stroke\":\"SWHR\",\"text\":\"I\",\"agreement\":\"first_singular\",%s}",
         enders_field);
     if (length < 0 || (size_t)length >= sizeof(starter)) {
         fputs("test failed: invalid phrasing starter-filter fixture exceeded buffer\n", stderr);
@@ -97,21 +97,21 @@ bool test_phrasing_starter_filters(void)
 {
     const char *path = "build/test-phrasing-starter-filters.json";
     const char *starters =
-        "{\"stroke\":\"SWR\",\"text\":\"I\",\"agreement\":\"first_singular\","
+        "{\"stroke\":\"SWHR\",\"text\":\"I\",\"agreement\":\"first_singular\","
             "\"will_contraction\":\"I'll\",\"enders\":[\"\",\"B\"]},"
-        "{\"stroke\":\"T\",\"text\":\"it\",\"agreement\":\"third_singular\"},"
-        "{\"stroke\":\"TWR\",\"text\":\"we\",\"agreement\":\"plural\",\"enders\":[]}";
+        "{\"stroke\":\"KPWH\",\"text\":\"it\",\"agreement\":\"third_singular\"},"
+        "{\"stroke\":\"STWR\",\"text\":\"we\",\"agreement\":\"plural\",\"enders\":[]}";
 
     bool ok = write_phrasing_fixture(path, starters);
     Phrasing *phrasing = ok ? phrasing_load(path) : NULL;
     ok = expect_size("valid FV starter ender allowlists load", phrasing != NULL ? 1 : 0, 1) && ok;
     if (phrasing != NULL) {
-        ok = expect_phrase_lookup(phrasing, "FV allowlist permits listed lexical ender", "SWR-B", "I am") && ok;
-        ok = expect_phrase_lookup(phrasing, "FV allowlist permits empty auxiliary ender", "SWRAO", "I will") && ok;
-        ok = expect_phrase_lookup(phrasing, "FV allowlist rejects omitted ender", "SWR-T", NULL) && ok;
-        ok = expect_phrase_lookup(phrasing, "absent FV allowlist permits every ender", "T-T", "it has") && ok;
-        ok = expect_phrase_lookup(phrasing, "absent FV allowlist remains starter-local", "T-B", "it is") && ok;
-        ok = expect_phrase_lookup(phrasing, "empty FV allowlist permits no enders", "TWR-B", NULL) && ok;
+        ok = expect_phrase_lookup(phrasing, "FV allowlist permits listed lexical ender", "SWHR-B", "I am") && ok;
+        ok = expect_phrase_lookup(phrasing, "FV allowlist permits empty auxiliary ender", "SWHRAO", "I will") && ok;
+        ok = expect_phrase_lookup(phrasing, "FV allowlist rejects omitted ender", "SWHR-T", NULL) && ok;
+        ok = expect_phrase_lookup(phrasing, "absent FV allowlist permits every ender", "KPWH-T", "it has") && ok;
+        ok = expect_phrase_lookup(phrasing, "absent FV allowlist remains starter-local", "KPWH-B", "it is") && ok;
+        ok = expect_phrase_lookup(phrasing, "empty FV allowlist permits no enders", "STWR-B", NULL) && ok;
     }
     phrasing_destroy(phrasing);
 

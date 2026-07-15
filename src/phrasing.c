@@ -1571,10 +1571,9 @@ static Phrase_Lookup_Result lookup_final_verb(const Phrasing *phrasing, uint64_t
     return PHRASE_LOOKUP_MISS;
 }
 
-Phrase_Lookup_Result phrasing_lookup_mode(
+Phrase_Lookup_Result phrasing_lookup(
     const Phrasing *phrasing,
     uint64_t stroke_bits,
-    Phrase_Lookup_Mode mode,
     char **out_utf8
 )
 {
@@ -1586,38 +1585,12 @@ Phrase_Lookup_Result phrasing_lookup_mode(
         return PHRASE_LOOKUP_MISS;
     }
 
-    if (mode == PHRASE_LOOKUP_ALL
-        || mode == PHRASE_LOOKUP_VERBS
-        || mode == PHRASE_LOOKUP_INITIAL_VERBS) {
-        Phrase_Lookup_Result result = lookup_initial_verb(phrasing, stroke_bits, out_utf8);
-        if (result != PHRASE_LOOKUP_MISS) {
-            return result;
-        }
-        if (mode == PHRASE_LOOKUP_INITIAL_VERBS) {
-            return PHRASE_LOOKUP_MISS;
-        }
-        if (mode == PHRASE_LOOKUP_VERBS) {
-            return lookup_final_verb(phrasing, stroke_bits, out_utf8);
-        }
+    Phrase_Lookup_Result result = lookup_initial_verb(phrasing, stroke_bits, out_utf8);
+    if (result != PHRASE_LOOKUP_MISS) {
+        return result;
     }
-
-    if (mode == PHRASE_LOOKUP_ALL || mode == PHRASE_LOOKUP_NONVERBS) {
-        Phrase_Lookup_Result result = lookup_nonverb(phrasing, stroke_bits, out_utf8);
-        if (result != PHRASE_LOOKUP_MISS || mode == PHRASE_LOOKUP_NONVERBS) {
-            return result;
-        }
-    }
-
-    return mode == PHRASE_LOOKUP_ALL
-        ? lookup_final_verb(phrasing, stroke_bits, out_utf8)
-        : PHRASE_LOOKUP_MISS;
-}
-
-Phrase_Lookup_Result phrasing_lookup(
-    const Phrasing *phrasing,
-    uint64_t stroke_bits,
-    char **out_utf8
-)
-{
-    return phrasing_lookup_mode(phrasing, stroke_bits, PHRASE_LOOKUP_ALL, out_utf8);
+    result = lookup_nonverb(phrasing, stroke_bits, out_utf8);
+    return result != PHRASE_LOOKUP_MISS
+        ? result
+        : lookup_final_verb(phrasing, stroke_bits, out_utf8);
 }

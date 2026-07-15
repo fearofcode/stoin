@@ -23,20 +23,9 @@ typedef struct Spacing_State {
     char *spacing;
 } Spacing_State;
 
-typedef enum Steno_Phrase_Mode {
-    STENO_PHRASE_MODE_NONE,
-    STENO_PHRASE_MODE_ALL,
-    STENO_PHRASE_MODE_VERBS,
-    STENO_PHRASE_MODE_NONVERBS,
-} Steno_Phrase_Mode;
-
 typedef struct Stroke_Input {
     uint64_t bits;
     uint64_t received_ns;
-    bool phrase;
-    bool phrase_namespace;
-    bool modal_dictionary;
-    Steno_Phrase_Mode phrase_mode;
 } Stroke_Input;
 
 typedef struct Steno_Config {
@@ -47,7 +36,6 @@ typedef struct Steno_Config {
     size_t dictionary_path_count;
     const char *word_list_path;
     const char *phrasing_path;
-    const char *modal_dictionary_path;
     Send_Text_Fn send_text;
     Delete_Text_Fn delete_text;
     Send_Key_Combination_Fn send_key_combination;
@@ -64,19 +52,12 @@ void steno_destroy(Steno *steno);
 bool steno_handle_event(Steno *steno, const Input_Event *event);
 bool steno_handle_stroke(Steno *steno, Stroke_Input stroke);
 bool steno_handle_stroke_bits(Steno *steno, uint64_t bits);
-void steno_set_phrase_namespace_enabled(Steno *steno, bool enabled);
-void steno_set_phrase_mode(Steno *steno, bool active);
-void steno_set_phrase_mode_family(Steno *steno, Steno_Phrase_Mode mode);
-void steno_set_modal_dictionary_mode(Steno *steno, bool active);
 void steno_set_session_active(Steno *steno, bool active);
 bool steno_reload_dictionary(Steno *steno);
 bool steno_reload_dictionary_if_changed(Steno *steno);
-bool steno_reload_modal_dictionary(Steno *steno);
-bool steno_reload_modal_dictionary_if_changed(Steno *steno);
 bool steno_reload_phrasing(Steno *steno);
 bool steno_reload_phrasing_if_changed(Steno *steno);
 bool steno_get_dictionary_paths(const Steno *steno, const char *const **out_paths, size_t *out_path_count);
-bool steno_get_modal_dictionary_path(const Steno *steno, const char **out_path);
 bool steno_get_phrasing_path(const Steno *steno, const char **out_path);
 size_t steno_key_binding_count(const Steno *steno);
 size_t steno_dictionary_count(const Steno *steno);

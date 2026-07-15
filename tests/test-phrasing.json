@@ -24,7 +24,7 @@
     ],
     "stems": [
       {
-        "stroke": "PW",
+        "stroke": "#PW",
         "forms": [
           {
             "stroke": "",
@@ -57,7 +57,7 @@
         ]
       },
       {
-        "stroke": "H",
+        "stroke": "#H",
         "forms": [
           {
             "stroke": "-D",
@@ -78,7 +78,7 @@
         ]
       },
       {
-        "stroke": "ST",
+        "stroke": "#ST",
         "forms": [
           {
             "stroke": "",
@@ -93,7 +93,7 @@
             "text": "say"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "saying"
           },
           {
@@ -111,7 +111,7 @@
         ]
       },
       {
-        "stroke": "TH",
+        "stroke": "#TH",
         "forms": [
           {
             "stroke": "",
@@ -126,7 +126,7 @@
             "text": "think"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "thinking"
           },
           {
@@ -144,7 +144,7 @@
         ]
       },
       {
-        "stroke": "THR",
+        "stroke": "#THR",
         "forms": [
           {
             "stroke": "",
@@ -159,7 +159,7 @@
             "text": "tell"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "telling"
           },
           {
@@ -177,7 +177,7 @@
         ]
       },
       {
-        "stroke": "TKH",
+        "stroke": "#TKH",
         "forms": [
           {
             "stroke": "",
@@ -192,7 +192,7 @@
             "text": "hold"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "holding"
           },
           {
@@ -210,7 +210,7 @@
         ]
       },
       {
-        "stroke": "SHR",
+        "stroke": "#SHR",
         "forms": [
           {
             "stroke": "",
@@ -225,7 +225,7 @@
             "text": "sell"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "selling"
           },
           {
@@ -243,7 +243,7 @@
         ]
       },
       {
-        "stroke": "SPHR",
+        "stroke": "#SPHR",
         "forms": [
           {
             "stroke": "",
@@ -258,7 +258,7 @@
             "text": "spell"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "spelling"
           },
           {
@@ -276,7 +276,7 @@
         ]
       },
       {
-        "stroke": "KP",
+        "stroke": "#KP",
         "forms": [
           {
             "stroke": "",
@@ -291,7 +291,7 @@
             "text": "keep"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "keeping"
           },
           {
@@ -309,7 +309,7 @@
         ]
       },
       {
-        "stroke": "KHR",
+        "stroke": "#KHR",
         "forms": [
           {
             "stroke": "",
@@ -324,7 +324,7 @@
             "text": "call"
           },
           {
-            "stroke": "-G",
+            "stroke": "*",
             "text": "calling"
           },
           {
@@ -347,7 +347,7 @@
     "contraction_stroke": "#",
     "starters": [
       {
-        "stroke": "SWR",
+        "stroke": "SWHR",
         "text": "I",
         "agreement": "first_singular",
         "be_contraction": "I'm",
@@ -356,7 +356,7 @@
         "d_contraction": "I'd"
       },
       {
-        "stroke": "KPWR",
+        "stroke": "SKPWR",
         "text": "you",
         "agreement": "plural",
         "be_contraction": "you're",
@@ -374,7 +374,7 @@
         "d_contraction": "he'd"
       },
       {
-        "stroke": "SH",
+        "stroke": "SKWHR",
         "text": "she",
         "agreement": "third_singular",
         "be_contraction": "she's",
@@ -383,7 +383,7 @@
         "d_contraction": "she'd"
       },
       {
-        "stroke": "TWH",
+        "stroke": "TKWH",
         "text": "they",
         "agreement": "plural",
         "be_contraction": "they're",
@@ -600,12 +600,12 @@
         "past": true
       },
       {
-        "stroke": "-FPL",
+        "stroke": "-PBL",
         "verb": "hold",
         "past": false
       },
       {
-        "stroke": "-FPLD",
+        "stroke": "-PBLD",
         "verb": "hold",
         "past": true
       },
@@ -709,7 +709,7 @@
     ],
     "prefixes": [
       {
-        "stroke": "W",
+        "stroke": "#WO",
         "text": "with",
         "tails": [
           "a",
@@ -718,7 +718,7 @@
         ]
       },
       {
-        "stroke": "PW",
+        "stroke": "#PWO",
         "text": "near",
         "tails": [
           "a",
@@ -726,7 +726,7 @@
         ]
       },
       {
-        "stroke": "TKPWH*",
+        "stroke": "#TKPWHO*",
         "text": "anything",
         "tails": [
           "an",
@@ -736,7 +736,7 @@
         ]
       },
       {
-        "stroke": "S*",
+        "stroke": "#SO*",
         "text": "as",
         "tails": [
           "an",
@@ -745,7 +745,7 @@
         ]
       },
       {
-        "stroke": "SRAO*E",
+        "stroke": "#SRAO*E",
         "text": "even",
         "tails": [
           "an",

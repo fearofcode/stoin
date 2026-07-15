@@ -38,21 +38,6 @@ typedef struct App {
     bool time_translations;
     bool trace_key_events;
     bool qwerty_input;
-    bool phrase_toggle_enabled;
-    Platform_Atomic_Bool *phrase_toggle_down;
-    Platform_Atomic_Bool *phrase_stroke_latched;
-    uint16_t phrase_toggle_keycode;
-    const char *phrase_toggle_name;
-    bool nonverb_phrase_toggle_enabled;
-    Platform_Atomic_Bool *nonverb_phrase_toggle_down;
-    Platform_Atomic_Bool *nonverb_phrase_stroke_latched;
-    uint16_t nonverb_phrase_toggle_keycode;
-    const char *nonverb_phrase_toggle_name;
-    bool modal_dictionary_toggle_enabled;
-    Platform_Atomic_Bool *modal_dictionary_toggle_down;
-    Platform_Atomic_Bool *modal_dictionary_stroke_latched;
-    uint16_t modal_dictionary_toggle_keycode;
-    const char *modal_dictionary_toggle_name;
 } App;
 
 static volatile sig_atomic_t g_stop_requested;
@@ -114,7 +99,6 @@ static void reload_watched_files(void *userdata)
     App *app = userdata;
     if (app != NULL) {
         (void)steno_reload_dictionary_if_changed(app->steno);
-        (void)steno_reload_modal_dictionary_if_changed(app->steno);
         (void)steno_reload_phrasing_if_changed(app->steno);
     }
 }
@@ -134,11 +118,6 @@ static void start_dictionary_watcher(App *app)
     }
     for (size_t i = 0; i < path_count; ++i) {
         arrput(watch_paths, paths[i]);
-    }
-    const char *modal_dictionary_path = NULL;
-    if (steno_get_modal_dictionary_path(app->steno, &modal_dictionary_path)
-        && modal_dictionary_path != NULL) {
-        arrput(watch_paths, modal_dictionary_path);
     }
     const char *phrasing_path = NULL;
     if (steno_get_phrasing_path(app->steno, &phrasing_path) && phrasing_path != NULL) {
@@ -174,93 +153,6 @@ static bool app_session_active_callback(void *userdata)
     return app != NULL && app->session_state_known && app->session_active;
 }
 
-static bool app_phrase_namespace_enabled(const App *app)
-{
-    return app != NULL
-        && (app->phrase_toggle_enabled || app->nonverb_phrase_toggle_enabled);
-}
-
-static bool app_toggle_active(
-    Platform_Atomic_Bool *down,
-    Platform_Atomic_Bool *latched,
-    bool consume_latch
-)
-{
-    const bool is_down = platform_atomic_bool_load(down);
-    const bool was_latched = consume_latch
-        ? platform_atomic_bool_exchange(latched, false)
-        : platform_atomic_bool_load(latched);
-    return is_down || was_latched;
-}
-
-static Steno_Phrase_Mode app_phrase_mode_from_active(
-    const App *app,
-    bool phrase_active,
-    bool nonverb_active
-)
-{
-    if (phrase_active && nonverb_active) {
-        return STENO_PHRASE_MODE_ALL;
-    }
-    if (phrase_active) {
-        return app != NULL && app->nonverb_phrase_toggle_enabled
-            ? STENO_PHRASE_MODE_VERBS
-            : STENO_PHRASE_MODE_ALL;
-    }
-    if (nonverb_active) {
-        return STENO_PHRASE_MODE_NONVERBS;
-    }
-    return STENO_PHRASE_MODE_NONE;
-}
-
-static Steno_Phrase_Mode app_current_phrase_mode(App *app, bool consume_latches)
-{
-    if (app == NULL) {
-        return STENO_PHRASE_MODE_NONE;
-    }
-
-    const bool phrase_active = app->phrase_toggle_enabled
-        && app_toggle_active(app->phrase_toggle_down, app->phrase_stroke_latched, consume_latches);
-    const bool nonverb_active = app->nonverb_phrase_toggle_enabled
-        && app_toggle_active(
-            app->nonverb_phrase_toggle_down,
-            app->nonverb_phrase_stroke_latched,
-            consume_latches
-        );
-    return app_phrase_mode_from_active(app, phrase_active, nonverb_active);
-}
-
-static Steno_Phrase_Mode app_current_phrase_down_mode(const App *app)
-{
-    if (app == NULL) {
-        return STENO_PHRASE_MODE_NONE;
-    }
-
-    const bool phrase_active = app->phrase_toggle_enabled
-        && platform_atomic_bool_load(app->phrase_toggle_down);
-    const bool nonverb_active = app->nonverb_phrase_toggle_enabled
-        && platform_atomic_bool_load(app->nonverb_phrase_toggle_down);
-    return app_phrase_mode_from_active(app, phrase_active, nonverb_active);
-}
-
-static bool app_current_modal_dictionary(App *app, bool consume_latch)
-{
-    return app != NULL
-        && app->modal_dictionary_toggle_enabled
-        && app_toggle_active(
-            app->modal_dictionary_toggle_down,
-            app->modal_dictionary_stroke_latched,
-            consume_latch
-        );
-}
-
-static bool app_modal_dictionary_down(const App *app)
-{
-    return app != NULL
-        && app->modal_dictionary_toggle_enabled
-        && platform_atomic_bool_load(app->modal_dictionary_toggle_down);
-}
-
 static bool handle_stroke_bits(App *app, uint64_t bits, uint64_t received_ns)
 {
     if (app == NULL || app->steno == NULL) {
@@ -273,9 +165,6 @@ static bool handle_stroke_bits(App *app, uint64_t bits, uint64_t received_ns)
     Stroke_Input stroke = {
         .bits = bits,
         .received_ns = received_ns,
-        .phrase_mode = app_current_phrase_mode(app, true),
-        .phrase_namespace = app_phrase_namespace_enabled(app),
-        .modal_dictionary = app_current_modal_dictionary(app, true),
     };
     const bool handled = steno_handle_stroke(app->steno, stroke);
     if (app->time_translations) {
@@ -311,64 +200,7 @@ static void print_key_event(const Input_Event *event)
     fflush(stdout);
 }
 
-static void update_toggle_state(
-    Platform_Atomic_Bool *down,
-    Platform_Atomic_Bool *latched,
-    const Input_Event *event
-)
-{
-    if (!event->is_repeat) {
-        platform_atomic_bool_store(down, event->is_down);
-        if (event->is_down) {
-            platform_atomic_bool_store(latched, true);
-        }
-    }
-}
-
-static bool update_toggle_from_event(App *app, const Input_Event *event, bool update_steno)
-{
-    if (app == NULL || event == NULL) {
-        return false;
-    }
-
-    if (app->phrase_toggle_enabled && event->keycode == app->phrase_toggle_keycode) {
-        update_toggle_state(app->phrase_toggle_down, app->phrase_stroke_latched, event);
-        if (update_steno) {
-            steno_set_phrase_mode_family(app->steno, app_current_phrase_down_mode(app));
-        }
-        return true;
-    }
-
-    if (app->nonverb_phrase_toggle_enabled
-        && event->keycode == app->nonverb_phrase_toggle_keycode) {
-        update_toggle_state(
-            app->nonverb_phrase_toggle_down,
-            app->nonverb_phrase_stroke_latched,
-            event
-        );
-        if (update_steno) {
-            steno_set_phrase_mode_family(app->steno, app_current_phrase_down_mode(app));
-        }
-        return true;
-    }
-
-    if (app->modal_dictionary_toggle_enabled
-        && event->keycode == app->modal_dictionary_toggle_keycode) {
-        update_toggle_state(
-            app->modal_dictionary_toggle_down,
-            app->modal_dictionary_stroke_latched,
-            event
-        );
-        if (update_steno) {
-            steno_set_modal_dictionary_mode(app->steno, app_modal_dictionary_down(app));
-        }
-        return true;
-    }
-
-    return false;
-}
-
-static bool handle_toggle_input(const Input_Event *event, void *userdata)
+static bool handle_trace_input(const Input_Event *event, void *userdata)
 {
     App *app = userdata;
 
@@ -376,7 +208,7 @@ static bool handle_toggle_input(const Input_Event *event, void *userdata)
         print_key_event(event);
     }
 
-    return update_toggle_from_event(app, event, false);
+    return false;
 }
 
 static bool handle_input(const Input_Event *event, void *userdata)
@@ -388,10 +220,6 @@ static bool handle_input(const Input_Event *event, void *userdata)
 
     if (app != NULL && event != NULL && app->trace_key_events && !event->is_repeat) {
         print_key_event(event);
-    }
-
-    if (update_toggle_from_event(app, event, true)) {
-        return true;
     }
 
     if (app == NULL || !app->qwerty_input) {
@@ -410,73 +238,7 @@ static bool handle_input(const Input_Event *event, void *userdata)
 
 static bool app_wants_keyboard_events(const App *app)
 {
-    return app != NULL
-        && (app->phrase_toggle_enabled
-            || app->nonverb_phrase_toggle_enabled
-            || app->modal_dictionary_toggle_enabled
-            || app->trace_key_events);
-}
-
-static void app_destroy_toggle_state(App *app)
-{
-    if (app == NULL) {
-        return;
-    }
-    platform_atomic_bool_destroy(app->phrase_toggle_down);
-    platform_atomic_bool_destroy(app->phrase_stroke_latched);
-    platform_atomic_bool_destroy(app->nonverb_phrase_toggle_down);
-    platform_atomic_bool_destroy(app->nonverb_phrase_stroke_latched);
-    platform_atomic_bool_destroy(app->modal_dictionary_toggle_down);
-    platform_atomic_bool_destroy(app->modal_dictionary_stroke_latched);
-    app->phrase_toggle_down = NULL;
-    app->phrase_stroke_latched = NULL;
-    app->nonverb_phrase_toggle_down = NULL;
-    app->nonverb_phrase_stroke_latched = NULL;
-    app->modal_dictionary_toggle_down = NULL;
-    app->modal_dictionary_stroke_latched = NULL;
-}
-
-static bool app_init_toggle_state(App *app)
-{
-    if (app == NULL) {
-        return false;
-    }
-    app->phrase_toggle_down = platform_atomic_bool_create(false);
-    app->phrase_stroke_latched = platform_atomic_bool_create(false);
-    app->nonverb_phrase_toggle_down = platform_atomic_bool_create(false);
-    app->nonverb_phrase_stroke_latched = platform_atomic_bool_create(false);
-    app->modal_dictionary_toggle_down = platform_atomic_bool_create(false);
-    app->modal_dictionary_stroke_latched = platform_atomic_bool_create(false);
-    if (app->phrase_toggle_down == NULL
-        || app->phrase_stroke_latched == NULL
-        || app->nonverb_phrase_toggle_down == NULL
-        || app->nonverb_phrase_stroke_latched == NULL
-        || app->modal_dictionary_toggle_down == NULL
-        || app->modal_dictionary_stroke_latched == NULL) {
-        app_destroy_toggle_state(app);
-        return false;
-    }
-    return true;
-}
-
-static void print_toggle_status(const App *app)
-{
-    if (app != NULL && app->phrase_toggle_enabled) {
-        printf("stoin: %sphrase toggle %s enabled (keycode %u)\n",
-            app->nonverb_phrase_toggle_enabled ? "verb " : "",
-            app->phrase_toggle_name,
-            (unsigned int)app->phrase_toggle_keycode);
-    }
-    if (app != NULL && app->nonverb_phrase_toggle_enabled) {
-        printf("stoin: nonverb phrase toggle %s enabled (keycode %u)\n",
-            app->nonverb_phrase_toggle_name,
-            (unsigned int)app->nonverb_phrase_toggle_keycode);
-    }
-    if (app != NULL && app->modal_dictionary_toggle_enabled) {
-        printf("stoin: modal dictionary toggle %s enabled (keycode %u)\n",
-            app->modal_dictionary_toggle_name,
-            (unsigned int)app->modal_dictionary_toggle_keycode);
-    }
+    return app != NULL && app->trace_key_events;
 }
 
 static void sleep_with_input_events(const App *app, unsigned int milliseconds)
@@ -502,20 +264,18 @@ static void request_stop(int signum)
 
 static void print_usage(void)
 {
-    fputs("usage: stoin [--config PATH] [--dictionary PATH ...] [--modal-dictionary PATH]\n", stderr);
+    fputs("usage: stoin [--config PATH] [--dictionary PATH ...]\n", stderr);
     fputs("             [--word-list PATH] [--phrasing PATH]\n", stderr);
     fputs("             [--input tx-bolt|gemini-pr|stentura|qwerty]\n", stderr);
     fputs("             [--serial-port PATH] [--serial-baud BAUD]\n", stderr);
     fputs("             [--multiple-inputs] [--multi-input-window-ms MS]\n", stderr);
-    fputs("             [--phrase-toggle KEY] [--nonverb-phrase-toggle KEY]\n", stderr);
-    fputs("             [--modal-dictionary-toggle KEY]\n", stderr);
     fputs("             [--trace-key-events]\n", stderr);
     fputs("             [--print-suggestions] [--suggestion-log PATH]\n", stderr);
     fputs("             [--time-translations]\n", stderr);
     fputs("             [--trace-strokes|--no-trace-strokes]\n", stderr);
     fputs("       stoin --raw-serial [--serial-port PATH] [--serial-baud BAUD]\n", stderr);
-    fputs("       stoin [--config PATH] [--dictionary PATH ...] [--modal-dictionary PATH] --lookup STROKE\n", stderr);
-    fputs("       stoin [--config PATH] [--dictionary PATH ...] [--modal-dictionary PATH] --dump-dictionary [OUTPUT_PATH]\n", stderr);
+    fputs("       stoin [--config PATH] [--dictionary PATH ...] --lookup STROKE\n", stderr);
+    fputs("       stoin [--config PATH] [--dictionary PATH ...] --dump-dictionary [OUTPUT_PATH]\n", stderr);
 }
 
 static bool parse_baud_rate(const char *value, int *out_baud_rate)
@@ -568,7 +328,6 @@ static int run_qwerty(App *app)
     printf("stoin: loaded %zu key bindings and %zu dictionary entries\n",
         steno_key_binding_count(app->steno),
         steno_dictionary_count(app->steno));
-    print_toggle_status(app);
     puts("stoin: steno capture starts enabled; press Ctrl+Esc to toggle it");
     puts("stoin: shortcut-modified keys pass through; press Ctrl+C in this terminal to quit");
 
@@ -901,7 +660,6 @@ static Steno *create_steno(
     size_t dictionary_path_count,
     const char *word_list_path,
     const char *phrasing_path,
-    const char *modal_dictionary_path,
     const char *keymap_path,
     bool print_suggestions,
     FILE *suggestion_log_file,
@@ -915,7 +673,6 @@ static Steno *create_steno(
         .dictionary_path_count = dictionary_path_count,
         .word_list_path = word_list_path,
         .phrasing_path = phrasing_path,
-        .modal_dictionary_path = modal_dictionary_path,
         .send_text = send_text,
         .delete_text = delete_text,
         .send_key_combination = send_key_combination,
@@ -945,15 +702,6 @@ int main(int argc, char **argv)
     bool print_suggestions = false;
     const char *suggestion_log_path = NULL;
     bool time_translations = false;
-    bool phrase_toggle_enabled = false;
-    uint16_t phrase_toggle_keycode = 0;
-    const char *phrase_toggle_name = NULL;
-    bool nonverb_phrase_toggle_enabled = false;
-    uint16_t nonverb_phrase_toggle_keycode = 0;
-    const char *nonverb_phrase_toggle_name = NULL;
-    bool modal_dictionary_toggle_enabled = false;
-    uint16_t modal_dictionary_toggle_keycode = 0;
-    const char *modal_dictionary_toggle_name = NULL;
 
     bool raw_serial_requested = false;
     for (int i = 1; i < argc; ++i) {
@@ -984,11 +732,6 @@ int main(int argc, char **argv)
                 cli_dictionary_paths = true;
             }
             if (!runtime_config_add_dictionary(&runtime_config, argv[++i])) {
-                runtime_config_destroy(&runtime_config);
-                return 1;
-            }
-        } else if (strcmp(argv[i], "--modal-dictionary") == 0 && i + 1 < argc) {
-            if (!runtime_config_set_modal_dictionary(&runtime_config, argv[++i])) {
                 runtime_config_destroy(&runtime_config);
                 return 1;
             }
@@ -1040,42 +783,6 @@ int main(int argc, char **argv)
         } else if (strcmp(argv[i], "--time-translations") == 0
             || strcmp(argv[i], "--time-translation") == 0) {
             time_translations = true;
-        } else if ((strcmp(argv[i], "--phrase-toggle") == 0
-                || strcmp(argv[i], "--phase-toggle") == 0) && i + 1 < argc) {
-            phrase_toggle_name = argv[++i];
-            if (!platform_keycode_from_name(phrase_toggle_name, &phrase_toggle_keycode)) {
-                fprintf(stderr, "stoin: unknown phrase toggle key '%s'\n", phrase_toggle_name);
-                runtime_config_destroy(&runtime_config);
-                return 1;
-            }
-            phrase_toggle_enabled = true;
-        } else if ((strcmp(argv[i], "--nonverb-phrase-toggle") == 0
-                || strcmp(argv[i], "--nonverb-phase-toggle") == 0
-                || strcmp(argv[i], "--nonverb-toggle") == 0) && i + 1 < argc) {
-            nonverb_phrase_toggle_name = argv[++i];
-            if (!platform_keycode_from_name(
-                    nonverb_phrase_toggle_name,
-                    &nonverb_phrase_toggle_keycode)) {
-                fprintf(stderr,
-                    "stoin: unknown nonverb phrase toggle key '%s'\n",
-                    nonverb_phrase_toggle_name);
-                runtime_config_destroy(&runtime_config);
-                return 1;
-            }
-            nonverb_phrase_toggle_enabled = true;
-        } else if ((strcmp(argv[i], "--modal-dictionary-toggle") == 0
-                || strcmp(argv[i], "--modal-toggle") == 0) && i + 1 < argc) {
-            modal_dictionary_toggle_name = argv[++i];
-            if (!platform_keycode_from_name(
-                    modal_dictionary_toggle_name,
-                    &modal_dictionary_toggle_keycode)) {
-                fprintf(stderr,
-                    "stoin: unknown modal dictionary toggle key '%s'\n",
-                    modal_dictionary_toggle_name);
-                runtime_config_destroy(&runtime_config);
-                return 1;
-            }
-            modal_dictionary_toggle_enabled = true;
         } else if (strcmp(argv[i], "--multiple-inputs") == 0) {
             multiple_inputs = true;
         } else if (strcmp(argv[i], "--multi-input-window-ms") == 0 && i + 1 < argc) {
@@ -1133,39 +840,6 @@ int main(int argc, char **argv)
         runtime_config_destroy(&runtime_config);
         return 1;
     }
-    if (phrase_toggle_enabled
-        && nonverb_phrase_toggle_enabled
-        && phrase_toggle_keycode == nonverb_phrase_toggle_keycode) {
-        fprintf(stderr,
-            "stoin: --phrase-toggle and --nonverb-phrase-toggle must use distinct keys; both resolved to keycode %u\n",
-            (unsigned int)phrase_toggle_keycode);
-        runtime_config_destroy(&runtime_config);
-        return 1;
-    }
-    if (phrase_toggle_enabled
-        && modal_dictionary_toggle_enabled
-        && phrase_toggle_keycode == modal_dictionary_toggle_keycode) {
-        fprintf(stderr,
-            "stoin: --phrase-toggle and --modal-dictionary-toggle must use distinct keys; both resolved to keycode %u\n",
-            (unsigned int)phrase_toggle_keycode);
-        runtime_config_destroy(&runtime_config);
-        return 1;
-    }
-    if (nonverb_phrase_toggle_enabled
-        && modal_dictionary_toggle_enabled
-        && nonverb_phrase_toggle_keycode == modal_dictionary_toggle_keycode) {
-        fprintf(stderr,
-            "stoin: --nonverb-phrase-toggle and --modal-dictionary-toggle must use distinct keys; both resolved to keycode %u\n",
-            (unsigned int)nonverb_phrase_toggle_keycode);
-        runtime_config_destroy(&runtime_config);
-        return 1;
-    }
-    if (modal_dictionary_toggle_enabled && runtime_config.modal_dictionary_path == NULL) {
-        fputs("stoin: --modal-dictionary-toggle requires a modal_dictionary config value or --modal-dictionary PATH\n", stderr);
-        runtime_config_destroy(&runtime_config);
-        return 1;
-    }
-
     if (raw_serial_dump) {
         const int status = raw_serial_run(serial_port, serial_baud_rate);
         runtime_config_destroy(&runtime_config);
@@ -1185,7 +859,6 @@ int main(int argc, char **argv)
             arrlenu(runtime_config.dictionary_paths),
             runtime_config.word_list_path,
             runtime_config.phrasing_path,
-            runtime_config.modal_dictionary_path,
             NULL,
             false,
             NULL,
@@ -1213,7 +886,6 @@ int main(int argc, char **argv)
             arrlenu(runtime_config.dictionary_paths),
             runtime_config.word_list_path,
             runtime_config.phrasing_path,
-            runtime_config.modal_dictionary_path,
             NULL,
             false,
             NULL,
@@ -1253,7 +925,6 @@ int main(int argc, char **argv)
             arrlenu(runtime_config.dictionary_paths),
             runtime_config.word_list_path,
             runtime_config.phrasing_path,
-            runtime_config.modal_dictionary_path,
             input_mode == INPUT_MODE_QWERTY ? "stoin.keymap" : NULL,
             print_suggestions,
             suggestion_log_file,
@@ -1262,15 +933,6 @@ int main(int argc, char **argv)
         .time_translations = time_translations,
         .trace_key_events = trace_key_events,
         .qwerty_input = input_mode == INPUT_MODE_QWERTY,
-        .phrase_toggle_enabled = phrase_toggle_enabled,
-        .phrase_toggle_keycode = phrase_toggle_keycode,
-        .phrase_toggle_name = phrase_toggle_name,
-        .nonverb_phrase_toggle_enabled = nonverb_phrase_toggle_enabled,
-        .nonverb_phrase_toggle_keycode = nonverb_phrase_toggle_keycode,
-        .nonverb_phrase_toggle_name = nonverb_phrase_toggle_name,
-        .modal_dictionary_toggle_enabled = modal_dictionary_toggle_enabled,
-        .modal_dictionary_toggle_keycode = modal_dictionary_toggle_keycode,
-        .modal_dictionary_toggle_name = modal_dictionary_toggle_name,
     };
     if (app.steno == NULL) {
         if (suggestion_log_file != NULL) {
@@ -1279,17 +941,6 @@ int main(int argc, char **argv)
         runtime_config_destroy(&runtime_config);
         return 1;
     }
-    if (!app_init_toggle_state(&app)) {
-        fputs("stoin: failed to initialize toggle state\n", stderr);
-        steno_destroy(app.steno);
-        if (suggestion_log_file != NULL) {
-            fclose(suggestion_log_file);
-        }
-        runtime_config_destroy(&runtime_config);
-        return 1;
-    }
-    steno_set_phrase_namespace_enabled(app.steno, app_phrase_namespace_enabled(&app));
-
     platform_translation_timing_set_enabled(time_translations);
     if (time_translations) {
         fputs("stoin: translation timing enabled; latency stops immediately before the first platform output event\n", stderr);
@@ -1303,8 +954,7 @@ int main(int argc, char **argv)
         status = run_qwerty(&app);
     } else {
         if (app_wants_keyboard_events(&app)) {
-            if (!platform_init_listen_only(handle_toggle_input, &app)) {
-                app_destroy_toggle_state(&app);
+            if (!platform_init_listen_only(handle_trace_input, &app)) {
                 steno_destroy(app.steno);
                 if (suggestion_log_file != NULL) {
                     fclose(suggestion_log_file);
@@ -1312,7 +962,6 @@ int main(int argc, char **argv)
                 runtime_config_destroy(&runtime_config);
                 return 1;
             }
-            print_toggle_status(&app);
         }
 
         if (input_mode == INPUT_MODE_TX_BOLT) {
@@ -1339,7 +988,6 @@ int main(int argc, char **argv)
         }
     }
 
-    app_destroy_toggle_state(&app);
     steno_destroy(app.steno);
     if (suggestion_log_file != NULL && fclose(suggestion_log_file) != 0 && status == 0) {
         status = 1;

@@ -4,10 +4,6 @@
   "dictionaries": [
     "lapwing-base.json",
     "lapwing-commands.json",
-    {
-      "path": "lapwing-semi-modal-movement.json",
-      "enabled": false
-    },
     "stoin-custom.json"
   ]
 }

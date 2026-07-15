@@ -35,14 +35,8 @@ typedef struct Platform_File_Stamp {
 
 typedef void (*Platform_File_Watch_Fn)(void *userdata);
 
-typedef struct Platform_Atomic_Bool Platform_Atomic_Bool;
 typedef struct Platform_Serial_Port Platform_Serial_Port;
 
-Platform_Atomic_Bool *platform_atomic_bool_create(bool initial_value);
-void platform_atomic_bool_destroy(Platform_Atomic_Bool *value);
-void platform_atomic_bool_store(Platform_Atomic_Bool *value, bool new_value);
-bool platform_atomic_bool_load(Platform_Atomic_Bool *value);
-bool platform_atomic_bool_exchange(Platform_Atomic_Bool *value, bool new_value);
 bool platform_output_init(void);
 bool platform_init(Handle_Input_Fn handler, void *userdata);
 bool platform_init_listen_only(Handle_Input_Fn handler, void *userdata);
