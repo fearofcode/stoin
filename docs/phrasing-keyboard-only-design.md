@@ -21,57 +21,61 @@ Run the conservative structural audit with:
 scripts/check-phrasing-collisions.py phrasing.json ~/Downloads/phoenix.json
 ```
 
-The checker understands Plover number-bar aliases, ignores multi-stroke
-dictionary entries because every generated phrase is one stroke, and fails on
-either an internal phrase collision or a Phoenix collision. It checks the full
-FV Cartesian product, including combinations the formatter later rejects, so a
-clean result is stronger than checking only phrases which currently emit text.
+The checker understands number-bar aliases which appear in Phoenix, ignores
+multi-stroke dictionary entries because every generated phrase is one stroke,
+and fails on either an internal phrase collision or a Phoenix collision. It
+checks the full FV Cartesian product, including combinations the formatter
+later rejects, so a clean result is stronger than checking only phrases which
+currently emit text.
 
 ## Family summary
 
 | Family | Layout | Purpose |
 | --- | --- | --- |
-| IV | `# + verb stem + form + tail` | verb-first phrases such as `say it` |
+| IV | `unique O-bearing starter + form + tail` | verb-first phrases such as `say it` |
 | FV | `unique subject starter + operator + structure + ender` | subject-first phrases such as `she has gone` |
-| NV | `#O + unique prefix + tail` | nonverb phrases such as `with a` |
+| NV | `unique left starter + tail` | nonverb phrases such as `with a` |
 
-`#` and `#O` are keys in the phrase chord, not mode-switch strokes. FV uses
-Phoenix-empty left-hand starter banks. Contracted FV outlines add `#`; their
-left-hand banks remain distinct from every IV and NV bank.
+None of the generated phrase outlines uses the number bar. IV reserves ordinary
+thumb `O` inside the chord, while NV uses two- and three-key left-hand starters.
+FV uses Phoenix-empty left-hand starter banks, and contracted FV outlines add
+ordinary thumb `U`. These are normal dictionary outlines, not mode switches or
+special runtime keys.
 
 ## Initial-verb phrases
 
 IV outlines are constructed as:
 
 ```text
-# + stem + form + right-hand tail
+O-bearing starter + form + right-hand tail
 ```
 
 ### IV stems
 
-The table shows the stem component. The complete outline always includes `#`.
+The table shows the complete starter component. Every IV starter includes `O`,
+which separates IV from the NV family without adding another stroke.
 
 | Stem | Verb | Stem | Verb |
 | --- | --- | --- | --- |
-| `PW` | be | `H` | have |
-| `S` | see | `ST` | say |
-| `TH` | think | `THR` | tell |
-| `KH` | catch | `HR` | look |
-| `TKH` | hold | `SHR` | sell |
-| `SPHR` | spell | `PHR` | pull |
-| `P` | put | `KP` | keep |
-| `KHR` | call | `TK` | do |
-| `TKPW` | go | `W` | want |
-| `SK` | ask | `SP` | happen |
-| `SW` | feel | `K` | come |
-| `TPH` | know | `TKPWH` | get |
-| `PWHR` | believe | `KW` | become |
-| `R` | run | `KPHR` | make |
-| `PH` | take | `TP` | find |
-| `STP` | give | `STW` | use |
-| `WR` | work | `SKP` | need |
-| `SKW` | remember | `SKH` | understand |
-| `TR` | try | `TKP` | expect |
+| `SKPO` | be | `TKPO` | have |
+| `STWO` | see | `TPWO` | say |
+| `STHO` | think | `SKHO` | tell |
+| `TKHO` | catch | `KPHO` | look |
+| `SWHO` | hold | `TWHO` | sell |
+| `KWHO` | spell | `PWHO` | pull |
+| `KPRO` | put | `WHRO` | keep |
+| `STKWO` | call | `STPWO` | do |
+| `SPRO` | go | `SKPWO` | want |
+| `STKHO` | ask | `WHO` | happen |
+| `SKPHO` | feel | `TWRO` | come |
+| `TKPHO` | know | `SKWHO` | get |
+| `SPWHO` | believe | `TPWHO` | become |
+| `STKRO` | run | `STPRO` | make |
+| `SKPRO` | take | `TKPRO` | find |
+| `TKWRO` | give | `SPWRO` | use |
+| `TPWRO` | work | `KPWRO` | need |
+| `STHRO` | remember | `SKHRO` | understand |
+| `KPHRO` | try | `TWHRO` | expect |
 
 ### IV forms
 
@@ -87,8 +91,8 @@ The table shows the stem component. The complete outline always includes `#`.
 | `A` | `can` + base verb |
 | `A-D` | `could` + base verb |
 
-The star is reserved for the IV progressive form. It keeps IV progressive
-outlines separate from the `#O` NV family.
+The star is reserved for the IV progressive form. `O` is reserved by every IV
+starter and therefore cannot collapse into a form component.
 
 ### IV tails
 
@@ -104,20 +108,21 @@ outlines separate from the `#O` NV family.
 | `-PL` | my | `-PLS` | myself |
 | `-PLT` | me | `-RT` | that |
 
-Per-verb allowlists in `phrasing.json` remove ungrammatical combinations. In
-particular, `go the`, `go it`, and `come the` are omitted because their number
-bar chords are Phoenix numeric aliases and are not useful standalone phrases.
+Per-verb allowlists in `phrasing.json` remove ungrammatical or low-value
+combinations. The selected starters also keep the allowlisted universe clean;
+for example, adding all forms of `go the` and `come the` would create the
+Phoenix outlines `SPROUT` (sprout) and `TWROET` (typewrote).
 
 Examples:
 
 | Outline | Output |
 | --- | --- |
-| `#PW-B` | is a |
-| `#PWA-BD` | could be a |
-| `#ST-P` | says it |
-| `#ST*-P` | saying it |
-| `#THU-RT` | to think that |
-| `#KPU-P` | to keep it |
+| `SKPO-B` | is a |
+| `SKPAO-BD` | could be a |
+| `TPWO-P` | says it |
+| `TPWO*-P` | saying it |
+| `STHOU-RT` | to think that |
+| `WHROU-P` | to keep it |
 
 ## Final-verb phrases
 
@@ -167,7 +172,7 @@ Enders and their optional continuation words are defined in `phrasing.json`.
 No ender contains `-F`, which is reserved for the perfect structure. The hold
 ender is therefore `-PBL` / `-PBLD` rather than the old `-FPL` pair.
 
-Adding `#` requests the grammatically valid contracted version of an FV
+Adding `U` requests the grammatically valid contracted version of an FV
 outline. Long form remains the default.
 
 Examples:
@@ -178,24 +183,25 @@ Examples:
 | `SKWHRE-G` | she is going |
 | `SWHR-FPBG` | I have thought |
 | `TKWHAO-RLT` | they will tell |
-| `#SKWHR*RLT` | she doesn't tell |
-| `#STWHAO` | that'll |
+| `SKWHR*U-RLT` | she doesn't tell |
+| `STWHAOU` | that'll |
 
 ## Nonverb phrases
 
-Every NV prefix includes the `#O` family marker in its stored outline.
+NV prefixes are unique two- and three-key left-hand starters. They do not need
+a family marker because no selected NV outline overlaps IV, FV, or Phoenix.
 
 | Outline prefix | Text | Outline prefix | Text |
 | --- | --- | --- | --- |
-| `#WO` | with | `#TO` | at |
-| `#TO*` | it | `#AOUF` | off |
-| `#OUP` | up | `#KO` | can |
-| `#SKWRO` | just | `#HRO` | all |
-| `#TPO` | if | `#TPHRO` | only |
-| `#PWO` | but | `#THAO` | that |
-| `#TPAO` | for | `#OF` | of |
-| `#TKPWHO*` | anything | `#SO*` | as |
-| `#SRAO*E` | even |  |  |
+| `TW` | with | `STP` | at |
+| `SKP` | it | `SKH` | off |
+| `TR` | up | `STW` | can |
+| `TPW` | just | `STH` | all |
+| `SKW` | if | `TKP` | only |
+| `TKH` | but | `SWH` | that |
+| `TWH` | for | `KWH` | of |
+| `PWH` | anything | `TWR` | as |
+| `WHR` | even |  |  |
 
 NV tails are defined in `phrasing.json`. They include `a`, `an`, `like`,
 `the`, pronouns, `that`, `can`, `if`, `though`, and `else`, with per-prefix
@@ -206,7 +212,7 @@ Examples:
 
 | Outline | Output |
 | --- | --- |
-| `#WO-B` | with a |
-| `#TKPWHO*-BL` | anything like |
-| `#SO*-F` | as if |
-| `#SRAO*E-GT` | even though |
+| `TW-B` | with a |
+| `PWH-BL` | anything like |
+| `TWR-F` | as if |
+| `WHR-GT` | even though |

@@ -21,7 +21,7 @@ static bool write_phrasing_fixture(
         "    \"stems\": [%s]\n"
         "  },\n"
         "  \"final_verbs\": {\n"
-        "    \"contraction_stroke\": \"#\",\n"
+        "    \"contraction_stroke\": \"U\",\n"
         "    \"starters\": [],\n"
         "    \"operators\": [],\n"
         "    \"structures\": [],\n"

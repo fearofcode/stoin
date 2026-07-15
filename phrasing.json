@@ -94,7 +94,7 @@
     ],
     "stems": [
       {
-        "stroke": "#PW",
+        "stroke": "SKPO",
         "forms": [
           {
             "stroke": "",
@@ -131,7 +131,7 @@
         ]
       },
       {
-        "stroke": "#H",
+        "stroke": "TKPO",
         "forms": [
           {
             "stroke": "",
@@ -160,7 +160,7 @@
         ]
       },
       {
-        "stroke": "#S",
+        "stroke": "STWO",
         "forms": [
           {
             "stroke": "",
@@ -193,7 +193,7 @@
         ]
       },
       {
-        "stroke": "#ST",
+        "stroke": "TPWO",
         "forms": [
           {
             "stroke": "",
@@ -226,7 +226,7 @@
         ]
       },
       {
-        "stroke": "#TH",
+        "stroke": "STHO",
         "forms": [
           {
             "stroke": "",
@@ -259,7 +259,7 @@
         ]
       },
       {
-        "stroke": "#THR",
+        "stroke": "SKHO",
         "tails": [
           "a",
           "an",
@@ -311,7 +311,7 @@
         ]
       },
       {
-        "stroke": "#KH",
+        "stroke": "TKHO",
         "forms": [
           {
             "stroke": "",
@@ -344,7 +344,7 @@
         ]
       },
       {
-        "stroke": "#HR",
+        "stroke": "KPHO",
         "forms": [
           {
             "stroke": "",
@@ -377,7 +377,7 @@
         ]
       },
       {
-        "stroke": "#TKH",
+        "stroke": "SWHO",
         "forms": [
           {
             "stroke": "",
@@ -410,7 +410,7 @@
         ]
       },
       {
-        "stroke": "#SHR",
+        "stroke": "TWHO",
         "forms": [
           {
             "stroke": "",
@@ -443,7 +443,7 @@
         ]
       },
       {
-        "stroke": "#SPHR",
+        "stroke": "KWHO",
         "forms": [
           {
             "stroke": "",
@@ -476,7 +476,7 @@
         ]
       },
       {
-        "stroke": "#PHR",
+        "stroke": "PWHO",
         "forms": [
           {
             "stroke": "",
@@ -509,7 +509,7 @@
         ]
       },
       {
-        "stroke": "#P",
+        "stroke": "KPRO",
         "tails": [
           "a",
           "an",
@@ -560,7 +560,7 @@
         ]
       },
       {
-        "stroke": "#KP",
+        "stroke": "WHRO",
         "forms": [
           {
             "stroke": "",
@@ -593,7 +593,7 @@
         ]
       },
       {
-        "stroke": "#KHR",
+        "stroke": "STKWO",
         "forms": [
           {
             "stroke": "",
@@ -626,7 +626,7 @@
         ]
       },
       {
-        "stroke": "#TK",
+        "stroke": "STPWO",
         "tails": [
           "a",
           "an",
@@ -677,7 +677,7 @@
         ]
       },
       {
-        "stroke": "#TKPW",
+        "stroke": "SPRO",
         "tails": [
           "a",
           "an",
@@ -725,7 +725,7 @@
         ]
       },
       {
-        "stroke": "#W",
+        "stroke": "SKPWO",
         "tails": [
           "a",
           "an",
@@ -776,7 +776,7 @@
         ]
       },
       {
-        "stroke": "#SK",
+        "stroke": "STKHO",
         "tails": [
           "a",
           "an",
@@ -829,7 +829,7 @@
         ]
       },
       {
-        "stroke": "#SP",
+        "stroke": "WHO",
         "tails": [
           "a",
           "an",
@@ -871,7 +871,7 @@
         ]
       },
       {
-        "stroke": "#SW",
+        "stroke": "SKPHO",
         "tails": [
           "a",
           "an",
@@ -923,7 +923,7 @@
         ]
       },
       {
-        "stroke": "#K",
+        "stroke": "TWRO",
         "tails": [
           "a",
           "an",
@@ -972,7 +972,7 @@
         ]
       },
       {
-        "stroke": "#TPH",
+        "stroke": "TKPHO",
         "tails": [
           "a",
           "an",
@@ -1023,7 +1023,7 @@
         ]
       },
       {
-        "stroke": "#TKPWH",
+        "stroke": "SKWHO",
         "tails": [
           "a",
           "an",
@@ -1075,7 +1075,7 @@
         ]
       },
       {
-        "stroke": "#PWHR",
+        "stroke": "SPWHO",
         "tails": [
           "a",
           "an",
@@ -1124,7 +1124,7 @@
         ]
       },
       {
-        "stroke": "#KW",
+        "stroke": "TPWHO",
         "tails": [
           "a",
           "an",
@@ -1173,7 +1173,7 @@
         ]
       },
       {
-        "stroke": "#R",
+        "stroke": "STKRO",
         "tails": [
           "a",
           "an",
@@ -1225,7 +1225,7 @@
         ]
       },
       {
-        "stroke": "#KPHR",
+        "stroke": "STPRO",
         "tails": [
           "a",
           "an",
@@ -1277,7 +1277,7 @@
         ]
       },
       {
-        "stroke": "#PH",
+        "stroke": "SKPRO",
         "tails": [
           "a",
           "an",
@@ -1328,7 +1328,7 @@
         ]
       },
       {
-        "stroke": "#TP",
+        "stroke": "TKPRO",
         "tails": [
           "a",
           "an",
@@ -1378,7 +1378,7 @@
         ]
       },
       {
-        "stroke": "#STP",
+        "stroke": "TKWRO",
         "tails": [
           "a",
           "an",
@@ -1430,7 +1430,7 @@
         ]
       },
       {
-        "stroke": "#STW",
+        "stroke": "SPWRO",
         "tails": [
           "a",
           "an",
@@ -1480,7 +1480,7 @@
         ]
       },
       {
-        "stroke": "#WR",
+        "stroke": "TPWRO",
         "tails": [
           "a",
           "an",
@@ -1532,7 +1532,7 @@
         ]
       },
       {
-        "stroke": "#SKP",
+        "stroke": "KPWRO",
         "tails": [
           "a",
           "an",
@@ -1582,7 +1582,7 @@
         ]
       },
       {
-        "stroke": "#SKW",
+        "stroke": "STHRO",
         "tails": [
           "a",
           "an",
@@ -1631,7 +1631,7 @@
         ]
       },
       {
-        "stroke": "#SKH",
+        "stroke": "SKHRO",
         "tails": [
           "a",
           "an",
@@ -1680,7 +1680,7 @@
         ]
       },
       {
-        "stroke": "#TR",
+        "stroke": "KPHRO",
         "tails": [
           "a",
           "an",
@@ -1730,7 +1730,7 @@
         ]
       },
       {
-        "stroke": "#TKP",
+        "stroke": "TWHRO",
         "tails": [
           "a",
           "an",
@@ -1784,7 +1784,7 @@
     ]
   },
   "final_verbs": {
-    "contraction_stroke": "#",
+    "contraction_stroke": "U",
     "starters": [
       {
         "stroke": "SWHR",
@@ -3020,7 +3020,7 @@
     ],
     "prefixes": [
       {
-        "stroke": "#WO",
+        "stroke": "TW",
         "text": "with",
         "tails": [
           "a",
@@ -3036,7 +3036,7 @@
         ]
       },
       {
-        "stroke": "#TO",
+        "stroke": "STP",
         "text": "at",
         "tails": [
           "a",
@@ -3052,7 +3052,7 @@
         ]
       },
       {
-        "stroke": "#TO*",
+        "stroke": "SKP",
         "text": "it",
         "tails": [
           "a",
@@ -3071,7 +3071,7 @@
         ]
       },
       {
-        "stroke": "#AOUF",
+        "stroke": "SKH",
         "text": "off",
         "tails": [
           "a",
@@ -3087,7 +3087,7 @@
         ]
       },
       {
-        "stroke": "#OUP",
+        "stroke": "TR",
         "text": "up",
         "tails": [
           "a",
@@ -3102,7 +3102,7 @@
         ]
       },
       {
-        "stroke": "#KO",
+        "stroke": "STW",
         "text": "can",
         "tails": [
           "a",
@@ -3120,7 +3120,7 @@
         ]
       },
       {
-        "stroke": "#SKWRO",
+        "stroke": "TPW",
         "text": "just",
         "tails": [
           "a",
@@ -3140,7 +3140,7 @@
         ]
       },
       {
-        "stroke": "#HRO",
+        "stroke": "STH",
         "text": "all",
         "tails": [
           "a",
@@ -3158,7 +3158,7 @@
         ]
       },
       {
-        "stroke": "#TPO",
+        "stroke": "SKW",
         "text": "if",
         "tails": [
           "a",
@@ -3173,7 +3173,7 @@
         ]
       },
       {
-        "stroke": "#TPHRO",
+        "stroke": "TKP",
         "text": "only",
         "tails": [
           "a",
@@ -3193,7 +3193,7 @@
         ]
       },
       {
-        "stroke": "#PWO",
+        "stroke": "TKH",
         "text": "but",
         "tails": [
           "a",
@@ -3214,7 +3214,7 @@
         ]
       },
       {
-        "stroke": "#THAO",
+        "stroke": "SWH",
         "text": "that",
         "tails": [
           "a",
@@ -3233,7 +3233,7 @@
         ]
       },
       {
-        "stroke": "#TPAO",
+        "stroke": "TWH",
         "text": "for",
         "tails": [
           "a",
@@ -3252,7 +3252,7 @@
         ]
       },
       {
-        "stroke": "#OF",
+        "stroke": "KWH",
         "text": "of",
         "tails": [
           "a",
@@ -3268,7 +3268,7 @@
         ]
       },
       {
-        "stroke": "#TKPWHO*",
+        "stroke": "PWH",
         "text": "anything",
         "tails": [
           "a",
@@ -3286,7 +3286,7 @@
         ]
       },
       {
-        "stroke": "#SO*",
+        "stroke": "TWR",
         "text": "as",
         "tails": [
           "a",
@@ -3306,7 +3306,7 @@
         ]
       },
       {
-        "stroke": "#SRAO*E",
+        "stroke": "WHR",
         "text": "even",
         "tails": [
           "a",

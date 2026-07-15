@@ -24,7 +24,7 @@
     ],
     "stems": [
       {
-        "stroke": "#PW",
+        "stroke": "SKPO",
         "forms": [
           {
             "stroke": "",
@@ -57,7 +57,7 @@
         ]
       },
       {
-        "stroke": "#H",
+        "stroke": "TKPO",
         "forms": [
           {
             "stroke": "-D",
@@ -78,7 +78,7 @@
         ]
       },
       {
-        "stroke": "#ST",
+        "stroke": "TPWO",
         "forms": [
           {
             "stroke": "",
@@ -111,7 +111,7 @@
         ]
       },
       {
-        "stroke": "#TH",
+        "stroke": "STHO",
         "forms": [
           {
             "stroke": "",
@@ -144,7 +144,7 @@
         ]
       },
       {
-        "stroke": "#THR",
+        "stroke": "SKHO",
         "forms": [
           {
             "stroke": "",
@@ -177,7 +177,7 @@
         ]
       },
       {
-        "stroke": "#TKH",
+        "stroke": "SWHO",
         "forms": [
           {
             "stroke": "",
@@ -210,7 +210,7 @@
         ]
       },
       {
-        "stroke": "#SHR",
+        "stroke": "TWHO",
         "forms": [
           {
             "stroke": "",
@@ -243,7 +243,7 @@
         ]
       },
       {
-        "stroke": "#SPHR",
+        "stroke": "KWHO",
         "forms": [
           {
             "stroke": "",
@@ -276,7 +276,7 @@
         ]
       },
       {
-        "stroke": "#KP",
+        "stroke": "WHRO",
         "forms": [
           {
             "stroke": "",
@@ -309,7 +309,7 @@
         ]
       },
       {
-        "stroke": "#KHR",
+        "stroke": "STKWO",
         "forms": [
           {
             "stroke": "",
@@ -344,7 +344,7 @@
     ]
   },
   "final_verbs": {
-    "contraction_stroke": "#",
+    "contraction_stroke": "U",
     "starters": [
       {
         "stroke": "SWHR",
@@ -709,7 +709,7 @@
     ],
     "prefixes": [
       {
-        "stroke": "#WO",
+        "stroke": "TW",
         "text": "with",
         "tails": [
           "a",
@@ -718,7 +718,7 @@
         ]
       },
       {
-        "stroke": "#PWO",
+        "stroke": "TKH",
         "text": "near",
         "tails": [
           "a",
@@ -726,7 +726,7 @@
         ]
       },
       {
-        "stroke": "#TKPWHO*",
+        "stroke": "PWH",
         "text": "anything",
         "tails": [
           "an",
@@ -736,7 +736,7 @@
         ]
       },
       {
-        "stroke": "#SO*",
+        "stroke": "TWR",
         "text": "as",
         "tails": [
           "an",
@@ -745,7 +745,7 @@
         ]
       },
       {
-        "stroke": "#SRAO*E",
+        "stroke": "WHR",
         "text": "even",
         "tails": [
           "an",

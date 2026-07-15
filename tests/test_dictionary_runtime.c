@@ -70,7 +70,7 @@ bool test_dictionary_runtime(void)
     ok = ok && expect_string("dictionary wins exact phrase-shaped lookup", phrase_lookup, "dictionary is a");
 
     const char *have_phrase_lookup = NULL;
-    ok = ok && steno_lookup_stroke(steno, "#H-BD", &have_phrase_lookup);
+    ok = ok && steno_lookup_stroke(steno, "TKPO-BD", &have_phrase_lookup);
     ok = ok && expect_string("lookup includes generated phrases", have_phrase_lookup, "had a");
 
     const char *ampersand = NULL;
@@ -152,10 +152,10 @@ bool test_dictionary_runtime(void)
             "{\n"
             "  \"initial_verbs\": {\n"
             "    \"tails\": [{\"id\": \"a\", \"stroke\": \"-B\", \"text\": \"a\"}],\n"
-            "    \"stems\": [{\"stroke\": \"#PW\", \"forms\": [{\"stroke\": \"\", \"text\": \"is\"}]}]\n"
+            "    \"stems\": [{\"stroke\": \"SKPO\", \"forms\": [{\"stroke\": \"\", \"text\": \"is\"}]}]\n"
             "  },\n"
             "  \"final_verbs\": {\n"
-            "    \"contraction_stroke\": \"#\",\n"
+            "    \"contraction_stroke\": \"U\",\n"
             "    \"starters\": [],\n"
             "    \"operators\": [],\n"
             "    \"structures\": [],\n"
@@ -167,10 +167,10 @@ bool test_dictionary_runtime(void)
             "{\n"
             "  \"initial_verbs\": {\n"
             "    \"tails\": [{\"id\": \"a\", \"stroke\": \"-B\", \"text\": \"a\"}],\n"
-            "    \"stems\": [{\"stroke\": \"#PW\", \"forms\": [{\"stroke\": \"\", \"text\": \"was\"}]}]\n"
+            "    \"stems\": [{\"stroke\": \"SKPO\", \"forms\": [{\"stroke\": \"\", \"text\": \"was\"}]}]\n"
             "  },\n"
             "  \"final_verbs\": {\n"
-            "    \"contraction_stroke\": \"#\",\n"
+            "    \"contraction_stroke\": \"U\",\n"
             "    \"starters\": [],\n"
             "    \"operators\": [],\n"
             "    \"structures\": [],\n"
@@ -182,10 +182,10 @@ bool test_dictionary_runtime(void)
             "{\n"
             "  \"initial_verbs\": {\n"
             "    \"tails\": [{\"id\": \"a\", \"stroke\": \"-B\", \"text\": \"a\"}],\n"
-            "    \"stems\": [{\"stroke\": \"#PW\", \"forms\": [{\"stroke\": \"\", \"text\": \"are\"}]}]\n"
+            "    \"stems\": [{\"stroke\": \"SKPO\", \"forms\": [{\"stroke\": \"\", \"text\": \"are\"}]}]\n"
             "  },\n"
             "  \"final_verbs\": {\n"
-            "    \"contraction_stroke\": \"#\",\n"
+            "    \"contraction_stroke\": \"U\",\n"
             "    \"starters\": [],\n"
             "    \"operators\": [],\n"
             "    \"structures\": [],\n"
@@ -200,10 +200,10 @@ bool test_dictionary_runtime(void)
             "      {\"id\": \"a\", \"stroke\": \"-B\", \"text\": \"a\"},\n"
             "      {\"id\": \"the\", \"stroke\": \"-B\", \"text\": \"the\"}\n"
             "    ],\n"
-            "    \"stems\": [{\"stroke\": \"#PW\", \"forms\": [{\"stroke\": \"\", \"text\": \"is\"}]}]\n"
+            "    \"stems\": [{\"stroke\": \"SKPO\", \"forms\": [{\"stroke\": \"\", \"text\": \"is\"}]}]\n"
             "  },\n"
             "  \"final_verbs\": {\n"
-            "    \"contraction_stroke\": \"#\",\n"
+            "    \"contraction_stroke\": \"U\",\n"
             "    \"starters\": [],\n"
             "    \"operators\": [],\n"
             "    \"structures\": [],\n"
@@ -218,25 +218,25 @@ bool test_dictionary_runtime(void)
         ok = ok && phrasing_reload_steno != NULL;
         if (phrasing_reload_steno != NULL) {
             clear_test_output(&output);
-            ok = ok && handle_phrase_test_stroke(phrasing_reload_steno, "#PW-B");
+            ok = ok && handle_phrase_test_stroke(phrasing_reload_steno, "SKPO-B");
             ok = ok && expect_string("hot reload initial phrasing", output.text, "is a");
 
             ok = ok && write_text_file(reload_phrasing_path, "{");
             ok = ok && !steno_reload_phrasing(phrasing_reload_steno);
             clear_test_output(&output);
-            ok = ok && handle_phrase_test_stroke(phrasing_reload_steno, "#PW-B");
+            ok = ok && handle_phrase_test_stroke(phrasing_reload_steno, "SKPO-B");
             ok = ok && expect_string("hot reload keeps old phrasing on parse failure", output.text, " is a");
 
             ok = ok && write_text_file(reload_phrasing_path, phrasing_duplicate_iv_tail);
             ok = ok && !steno_reload_phrasing(phrasing_reload_steno);
             clear_test_output(&output);
-            ok = ok && handle_phrase_test_stroke(phrasing_reload_steno, "#PW-B");
+            ok = ok && handle_phrase_test_stroke(phrasing_reload_steno, "SKPO-B");
             ok = ok && expect_string("hot reload keeps old phrasing on duplicate stroke", output.text, " is a");
 
             ok = ok && write_text_file(reload_phrasing_path, phrasing_was);
             ok = ok && steno_reload_phrasing(phrasing_reload_steno);
             clear_test_output(&output);
-            ok = ok && handle_phrase_test_stroke(phrasing_reload_steno, "#PW-B");
+            ok = ok && handle_phrase_test_stroke(phrasing_reload_steno, "SKPO-B");
             ok = ok && expect_string("hot reload updated phrasing", output.text, " was a");
 
             Watch_Test phrase_watch = {
@@ -257,7 +257,7 @@ bool test_dictionary_runtime(void)
             platform_file_watcher_stop();
             ok = ok && phrase_watch.reload_count > 0;
             clear_test_output(&output);
-            ok = ok && handle_phrase_test_stroke(phrasing_reload_steno, "#PW-B");
+            ok = ok && handle_phrase_test_stroke(phrasing_reload_steno, "SKPO-B");
             ok = ok && expect_string("platform phrasing watcher reload", output.text, " are a");
             steno_destroy(phrasing_reload_steno);
         }
@@ -314,7 +314,7 @@ bool test_dictionary_runtime(void)
             ok = ok && stroke_string_to_bits("KAT", &trace_cat_bits);
             ok = ok && stroke_string_to_bits("#*", &trace_toggle_star_bits);
             ok = ok && steno_handle_stroke_bits(trace_steno, trace_bits);
-            ok = ok && handle_phrase_test_stroke(trace_steno, "#PW-B");
+            ok = ok && handle_phrase_test_stroke(trace_steno, "SKPO-B");
             ok = ok && handle_test_stroke(trace_steno, "#KW");
             ok = ok && handle_test_stroke(trace_steno, "SAO");
             ok = ok && steno_handle_stroke_bits(trace_steno, trace_cat_bits);
@@ -325,7 +325,7 @@ bool test_dictionary_runtime(void)
             ok = ok && expect_trace_contains(
                 trace_file,
                 "trace phrase stroke",
-                "#PWB [phrase] -> is a\n");
+                "SKPOB [phrase] -> is a\n");
             ok = ok && expect_trace_contains(
                 trace_file,
                 "trace dictionary stroke with number bar",

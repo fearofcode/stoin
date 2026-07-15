@@ -14,7 +14,7 @@ static bool write_phrasing_fixture(const char *path, const char *starters_json)
         "{\n"
         "  \"initial_verbs\": {\"tails\": [], \"stems\": []},\n"
         "  \"final_verbs\": {\n"
-        "    \"contraction_stroke\": \"#\",\n"
+        "    \"contraction_stroke\": \"U\",\n"
         "    \"starters\": [%s],\n"
         "    \"operators\": [\n"
         "      {\"stroke\":\"\",\"modal\":\"none\",\"negative\":false},\n"
