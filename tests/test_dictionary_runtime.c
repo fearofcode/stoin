@@ -314,7 +314,7 @@ bool test_dictionary_runtime(void)
             ok = ok && stroke_string_to_bits("KAT", &trace_cat_bits);
             ok = ok && stroke_string_to_bits("#*", &trace_toggle_star_bits);
             ok = ok && steno_handle_stroke_bits(trace_steno, trace_bits);
-            ok = ok && handle_phrase_test_stroke(trace_steno, "SKPO-B");
+            ok = ok && handle_phrase_test_stroke(trace_steno, "SKPWO-B");
             ok = ok && handle_test_stroke(trace_steno, "#KW");
             ok = ok && handle_test_stroke(trace_steno, "SAO");
             ok = ok && steno_handle_stroke_bits(trace_steno, trace_cat_bits);
@@ -325,7 +325,7 @@ bool test_dictionary_runtime(void)
             ok = ok && expect_trace_contains(
                 trace_file,
                 "trace phrase stroke",
-                "SKPOB [phrase] -> is a\n");
+                "SKPWOB [phrase] -> is a\n");
             ok = ok && expect_trace_contains(
                 trace_file,
                 "trace dictionary stroke with number bar",

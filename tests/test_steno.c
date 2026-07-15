@@ -214,8 +214,8 @@ int main(void)
     ok = ok && stroke_string_to_bits("PHROF", &plover_bits);
     ok = ok && stroke_string_to_bits("STPH-G", &right_arrow_bits);
     ok = ok && stroke_string_to_bits("STPH", &dictionary_toggle_bits);
-    ok = ok && stroke_string_to_bits("SKPOB", &phrase_is_a_bits);
-    ok = ok && stroke_string_to_bits("STKWOEP", &khrep_bits);
+    ok = ok && stroke_string_to_bits("SKPWOB", &phrase_is_a_bits);
+    ok = ok && stroke_string_to_bits("SKPHOEP", &khrep_bits);
 
     clear_test_output(&output);
     reset_output_log(&output);
@@ -229,7 +229,7 @@ int main(void)
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    ok = ok && handle_test_stroke(steno, "SKPOT");
+    ok = ok && handle_test_stroke(steno, "SKPWOT");
     ok = ok && expect_string("dictionary miss uses generated phrase", output.text, "is the");
     ok = ok && handle_test_stroke(steno, "TO");
     ok = ok && expect_string(
@@ -245,7 +245,7 @@ int main(void)
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
     reset_output_log(&output);
-    ok = ok && handle_phrase_test_stroke(steno, "SKPOB");
+    ok = ok && handle_phrase_test_stroke(steno, "SKPWOB");
     ok = ok && expect_string("initial verb chord is distinct from dictionary", output.text, "is a");
 
     ok = ok && reset_test_steno(&steno, &config);
@@ -257,9 +257,9 @@ int main(void)
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
     reset_output_log(&output);
-    ok = ok && handle_phrase_test_stroke(steno, "SKPOB");
+    ok = ok && handle_phrase_test_stroke(steno, "SKPWOB");
     ok = ok && expect_string("initial verb is a", output.text, "is a");
-    ok = ok && handle_phrase_test_stroke(steno, "SKPOT");
+    ok = ok && handle_phrase_test_stroke(steno, "SKPWOT");
     ok = ok && expect_string("initial verb spacing", output.text, "is a is the");
     ok = ok && steno_handle_stroke_bits(steno, undo_bits);
     ok = ok && expect_string("initial verb undo", output.text, "is a");
@@ -268,71 +268,71 @@ int main(void)
         const char *stroke;
         const char *expected;
     } initial_verb_cases[] = {
-        { "SKPOB", "is a" },
-        { "SKPOBD", "was a" },
-        { "SKPOEB", "are a" },
-        { "SKPOEBD", "were a" },
-        { "SKPOUB", "to be a" },
-        { "SKPAOB", "can be a" },
-        { "SKPAOBD", "could be a" },
-        { "SKPOT", "is the" },
+        { "SKPWOB", "is a" },
+        { "SKPWOBD", "was a" },
+        { "SKPWOEB", "are a" },
+        { "SKPWOEBD", "were a" },
+        { "SKPWOUB", "to be a" },
+        { "SKPWAOB", "can be a" },
+        { "SKPWAOBD", "could be a" },
+        { "SKPWOT", "is the" },
         { "TKPOBD", "had a" },
         { "TKPOUB", "to have a" },
         { "TKPAOP", "can have it" },
         { "TKPAOPD", "could have it" },
-        { "TPWOP", "says it" },
-        { "TPWOPD", "said it" },
-        { "TPWOEP", "say it" },
-        { "TPWOUP", "to say it" },
-        { "TPWO*P", "saying it" },
-        { "TPWAOP", "can say it" },
-        { "STHOP", "thinks it" },
-        { "STHOPD", "thought it" },
-        { "STHOEP", "think it" },
-        { "STHOUP", "to think it" },
-        { "STHO*P", "thinking it" },
-        { "STHAOP", "can think it" },
-        { "SKHOS", "tells us" },
-        { "SKHOSD", "told us" },
-        { "SKHOES", "tell us" },
-        { "SKHOUS", "to tell us" },
-        { "SKHO*S", "telling us" },
-        { "SKHAOS", "can tell us" },
-        { "SWHOP", "holds it" },
-        { "SWHOPD", "held it" },
-        { "SWHOEP", "hold it" },
-        { "SWHOUP", "to hold it" },
-        { "SWHO*P", "holding it" },
-        { "SWHAOP", "can hold it" },
-        { "SWHAOPD", "could hold it" },
-        { "TWHOS", "sells us" },
-        { "TWHOSD", "sold us" },
-        { "TWHOES", "sell us" },
-        { "TWHOUS", "to sell us" },
-        { "TWHO*S", "selling us" },
-        { "TWHAOP", "can sell it" },
-        { "KWHOS", "spells us" },
-        { "KWHOSD", "spelled us" },
-        { "KWHOES", "spell us" },
-        { "KWHOUS", "to spell us" },
-        { "KWHO*S", "spelling us" },
-        { "KWHAOP", "can spell it" },
-        { "WHROP", "keeps it" },
-        { "WHROPD", "kept it" },
-        { "WHROEP", "keep it" },
-        { "WHROUP", "to keep it" },
-        { "WHRO*P", "keeping it" },
-        { "WHRAOP", "can keep it" },
-        { "WHROS", "keeps us" },
-        { "WHROSD", "kept us" },
-        { "WHRO*S", "keeping us" },
-        { "STKWOB", "calls a" },
-        { "STKWOBD", "called a" },
-        { "STKWOEP", "call it" },
-        { "STKWOUP", "to call it" },
-        { "STKWAOP", "can call it" },
-        { "STKWAOPD", "could call it" },
-        { "STKWO*P", "calling it" },
+        { "STHOP", "says it" },
+        { "STHOPD", "said it" },
+        { "STHOEP", "say it" },
+        { "STHOUP", "to say it" },
+        { "STHO*P", "saying it" },
+        { "STHAOP", "can say it" },
+        { "TWHOP", "thinks it" },
+        { "TWHOPD", "thought it" },
+        { "TWHOEP", "think it" },
+        { "TWHOUP", "to think it" },
+        { "TWHO*P", "thinking it" },
+        { "TWHAOP", "can think it" },
+        { "TWHROS", "tells us" },
+        { "TWHROSD", "told us" },
+        { "TWHROES", "tell us" },
+        { "TWHROUS", "to tell us" },
+        { "TWHRO*S", "telling us" },
+        { "TWHRAOS", "can tell us" },
+        { "TKHOP", "holds it" },
+        { "TKHOPD", "held it" },
+        { "TKHOEP", "hold it" },
+        { "TKHOUP", "to hold it" },
+        { "TKHO*P", "holding it" },
+        { "TKHAOP", "can hold it" },
+        { "TKHAOPD", "could hold it" },
+        { "STHROS", "sells us" },
+        { "STHROSD", "sold us" },
+        { "STHROES", "sell us" },
+        { "STHROUS", "to sell us" },
+        { "STHRO*S", "selling us" },
+        { "STHRAOP", "can sell it" },
+        { "SPWROS", "spells us" },
+        { "SPWROSD", "spelled us" },
+        { "SPWROES", "spell us" },
+        { "SPWROUS", "to spell us" },
+        { "SPWRO*S", "spelling us" },
+        { "SPWRAOP", "can spell it" },
+        { "KPROP", "keeps it" },
+        { "KPROPD", "kept it" },
+        { "KPROEP", "keep it" },
+        { "KPROUP", "to keep it" },
+        { "KPRO*P", "keeping it" },
+        { "KPRAOP", "can keep it" },
+        { "KPROS", "keeps us" },
+        { "KPROSD", "kept us" },
+        { "KPRO*S", "keeping us" },
+        { "SKPHOB", "calls a" },
+        { "SKPHOBD", "called a" },
+        { "SKPHOEP", "call it" },
+        { "SKPHOUP", "to call it" },
+        { "SKPHAOP", "can call it" },
+        { "SKPHAOPD", "could call it" },
+        { "SKPHO*P", "calling it" },
     };
     for (size_t i = 0; i < sizeof(initial_verb_cases) / sizeof(initial_verb_cases[0]); ++i) {
         ok = ok && expect_phrase_stroke_output(
@@ -373,7 +373,7 @@ int main(void)
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    ok = ok && handle_test_stroke(steno, "STKWOEP");
+    ok = ok && handle_test_stroke(steno, "SKPHOEP");
     ok = ok && expect_string(
         "ordinary lookup finds initial verb phrase",
         output.text,
@@ -467,30 +467,30 @@ int main(void)
         const char *stem;
         const char *forms[7];
     } follow_on_iv_rows[] = {
-        { "STPWO", { "does", "did", "do", "doing", "to do", "can do", "could do" } },
-        { "SPRO", { "goes", "went", "go", "going", "to go", "can go", "could go" } },
-        { "SKPWO", { "wants", "wanted", "want", "wanting", "to want", "can want", "could want" } },
-        { "KPRO", { "puts", "put", "put", "putting", "to put", "can put", "could put" } },
-        { "STKHO", { "asks", "asked", "ask", "asking", "to ask", "can ask", "could ask" } },
-        { "WHO", { "happens", "happened", "happen", "happening", "to happen", "can happen", "could happen" } },
-        { "SKPHO", { "feels", "felt", "feel", "feeling", "to feel", "can feel", "could feel" } },
-        { "TWRO", { "comes", "came", "come", "coming", "to come", "can come", "could come" } },
-        { "TKPHO", { "knows", "knew", "know", "knowing", "to know", "can know", "could know" } },
-        { "SKWHO", { "gets", "got", "get", "getting", "to get", "can get", "could get" } },
-        { "SPWHO", { "believes", "believed", "believe", "believing", "to believe", "can believe", "could believe" } },
-        { "TPWHO", { "becomes", "became", "become", "becoming", "to become", "can become", "could become" } },
-        { "STKRO", { "runs", "ran", "run", "running", "to run", "can run", "could run" } },
-        { "STPRO", { "makes", "made", "make", "making", "to make", "can make", "could make" } },
-        { "SKPRO", { "takes", "took", "take", "taking", "to take", "can take", "could take" } },
-        { "TKPRO", { "finds", "found", "find", "finding", "to find", "can find", "could find" } },
-        { "TKWRO", { "gives", "gave", "give", "giving", "to give", "can give", "could give" } },
-        { "SPWRO", { "uses", "used", "use", "using", "to use", "can use", "could use" } },
-        { "TPWRO", { "works", "worked", "work", "working", "to work", "can work", "could work" } },
-        { "KPWRO", { "needs", "needed", "need", "needing", "to need", "can need", "could need" } },
-        { "STHRO", { "remembers", "remembered", "remember", "remembering", "to remember", "can remember", "could remember" } },
-        { "SKHRO", { "understands", "understood", "understand", "understanding", "to understand", "can understand", "could understand" } },
-        { "KPHRO", { "tries", "tried", "try", "trying", "to try", "can try", "could try" } },
-        { "TWHRO", { "expects", "expected", "expect", "expecting", "to expect", "can expect", "could expect" } },
+        { "STKHO", { "does", "did", "do", "doing", "to do", "can do", "could do" } },
+        { "TWRO", { "goes", "went", "go", "going", "to go", "can go", "could go" } },
+        { "SKWHO", { "wants", "wanted", "want", "wanting", "to want", "can want", "could want" } },
+        { "STPRO", { "puts", "put", "put", "putting", "to put", "can put", "could put" } },
+        { "SKPRO", { "asks", "asked", "ask", "asking", "to ask", "can ask", "could ask" } },
+        { "STPO", { "happens", "happened", "happen", "happening", "to happen", "can happen", "could happen" } },
+        { "SWHO", { "feels", "felt", "feel", "feeling", "to feel", "can feel", "could feel" } },
+        { "TKHRO", { "comes", "came", "come", "coming", "to come", "can come", "could come" } },
+        { "TPWHO", { "knows", "knew", "know", "knowing", "to know", "can know", "could know" } },
+        { "TKPHO", { "gets", "got", "get", "getting", "to get", "can get", "could get" } },
+        { "TPWRO", { "believes", "believed", "believe", "believing", "to believe", "can believe", "could believe" } },
+        { "KWHO", { "becomes", "became", "become", "becoming", "to become", "can become", "could become" } },
+        { "SKHRO", { "runs", "ran", "run", "running", "to run", "can run", "could run" } },
+        { "KPHRO", { "makes", "made", "make", "making", "to make", "can make", "could make" } },
+        { "PWHO", { "takes", "took", "take", "taking", "to take", "can take", "could take" } },
+        { "TPWO", { "finds", "found", "find", "finding", "to find", "can find", "could find" } },
+        { "STPWO", { "gives", "gave", "give", "giving", "to give", "can give", "could give" } },
+        { "STWO", { "uses", "used", "use", "using", "to use", "can use", "could use" } },
+        { "TKWRO", { "works", "worked", "work", "working", "to work", "can work", "could work" } },
+        { "SKPO", { "needs", "needed", "need", "needing", "to need", "can need", "could need" } },
+        { "STKWO", { "remembers", "remembered", "remember", "remembering", "to remember", "can remember", "could remember" } },
+        { "SKHO", { "understands", "understood", "understand", "understanding", "to understand", "can understand", "could understand" } },
+        { "STKRO", { "tries", "tried", "try", "trying", "to try", "can try", "could try" } },
+        { "TKPRO", { "expects", "expected", "expect", "expecting", "to expect", "can expect", "could expect" } },
     };
     uint64_t follow_on_tail_bits = 0;
     ok = ok && stroke_string_to_bits("-RT", &follow_on_tail_bits);
@@ -658,58 +658,58 @@ int main(void)
         { "STWHR-RBGD", "there worked" },
         { "STWHR-RBGT", "there works on" },
         { "STWHR-RBGTD", "there worked on" },
-        { "SKHOB", "tells a" },
-        { "SKHOBD", "told a" },
-        { "SKHO*T", "telling the" },
-        { "SKHO*B", "telling a" },
-        { "SKHOR", "tells her" },
-        { "SKHORBS", "SKHORBS" },
-        { "SKPOPB", "is an" },
-        { "STPWOP", "does it" },
-        { "STPWOPB", "does an" },
-        { "STPWOPD", "did it" },
-        { "STPWOEP", "do it" },
-        { "STPWO*P", "doing it" },
-        { "STPWOUP", "to do it" },
-        { "STPWAOP", "can do it" },
-        { "STPWAOPD", "could do it" },
-        { "KPROP", "puts it" },
-        { "KWHOSZ", "spells out" },
-        { "SPROLTD", "went at" },
-        { "SKPWOB", "wants a" },
-        { "SKPWO*P", "wanting it" },
-        { "STKHOUPLT", "to ask me" },
-        { "WHOLTD", "happened at" },
-        { "SKPHORT", "feels that" },
-        { "SKPHOBL", "feels like" },
-        { "SKPHOEBL", "feel like" },
-        { "SKPHOBLD", "felt like" },
-        { "SKPHO*BL", "feeling like" },
-        { "TWROELT", "come at" },
-        { "TKPHAORT", "can know that" },
-        { "SKWHO*P", "getting it" },
-        { "SPWHORTD", "believed that" },
-        { "TPWHOB", "becomes a" },
-        { "SKPRO*P", "taking it" },
-        { "TKPRAORT", "can find that" },
-        { "TKWROPD", "gave it" },
-        { "SPWROEP", "use it" },
-        { "TPWRO*LT", "working at" },
-        { "KPWROUP", "to need it" },
-        { "STHRORTD", "remembered that" },
-        { "SKHROERT", "understand that" },
-        { "KPHRAOPD", "could try it" },
-        { "TWHRORT", "expects that" },
-        { "TKHOP", "catches it" },
-        { "STKROP", "runs it" },
-        { "STPRORTD", "made that" },
-        { "STPROBL", "makes like" },
-        { "WHROBL", "keeps like" },
-        { "WHROPL", "keeps my" },
-        { "WHOPLT", "WHOPLT" },
-        { "TWROS", "TWROS" },
-        { "TPWHOLT", "TPWHOLT" },
-        { "SPWROFB", "SPWROFB" },
+        { "TWHROB", "tells a" },
+        { "TWHROBD", "told a" },
+        { "TWHRO*T", "telling the" },
+        { "TWHRO*B", "telling a" },
+        { "TWHROR", "tells her" },
+        { "TWHRORBS", "TWHRORBS" },
+        { "SKPWOPB", "is an" },
+        { "STKHOP", "does it" },
+        { "STKHOPB", "does an" },
+        { "STKHOPD", "did it" },
+        { "STKHOEP", "do it" },
+        { "STKHO*P", "doing it" },
+        { "STKHOUP", "to do it" },
+        { "STKHAOP", "can do it" },
+        { "STKHAOPD", "could do it" },
+        { "STPROP", "puts it" },
+        { "SPWROSZ", "spells out" },
+        { "TWROLTD", "went at" },
+        { "SKWHOB", "wants a" },
+        { "SKWHO*P", "wanting it" },
+        { "SKPROUPLT", "to ask me" },
+        { "STPOLTD", "happened at" },
+        { "SWHORT", "feels that" },
+        { "SWHOBL", "feels like" },
+        { "SWHOEBL", "feel like" },
+        { "SWHOBLD", "felt like" },
+        { "SWHO*BL", "feeling like" },
+        { "TKHROELT", "come at" },
+        { "TPWHAORT", "can know that" },
+        { "TKPHO*P", "getting it" },
+        { "TPWRORTD", "believed that" },
+        { "KWHOB", "becomes a" },
+        { "PWHO*P", "taking it" },
+        { "TPWAORT", "can find that" },
+        { "STPWOPD", "gave it" },
+        { "STWOEP", "use it" },
+        { "TKWRO*LT", "working at" },
+        { "SKPOUP", "to need it" },
+        { "STKWORTD", "remembered that" },
+        { "SKHOERT", "understand that" },
+        { "STKRAOPD", "could try it" },
+        { "TKPRORT", "expects that" },
+        { "KPHOP", "catches it" },
+        { "SKHROP", "runs it" },
+        { "KPHRORTD", "made that" },
+        { "KPHROBL", "makes like" },
+        { "KPROBL", "keeps like" },
+        { "KPROPL", "keeps my" },
+        { "STPOPLT", "STPOPLT" },
+        { "TKHROS", "TKHROS" },
+        { "KWHOLT", "KWHOLT" },
+        { "STWOFB", "STWOFB" },
         { "SKWHR-RB", "she catches" },
         { "SKWHR-RBS", "she asks" },
         { "SKWHR-RBSD", "she asked" },
@@ -839,8 +839,8 @@ int main(void)
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    ok = ok && handle_phrase_test_stroke(steno, "SKPOPB");
-    ok = ok && expect_string("unassigned IV stroke falls back to raw outline", output.text, "SKPOPB");
+    ok = ok && handle_phrase_test_stroke(steno, "SKPWOPB");
+    ok = ok && expect_string("unassigned IV stroke falls back to raw outline", output.text, "SKPWOPB");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
@@ -915,11 +915,13 @@ int main(void)
     ok = ok && send_key_event(steno, "a", true);
     ok = ok && send_key_event(steno, "s", true);
     ok = ok && send_key_event(steno, "e", true);
+    ok = ok && send_key_event(steno, "d", true);
     ok = ok && send_key_event(steno, "backspace", true);
     ok = ok && send_key_event(steno, "k", true);
     ok = ok && send_key_event(steno, "a", false);
     ok = ok && send_key_event(steno, "s", false);
     ok = ok && send_key_event(steno, "e", false);
+    ok = ok && send_key_event(steno, "d", false);
     ok = ok && send_key_event(steno, "backspace", false);
     ok = ok && send_key_event(steno, "k", false);
     ok = ok && expect_string("qwerty chord emits phrase without a pedal", output.text, "is a");

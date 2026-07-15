@@ -57,25 +57,31 @@ which separates IV from the NV family without adding another stroke.
 
 | Stem | Verb | Stem | Verb |
 | --- | --- | --- | --- |
-| `SKPO` | be | `TKPO` | have |
-| `STWO` | see | `TPWO` | say |
-| `STHO` | think | `SKHO` | tell |
-| `TKHO` | catch | `KPHO` | look |
-| `SWHO` | hold | `TWHO` | sell |
-| `KWHO` | spell | `PWHO` | pull |
-| `KPRO` | put | `WHRO` | keep |
-| `STKWO` | call | `STPWO` | do |
-| `SPRO` | go | `SKPWO` | want |
-| `STKHO` | ask | `WHO` | happen |
-| `SKPHO` | feel | `TWRO` | come |
-| `TKPHO` | know | `SKWHO` | get |
-| `SPWHO` | believe | `TPWHO` | become |
-| `STKRO` | run | `STPRO` | make |
-| `SKPRO` | take | `TKPRO` | find |
-| `TKWRO` | give | `SPWRO` | use |
-| `TPWRO` | work | `KPWRO` | need |
-| `STHRO` | remember | `SKHRO` | understand |
-| `KPHRO` | try | `TWHRO` | expect |
+| `SKPWO` | be | `TKPO` | have |
+| `SPWHO` | see | `STHO` | say |
+| `TWHO` | think | `TWHRO` | tell |
+| `KPHO` | catch | `WHRO` | look |
+| `TKHO` | hold | `STHRO` | sell |
+| `SPWRO` | spell | `KPWRO` | pull |
+| `STPRO` | put | `KPRO` | keep |
+| `SKPHO` | call | `STKHO` | do |
+| `TWRO` | go | `SKWHO` | want |
+| `SKPRO` | ask | `STPO` | happen |
+| `SWHO` | feel | `TKHRO` | come |
+| `TPWHO` | know | `TKPHO` | get |
+| `TPWRO` | believe | `KWHO` | become |
+| `SKHRO` | run | `KPHRO` | make |
+| `PWHO` | take | `TPWO` | find |
+| `STPWO` | give | `STWO` | use |
+| `TKWRO` | work | `SKPO` | need |
+| `STKWO` | remember | `SKHO` | understand |
+| `STKRO` | try | `TKPRO` | expect |
+
+The allocation retains every key from the original pre-number-bar mnemonic in
+31 of 38 starters. Five are exact apart from the required `O`: hold `TKHO`,
+make `KPHRO`, use `STWO`, need `SKPO`, and understand `SKHO`. The remaining
+starters were selected globally rather than independently so the entire phrase
+universe stays collision-free while no starter exceeds five keys.
 
 ### IV forms
 
@@ -117,12 +123,12 @@ Examples:
 
 | Outline | Output |
 | --- | --- |
-| `SKPO-B` | is a |
-| `SKPAO-BD` | could be a |
-| `TPWO-P` | says it |
-| `TPWO*-P` | saying it |
-| `STHOU-RT` | to think that |
-| `WHROU-P` | to keep it |
+| `SKPWO-B` | is a |
+| `SKPWAO-BD` | could be a |
+| `STHO-P` | says it |
+| `STHO*-P` | saying it |
+| `TWHOU-RT` | to think that |
+| `KPROU-P` | to keep it |
 
 ## Final-verb phrases
 
