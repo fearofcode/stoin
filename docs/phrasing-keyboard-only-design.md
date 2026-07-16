@@ -144,11 +144,12 @@ To carry out this style of remap, edit only these fields in `phrasing.json`:
 The example allocation is global. Applying only some rows can reuse a bank
 reserved by another row and invalidate the audit. After any edit, update the
 outline expectations in `tests/test_steno.c`, update the starter tables in this
-document, and run both audits plus the test suite:
+document, run the collision audit once for every dictionary you want to support,
+and then run the test suite. Dictionary paths are arbitrary and do not need to
+live in the Stoin repository:
 
 ```sh
-scripts/check-phrasing-collisions.py phrasing.json ~/Downloads/phoenix.json
-scripts/check-phrasing-collisions.py phrasing.json lapwing-base.json
+scripts/check-phrasing-collisions.py phrasing.json /path/to/dictionary.json
 make test
 ```
 
