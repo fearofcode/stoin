@@ -2,6 +2,203 @@ package main
 
 import "testing"
 
+func TestGZPluralAddsSOnlyToSimpleNFinalTranslations(t *testing.T) {
+	entry := func(rawOutline, value string) (string, sourceEntry) {
+		outline, ok := parseOutline(rawOutline)
+		if !ok {
+			t.Fatalf("parseOutline(%q) failed", rawOutline)
+		}
+		key := formatOutline(outline)
+		return key, sourceEntry{outline: outline, value: value}
+	}
+
+	sources := make(map[string]sourceEntry)
+	for _, source := range []struct {
+		outline string
+		value   string
+	}{
+		{outline: "OEGZ", value: "ocean"},
+		{outline: "RAEUZ", value: "raise"},
+		{outline: "STAEUPBLGZ", value: "stages"},
+		{outline: "STEUGZ", value: "{^stition}"},
+	} {
+		key, parsed := entry(source.outline, source.value)
+		sources[key] = parsed
+	}
+
+	claims := generateCandidateClaims(sources, nil)
+	if claim := claims["OEGSZ"]; claim == nil || claim.conflict || claim.value != "oceans" {
+		t.Fatalf("OEGSZ claim = %#v, want oceans", claim)
+	}
+	for _, outline := range []string{"RAEUSZ", "STAEUPBLGSZ", "STEUGSZ"} {
+		if claim := claims[outline]; claim != nil {
+			t.Fatalf("unexpected %s claim = %#v", outline, claim)
+		}
+	}
+}
+
+func TestGZPluralDoesNotReplaceExistingOutline(t *testing.T) {
+	outline, ok := parseOutline("OEGZ")
+	if !ok {
+		t.Fatal("parseOutline(\"OEGZ\") failed")
+	}
+	pluralOutline, ok := parseOutline("OEGSZ")
+	if !ok {
+		t.Fatal("parseOutline(\"OEGSZ\") failed")
+	}
+	sources := map[string]sourceEntry{
+		"OEGZ":  {outline: outline, value: "ocean"},
+		"OEGSZ": {outline: pluralOutline, value: "occupied"},
+	}
+
+	if claim := generateCandidateClaims(sources, nil)["OEGSZ"]; claim != nil {
+		t.Fatalf("occupied OEGSZ claim = %#v, want none", claim)
+	}
+}
+
+func TestTwoWayConflictUsesFrequencyAndStarredAlternative(t *testing.T) {
+	entry := func(rawOutline, value string) (string, sourceEntry) {
+		outline, ok := parseOutline(rawOutline)
+		if !ok {
+			t.Fatalf("parseOutline(%q) failed", rawOutline)
+		}
+		key := formatOutline(outline)
+		return key, sourceEntry{outline: outline, value: value}
+	}
+
+	sources := make(map[string]sourceEntry)
+	for _, source := range []struct {
+		outline string
+		value   string
+	}{
+		{outline: "POEGZ", value: "potion"},
+		{outline: "POESZ/-G", value: "possessing"},
+	} {
+		key, parsed := entry(source.outline, source.value)
+		sources[key] = parsed
+	}
+
+	claims := generateCandidateClaims(sources, nil)
+	claim := claims["POEGSZ"]
+	if claim == nil || !claim.conflict || len(claim.alternatives) != 1 {
+		t.Fatalf("POEGSZ claim = %#v, want a two-way conflict", claim)
+	}
+	additional, ambiguousCount, joinCount, boundaryCount := selectSafeCandidates(sources, claims)
+	if ambiguousCount != 0 || joinCount != 0 || boundaryCount != 0 {
+		t.Fatalf(
+			"resolved conflict counts = (%d, %d, %d), want (0, 0, 0)",
+			ambiguousCount,
+			joinCount,
+			boundaryCount,
+		)
+	}
+	if got := additional["POEGSZ"]; got != "possessing" {
+		t.Fatalf("POEGSZ = %q, want possessing", got)
+	}
+	if got := additional["PO*EGSZ"]; got != "potions" {
+		t.Fatalf("PO*EGSZ = %q, want potions", got)
+	}
+	if got := additional["POEGSZ/R-R"]; got != "potions" {
+		t.Fatalf("POEGSZ/R-R = %q, want potions", got)
+	}
+}
+
+func TestTwoWayConflictFallsBackToLongerTranslation(t *testing.T) {
+	outline, ok := parseOutline("KAT")
+	if !ok {
+		t.Fatal("parseOutline(\"KAT\") failed")
+	}
+	claims := map[string]*candidateClaim{
+		"KAT": {
+			outline:      outline,
+			value:        "the",
+			alternatives: []string{"definitely-not-in-count-1w"},
+			conflict:     true,
+		},
+	}
+
+	additional, ambiguousCount, _, _ := selectSafeCandidates(nil, claims)
+	if ambiguousCount != 0 {
+		t.Fatalf("ambiguous count = %d, want 0", ambiguousCount)
+	}
+	if got := additional["KAT"]; got != "definitely-not-in-count-1w" {
+		t.Fatalf("KAT = %q, want longer unlisted translation", got)
+	}
+	if got := additional["KA*T"]; got != "the" {
+		t.Fatalf("KA*T = %q, want the", got)
+	}
+	if got := additional["KAT/R-R"]; got != "the" {
+		t.Fatalf("KAT/R-R = %q, want the", got)
+	}
+}
+
+func TestTwoWayConflictRepeatsRROutlineUntilAvailable(t *testing.T) {
+	outline, ok := parseOutline("KAT")
+	if !ok {
+		t.Fatal("parseOutline(\"KAT\") failed")
+	}
+	occupiedRR, ok := parseOutline("KAT/R-R")
+	if !ok {
+		t.Fatal("parseOutline(\"KAT/R-R\") failed")
+	}
+	sources := map[string]sourceEntry{
+		"KAT/R-R": {outline: occupiedRR, value: "occupied"},
+	}
+	claims := map[string]*candidateClaim{
+		"KAT": {
+			outline:      outline,
+			value:        "first",
+			alternatives: []string{"longer second"},
+			conflict:     true,
+		},
+	}
+
+	additional, ambiguousCount, _, boundaryCount := selectSafeCandidates(sources, claims)
+	if ambiguousCount != 0 || boundaryCount != 0 {
+		t.Fatalf(
+			"repeated R-R conflict counts = (%d, %d), want (0, 0)",
+			ambiguousCount,
+			boundaryCount,
+		)
+	}
+	if _, generated := additional["KAT/R-R"]; generated {
+		t.Fatal("occupied KAT/R-R was replaced")
+	}
+	if got := additional["KAT/R-R/R-R"]; got != "first" {
+		t.Fatalf("KAT/R-R/R-R = %q, want first", got)
+	}
+}
+
+func TestTwoWayConflictStaysAmbiguousWhenStarredOutlineIsOccupied(t *testing.T) {
+	outline, ok := parseOutline("KAT")
+	if !ok {
+		t.Fatal("parseOutline(\"KAT\") failed")
+	}
+	starred, ok := parseOutline("KA*T")
+	if !ok {
+		t.Fatal("parseOutline(\"KA*T\") failed")
+	}
+	sources := map[string]sourceEntry{
+		"KA*T": {outline: starred, value: "occupied"},
+	}
+	claims := map[string]*candidateClaim{
+		"KAT": {
+			outline:      outline,
+			value:        "first",
+			alternatives: []string{"second"},
+			conflict:     true,
+		},
+	}
+
+	additional, ambiguousCount, _, _ := selectSafeCandidates(sources, claims)
+	if ambiguousCount != 1 {
+		t.Fatalf("ambiguous count = %d, want 1", ambiguousCount)
+	}
+	if _, generated := additional["KAT"]; generated {
+		t.Fatal("unstarred conflict was generated despite occupied starred outline")
+	}
+}
+
 func TestLeadingCollapseRequiresCompleteTwoStrokeOutline(t *testing.T) {
 	tests := []struct {
 		name    string

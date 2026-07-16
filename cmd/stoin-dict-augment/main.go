@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bufio"
+	_ "embed"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -8,8 +10,13 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
+	"unicode/utf8"
 )
+
+//go:embed count_1w.txt
+var count1W string
 
 type stenoKey uint8
 
@@ -55,9 +62,10 @@ type sourceEntry struct {
 }
 
 type candidateClaim struct {
-	outline  []uint32
-	value    string
-	conflict bool
+	outline      []uint32
+	value        string
+	alternatives []string
+	conflict     bool
 }
 
 type stringListFlag []string
@@ -298,6 +306,12 @@ func addClaim(claims map[string]*candidateClaim, key string, outline []uint32, v
 			value:   value,
 		}
 	} else if claim.value != value {
+		for _, alternative := range claim.alternatives {
+			if alternative == value {
+				return
+			}
+		}
+		claim.alternatives = append(claim.alternatives, value)
 		claim.conflict = true
 	}
 }
@@ -373,6 +387,13 @@ func generateCandidateClaims(sources map[string]sourceEntry, excludedTranslation
 		for len(queue) != 0 {
 			outline := queue[0]
 			queue = queue[1:]
+
+			if pluralOutline, pluralValue, ok := addGZPlural(outline, entry.value); ok {
+				pluralKey := formatOutline(pluralOutline)
+				if _, occupied := sources[pluralKey]; !occupied {
+					addClaim(claims, pluralKey, pluralOutline, pluralValue)
+				}
+			}
 
 			for boundary := 0; boundary+1 < len(outline); boundary++ {
 				left := outline[boundary]
@@ -468,6 +489,24 @@ func generateCandidateClaims(sources map[string]sourceEntry, excludedTranslation
 	}
 
 	return claims
+}
+
+func addGZPlural(outline []uint32, value string) ([]uint32, string, bool) {
+	if len(outline) == 0 || strings.ContainsAny(value, "{}") ||
+		(!strings.HasSuffix(value, "n") && !strings.HasSuffix(value, "N")) {
+		return nil, "", false
+	}
+
+	final := outline[len(outline)-1]
+	required := bit(keyRightG) | bit(keyRightZ)
+	keysBetweenGAndZ := bit(keyRightT) | bit(keyRightS) | bit(keyRightD)
+	if final&required != required || final&keysBetweenGAndZ != 0 {
+		return nil, "", false
+	}
+
+	plural := append([]uint32(nil), outline...)
+	plural[len(plural)-1] |= bit(keyRightS)
+	return plural, value + "s", true
 }
 
 func shadowsJoinedFinalStroke(outline []uint32, sources map[string]sourceEntry) bool {
@@ -847,15 +886,144 @@ func mergeSuffixStroke(left, suffix uint32, forceDZForG bool) (uint32, bool) {
 	return merged, true
 }
 
+func conflictWordFrequencies(claims map[string]*candidateClaim) map[string]uint64 {
+	wanted := make(map[string]struct{})
+	for _, claim := range claims {
+		if claim.conflict && len(claim.alternatives) == 1 {
+			wanted[strings.ToLower(claim.value)] = struct{}{}
+			wanted[strings.ToLower(claim.alternatives[0])] = struct{}{}
+		}
+	}
+	if len(wanted) == 0 {
+		return nil
+	}
+
+	frequencies := make(map[string]uint64)
+	scanner := bufio.NewScanner(strings.NewReader(count1W))
+	for scanner.Scan() {
+		word, rawCount, found := strings.Cut(scanner.Text(), "\t")
+		if !found {
+			continue
+		}
+		word = strings.ToLower(word)
+		if _, ok := wanted[word]; !ok {
+			continue
+		}
+		count, err := strconv.ParseUint(rawCount, 10, 64)
+		if err != nil {
+			continue
+		}
+		frequencies[word] = count
+		delete(wanted, word)
+		if len(wanted) == 0 {
+			break
+		}
+	}
+	return frequencies
+}
+
+func rankConflictValues(first, second string, frequencies map[string]uint64) (string, string) {
+	firstCount, firstFound := frequencies[strings.ToLower(first)]
+	secondCount, secondFound := frequencies[strings.ToLower(second)]
+	if firstFound && secondFound {
+		if firstCount > secondCount {
+			return first, second
+		}
+		if secondCount > firstCount {
+			return second, first
+		}
+		if first <= second {
+			return first, second
+		}
+		return second, first
+	}
+
+	firstLength := utf8.RuneCountInString(first)
+	secondLength := utf8.RuneCountInString(second)
+	if firstLength != secondLength {
+		if firstLength > secondLength {
+			return first, second
+		}
+		return second, first
+	}
+	if first <= second {
+		return first, second
+	}
+	return second, first
+}
+
+func addFinalStrokeStar(outline []uint32) ([]uint32, bool) {
+	if len(outline) == 0 || outline[len(outline)-1]&bit(keyStar) != 0 {
+		return nil, false
+	}
+	starred := append([]uint32(nil), outline...)
+	starred[len(starred)-1] |= bit(keyStar)
+	return starred, true
+}
+
+func nextRRDisambiguationOutline(
+	outline []uint32,
+	sources map[string]sourceEntry,
+	claims map[string]*candidateClaim,
+	additional map[string]string,
+) []uint32 {
+	rrStroke := bit(keyLeftR) | bit(keyRightR)
+	candidate := append([]uint32(nil), outline...)
+	for {
+		candidate = append(candidate, rrStroke)
+		key := formatOutline(candidate)
+		_, sourceOccupied := sources[key]
+		_, claimOccupied := claims[key]
+		_, additionalOccupied := additional[key]
+		if !sourceOccupied && !claimOccupied && !additionalOccupied {
+			return candidate
+		}
+	}
+}
+
 func selectSafeCandidates(sources map[string]sourceEntry, claims map[string]*candidateClaim) (map[string]string, int, int, int) {
 	additional := make(map[string]string)
 	outlineByKey := make(map[string][]uint32)
 	ambiguousCount := 0
 	joinCount := 0
+	frequencies := conflictWordFrequencies(claims)
 
-	for key, claim := range claims {
+	for _, key := range sortedKeys(claims) {
+		claim := claims[key]
 		if claim.conflict {
-			ambiguousCount++
+			if len(claim.alternatives) != 1 {
+				ambiguousCount++
+				continue
+			}
+
+			starred, ok := addFinalStrokeStar(claim.outline)
+			if !ok {
+				ambiguousCount++
+				continue
+			}
+			starredKey := formatOutline(starred)
+			if _, occupied := sources[starredKey]; occupied {
+				ambiguousCount++
+				continue
+			}
+			if _, occupied := claims[starredKey]; occupied {
+				ambiguousCount++
+				continue
+			}
+
+			unstarredValue, starredValue := rankConflictValues(
+				claim.value,
+				claim.alternatives[0],
+				frequencies,
+			)
+			additional[key] = unstarredValue
+			outlineByKey[key] = claim.outline
+			additional[starredKey] = starredValue
+			outlineByKey[starredKey] = starred
+			rrOutline := nextRRDisambiguationOutline(claim.outline, sources, claims, additional)
+			rrKey := formatOutline(rrOutline)
+			additional[rrKey] = starredValue
+			outlineByKey[rrKey] = rrOutline
 			continue
 		}
 		if endsWithJoinStroke(claim.outline) {

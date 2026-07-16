@@ -14,6 +14,11 @@ already occupied, `DZ` is used for the `-ing` suffix when both keys are free.
 `DZ` is also tried when the ordinary `G` fold is already assigned to a
 different source translation, as in `STAB/-G` becoming `STABDZ` because
 `STABG` means "stack".
+An outline whose final stroke ends in exact `-GZ` can also gain `-S` before
+the `Z`, so `OEGZ` ("ocean") produces `OEGSZ` ("oceans"). This experimental
+plural rule is limited to plain translations ending in `n`, whose plural is a
+simple appended `s`. It therefore does not affect ordinary `-Z` outlines such
+as `RAEUZ` ("raise"), existing plurals, or Plover command translations.
 A following stroke made from vowels and a right-hand consonant coda, optionally
 preceded by an exact `KWR` linker, can drop its linker and vowels and fold the
 complete coda into the preceding stroke when all of its keys are free and both
@@ -78,10 +83,20 @@ variations. For example, both `STPHUG/-LG` and `STPHUG/-L/-G` can produce
 `STPHULGDZ`. Generated outlines use Stoin's canonical stroke spelling.
 
 Existing source outlines are never replaced. A generated outline is omitted if
-different source translations claim it, or if it fails the word-boundary
-conflict check adapted from `lapwing_augmentor`. A translation is excluded from
-augmentation entirely when any of its source outlines contains a standalone
-`R-R` stroke after the first stroke; Phoenix uses that stroke to disambiguate
+different source translations claim it and its final-stroke starred variant is
+unavailable, or if it fails the word-boundary conflict check adapted from
+`lapwing_augmentor`. When exactly two translations claim an outline and adding
+`*` to its final stroke is unoccupied, both are retained. The translation with
+the higher count in the bundled `count_1w.txt` corpus receives the ordinary
+outline and the other receives both the starred outline and an outline with a
+standalone `/R-R` disambiguation stroke appended. If that `/R-R` outline is
+already occupied, another `/R-R` stroke is appended until an unused outline is
+found. If either translation is absent from the corpus, the longer translation
+receives the ordinary outline;
+equal counts or lengths are resolved lexically for deterministic output.
+Conflicts with three or more translations remain omitted. A translation is
+excluded from augmentation entirely when any of its source outlines contains
+a standalone `R-R` stroke after the first stroke; Phoenix uses that stroke to disambiguate
 homophones, so shortening those entries is likely to erase the distinction.
 Generated outlines ending in the exact standalone `P-P` stroke are also
 discarded. Phoenix uses it as a hyphen/join marker whose translation depends on
