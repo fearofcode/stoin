@@ -32,7 +32,7 @@ func TestGZPluralAddsSOnlyToSimpleNFinalTranslations(t *testing.T) {
 		sources[key] = parsed
 	}
 
-	claims := generateCandidateClaims(sources, nil)
+	claims := generateCandidateClaims(sources, nil, nil)
 	if claim := claims["OEGSZ"]; claim == nil || claim.conflict || claim.value != "oceans" {
 		t.Fatalf("OEGSZ claim = %#v, want oceans", claim)
 	}
@@ -57,7 +57,7 @@ func TestGZPluralDoesNotReplaceExistingOutline(t *testing.T) {
 		"OEGSZ": {outline: pluralOutline, value: "occupied"},
 	}
 
-	if claim := generateCandidateClaims(sources, nil)["OEGSZ"]; claim != nil {
+	if claim := generateCandidateClaims(sources, nil, nil)["OEGSZ"]; claim != nil {
 		t.Fatalf("occupied OEGSZ claim = %#v, want none", claim)
 	}
 }
@@ -84,7 +84,7 @@ func TestTwoWayConflictUsesFrequencyAndStarredAlternative(t *testing.T) {
 		sources[key] = parsed
 	}
 
-	claims := generateCandidateClaims(sources, nil)
+	claims := generateCandidateClaims(sources, nil, nil)
 	claim := claims["POEGSZ"]
 	if claim == nil || !claim.conflict || len(claim.alternatives) != 1 {
 		t.Fatalf("POEGSZ claim = %#v, want a two-way conflict", claim)
@@ -160,7 +160,7 @@ func TestTwoWayConflictPrefersMatchingReferenceValue(t *testing.T) {
 		sources[key] = parsed
 	}
 
-	claims := generateCandidateClaims(sources, nil)
+	claims := generateCandidateClaims(sources, nil, nil)
 	claim := claims["PHRAEUD"]
 	if claim == nil || !claim.conflict || len(claim.alternatives) != 1 {
 		t.Fatalf("PHRAEUD claim = %#v, want a two-way conflict", claim)
@@ -195,7 +195,7 @@ func TestRunLoadsPreferenceDictionary(t *testing.T) {
 	outputPath := filepath.Join(directory, "augmentations.json")
 	if err := os.WriteFile(
 		sourcePath,
-		[]byte(`{"PU/HRAEUD":"pallad"}`),
+		[]byte(`{"PHRAEU":"play","PU/HRAEUD":"pallad"}`),
 		0o644,
 	); err != nil {
 		t.Fatalf("write source dictionary: %v", err)
@@ -348,6 +348,49 @@ func TestLeadingCollapseRequiresCompleteTwoStrokeOutline(t *testing.T) {
 	}
 }
 
+func TestLeadingCollapseDoesNotShadowUnrelatedFinalDBase(t *testing.T) {
+	entry := func(rawOutline, value string) (string, sourceEntry) {
+		outline, ok := parseOutline(rawOutline)
+		if !ok {
+			t.Fatalf("parseOutline(%q) failed", rawOutline)
+		}
+		key := formatOutline(outline)
+		return key, sourceEntry{outline: outline, value: value}
+	}
+
+	sources := make(map[string]sourceEntry)
+	for _, source := range []struct {
+		outline string
+		value   string
+	}{
+		{outline: "PHRAEUPB", value: "plain"},
+		{outline: "PU/HRAEUD/KWR-PB", value: "Palladian"},
+		{outline: "PO/HRAEUR/-S", value: "Polaris"},
+	} {
+		key, parsed := entry(source.outline, source.value)
+		sources[key] = parsed
+	}
+
+	claims := generateCandidateClaims(sources, nil, nil)
+	if _, generated := claims["PHRAEUPBD"]; generated {
+		t.Fatal("Palladian leading collapse shadowed plain + final -D")
+	}
+	if claim := claims["PU/HRAEUPBD"]; claim == nil || claim.value != "Palladian" {
+		t.Fatalf("intermediate Palladian fold = %#v, want PU/HRAEUPBD", claim)
+	}
+	if claim := claims["PHRAEURS"]; claim == nil || claim.value != "Polaris" {
+		t.Fatalf("ordinary Polaris collapse = %#v, want Polaris", claim)
+	}
+
+	planedOutline, ok := parseOutline("PHRAEUPBD")
+	if !ok {
+		t.Fatal("parseOutline(\"PHRAEUPBD\") failed")
+	}
+	if shadowsUnrelatedFinalDBase(planedOutline, "planed", sources) {
+		t.Fatal("related planed translation was treated as shadowing the plain stem")
+	}
+}
+
 func TestTrailingDropDoesNotShadowJoinedComposition(t *testing.T) {
 	entry := func(rawOutline, value string) (string, sourceEntry) {
 		outline, ok := parseOutline(rawOutline)
@@ -372,7 +415,7 @@ func TestTrailingDropDoesNotShadowJoinedComposition(t *testing.T) {
 		sources[key] = parsed
 	}
 
-	claims := generateCandidateClaims(sources, nil)
+	claims := generateCandidateClaims(sources, nil, nil)
 	if _, generated := claims["HU/HRAOUS/TPHAEUT"]; generated {
 		t.Fatal("trailing drop shadowed {halluc^} + {^inate}")
 	}

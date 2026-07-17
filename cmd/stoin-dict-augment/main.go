@@ -167,7 +167,7 @@ func run(outputPath string, inputPaths, additionalPaths, preferencePaths []strin
 	}
 
 	excludedTranslations := rrMarkedTranslations(sources)
-	claims := generateCandidateClaims(sources, excludedTranslations)
+	claims := generateCandidateClaims(sources, excludedTranslations, preferences)
 	augmentations, ambiguousCount, joinCount, boundaryCount := selectSafeCandidates(sources, claims, preferences)
 
 	var supplemental map[string]sourceEntry
@@ -362,7 +362,11 @@ func addSupplementalClaims(
 	return stats, keys
 }
 
-func generateCandidateClaims(sources map[string]sourceEntry, excludedTranslations map[string]struct{}) map[string]*candidateClaim {
+func generateCandidateClaims(
+	sources map[string]sourceEntry,
+	excludedTranslations map[string]struct{},
+	preferences map[string]sourceEntry,
+) map[string]*candidateClaim {
 	claims := make(map[string]*candidateClaim)
 	keys := sortedKeys(sources)
 
@@ -480,7 +484,10 @@ func generateCandidateClaims(sources map[string]sourceEntry, excludedTranslation
 
 			candidate, ok = collapseLeadingConsonantVowelStroke(outline)
 			if ok {
-				addCandidate(candidate)
+				_, preferred := preferences[formatOutline(candidate)]
+				if preferred || !shadowsUnrelatedFinalDBase(candidate, entry.value, sources) {
+					addCandidate(candidate)
+				}
 			}
 
 			candidate, ok = omitLeadingVowelStroke(outline)
@@ -684,6 +691,53 @@ func collapseLeadingConsonantVowelStroke(outline []uint32) ([]uint32, bool) {
 	candidate = append(candidate, outline[1]|movedLeft)
 	candidate = append(candidate, outline[2:]...)
 	return candidate, true
+}
+
+func shadowsUnrelatedFinalDBase(
+	outline []uint32,
+	value string,
+	sources map[string]sourceEntry,
+) bool {
+	if len(outline) != 1 {
+		return false
+	}
+	stroke := outline[0]
+	if stroke&bit(keyRightD) == 0 || stroke&bit(keyRightZ) != 0 {
+		return false
+	}
+
+	baseOutline := []uint32{stroke &^ bit(keyRightD)}
+	base, exists := sources[formatOutline(baseOutline)]
+	if !exists || strings.ContainsAny(base.value, "{}") || strings.ContainsAny(value, "{}") {
+		return false
+	}
+	return !plainTranslationsShareStem(base.value, value)
+}
+
+func plainTranslationsShareStem(first, second string) bool {
+	first = strings.ToLower(strings.TrimSpace(first))
+	second = strings.ToLower(strings.TrimSpace(second))
+	if first == "" || second == "" {
+		return false
+	}
+	if strings.HasPrefix(first, second) || strings.HasPrefix(second, first) {
+		return true
+	}
+
+	firstRunes := []rune(first)
+	secondRunes := []rune(second)
+	shared := 0
+	for shared < len(firstRunes) && shared < len(secondRunes) && firstRunes[shared] == secondRunes[shared] {
+		shared++
+	}
+	required := 3
+	if len(firstRunes) < required {
+		required = len(firstRunes)
+	}
+	if len(secondRunes) < required {
+		required = len(secondRunes)
+	}
+	return shared >= required
 }
 
 func leftHandConsonantFold(consonants uint32) (uint32, bool) {

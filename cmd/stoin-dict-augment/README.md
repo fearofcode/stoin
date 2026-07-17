@@ -68,7 +68,13 @@ right-hand coda moves to its Lapwing left-hand equivalent. The moved keys must
 remain in order and cannot overlap the following stroke. Thus both
 `TOR/EPBLGS` and `TU/REPBLGS` collapse to `TREPBLGS`. Longer outlines are not
 partially collapsed; in particular, `HEU/U/HRAOEU` does not become
-`HU/HRAOEU`.
+`HU/HRAOEU`. Unless an exact `-prefer` entry can adjudicate it, a one-stroke
+result ending in exact final `-D` is also rejected when removing `-D` reveals
+an existing plain source outline whose translation does not share a plausible
+stem with the collapsed translation. This prevents `PU/HRAEUD/KWR-PB`
+("Palladian") from eventually claiming `PHRAEUPBD` over the `PHRAEUPB`
+("plain") family while leaving unrelated final-key collapses such as
+`PO/HRAEUR/-S` ("Polaris") eligible.
 Trailing strokes may be dropped from outlines longer than three strokes. The
 closure repeats this until three strokes remain, matching Lapwing's conservative
 floor. Competing translations for the same shortened prefix make it ambiguous
