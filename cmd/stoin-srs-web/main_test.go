@@ -1272,8 +1272,14 @@ func TestStaticPhrasingTrainerScript(t *testing.T) {
 		!strings.Contains(body, "fvDoNegativeContraction") ||
 		!strings.Contains(body, "stemAllowsTail") ||
 		!strings.Contains(body, "initialFormLabel") ||
-		!strings.Contains(body, "third-person present") ||
-		!strings.Contains(body, "could *") ||
+		!strings.Contains(body, "third-person singular present (he/she/it goes)") ||
+		!strings.Contains(body, "modal could + base form (could go)") ||
+		!strings.Contains(body, "modal auxiliary (can / could)") ||
+		!strings.Contains(body, "progressive (a form of be + present participle: is going)") ||
+		!strings.Contains(body, "perfect (a form of have + past participle: has gone)") ||
+		!strings.Contains(body, "perfect progressive (a form of have + been + present participle: has been going)") ||
+		!strings.Contains(body, "auxiliary only (main-verb slot empty: can / be / have / have been)") ||
+		!strings.Contains(body, "past-form selection") ||
 		!strings.Contains(body, "starterAllowsEnder") ||
 		!strings.Contains(body, "starter.label") ||
 		!strings.Contains(body, "initialVerbStrokeBits") ||

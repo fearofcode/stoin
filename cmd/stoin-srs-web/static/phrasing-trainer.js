@@ -364,15 +364,15 @@ function initialFormOptions() {
 
 function initialFormLabel(stroke) {
 	switch (stroke) {
-	case '': return 'third-person present';
-	case '-D': return 'past tense';
-	case 'E': return 'base / non-third present';
-	case 'E-D': return 'plural past tense';
-	case '*': return 'present participle';
-	case 'U': return 'to *';
-	case 'EU': return 'bare infinitive';
-	case 'A': return 'can *';
-	case 'A-D': return 'could *';
+	case '': return 'third-person singular present (he/she/it goes)';
+	case '-D': return 'simple past (went)';
+	case 'E': return 'base form / non-third-person present (go; are for be)';
+	case 'E-D': return 'plural simple past (were)';
+	case '*': return 'present participle (-ing form: going)';
+	case 'U': return 'to-infinitive (to + base form: to go)';
+	case 'EU': return 'bare infinitive (base form without to: be)';
+	case 'A': return 'modal can + base form (can go)';
+	case 'A-D': return 'modal could + base form (could go)';
 	default: return displayStroke(stroke);
 	}
 }
@@ -473,23 +473,44 @@ function finalVerbByID(id) {
 }
 
 function operatorLabel(op) {
-	if (op.modal === 'none') return op.negative ? 'not' : 'plain';
-	if (op.modal === 'can') return op.negative ? 'cannot / could not' : 'can / could';
-	if (op.modal === 'should') return op.negative ? 'should not' : 'should';
-	if (op.modal === 'will') return op.negative ? 'will not / would not' : 'will / would';
-	return op.modal + (op.negative ? ' not' : '');
+	if (op.modal === 'none') return op.negative ? 'negative, no modal (not)' : 'affirmative, no modal';
+	if (op.modal === 'can') {
+		return op.negative ? 'negative modal auxiliary (cannot / could not)' : 'modal auxiliary (can / could)';
+	}
+	if (op.modal === 'should') {
+		return op.negative ? 'negative modal auxiliary (should not)' : 'modal auxiliary (should)';
+	}
+	if (op.modal === 'will') {
+		return op.negative ? 'negative modal auxiliary (will not / would not)' : 'modal auxiliary (will / would)';
+	}
+	return (op.negative ? 'negative modal auxiliary (' : 'modal auxiliary (') + op.modal + (op.negative ? ' not)' : ')');
 }
 
 function structureLabel(row) {
-	return row.kind.replace(/_/g, ' ');
+	switch (row.kind) {
+	case 'simple':
+		return 'simple (no perfect/progressive construction: goes, can go)';
+	case 'progressive':
+		return 'progressive (a form of be + present participle: is going)';
+	case 'perfect':
+		return 'perfect (a form of have + past participle: has gone)';
+	case 'perfect_progressive':
+		return 'perfect progressive (a form of have + been + present participle: has been going)';
+	default:
+		return row.kind.replace(/_/g, ' ');
+	}
 }
 
 function enderLabel(ender) {
 	const verb = finalVerbByID(ender.verb);
-	if (!verb) return ender.past ? 'auxiliary only, past' : 'auxiliary only';
+	if (!verb) {
+		return ender.past
+			? 'auxiliary only, past-form selection (main-verb slot empty: could / was / had / had been)'
+			: 'auxiliary only (main-verb slot empty: can / be / have / have been)';
+	}
 	const parts = [verb.base];
 	if (ender.suffix) parts.push(ender.suffix);
-	if (ender.past) parts.push('(past)');
+	if (ender.past) parts.push('(past-form selection)');
 	return parts.join(' ');
 }
 
@@ -515,7 +536,7 @@ function finalVerbSections() {
 			}),
 		},
 		{
-			title: 'FV operators',
+			title: 'FV operators (modals / negation)',
 			options: (finalVerbs.operators || []).map(function(op) {
 				const label = operatorLabel(op);
 				return sectionOption(
@@ -528,7 +549,7 @@ function finalVerbSections() {
 			}),
 		},
 		{
-			title: 'FV structures',
+			title: 'FV structures / verb shapes',
 			options: (finalVerbs.structures || []).map(function(row) {
 				const label = structureLabel(row);
 				return sectionOption(
@@ -541,7 +562,7 @@ function finalVerbSections() {
 			}),
 		},
 		{
-			title: 'FV enders',
+			title: 'FV main-verb enders',
 			options: (finalVerbs.enders || []).map(function(ender, index) {
 				const label = enderLabel(ender);
 				return sectionOption(
