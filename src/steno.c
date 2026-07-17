@@ -1,5 +1,6 @@
 #include "steno_internal.h"
 
+#include "file_stability.h"
 #include "steno_stroke.h"
 #include "util.h"
 
@@ -166,6 +167,20 @@ bool steno_reload_phrasing_if_changed(Steno *steno)
     if (!changed) {
         return true;
     }
+
+    const char *const paths[] = { steno->phrasing_path };
+    bool stable = false;
+    if (!file_paths_wait_until_stable(paths, 1, &stable)) {
+        if (!steno->phrasing_reload_error_reported) {
+            fputs("stoin: failed to debounce phrasing file changes\n", stderr);
+            steno->phrasing_reload_error_reported = true;
+        }
+        return false;
+    }
+    if (!stable) {
+        return true;
+    }
+
     steno->phrasing_reload_error_reported = false;
     return steno_reload_phrasing(steno);
 }

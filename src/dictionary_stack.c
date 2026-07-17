@@ -1,5 +1,6 @@
 #include "dictionary_stack.h"
 
+#include "file_stability.h"
 #include "text_util.h"
 #include "util.h"
 
@@ -211,6 +212,22 @@ bool dictionary_stack_reload_if_changed(Dictionary_Stack *stack)
     if (!changed) {
         return true;
     }
+
+    bool stable = false;
+    if (!file_paths_wait_until_stable(
+            (const char *const *)stack->paths,
+            arrlenu(stack->paths),
+            &stable)) {
+        if (!stack->reload_error_reported) {
+            fputs("stoin: failed to debounce dictionary file changes\n", stderr);
+            stack->reload_error_reported = true;
+        }
+        return false;
+    }
+    if (!stable) {
+        return true;
+    }
+
     stack->reload_error_reported = false;
     return dictionary_stack_reload(stack);
 }

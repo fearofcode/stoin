@@ -6,6 +6,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if !defined(_WIN32)
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#endif
+
 typedef struct Watch_Test {
     Steno *steno;
     size_t reload_count;
@@ -20,7 +26,7 @@ static void test_dictionary_watch_callback(void *userdata)
     if (watch == NULL) {
         return;
     }
-    if (steno_reload_dictionary(watch->steno)) {
+    if (steno_reload_dictionary_if_changed(watch->steno)) {
         ++watch->reload_count;
     }
 }
@@ -125,6 +131,29 @@ bool test_dictionary_runtime(void)
         clear_test_output(&output);
         ok = ok && steno_handle_stroke_bits(reload_steno, reload_bits);
         ok = ok && expect_string("hot reload updated dictionary", output.text, " newer");
+
+#if !defined(_WIN32)
+        ok = ok && write_text_file(reload_path, "{");
+        const pid_t writer_pid = fork();
+        if (writer_pid == 0) {
+            platform_sleep_ms(25);
+            _exit(write_text_file(reload_path, "{ \"S\": \"debounced\" }\n") ? 0 : 1);
+        }
+        ok = ok && writer_pid > 0;
+        bool debounce_reloaded = false;
+        int writer_status = 0;
+        pid_t waited_pid = -1;
+        if (writer_pid > 0) {
+            debounce_reloaded = steno_reload_dictionary_if_changed(reload_steno);
+            waited_pid = waitpid(writer_pid, &writer_status, 0);
+        }
+        ok = ok && debounce_reloaded;
+        ok = ok && waited_pid == writer_pid;
+        ok = ok && WIFEXITED(writer_status) && WEXITSTATUS(writer_status) == 0;
+        clear_test_output(&output);
+        ok = ok && steno_handle_stroke_bits(reload_steno, reload_bits);
+        ok = ok && expect_string("hot reload waits for partial dictionary writes", output.text, " debounced");
+#endif
 
         Watch_Test watch = {
             .steno = reload_steno,

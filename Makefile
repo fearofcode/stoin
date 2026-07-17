@@ -30,6 +30,7 @@ EXE_EXT :=
 COMMON_SOURCES := \
 	src/dictionary.c \
 	src/dictionary_stack.c \
+	src/file_stability.c \
 	src/format.c \
 	src/gemini_pr.c \
 	src/keymap.c \
