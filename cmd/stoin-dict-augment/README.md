@@ -5,7 +5,9 @@ shorter variants of outlines in one or more source dictionaries. The output
 contains additions only, so it can be loaded after the source dictionaries. A
 repeatable `-additional` option can also copy non-conflicting entries from a
 supplemental dictionary without allowing it to override or augment the primary
-sources.
+sources. A repeatable `-prefer` option can use an existing dictionary, such as
+Lapwing, to create or resolve a two-way conflict at an exact generated outline
+without making unrelated entries in that dictionary seed augmentations.
 
 The tool merges right-hand suffix strokes made from `R`, `L`, `G`, `T`, `S`,
 `D`, and `Z` into the preceding stroke whenever none of the required keys are
@@ -94,6 +96,13 @@ already occupied, another `/R-R` stroke is appended until an unused outline is
 found. If either translation is absent from the corpus, the longer translation
 receives the ordinary outline;
 equal counts or lengths are resolved lexically for deterministic output.
+When a `-prefer` dictionary defines a generated outline with a different
+translation, its entry becomes another claim for that outline. If that produces
+exactly two claimed translations, the preferred translation receives the
+ordinary outline before corpus frequency or the fallback ranking is considered.
+The other translation remains available on the starred and `/R-R` outlines. A
+preference that introduces a third translation makes the conflict ambiguous,
+and later `-prefer` dictionaries take precedence over earlier ones.
 Conflicts with three or more translations remain omitted. A translation is
 excluded from augmentation entirely when any of its source outlines contains
 a standalone `R-R` stroke after the first stroke; Phoenix uses that stroke to disambiguate
@@ -118,6 +127,7 @@ or a usable generated entry.
 ```sh
 go run ./cmd/stoin-dict-augment \
   -output /path/to/augmentations.json \
+  -prefer /path/to/lapwing-base.json \
   -additional /path/to/magnum.json \
   /path/to/source.json [/path/to/another-source.json ...]
 ```

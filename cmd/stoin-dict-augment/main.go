@@ -123,11 +123,13 @@ func (t *outlineTrie) hasPrefix(outline []uint32) bool {
 func main() {
 	var outputPath string
 	var additionalPaths stringListFlag
+	var preferencePaths stringListFlag
 	flag.StringVar(&outputPath, "output", "", "path for the generated augmentation dictionary")
 	flag.StringVar(&outputPath, "o", "", "path for the generated augmentation dictionary (shorthand)")
 	flag.Var(&additionalPaths, "additional", "supplemental dictionary whose non-conflicting entries are copied (repeatable)")
+	flag.Var(&preferencePaths, "prefer", "dictionary whose exact entries create or resolve two-way generated conflicts (repeatable)")
 	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s -output <augmentations.json> [-additional <supplemental.json>] <source.json> [source.json ...]\n", filepath.Base(os.Args[0]))
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s -output <augmentations.json> [-additional <supplemental.json>] [-prefer <reference.json>] <source.json> [source.json ...]\n", filepath.Base(os.Args[0]))
 		flag.PrintDefaults()
 	}
 	flag.Parse()
@@ -137,14 +139,14 @@ func main() {
 		os.Exit(2)
 	}
 
-	if err := run(outputPath, flag.Args(), additionalPaths, os.Stdout, os.Stderr); err != nil {
+	if err := run(outputPath, flag.Args(), additionalPaths, preferencePaths, os.Stdout, os.Stderr); err != nil {
 		fmt.Fprintf(os.Stderr, "stoin-dict-augment: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(outputPath string, inputPaths, additionalPaths []string, stdout, stderr io.Writer) error {
-	allInputPaths := append(append([]string(nil), inputPaths...), additionalPaths...)
+func run(outputPath string, inputPaths, additionalPaths, preferencePaths []string, stdout, stderr io.Writer) error {
+	allInputPaths := append(append(append([]string(nil), inputPaths...), additionalPaths...), preferencePaths...)
 	if err := ensureDistinctOutput(outputPath, allInputPaths); err != nil {
 		return err
 	}
@@ -156,10 +158,17 @@ func run(outputPath string, inputPaths, additionalPaths []string, stdout, stderr
 	if invalidCount != 0 {
 		fmt.Fprintf(stderr, "Skipped %d source entries whose outlines Stoin cannot parse.\n", invalidCount)
 	}
+	preferences, invalidPreferenceCount, err := loadSources(preferencePaths)
+	if err != nil {
+		return err
+	}
+	if invalidPreferenceCount != 0 {
+		fmt.Fprintf(stderr, "Skipped %d preference entries whose outlines Stoin cannot parse.\n", invalidPreferenceCount)
+	}
 
 	excludedTranslations := rrMarkedTranslations(sources)
 	claims := generateCandidateClaims(sources, excludedTranslations)
-	augmentations, ambiguousCount, joinCount, boundaryCount := selectSafeCandidates(sources, claims)
+	augmentations, ambiguousCount, joinCount, boundaryCount := selectSafeCandidates(sources, claims, preferences)
 
 	var supplemental map[string]sourceEntry
 	var supplementalKeys map[string]struct{}
@@ -181,7 +190,7 @@ func run(outputPath string, inputPaths, additionalPaths []string, stdout, stderr
 		importStats, supplementalKeys = addSupplementalClaims(sources, supplemental, claims, supplementalExcluded)
 
 		var additionalAmbiguous, additionalJoin, additionalBoundary int
-		augmentations, additionalAmbiguous, additionalJoin, additionalBoundary = selectSafeCandidates(sources, claims)
+		augmentations, additionalAmbiguous, additionalJoin, additionalBoundary = selectSafeCandidates(sources, claims, preferences)
 		ambiguousCount += additionalAmbiguous
 		joinCount += additionalJoin
 		boundaryCount += additionalBoundary
@@ -952,6 +961,23 @@ func rankConflictValues(first, second string, frequencies map[string]uint64) (st
 	return second, first
 }
 
+func rankConflictValuesForOutline(
+	outline string,
+	first, second string,
+	preferences map[string]sourceEntry,
+	frequencies map[string]uint64,
+) (string, string) {
+	if preferred, ok := preferences[outline]; ok {
+		switch preferred.value {
+		case first:
+			return first, second
+		case second:
+			return second, first
+		}
+	}
+	return rankConflictValues(first, second, frequencies)
+}
+
 func addFinalStrokeStar(outline []uint32) ([]uint32, bool) {
 	if len(outline) == 0 || outline[len(outline)-1]&bit(keyStar) != 0 {
 		return nil, false
@@ -981,7 +1007,11 @@ func nextRRDisambiguationOutline(
 	}
 }
 
-func selectSafeCandidates(sources map[string]sourceEntry, claims map[string]*candidateClaim) (map[string]string, int, int, int) {
+func selectSafeCandidates(
+	sources map[string]sourceEntry,
+	claims map[string]*candidateClaim,
+	preferences map[string]sourceEntry,
+) (map[string]string, int, int, int) {
 	additional := make(map[string]string)
 	outlineByKey := make(map[string][]uint32)
 	ambiguousCount := 0
@@ -990,8 +1020,21 @@ func selectSafeCandidates(sources map[string]sourceEntry, claims map[string]*can
 
 	for _, key := range sortedKeys(claims) {
 		claim := claims[key]
-		if claim.conflict {
-			if len(claim.alternatives) != 1 {
+		alternatives := claim.alternatives
+		if preferred, ok := preferences[key]; ok && preferred.value != claim.value {
+			alreadyClaimed := false
+			for _, alternative := range alternatives {
+				if alternative == preferred.value {
+					alreadyClaimed = true
+					break
+				}
+			}
+			if !alreadyClaimed {
+				alternatives = append(append([]string(nil), alternatives...), preferred.value)
+			}
+		}
+		if claim.conflict || len(alternatives) != 0 {
+			if len(alternatives) != 1 {
 				ambiguousCount++
 				continue
 			}
@@ -1011,9 +1054,11 @@ func selectSafeCandidates(sources map[string]sourceEntry, claims map[string]*can
 				continue
 			}
 
-			unstarredValue, starredValue := rankConflictValues(
+			unstarredValue, starredValue := rankConflictValuesForOutline(
+				key,
 				claim.value,
-				claim.alternatives[0],
+				alternatives[0],
+				preferences,
 				frequencies,
 			)
 			additional[key] = unstarredValue

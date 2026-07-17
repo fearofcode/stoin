@@ -1,6 +1,12 @@
 package main
 
-import "testing"
+import (
+	"bytes"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestGZPluralAddsSOnlyToSimpleNFinalTranslations(t *testing.T) {
 	entry := func(rawOutline, value string) (string, sourceEntry) {
@@ -83,7 +89,7 @@ func TestTwoWayConflictUsesFrequencyAndStarredAlternative(t *testing.T) {
 	if claim == nil || !claim.conflict || len(claim.alternatives) != 1 {
 		t.Fatalf("POEGSZ claim = %#v, want a two-way conflict", claim)
 	}
-	additional, ambiguousCount, joinCount, boundaryCount := selectSafeCandidates(sources, claims)
+	additional, ambiguousCount, joinCount, boundaryCount := selectSafeCandidates(sources, claims, nil)
 	if ambiguousCount != 0 || joinCount != 0 || boundaryCount != 0 {
 		t.Fatalf(
 			"resolved conflict counts = (%d, %d, %d), want (0, 0, 0)",
@@ -117,7 +123,7 @@ func TestTwoWayConflictFallsBackToLongerTranslation(t *testing.T) {
 		},
 	}
 
-	additional, ambiguousCount, _, _ := selectSafeCandidates(nil, claims)
+	additional, ambiguousCount, _, _ := selectSafeCandidates(nil, claims, nil)
 	if ambiguousCount != 0 {
 		t.Fatalf("ambiguous count = %d, want 0", ambiguousCount)
 	}
@@ -129,6 +135,103 @@ func TestTwoWayConflictFallsBackToLongerTranslation(t *testing.T) {
 	}
 	if got := additional["KAT/R-R"]; got != "the" {
 		t.Fatalf("KAT/R-R = %q, want the", got)
+	}
+}
+
+func TestTwoWayConflictPrefersMatchingReferenceValue(t *testing.T) {
+	entry := func(rawOutline, value string) (string, sourceEntry) {
+		outline, ok := parseOutline(rawOutline)
+		if !ok {
+			t.Fatalf("parseOutline(%q) failed", rawOutline)
+		}
+		key := formatOutline(outline)
+		return key, sourceEntry{outline: outline, value: value}
+	}
+
+	sources := make(map[string]sourceEntry)
+	for _, source := range []struct {
+		outline string
+		value   string
+	}{
+		{outline: "PU/HRAEUD", value: "pallad"},
+		{outline: "PHRAEU/-D", value: "played"},
+	} {
+		key, parsed := entry(source.outline, source.value)
+		sources[key] = parsed
+	}
+
+	claims := generateCandidateClaims(sources, nil)
+	claim := claims["PHRAEUD"]
+	if claim == nil || !claim.conflict || len(claim.alternatives) != 1 {
+		t.Fatalf("PHRAEUD claim = %#v, want a two-way conflict", claim)
+	}
+	preferenceKey, preference := entry("PHRAEUD", "played")
+	preferences := map[string]sourceEntry{preferenceKey: preference}
+
+	additional, ambiguousCount, joinCount, boundaryCount := selectSafeCandidates(sources, claims, preferences)
+	if ambiguousCount != 0 || joinCount != 0 || boundaryCount != 0 {
+		t.Fatalf(
+			"preferred conflict counts = (%d, %d, %d), want (0, 0, 0)",
+			ambiguousCount,
+			joinCount,
+			boundaryCount,
+		)
+	}
+	if got := additional["PHRAEUD"]; got != "played" {
+		t.Fatalf("PHRAEUD = %q, want played", got)
+	}
+	if got := additional["PHRA*EUD"]; got != "pallad" {
+		t.Fatalf("PHRA*EUD = %q, want pallad", got)
+	}
+	if got := additional["PHRAEUD/R-R"]; got != "pallad" {
+		t.Fatalf("PHRAEUD/R-R = %q, want pallad", got)
+	}
+}
+
+func TestRunLoadsPreferenceDictionary(t *testing.T) {
+	directory := t.TempDir()
+	sourcePath := filepath.Join(directory, "source.json")
+	preferencePath := filepath.Join(directory, "preference.json")
+	outputPath := filepath.Join(directory, "augmentations.json")
+	if err := os.WriteFile(
+		sourcePath,
+		[]byte(`{"PU/HRAEUD":"pallad"}`),
+		0o644,
+	); err != nil {
+		t.Fatalf("write source dictionary: %v", err)
+	}
+	if err := os.WriteFile(preferencePath, []byte(`{"PHRAEUD":"played"}`), 0o644); err != nil {
+		t.Fatalf("write preference dictionary: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	if err := run(
+		outputPath,
+		[]string{sourcePath},
+		nil,
+		[]string{preferencePath},
+		&stdout,
+		&stderr,
+	); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	contents, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("read output dictionary: %v", err)
+	}
+	var augmentations map[string]string
+	if err := json.Unmarshal(contents, &augmentations); err != nil {
+		t.Fatalf("parse output dictionary: %v", err)
+	}
+	if got := augmentations["PHRAEUD"]; got != "played" {
+		t.Fatalf("PHRAEUD = %q, want played", got)
+	}
+	if got := augmentations["PHRA*EUD"]; got != "pallad" {
+		t.Fatalf("PHRA*EUD = %q, want pallad", got)
+	}
+	if got := augmentations["PHRAEUD/R-R"]; got != "pallad" {
+		t.Fatalf("PHRAEUD/R-R = %q, want pallad", got)
 	}
 }
 
@@ -153,7 +256,7 @@ func TestTwoWayConflictRepeatsRROutlineUntilAvailable(t *testing.T) {
 		},
 	}
 
-	additional, ambiguousCount, _, boundaryCount := selectSafeCandidates(sources, claims)
+	additional, ambiguousCount, _, boundaryCount := selectSafeCandidates(sources, claims, nil)
 	if ambiguousCount != 0 || boundaryCount != 0 {
 		t.Fatalf(
 			"repeated R-R conflict counts = (%d, %d), want (0, 0)",
@@ -190,7 +293,7 @@ func TestTwoWayConflictStaysAmbiguousWhenStarredOutlineIsOccupied(t *testing.T) 
 		},
 	}
 
-	additional, ambiguousCount, _, _ := selectSafeCandidates(sources, claims)
+	additional, ambiguousCount, _, _ := selectSafeCandidates(sources, claims, nil)
 	if ambiguousCount != 1 {
 		t.Fatalf("ambiguous count = %d, want 1", ambiguousCount)
 	}
@@ -559,7 +662,7 @@ func TestSupplementalEntriesUseSafetyChecks(t *testing.T) {
 			value:   aeurgzEntry.value,
 		},
 	}
-	generated, ambiguousCount, joinCount, boundaryCount := selectSafeCandidates(sources, claims)
+	generated, ambiguousCount, joinCount, boundaryCount := selectSafeCandidates(sources, claims, nil)
 	if ambiguousCount != 1 || joinCount != 0 || boundaryCount != 0 {
 		t.Fatalf("generated safety counts = (%d, %d, %d), want (1, 0, 0)", ambiguousCount, joinCount, boundaryCount)
 	}
@@ -579,7 +682,7 @@ func TestSupplementalEntriesUseSafetyChecks(t *testing.T) {
 		t.Fatalf("supplemental candidates = %d, want 3", len(supplementalKeys))
 	}
 
-	additional, ambiguousCount, joinCount, boundaryCount := selectSafeCandidates(sources, claims)
+	additional, ambiguousCount, joinCount, boundaryCount := selectSafeCandidates(sources, claims, nil)
 	if ambiguousCount != 0 {
 		t.Fatalf("ambiguous candidates = %d, want 0", ambiguousCount)
 	}
