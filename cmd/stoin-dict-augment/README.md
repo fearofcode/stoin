@@ -7,7 +7,9 @@ repeatable `-additional` option can also copy non-conflicting entries from a
 supplemental dictionary without allowing it to override or augment the primary
 sources. A repeatable `-prefer` option can use an existing dictionary, such as
 Lapwing, to create or resolve a two-way conflict at an exact generated outline
-without making unrelated entries in that dictionary seed augmentations.
+without making unrelated entries in that dictionary seed augmentations. A
+repeatable `-derive` option can borrow only compatible missing suffix forms from
+another dictionary without importing its outlines wholesale.
 
 The tool merges right-hand suffix strokes made from `R`, `L`, `G`, `T`, `S`,
 `D`, and `Z` into the preceding stroke whenever none of the required keys are
@@ -130,9 +132,23 @@ do not reserve their outlines. This allows an unused Magnum outline such as
 `AUBLGS` for "auxiliary" to be imported without replacing a Phoenix definition
 or a usable generated entry.
 
+Derivation dictionaries passed with `-derive` contribute generation seeds but
+are never copied directly. A derivation entry is eligible only when its
+translation is absent from every primary source, its final stroke is a foldable
+right-hand suffix, its one-stroke prefix already exists in the primary sources,
+and the two plain translations share a plausible stem. The generated candidate
+performs only that final suffix fold into one stroke; derivation entries do not
+enter the recursive closure. The candidate is then checked against the primary
+sources and all ordinary ambiguity, boundary, `R-R`, trailing-`P-P`, and
+preference safeguards, with already accepted primary augmentations retaining
+priority. Thus Lapwing's `SKWRABG/-G` ("jacking") can seed `SKWRABGDZ` when
+Phoenix already agrees that `SKWRABG` means "jack", but unrelated Lapwing
+outline choices are not imported or used as seeds.
+
 ```sh
 go run ./cmd/stoin-dict-augment \
   -output /path/to/augmentations.json \
+  -derive /path/to/lapwing-base.json \
   -prefer /path/to/lapwing-base.json \
   -additional /path/to/magnum.json \
   /path/to/source.json [/path/to/another-source.json ...]

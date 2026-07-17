@@ -210,6 +210,7 @@ func TestRunLoadsPreferenceDictionary(t *testing.T) {
 		outputPath,
 		[]string{sourcePath},
 		nil,
+		nil,
 		[]string{preferencePath},
 		&stdout,
 		&stderr,
@@ -232,6 +233,114 @@ func TestRunLoadsPreferenceDictionary(t *testing.T) {
 	}
 	if got := augmentations["PHRAEUD/R-R"]; got != "pallad" {
 		t.Fatalf("PHRAEUD/R-R = %q, want pallad", got)
+	}
+}
+
+func TestDerivationSeedsRequireMissingTranslationAndSharedPrimaryPrefix(t *testing.T) {
+	entry := func(rawOutline, value string) (string, sourceEntry) {
+		outline, ok := parseOutline(rawOutline)
+		if !ok {
+			t.Fatalf("parseOutline(%q) failed", rawOutline)
+		}
+		key := formatOutline(outline)
+		return key, sourceEntry{outline: outline, value: value}
+	}
+
+	sources := make(map[string]sourceEntry)
+	for _, source := range []struct {
+		outline string
+		value   string
+	}{
+		{outline: "SKWRABG", value: "jack"},
+		{outline: "SKWRABGZ", value: "jacks"},
+		{outline: "KAT", value: "cat"},
+		{outline: "KA/TO", value: "cater"},
+	} {
+		key, parsed := entry(source.outline, source.value)
+		sources[key] = parsed
+	}
+
+	derivations := make(map[string]sourceEntry)
+	for _, derivation := range []struct {
+		outline string
+		value   string
+	}{
+		{outline: "SKWRABG/-G", value: "jacking"},
+		{outline: "SKWRABG/-Z", value: "jacks"},
+		{outline: "KAT/-G", value: "dogging"},
+		{outline: "KA/TO/-G", value: "catering"},
+	} {
+		key, parsed := entry(derivation.outline, derivation.value)
+		derivations[key] = parsed
+	}
+
+	seeds, stats := selectDerivationSeeds(sources, derivations, nil)
+	if stats.eligibleSeeds != 1 || stats.translationPresent != 1 {
+		t.Fatalf("derivation stats = %#v, want one eligible and one present translation", stats)
+	}
+	if len(seeds) != 1 || seeds["SKWRABG/G"].value != "jacking" {
+		t.Fatalf("derivation seeds = %#v, want only SKWRABG/-G jacking", seeds)
+	}
+
+	claims := make(map[string]*candidateClaim)
+	addDerivedSuffixClaims(sources, seeds, claims)
+	if claim := claims["SKWRABGDZ"]; claim == nil || claim.value != "jacking" {
+		t.Fatalf("SKWRABGDZ claim = %#v, want jacking", claim)
+	}
+	if _, imported := claims["SKWRABG/G"]; imported {
+		t.Fatal("derivation source outline was imported instead of only seeding folds")
+	}
+}
+
+func TestRunLoadsDerivationDictionary(t *testing.T) {
+	directory := t.TempDir()
+	sourcePath := filepath.Join(directory, "source.json")
+	derivationPath := filepath.Join(directory, "derivation.json")
+	outputPath := filepath.Join(directory, "augmentations.json")
+	if err := os.WriteFile(
+		sourcePath,
+		[]byte(`{"KAG":"cat","KAG/DZ":"primary","SKWRABG":"jack"}`),
+		0o644,
+	); err != nil {
+		t.Fatalf("write source dictionary: %v", err)
+	}
+	if err := os.WriteFile(
+		derivationPath,
+		[]byte(`{"KAG/-G":"catting","SKWRABG/-G":"jacking"}`),
+		0o644,
+	); err != nil {
+		t.Fatalf("write derivation dictionary: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	if err := run(
+		outputPath,
+		[]string{sourcePath},
+		nil,
+		[]string{derivationPath},
+		nil,
+		&stdout,
+		&stderr,
+	); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	contents, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("read output dictionary: %v", err)
+	}
+	var augmentations map[string]string
+	if err := json.Unmarshal(contents, &augmentations); err != nil {
+		t.Fatalf("parse output dictionary: %v", err)
+	}
+	if got := augmentations["SKWRABGDZ"]; got != "jacking" {
+		t.Fatalf("SKWRABGDZ = %q, want jacking", got)
+	}
+	if got := augmentations["KAGDZ"]; got != "primary" {
+		t.Fatalf("KAGDZ = %q, want accepted primary augmentation", got)
+	}
+	if _, imported := augmentations["SKWRABG/G"]; imported {
+		t.Fatal("derivation source outline was written to the output")
 	}
 }
 

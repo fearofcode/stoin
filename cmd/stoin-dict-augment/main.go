@@ -85,6 +85,11 @@ type supplementalStats struct {
 	rrExcluded             int
 }
 
+type derivationStats struct {
+	translationPresent int
+	eligibleSeeds      int
+}
+
 type trieNode struct {
 	children map[uint32]*trieNode
 }
@@ -123,13 +128,15 @@ func (t *outlineTrie) hasPrefix(outline []uint32) bool {
 func main() {
 	var outputPath string
 	var additionalPaths stringListFlag
+	var derivationPaths stringListFlag
 	var preferencePaths stringListFlag
 	flag.StringVar(&outputPath, "output", "", "path for the generated augmentation dictionary")
 	flag.StringVar(&outputPath, "o", "", "path for the generated augmentation dictionary (shorthand)")
 	flag.Var(&additionalPaths, "additional", "supplemental dictionary whose non-conflicting entries are copied (repeatable)")
+	flag.Var(&derivationPaths, "derive", "dictionary whose missing suffix forms may seed folding (repeatable)")
 	flag.Var(&preferencePaths, "prefer", "dictionary whose exact entries create or resolve two-way generated conflicts (repeatable)")
 	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s -output <augmentations.json> [-additional <supplemental.json>] [-prefer <reference.json>] <source.json> [source.json ...]\n", filepath.Base(os.Args[0]))
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s -output <augmentations.json> [-additional <supplemental.json>] [-derive <reference.json>] [-prefer <reference.json>] <source.json> [source.json ...]\n", filepath.Base(os.Args[0]))
 		flag.PrintDefaults()
 	}
 	flag.Parse()
@@ -139,14 +146,18 @@ func main() {
 		os.Exit(2)
 	}
 
-	if err := run(outputPath, flag.Args(), additionalPaths, preferencePaths, os.Stdout, os.Stderr); err != nil {
+	if err := run(outputPath, flag.Args(), additionalPaths, derivationPaths, preferencePaths, os.Stdout, os.Stderr); err != nil {
 		fmt.Fprintf(os.Stderr, "stoin-dict-augment: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(outputPath string, inputPaths, additionalPaths, preferencePaths []string, stdout, stderr io.Writer) error {
-	allInputPaths := append(append(append([]string(nil), inputPaths...), additionalPaths...), preferencePaths...)
+func run(
+	outputPath string,
+	inputPaths, additionalPaths, derivationPaths, preferencePaths []string,
+	stdout, stderr io.Writer,
+) error {
+	allInputPaths := append(append(append(append([]string(nil), inputPaths...), additionalPaths...), derivationPaths...), preferencePaths...)
 	if err := ensureDistinctOutput(outputPath, allInputPaths); err != nil {
 		return err
 	}
@@ -164,6 +175,13 @@ func run(outputPath string, inputPaths, additionalPaths, preferencePaths []strin
 	}
 	if invalidPreferenceCount != 0 {
 		fmt.Fprintf(stderr, "Skipped %d preference entries whose outlines Stoin cannot parse.\n", invalidPreferenceCount)
+	}
+	derivations, invalidDerivationCount, err := loadSources(derivationPaths)
+	if err != nil {
+		return err
+	}
+	if invalidDerivationCount != 0 {
+		fmt.Fprintf(stderr, "Skipped %d derivation entries whose outlines Stoin cannot parse.\n", invalidDerivationCount)
 	}
 
 	excludedTranslations := rrMarkedTranslations(sources)
@@ -196,6 +214,29 @@ func run(outputPath string, inputPaths, additionalPaths, preferencePaths []strin
 		boundaryCount += additionalBoundary
 	}
 
+	var derivationSeedStats derivationStats
+	if len(derivations) != 0 {
+		derivationExcluded := rrMarkedTranslations(derivations)
+		seeds, stats := selectDerivationSeeds(sources, derivations, derivationExcluded)
+		derivationSeedStats = stats
+		derivedClaims := make(map[string]*candidateClaim)
+		addDerivedSuffixClaims(sources, seeds, derivedClaims)
+		for key := range derivedClaims {
+			if _, occupied := augmentations[key]; occupied {
+				delete(derivedClaims, key)
+			}
+		}
+
+		occupied := sourcesWithAdditions(sources, augmentations)
+		derived, derivedAmbiguous, derivedJoin, derivedBoundary := selectSafeCandidates(occupied, derivedClaims, preferences)
+		ambiguousCount += derivedAmbiguous
+		joinCount += derivedJoin
+		boundaryCount += derivedBoundary
+		for key, value := range derived {
+			augmentations[key] = value
+		}
+	}
+
 	if err := writeDictionary(outputPath, augmentations); err != nil {
 		return err
 	}
@@ -226,6 +267,15 @@ func run(outputPath string, inputPaths, additionalPaths, preferencePaths []strin
 			importStats.exactPrimaryOverlaps,
 			importStats.exactGeneratedOverlaps,
 			importStats.rrExcluded,
+		)
+	}
+	if len(derivationPaths) != 0 {
+		fmt.Fprintf(
+			stdout,
+			"Read %d canonical derivation entries; seeded %d missing suffix forms after skipping %d translations already present in the primary sources.\n",
+			len(derivations),
+			derivationSeedStats.eligibleSeeds,
+			derivationSeedStats.translationPresent,
 		)
 	}
 	return nil
@@ -286,6 +336,21 @@ func loadSources(paths []string) (map[string]sourceEntry, int, error) {
 	}
 
 	return sources, invalidCount, nil
+}
+
+func sourcesWithAdditions(sources map[string]sourceEntry, additions map[string]string) map[string]sourceEntry {
+	combined := make(map[string]sourceEntry, len(sources)+len(additions))
+	for key, entry := range sources {
+		combined[key] = entry
+	}
+	for key, value := range additions {
+		outline, ok := parseOutline(key)
+		if !ok {
+			continue
+		}
+		combined[key] = sourceEntry{outline: outline, value: value}
+	}
+	return combined
 }
 
 func rrMarkedTranslations(sources map[string]sourceEntry) map[string]struct{} {
@@ -360,6 +425,88 @@ func addSupplementalClaims(
 	}
 
 	return stats, keys
+}
+
+func selectDerivationSeeds(
+	sources, derivations map[string]sourceEntry,
+	excludedTranslations map[string]struct{},
+) (map[string]sourceEntry, derivationStats) {
+	primaryTranslations := make(map[string]struct{})
+	for _, entry := range sources {
+		primaryTranslations[entry.value] = struct{}{}
+	}
+
+	seeds := make(map[string]sourceEntry)
+	stats := derivationStats{}
+	for _, key := range sortedKeys(derivations) {
+		entry := derivations[key]
+		if _, present := primaryTranslations[entry.value]; present {
+			stats.translationPresent++
+			continue
+		}
+		if _, excluded := excludedTranslations[entry.value]; excluded {
+			continue
+		}
+		if _, occupied := sources[key]; occupied || len(entry.outline) != 2 {
+			continue
+		}
+		if _, foldable := foldableSuffixBits(entry.outline[len(entry.outline)-1]); !foldable {
+			continue
+		}
+
+		prefixKey := formatOutline(entry.outline[:len(entry.outline)-1])
+		prefix, exists := sources[prefixKey]
+		if !exists || strings.ContainsAny(prefix.value, "{}") || strings.ContainsAny(entry.value, "{}") {
+			continue
+		}
+		if !plainTranslationsShareStem(prefix.value, entry.value) {
+			continue
+		}
+
+		seeds[key] = entry
+		stats.eligibleSeeds++
+	}
+	return seeds, stats
+}
+
+func addDerivedSuffixClaims(
+	sources, seeds map[string]sourceEntry,
+	claims map[string]*candidateClaim,
+) {
+	for _, key := range sortedKeys(seeds) {
+		entry := seeds[key]
+		boundary := len(entry.outline) - 2
+		left := entry.outline[boundary]
+		suffix, ok := foldableSuffixBits(entry.outline[boundary+1])
+		if !ok {
+			continue
+		}
+		merged, ok := mergeSuffixStroke(left, suffix, false)
+		if !ok {
+			continue
+		}
+
+		candidate := outlineWithMergedBoundary(entry.outline, boundary, merged)
+		candidateKey := formatOutline(candidate)
+		directSource, occupied := sources[candidateKey]
+		if !occupied {
+			addClaim(claims, candidateKey, candidate, entry.value)
+			continue
+		}
+		if directSource.value == entry.value || suffix&bit(keyRightG) == 0 || left&bit(keyRightG) != 0 {
+			continue
+		}
+
+		fallback, ok := mergeSuffixStroke(left, suffix, true)
+		if !ok {
+			continue
+		}
+		candidate = outlineWithMergedBoundary(entry.outline, boundary, fallback)
+		candidateKey = formatOutline(candidate)
+		if _, occupied := sources[candidateKey]; !occupied {
+			addClaim(claims, candidateKey, candidate, entry.value)
+		}
+	}
 }
 
 func generateCandidateClaims(
