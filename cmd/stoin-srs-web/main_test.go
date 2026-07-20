@@ -1348,6 +1348,7 @@ func TestPhrasingDataRoute(t *testing.T) {
 		`"nonverbs"`,
 		`"id": "an"`,
 		`"text": "an"`,
+		`"id": "at"`,
 		`"id": "like"`,
 		`"stroke": "-BL"`,
 		`"KPHRO"`,

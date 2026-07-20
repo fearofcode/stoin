@@ -2990,6 +2990,11 @@
         "text": "the"
       },
       {
+        "id": "at",
+        "stroke": "-BT",
+        "text": "at"
+      },
+      {
         "id": "them",
         "stroke": "-PLT",
         "text": "them"
@@ -3078,13 +3083,15 @@
           "a",
           "an",
           "the",
+          "at",
           "them",
           "us",
           "you",
           "her",
           "it",
           "his",
-          "that"
+          "that",
+          "like"
         ]
       },
       {
@@ -3094,13 +3101,15 @@
           "a",
           "an",
           "the",
+          "at",
           "them",
           "us",
           "you",
           "her",
           "it",
           "his",
-          "that"
+          "that",
+          "like"
         ]
       },
       {
@@ -3111,6 +3120,7 @@
           "an",
           "like",
           "the",
+          "at",
           "you",
           "they",
           "her",
@@ -3131,12 +3141,18 @@
           "an",
           "like",
           "the",
+          "at",
           "them",
           "us",
           "her",
           "it",
           "his",
-          "that"
+          "that",
+          "they",
+          "if",
+          "he",
+          "she",
+          "though"
         ]
       },
       {
@@ -3146,13 +3162,16 @@
           "a",
           "like",
           "the",
+          "at",
           "them",
           "they",
           "her",
           "it",
           "his",
           "that",
-          "off"
+          "off",
+          "if",
+          "though"
         ]
       },
       {
@@ -3163,6 +3182,7 @@
           "an",
           "like",
           "the",
+          "at",
           "you",
           "they",
           "her",
@@ -3170,7 +3190,11 @@
           "his",
           "that",
           "if",
-          "though"
+          "though",
+          "them",
+          "of",
+          "he",
+          "she"
         ]
       },
       {
@@ -3181,6 +3205,7 @@
           "an",
           "like",
           "the",
+          "at",
           "them",
           "us",
           "you",
@@ -3191,7 +3216,9 @@
           "that",
           "can",
           "if",
-          "off"
+          "off",
+          "he",
+          "she"
         ]
       },
       {
@@ -3202,6 +3229,7 @@
           "an",
           "like",
           "the",
+          "at",
           "you",
           "they",
           "her",
@@ -3210,22 +3238,28 @@
           "that",
           "can",
           "else",
-          "off"
+          "off",
+          "of",
+          "he",
+          "she"
         ]
       },
       {
-        "stroke": "TPF",
+        "stroke": "TP*F",
         "text": "if",
         "tails": [
           "a",
           "an",
           "the",
+          "at",
           "you",
           "they",
           "her",
           "it",
           "his",
-          "that"
+          "that",
+          "he",
+          "she"
         ]
       },
       {
@@ -3236,6 +3270,7 @@
           "an",
           "like",
           "the",
+          "at",
           "them",
           "us",
           "you",
@@ -3246,7 +3281,11 @@
           "that",
           "can",
           "if",
-          "off"
+          "off",
+          "of",
+          "he",
+          "she",
+          "though"
         ]
       },
       {
@@ -3257,26 +3296,8 @@
           "an",
           "like",
           "the",
+          "at",
           "them",
-          "us",
-          "you",
-          "they",
-          "her",
-          "it",
-          "his",
-          "that",
-          "can",
-          "if",
-          "though"
-        ]
-      },
-      {
-        "stroke": "STHA",
-        "text": "that",
-        "tails": [
-          "a",
-          "an",
-          "the",
           "us",
           "you",
           "they",
@@ -3287,7 +3308,33 @@
           "can",
           "if",
           "though",
-          "off"
+          "off",
+          "he",
+          "she"
+        ]
+      },
+      {
+        "stroke": "STHA",
+        "text": "that",
+        "tails": [
+          "a",
+          "an",
+          "the",
+          "at",
+          "us",
+          "you",
+          "they",
+          "her",
+          "it",
+          "his",
+          "that",
+          "can",
+          "if",
+          "though",
+          "off",
+          "of",
+          "he",
+          "she"
         ]
       },
       {
@@ -3297,6 +3344,7 @@
           "a",
           "an",
           "the",
+          "at",
           "them",
           "us",
           "you",
@@ -3306,7 +3354,9 @@
           "his",
           "that",
           "if",
-          "though"
+          "though",
+          "he",
+          "she"
         ]
       },
       {
@@ -3316,13 +3366,15 @@
           "a",
           "an",
           "the",
+          "at",
           "them",
           "us",
           "you",
           "her",
           "it",
           "his",
-          "that"
+          "that",
+          "like"
         ]
       },
       {
@@ -3333,6 +3385,7 @@
           "an",
           "like",
           "the",
+          "at",
           "you",
           "they",
           "her",
@@ -3341,7 +3394,11 @@
           "that",
           "can",
           "else",
-          "off"
+          "off",
+          "of",
+          "he",
+          "she",
+          "though"
         ]
       },
       {
@@ -3351,6 +3408,7 @@
           "a",
           "an",
           "the",
+          "at",
           "them",
           "us",
           "you",
@@ -3362,7 +3420,10 @@
           "can",
           "if",
           "though",
-          "off"
+          "off",
+          "of",
+          "he",
+          "she"
         ]
       },
       {
@@ -3372,6 +3433,7 @@
           "a",
           "an",
           "the",
+          "at",
           "them",
           "us",
           "you",
@@ -3383,16 +3445,30 @@
           "can",
           "if",
           "though",
-          "off"
+          "off",
+          "he",
+          "she"
         ]
       },
       {
         "stroke": "HR*",
         "text": "will",
         "tails": [
+          "at",
           "of",
           "he",
-          "she"
+          "she",
+          "a",
+          "an",
+          "like",
+          "the",
+          "you",
+          "they",
+          "her",
+          "it",
+          "that",
+          "if",
+          "though"
         ]
       }
     ]

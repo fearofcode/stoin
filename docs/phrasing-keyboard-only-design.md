@@ -30,7 +30,7 @@ every generated phrase is one stroke, and checks the full FV Cartesian product.
 It fails on internal collisions and hard Phoenix collisions. Phoenix is the
 only compatibility target for the checked-in layout.
 
-The checked-in layout has nine soft Phoenix collisions and no hard or internal
+The checked-in layout has 13 soft Phoenix collisions and no hard or internal
 collisions. Some produce the same text (`A*UFT` is `off the` in both systems);
 others intentionally replace a Phoenix phrase, such as `HR*F` changing from
 `all of` to generated `will of`.
@@ -222,7 +222,7 @@ entry.
 | `ST*` | it | `A*UF` | off |
 | `R*UP` | up | `K*` | can |
 | `SKWRO*` | just | `WHR` | all |
-| `TPF` | if | `STPHRO` | only |
+| `TP*F` | if | `STPHRO` | only |
 | `PWH` | but | `STHA` | that |
 | `TPO*F` | for | `RO*F` | of |
 | `TKPWH*` | anything | `SP*` | as |
@@ -231,9 +231,13 @@ entry.
 NV tails are defined in `phrasing.json`, with per-prefix allowlists. Most are
 right-hand mnemonic chords. The exceptions introduced for the new families are
 `EUF` for `if`, `-F` for `of`, `-FP` for `off`, `-RPB` for `he`, and `-RB` for
-`she`. The `off` tail is omitted after prefixes containing `-F`, where it would
-collapse with the existing `-P` (`it`) tail. Thus the `HR*` prefix produces `HR*F`
-(`will of`), `HR*-RPB` (`will he`), and `HR*RB` (`will she`).
+`she`; `-BT` is the shared `at` tail. The `off` tail is omitted after prefixes
+containing `-F`, where it would collapse with the existing `-P` (`it`) tail.
+The `at` tail is available after every prefix. Allowlisted subject fragments
+include `K*RPB` (`can he`), `K*RB` (`can she`), `TP*FRPB` (`if he`), and
+`TP*FRB` (`if she`). The `HR*` bank also includes common continuations such as
+`HR*U` (`will you`), `HR*SZ` (`will they`), `HR*P` (`will it`), and `HR*EUF`
+(`will if`).
 
 Examples:
 
@@ -245,4 +249,9 @@ Examples:
 | `SRAO*EUF` | even if |
 | `SRAO*FP` | even off |
 | `SRAO*GT` | even though |
+| `SRAO*BT` | even at |
+| `RO*FBT` | of at |
 | `HR*F` | will of |
+| `K*RPB` | can he |
+| `TP*FRB` | if she |
+| `SP*F` | as of |
