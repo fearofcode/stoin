@@ -98,10 +98,17 @@ bool test_phrasing_tail_filters(void)
         "{\"id\":\"an\",\"stroke\":\"-PB\",\"text\":\"an\"},"
         "{\"id\":\"like\",\"stroke\":\"-BL\",\"text\":\"like\"},"
         "{\"id\":\"the\",\"stroke\":\"-T\",\"text\":\"the\"},"
-        "{\"id\":\"us\",\"stroke\":\"-S\",\"text\":\"us\"}";
+        "{\"id\":\"us\",\"stroke\":\"-S\",\"text\":\"us\"},"
+        "{\"id\":\"he\",\"stroke\":\"-RPB\",\"text\":\"he\","
+            "\"stems\":[\"PW\"],\"forms\":[\"\",\"-D\",\"E-D\"]},"
+        "{\"id\":\"she\",\"stroke\":\"-RB\",\"text\":\"she\","
+            "\"stems\":[\"PW\"],\"forms\":[\"\",\"-D\",\"E-D\"]}";
     const char *stems =
-        "{\"stroke\":\"PW\",\"tails\":[\"a\",\"an\",\"like\",\"us\"],"
-            "\"forms\":[{\"stroke\":\"\",\"text\":\"is\"}]},"
+        "{\"stroke\":\"PW\",\"tails\":[\"a\",\"an\",\"like\",\"us\",\"he\",\"she\"],"
+            "\"forms\":[{\"stroke\":\"\",\"text\":\"is\"},"
+                "{\"stroke\":\"-D\",\"text\":\"was\"},"
+                "{\"stroke\":\"E\",\"text\":\"are\"},"
+                "{\"stroke\":\"E-D\",\"text\":\"were\"}]},"
         "{\"stroke\":\"H\","
             "\"forms\":[{\"stroke\":\"\",\"text\":\"has\"}]},"
         "{\"stroke\":\"ST\",\"tails\":[],"
@@ -118,6 +125,15 @@ bool test_phrasing_tail_filters(void)
         ok = expect_phrase_lookup(phrasing, "IV allowlist rejects omitted tail", "PW-T", NULL) && ok;
         ok = expect_phrase_lookup(phrasing, "absent IV allowlist permits every tail", "H-T", "has the") && ok;
         ok = expect_phrase_lookup(phrasing, "empty IV allowlist permits no tails", "ST-B", NULL) && ok;
+        ok = expect_phrase_lookup(phrasing, "tail stem and form filters permit he", "PW-RPB", "is he") && ok;
+        ok = expect_phrase_lookup(phrasing, "tail stem and form filters permit she", "PW-RB", "is she") && ok;
+        ok = expect_phrase_lookup(phrasing, "tail form filter permits was he", "PW-RPBD", "was he") && ok;
+        ok = expect_phrase_lookup(phrasing, "tail form filter permits was she", "PW-RBD", "was she") && ok;
+        ok = expect_phrase_lookup(phrasing, "tail form filter permits were he", "PWE-RPBD", "were he") && ok;
+        ok = expect_phrase_lookup(phrasing, "tail form filter permits were she", "PWE-RBD", "were she") && ok;
+        ok = expect_phrase_lookup(phrasing, "tail form filter rejects are he", "PWE-RPB", NULL) && ok;
+        ok = expect_phrase_lookup(phrasing, "tail form filter rejects are she", "PWE-RB", NULL) && ok;
+        ok = expect_phrase_lookup(phrasing, "tail stem filter rejects has he", "H-RPB", NULL) && ok;
     }
     phrasing_destroy(phrasing);
 
@@ -146,6 +162,16 @@ bool test_phrasing_tail_filters(void)
         "initial verb tails reject duplicate IDs",
         "{\"id\":\"a\",\"stroke\":\"-B\",\"text\":\"a\"},"
         "{\"id\":\"a\",\"stroke\":\"-T\",\"text\":\"another\"}",
+        "") && ok;
+    ok = expect_invalid_tail_allowlist(
+        path,
+        "IV tail form allowlist must be an array",
+        "{\"id\":\"a\",\"stroke\":\"-B\",\"text\":\"a\",\"forms\":{}}",
+        "") && ok;
+    ok = expect_invalid_tail_allowlist(
+        path,
+        "IV tail form allowlist rejects duplicate outlines",
+        "{\"id\":\"a\",\"stroke\":\"-B\",\"text\":\"a\",\"forms\":[\"E\",\"E\"]}",
         "") && ok;
 
     remove(path);

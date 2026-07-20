@@ -225,7 +225,12 @@ int main(void)
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
     ok = ok && handle_test_stroke(steno, "PW-B");
-    ok = ok && expect_string("ordinary dictionary chord remains unchanged", output.text, "dictionary is a");
+    ok = ok && expect_string("ordinary dictionary chord remains unchanged on phrase miss", output.text, "dictionary is a");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    ok = ok && handle_test_stroke(steno, "SKPWOP");
+    ok = ok && expect_string("dictionary word still overrides generated phrase", output.text, "sit");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
@@ -468,7 +473,7 @@ int main(void)
         const char *forms[7];
     } follow_on_iv_rows[] = {
         { "STKHO", { "does", "did", "do", "doing", "to do", "can do", "could do" } },
-        { "TWRO", { "goes", "went", "go", "going", "to go", "can go", "could go" } },
+        { "KPWHO", { "goes", "went", "go", "going", "to go", "can go", "could go" } },
         { "SKWHO", { "wants", "wanted", "want", "wanting", "to want", "can want", "could want" } },
         { "STPRO", { "puts", "put", "put", "putting", "to put", "can put", "could put" } },
         { "SKPRO", { "asks", "asked", "ask", "asking", "to ask", "can ask", "could ask" } },
@@ -587,6 +592,8 @@ int main(void)
         { "STKWHAO*", "this will not" },
         { "STKWHAOU", "this'll" },
         { "STKWH-PGS", "this expects" },
+        { "STPWH-B", "it is" },
+        { "STPWR-B", "we are" },
         { "STWH-B", "that is" },
         { "STWH-BD", "that was" },
         { "STWHUB", "that's" },
@@ -597,21 +604,21 @@ int main(void)
         { "TKWHAOURLTD", "they'd tell" },
         { "TKWH*URLTD", "they didn't tell" },
         { "SKWHR*URLT", "she doesn't tell" },
-        { "STPWHR-B", "there are" },
-        { "STPWHR-BD", "there were" },
-        { "STPWHRE", "there are" },
-        { "STPWHRED", "there were" },
-        { "STPWHRUB", "there're" },
-        { "STPWHR*EUD", "there weren't" },
-        { "STPWHRAO*", "there will not" },
-        { "STPWHRAOU", "there'll" },
-        { "STPWHRE-F", "there have been" },
-        { "STPWHREUF", "there've been" },
-        { "STPWHR-BG", "there come" },
-        { "STPWHR-BGD", "there came" },
-        { "STPWHR-PZ", "there happen" },
-        { "STPWHR-PDZ", "there happened" },
-        { "STPWHR-RBS", "STPWHR-RBS" },
+        { "TKPHR-B", "there are" },
+        { "TKPHR-BD", "there were" },
+        { "TKPHRE", "there are" },
+        { "TKPHRED", "there were" },
+        { "TKPHRUB", "there're" },
+        { "TKPHR*EUD", "there weren't" },
+        { "TKPHRAO*", "there will not" },
+        { "TKPHRAOU", "there'll" },
+        { "TKPHRE-F", "there have been" },
+        { "TKPHREUF", "there've been" },
+        { "TKPHR-BG", "there come" },
+        { "TKPHR-BGD", "there came" },
+        { "TKPHR-PZ", "there happen" },
+        { "TKPHR-PDZ", "there happened" },
+        { "TKPHR-RBS", "TKPHR-RBS" },
         { "STWHRE", "there is" },
         { "STWHRED", "there was" },
         { "STWHR*E", "there is not" },
@@ -665,7 +672,16 @@ int main(void)
         { "TWHROR", "tells her" },
         { "TWHRORBS", "TWHRORBS" },
         { "SKPWOPB", "is an" },
+        { "SKPWO-RPB", "is he" },
+        { "SKPWO-RB", "is she" },
+        { "SKPWOE-RPBD", "were he" },
+        { "SKPWOERBD", "were she" },
+        { "SKPWOGT", "is with" },
+        { "TKPO-RPB", "has he" },
+        { "TKPO-RB", "has she" },
         { "STKHOP", "does it" },
+        { "STKHO-RPB", "does he" },
+        { "STKHO-RB", "does she" },
         { "STKHOPB", "does an" },
         { "STKHOPD", "did it" },
         { "STKHOEP", "do it" },
@@ -675,7 +691,7 @@ int main(void)
         { "STKHAOPD", "could do it" },
         { "STPROP", "puts it" },
         { "SPWROSZ", "spells out" },
-        { "TWROLTD", "went at" },
+        { "KPWHOLTD", "went at" },
         { "SKWHOB", "wants a" },
         { "SKWHO*P", "wanting it" },
         { "SKPROUPLT", "to ask me" },
@@ -798,34 +814,38 @@ int main(void)
         &follow_on_config,
         &output,
         "production nonverb like tail",
-        "PWHBL",
+        "TKPWH*BL",
         "anything like");
     ok = ok && expect_phrase_stroke_output(
         &steno,
         &follow_on_config,
         &output,
         "production nonverb universal an tail",
-        "SWH-PB",
+        "STHAPB",
         "that an");
     ok = ok && expect_phrase_stroke_output(
         &steno,
         &follow_on_config,
         &output,
         "production nonverb as an",
-        "TWR-PB",
+        "SP*PB",
         "as an");
     const struct {
         const char *stroke;
         const char *expected;
     } production_nonverb_prefix_cases[] = {
-        { "TPWBL", "just like" },
-        { "STHLS", "all else" },
-        { "SKW-P", "if it" },
-        { "TKPF", "only if" },
-        { "TKHGT", "but though" },
-        { "SWHU", "that you" },
-        { "STW-SZ", "can they" },
-        { "SWHG", "that can" },
+        { "SKWRO*BL", "just like" },
+        { "WHRLS", "all else" },
+        { "TPFP", "if it" },
+        { "STPHROEUF", "only if" },
+        { "PWHGT", "but though" },
+        { "TPO*FT", "for the" },
+        { "STHAU", "that you" },
+        { "K*SZ", "can they" },
+        { "STHAG", "that can" },
+        { "HR*F", "will of" },
+        { "HR*-RPB", "will he" },
+        { "HR*RB", "will she" },
     };
     for (size_t i = 0; i < sizeof(production_nonverb_prefix_cases) / sizeof(production_nonverb_prefix_cases[0]); ++i) {
         ok = ok && expect_phrase_stroke_output(
@@ -908,7 +928,7 @@ int main(void)
     ok = ok && send_key_event(steno, "e", false);
     ok = ok && send_key_event(steno, "d", false);
     ok = ok && send_key_event(steno, "k", false);
-    ok = ok && expect_string("qwerty dictionary chord remains unchanged", output.text, "dictionary is a");
+    ok = ok && expect_string("qwerty dictionary chord remains unchanged on phrase miss", output.text, "dictionary is a");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);

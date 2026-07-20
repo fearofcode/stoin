@@ -21,7 +21,7 @@ let phraseQueue = [];
 let phraseIndex = 0;
 let phraseMistake = false;
 const phraseCheckedByKey = new Map();
-const phraseStorageKey = 'stoin.phrasingTrainer.v4';
+const phraseStorageKey = 'stoin.phrasingTrainer.v5';
 
 const familyLabels = {
 	initial_verbs: 'Initial verbs',
@@ -632,13 +632,18 @@ function stemAllowsTail(stem, tail) {
 	return !Array.isArray(stem.tails) || stem.tails.includes(tail.id);
 }
 
+function tailAllowsStemForm(tail, stem, form) {
+	return (!Array.isArray(tail.stems) || tail.stems.includes(stem.stroke))
+		&& (!Array.isArray(tail.forms) || tail.forms.includes(form.stroke));
+}
+
 function initialVerbStrokeBits() {
 	const claimed = new Set();
 	const initialVerbs = phraseData.initial_verbs;
 	(initialVerbs.stems || []).forEach(function(stem) {
 		(stem.forms || []).forEach(function(form) {
 			(initialVerbs.tails || []).forEach(function(tail) {
-				if (!stemAllowsTail(stem, tail)) return;
+				if (!stemAllowsTail(stem, tail) || !tailAllowsStemForm(tail, stem, form)) return;
 				try {
 					claimed.add(
 						parseStrokeBits(stem.stroke)
@@ -662,7 +667,7 @@ function generateInitialVerbPrompts() {
 			const form = findStemForm(stem, formOption.stroke);
 			if (!form) return;
 			selectedInitialTails().forEach(function(tail) {
-				if (!stemAllowsTail(stem, tail)) return;
+				if (!stemAllowsTail(stem, tail) || !tailAllowsStemForm(tail, stem, form)) return;
 				prompts.push({
 					lesson: familyLabels.initial_verbs,
 					stroke: combineStrokeParts([stem.stroke, form.stroke, tail.stroke]),
@@ -1328,6 +1333,15 @@ function validatePhraseData(data) {
 		if (tailIds.has(tail.id)) {
 			throw new Error('initial_verbs.tails[' + index + '].id duplicates ' + tail.id);
 		}
+		['stems', 'forms'].forEach(function(field) {
+			if (tail[field] === undefined) return;
+			if (!Array.isArray(tail[field]) || tail[field].some(function(value) { return typeof value !== 'string'; })) {
+				throw new Error('initial_verbs.tails[' + index + '].' + field + ' must be an array of stroke strings');
+			}
+			if (new Set(tail[field]).size !== tail[field].length) {
+				throw new Error('initial_verbs.tails[' + index + '].' + field + ' must not contain duplicates');
+			}
+		});
 		tailIds.add(tail.id);
 	});
 	data.initial_verbs.stems.forEach(function(stem, index) {

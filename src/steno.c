@@ -2,6 +2,7 @@
 
 #include "file_stability.h"
 #include "steno_stroke.h"
+#include "text_util.h"
 #include "util.h"
 
 #include <stdio.h>
@@ -405,10 +406,15 @@ bool steno_lookup_stroke(Steno *steno, const char *stroke, const char **out_tran
     if (steno == NULL || stroke == NULL || out_translation == NULL) {
         return false;
     }
-    if (dictionary_lookup_stroke(
-            &steno->dictionary_stack.dictionary,
-            stroke,
-            out_translation)) {
+    const char *dictionary_translation = NULL;
+    const bool dictionary_found = dictionary_lookup_stroke(
+        &steno->dictionary_stack.dictionary,
+        stroke,
+        &dictionary_translation
+    );
+    if (dictionary_found
+        && (strchr(stroke, '/') != NULL || !text_is_plain_multiword(dictionary_translation))) {
+        *out_translation = dictionary_translation;
         return true;
     }
 
@@ -427,7 +433,10 @@ bool steno_lookup_stroke(Steno *steno, const char *stroke, const char **out_tran
         *out_translation = steno->lookup_phrase;
         return true;
     }
-    return false;
+    if (dictionary_found) {
+        *out_translation = dictionary_translation;
+    }
+    return dictionary_found;
 }
 
 bool steno_dump_dictionary_json(const Steno *steno, const char *path)

@@ -56,6 +56,10 @@ typedef struct Phrase_Tail {
     char *id;
     uint64_t bits;
     char *text;
+    uint64_t *stem_bits;
+    uint64_t *form_bits;
+    bool has_stem_allowlist;
+    bool has_form_allowlist;
 } Phrase_Tail;
 
 typedef struct Nv_Prefix {
@@ -528,7 +532,86 @@ static bool parse_phrase_form_array(
     return true;
 }
 
-static bool parse_tail_array(Phrase_Tail **out_tails, const cJSON *array, const char *path, const char *context)
+static bool parse_optional_stroke_allowlist(
+    const cJSON *parent,
+    const char *field,
+    uint64_t **out_bits,
+    bool *out_has_allowlist,
+    const char *path,
+    const char *context
+)
+{
+    const cJSON *array = cJSON_GetObjectItemCaseSensitive(parent, field);
+    if (array == NULL) {
+        return true;
+    }
+
+    *out_has_allowlist = true;
+    if (!cJSON_IsArray(array)) {
+        print_field_error(path, context, field, "must be an array");
+        return false;
+    }
+
+    const cJSON *item = NULL;
+    size_t index = 0;
+    cJSON_ArrayForEach(item, array) {
+        if (!cJSON_IsString(item) || item->valuestring == NULL) {
+            fprintf(stderr,
+                "stoin: phrasing '%s' %s.%s[%zu] must be a stroke string\n",
+                path,
+                context,
+                field,
+                index);
+            return false;
+        }
+
+        uint64_t bits = 0;
+        if (!parse_stroke_string(item->valuestring, &bits)) {
+            fprintf(stderr,
+                "stoin: phrasing '%s' %s.%s[%zu] has invalid outline '%s'\n",
+                path,
+                context,
+                field,
+                index,
+                item->valuestring);
+            return false;
+        }
+        for (size_t i = 0; i < arrlenu(*out_bits); ++i) {
+            if ((*out_bits)[i] == bits) {
+                fprintf(stderr,
+                    "stoin: phrasing '%s' %s.%s[%zu] duplicates outline '%s'\n",
+                    path,
+                    context,
+                    field,
+                    index,
+                    item->valuestring[0] != '\0' ? item->valuestring : "<empty>");
+                return false;
+            }
+        }
+        arrput(*out_bits, bits);
+        ++index;
+    }
+    return true;
+}
+
+static void destroy_phrase_tail_contents(Phrase_Tail *tail)
+{
+    if (tail == NULL) {
+        return;
+    }
+    free(tail->id);
+    free(tail->text);
+    arrfree(tail->stem_bits);
+    arrfree(tail->form_bits);
+}
+
+static bool parse_tail_array(
+    Phrase_Tail **out_tails,
+    const cJSON *array,
+    bool parse_iv_allowlists,
+    const char *path,
+    const char *context
+)
 {
     const cJSON *item = NULL;
     size_t index = 0;
@@ -560,6 +643,24 @@ static bool parse_tail_array(Phrase_Tail **out_tails, const cJSON *array, const 
         if (!copy_required_string(item, "text", &tail.text)) {
             print_field_error(path, item_context, "text", "must be a string");
             free(tail.id);
+            return false;
+        }
+        if (parse_iv_allowlists
+            && (!parse_optional_stroke_allowlist(
+                    item,
+                    "stems",
+                    &tail.stem_bits,
+                    &tail.has_stem_allowlist,
+                    path,
+                    item_context)
+                || !parse_optional_stroke_allowlist(
+                    item,
+                    "forms",
+                    &tail.form_bits,
+                    &tail.has_form_allowlist,
+                    path,
+                    item_context))) {
+            destroy_phrase_tail_contents(&tail);
             return false;
         }
         arrput(*out_tails, tail);
@@ -691,7 +792,8 @@ static bool parse_initial_verbs(Phrasing *phrasing, const cJSON *root, const cha
 
     const cJSON *tails = required_array(section, "tails", path, "initial_verbs");
     const cJSON *stems = required_array(section, "stems", path, "initial_verbs");
-    if (tails == NULL || stems == NULL || !parse_tail_array(&phrasing->iv_tails, tails, path, "initial_verbs.tails")) {
+    if (tails == NULL || stems == NULL
+        || !parse_tail_array(&phrasing->iv_tails, tails, true, path, "initial_verbs.tails")) {
         return false;
     }
 
@@ -744,7 +846,7 @@ static bool parse_nonverbs(Phrasing *phrasing, const cJSON *root, const char *pa
     const cJSON *tails = required_array(section, "tails", path, "nonverbs");
     const cJSON *prefixes = required_array(section, "prefixes", path, "nonverbs");
     if (tails == NULL || prefixes == NULL
-        || !parse_tail_array(&phrasing->nv_tails, tails, path, "nonverbs.tails")) {
+        || !parse_tail_array(&phrasing->nv_tails, tails, false, path, "nonverbs.tails")) {
         return false;
     }
 
@@ -1153,8 +1255,7 @@ void phrasing_destroy(Phrasing *phrasing)
     }
     arrfree(phrasing->iv_stems);
     for (size_t i = 0; i < arrlenu(phrasing->iv_tails); ++i) {
-        free(phrasing->iv_tails[i].id);
-        free(phrasing->iv_tails[i].text);
+        destroy_phrase_tail_contents(&phrasing->iv_tails[i]);
     }
     arrfree(phrasing->iv_tails);
     for (size_t i = 0; i < arrlenu(phrasing->nv_prefixes); ++i) {
@@ -1162,8 +1263,7 @@ void phrasing_destroy(Phrasing *phrasing)
     }
     arrfree(phrasing->nv_prefixes);
     for (size_t i = 0; i < arrlenu(phrasing->nv_tails); ++i) {
-        free(phrasing->nv_tails[i].id);
-        free(phrasing->nv_tails[i].text);
+        destroy_phrase_tail_contents(&phrasing->nv_tails[i]);
     }
     arrfree(phrasing->nv_tails);
     for (size_t i = 0; i < arrlenu(phrasing->fv_starters); ++i) {
@@ -1197,6 +1297,30 @@ static Phrase_Lookup_Result lookup_initial_verb(const Phrasing *phrasing, uint64
             const Phrase_Form *form = &stem->forms[j];
             for (size_t k = 0; k < arrlenu(phrasing->iv_tails); ++k) {
                 const Phrase_Tail *tail = &phrasing->iv_tails[k];
+                if (tail->has_stem_allowlist) {
+                    bool allowed = false;
+                    for (size_t m = 0; m < arrlenu(tail->stem_bits); ++m) {
+                        if (tail->stem_bits[m] == stem->bits) {
+                            allowed = true;
+                            break;
+                        }
+                    }
+                    if (!allowed) {
+                        continue;
+                    }
+                }
+                if (tail->has_form_allowlist) {
+                    bool allowed = false;
+                    for (size_t m = 0; m < arrlenu(tail->form_bits); ++m) {
+                        if (tail->form_bits[m] == form->bits) {
+                            allowed = true;
+                            break;
+                        }
+                    }
+                    if (!allowed) {
+                        continue;
+                    }
+                }
                 if (stem->has_tail_allowlist) {
                     bool allowed = false;
                     for (size_t m = 0; m < arrlenu(stem->tail_indices); ++m) {

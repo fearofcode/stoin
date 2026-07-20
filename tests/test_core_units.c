@@ -7,6 +7,7 @@
 #include "stentura.h"
 #include "steno_stroke.h"
 #include "stroke_merge.h"
+#include "text_util.h"
 #include "tx_bolt.h"
 
 #include <string.h>
@@ -14,6 +15,11 @@
 bool test_core_units(void)
 {
     bool ok = true;
+
+    ok = ok && expect_size("plain multiword translation", text_is_plain_multiword("are the"), 1);
+    ok = ok && expect_size("single dictionary word", text_is_plain_multiword("lest"), 0);
+    ok = ok && expect_size("Plover command translation", text_is_plain_multiword("{^in} the"), 0);
+    ok = ok && expect_size("trailing whitespace is not another word", text_is_plain_multiword("word "), 0);
 
     uint16_t f13_keycode = 0;
     const bool f13_resolved = platform_keycode_from_name("F13", &f13_keycode);

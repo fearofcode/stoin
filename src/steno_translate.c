@@ -1,6 +1,7 @@
 #include "steno_internal.h"
 
 #include "steno_stroke.h"
+#include "text_util.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -145,7 +146,11 @@ static bool translate_dictionary_bits_with_trace(
 
     char *phrase_translation = NULL;
     bool phrase = false;
-    if (match.translation == NULL) {
+    const bool soft_dictionary_phrase = match.translation != NULL
+        && match.stroke_count == 1
+        && !match.suffix_match
+        && text_is_plain_multiword(match.translation);
+    if (match.translation == NULL || soft_dictionary_phrase) {
         const Phrase_Lookup_Result result = phrasing_lookup(
             steno->phrasing,
             bits,

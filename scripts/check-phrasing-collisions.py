@@ -94,6 +94,16 @@ def phrasing_assignments(data):
             for tail in initial_tails:
                 if tail["id"] not in allowed:
                     continue
+                if "stems" in tail and not any(
+                    stroke_bits(candidate) == stroke_bits(stem["stroke"])
+                    for candidate in tail["stems"]
+                ):
+                    continue
+                if "forms" in tail and not any(
+                    stroke_bits(candidate) == stroke_bits(form["stroke"])
+                    for candidate in tail["forms"]
+                ):
+                    continue
                 bits = stroke_bits(stem["stroke"]) | stroke_bits(form["stroke"]) | stroke_bits(tail["stroke"])
                 add_assignment(
                     assignments,
@@ -148,10 +158,24 @@ def dictionary_assignments(data):
     return assignments
 
 
+def plain_multiword_translation(translation):
+    return (
+        isinstance(translation, str)
+        and "{" not in translation
+        and "}" not in translation
+        and len(translation.split()) > 1
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("phrasing", help="phrasing JSON path")
     parser.add_argument("dictionary", help="Plover JSON dictionary path")
+    parser.add_argument(
+        "--show-soft",
+        action="store_true",
+        help="list allowed collisions with plain multiword dictionary translations",
+    )
     args = parser.parse_args()
 
     with open(args.phrasing, encoding="utf-8") as file:
@@ -160,18 +184,34 @@ def main():
         dictionary = dictionary_assignments(json.load(file))
 
     internal = {bits: rows for bits, rows in phrases.items() if len(rows) > 1}
-    collisions = {bits: rows for bits, rows in phrases.items() if bits in dictionary}
+    hard_collisions = {}
+    soft_collisions = {}
+    for bits, rows in phrases.items():
+        if bits not in dictionary:
+            continue
+        target = soft_collisions if all(
+            plain_multiword_translation(translation)
+            for _, translation in dictionary[bits]
+        ) else hard_collisions
+        target[bits] = rows
 
     for bits, rows in sorted(internal.items()):
         print("internal collision %s:" % canonical_stroke(bits), file=sys.stderr)
         for family, description in rows:
             print("  %s %s" % (family, description), file=sys.stderr)
-    for bits, rows in sorted(collisions.items()):
+    for bits, rows in sorted(hard_collisions.items()):
         print("dictionary collision %s:" % canonical_stroke(bits), file=sys.stderr)
         for family, description in rows:
             print("  %s %s" % (family, description), file=sys.stderr)
         for outline, translation in dictionary[bits]:
             print("  dictionary %s -> %s" % (outline, translation), file=sys.stderr)
+    if args.show_soft:
+        for bits, rows in sorted(soft_collisions.items()):
+            print("soft dictionary phrase collision %s:" % canonical_stroke(bits), file=sys.stderr)
+            for family, description in rows:
+                print("  %s %s" % (family, description), file=sys.stderr)
+            for outline, translation in dictionary[bits]:
+                print("  dictionary %s -> %s" % (outline, translation), file=sys.stderr)
 
     family_counts = defaultdict(int)
     for rows in phrases.values():
@@ -186,10 +226,17 @@ def main():
             len(dictionary),
         )
     )
-    if internal or collisions:
-        print("found %d internal and %d dictionary collisions" % (len(internal), len(collisions)), file=sys.stderr)
+    if internal or hard_collisions:
+        print(
+            "found %d internal, %d hard dictionary, and %d soft dictionary phrase collisions"
+            % (len(internal), len(hard_collisions), len(soft_collisions)),
+            file=sys.stderr,
+        )
         return 1
-    print("no collisions")
+    print(
+        "no hard collisions (%d soft dictionary phrase collisions allowed)"
+        % len(soft_collisions)
+    )
     return 0
 
 

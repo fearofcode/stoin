@@ -73,7 +73,15 @@ bool test_dictionary_runtime(void)
 
     const char *phrase_lookup = NULL;
     ok = ok && steno_lookup_stroke(steno, "PW-B", &phrase_lookup);
-    ok = ok && expect_string("dictionary wins exact phrase-shaped lookup", phrase_lookup, "dictionary is a");
+    ok = ok && expect_string("dictionary lookup remains available on phrase miss", phrase_lookup, "dictionary is a");
+
+    const char *soft_phrase_lookup = NULL;
+    ok = ok && steno_lookup_stroke(steno, "TWRF", &soft_phrase_lookup);
+    ok = ok && expect_string("generated phrase wins plain multiword dictionary lookup", soft_phrase_lookup, "as if");
+
+    const char *word_collision_lookup = NULL;
+    ok = ok && steno_lookup_stroke(steno, "SKPWOP", &word_collision_lookup);
+    ok = ok && expect_string("single dictionary word wins phrase-shaped lookup", word_collision_lookup, "sit");
 
     const char *have_phrase_lookup = NULL;
     ok = ok && steno_lookup_stroke(steno, "TKPO-BD", &have_phrase_lookup);

@@ -88,6 +88,27 @@ bool ascii_range_starts_with_ignore_case(const char *s, size_t length, const cha
     return length >= prefix_length && ascii_range_equals_ignore_case(s, prefix_length, prefix);
 }
 
+bool text_is_plain_multiword(const char *text)
+{
+    if (text == NULL || strchr(text, '{') != NULL || strchr(text, '}') != NULL) {
+        return false;
+    }
+
+    bool saw_word = false;
+    bool saw_separator = false;
+    for (const char *p = text; *p != '\0'; ++p) {
+        if (isspace((unsigned char)*p)) {
+            saw_separator = saw_word;
+        } else {
+            if (saw_separator) {
+                return true;
+            }
+            saw_word = true;
+        }
+    }
+    return false;
+}
+
 char *copy_trimmed_range(const char *start, size_t length)
 {
     while (length > 0 && isspace((unsigned char)*start)) {
