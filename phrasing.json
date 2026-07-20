@@ -3045,6 +3045,11 @@
         "text": "of"
       },
       {
+        "id": "off",
+        "stroke": "-FP",
+        "text": "off"
+      },
+      {
         "id": "he",
         "stroke": "-RPB",
         "text": "he"
@@ -3114,7 +3119,8 @@
           "that",
           "can",
           "if",
-          "though"
+          "though",
+          "off"
         ]
       },
       {
@@ -3145,7 +3151,8 @@
           "her",
           "it",
           "his",
-          "that"
+          "that",
+          "off"
         ]
       },
       {
@@ -3183,7 +3190,8 @@
           "his",
           "that",
           "can",
-          "if"
+          "if",
+          "off"
         ]
       },
       {
@@ -3201,7 +3209,8 @@
           "his",
           "that",
           "can",
-          "else"
+          "else",
+          "off"
         ]
       },
       {
@@ -3236,7 +3245,8 @@
           "his",
           "that",
           "can",
-          "if"
+          "if",
+          "off"
         ]
       },
       {
@@ -3276,7 +3286,8 @@
           "that",
           "can",
           "if",
-          "though"
+          "though",
+          "off"
         ]
       },
       {
@@ -3329,7 +3340,8 @@
           "his",
           "that",
           "can",
-          "else"
+          "else",
+          "off"
         ]
       },
       {
@@ -3349,11 +3361,12 @@
           "that",
           "can",
           "if",
-          "though"
+          "though",
+          "off"
         ]
       },
       {
-        "stroke": "SRAO*E",
+        "stroke": "SRAO*",
         "text": "even",
         "tails": [
           "a",
@@ -3369,7 +3382,8 @@
           "that",
           "can",
           "if",
-          "though"
+          "though",
+          "off"
         ]
       },
       {

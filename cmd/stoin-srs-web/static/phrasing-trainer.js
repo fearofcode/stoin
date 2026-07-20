@@ -21,7 +21,7 @@ let phraseQueue = [];
 let phraseIndex = 0;
 let phraseMistake = false;
 const phraseCheckedByKey = new Map();
-const phraseStorageKey = 'stoin.phrasingTrainer.v5';
+const phraseStorageKey = 'stoin.phrasingTrainer.v6';
 
 const familyLabels = {
 	initial_verbs: 'Initial verbs',

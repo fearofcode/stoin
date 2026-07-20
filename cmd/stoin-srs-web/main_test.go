@@ -1351,7 +1351,7 @@ func TestPhrasingDataRoute(t *testing.T) {
 		`"id": "like"`,
 		`"stroke": "-BL"`,
 		`"KPHRO"`,
-		`"SRAO*E"`,
+		`"SRAO*"`,
 		`"though"`,
 		`"SKPHO"`,
 		`"TKPHO"`,

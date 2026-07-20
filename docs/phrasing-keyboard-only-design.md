@@ -226,13 +226,14 @@ entry.
 | `PWH` | but | `STHA` | that |
 | `TPO*F` | for | `RO*F` | of |
 | `TKPWH*` | anything | `SP*` | as |
-| `SRAO*E` | even | `HR*` | will |
+| `SRAO*` | even | `HR*` | will |
 
 NV tails are defined in `phrasing.json`, with per-prefix allowlists. Most are
 right-hand mnemonic chords. The exceptions introduced for the new families are
-`EUF` for `if`, `-F` for `of`, `-RPB` for `he`, and `-RB` for `she`. Thus the
-`HR*` prefix produces `HR*F` (`will of`), `HR*-RPB` (`will he`), and `HR*RB`
-(`will she`).
+`EUF` for `if`, `-F` for `of`, `-FP` for `off`, `-RPB` for `he`, and `-RB` for
+`she`. The `off` tail is omitted after prefixes containing `-F`, where it would
+collapse with the existing `-P` (`it`) tail. Thus the `HR*` prefix produces `HR*F`
+(`will of`), `HR*-RPB` (`will he`), and `HR*RB` (`will she`).
 
 Examples:
 
@@ -241,5 +242,7 @@ Examples:
 | `TW-B` | with a |
 | `TKPWH*BL` | anything like |
 | `SP*EUF` | as if |
-| `SRAO*EGT` | even though |
+| `SRAO*EUF` | even if |
+| `SRAO*FP` | even off |
+| `SRAO*GT` | even though |
 | `HR*F` | will of |
