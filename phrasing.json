@@ -92,6 +92,11 @@
         "text": "his"
       },
       {
+        "id": "its",
+        "stroke": "-PZ",
+        "text": "its"
+      },
+      {
         "id": "your",
         "stroke": "-RZ",
         "text": "your"
@@ -120,6 +125,21 @@
         "id": "that",
         "stroke": "-RT",
         "text": "that"
+      },
+      {
+        "id": "they",
+        "stroke": "-TS",
+        "text": "they",
+        "stems": [
+          "SKPWO",
+          "TKPO",
+          "STKHO"
+        ],
+        "forms": [
+          "E",
+          "-D",
+          "E-D"
+        ]
       }
     ],
     "stems": [
@@ -302,6 +322,7 @@
           "us",
           "her",
           "his",
+          "its",
           "your",
           "of",
           "my",
@@ -549,6 +570,7 @@
           "us",
           "her",
           "his",
+          "its",
           "your",
           "my",
           "myself",
@@ -665,6 +687,7 @@
           "us",
           "her",
           "his",
+          "its",
           "your",
           "my",
           "myself",
@@ -675,7 +698,8 @@
           "out",
           "with",
           "he",
-          "she"
+          "she",
+          "they"
         ],
         "forms": [
           {
@@ -716,6 +740,7 @@
           "at",
           "her",
           "his",
+          "its",
           "your",
           "my",
           "myself",
@@ -766,6 +791,7 @@
           "us",
           "her",
           "his",
+          "its",
           "your",
           "my",
           "myself",
@@ -818,6 +844,7 @@
           "us",
           "her",
           "his",
+          "its",
           "your",
           "of",
           "my",
@@ -913,6 +940,7 @@
           "us",
           "her",
           "his",
+          "its",
           "your",
           "my",
           "myself",
@@ -962,6 +990,7 @@
           "at",
           "her",
           "his",
+          "its",
           "your",
           "of",
           "my",
@@ -1014,6 +1043,7 @@
           "us",
           "her",
           "his",
+          "its",
           "your",
           "of",
           "my",
@@ -1065,6 +1095,7 @@
           "us",
           "her",
           "his",
+          "its",
           "your",
           "my",
           "myself",
@@ -1116,6 +1147,7 @@
           "us",
           "her",
           "his",
+          "its",
           "your",
           "my",
           "myself",
@@ -1165,6 +1197,7 @@
           "us",
           "her",
           "his",
+          "its",
           "your",
           "of",
           "my",
@@ -1215,6 +1248,7 @@
           "us",
           "her",
           "his",
+          "its",
           "your",
           "my",
           "myself",
@@ -1266,6 +1300,7 @@
           "us",
           "her",
           "his",
+          "its",
           "your",
           "of",
           "my",
@@ -1318,6 +1353,7 @@
           "us",
           "her",
           "his",
+          "its",
           "your",
           "my",
           "myself",
@@ -1369,6 +1405,7 @@
           "us",
           "her",
           "his",
+          "its",
           "your",
           "my",
           "myself",
@@ -1419,6 +1456,7 @@
           "us",
           "her",
           "his",
+          "its",
           "your",
           "of",
           "my",
@@ -1471,6 +1509,7 @@
           "us",
           "her",
           "his",
+          "its",
           "your",
           "my",
           "myself",
@@ -1522,6 +1561,7 @@
           "us",
           "her",
           "his",
+          "its",
           "your",
           "my",
           "myself",
@@ -1573,6 +1613,7 @@
           "us",
           "her",
           "his",
+          "its",
           "your",
           "my",
           "myself",
@@ -1623,6 +1664,7 @@
           "us",
           "her",
           "his",
+          "its",
           "your",
           "my",
           "myself",
@@ -1672,6 +1714,7 @@
           "us",
           "her",
           "his",
+          "its",
           "your",
           "my",
           "myself",
@@ -1721,6 +1764,7 @@
           "us",
           "her",
           "his",
+          "its",
           "your",
           "my",
           "myself",
@@ -1772,6 +1816,7 @@
           "us",
           "her",
           "his",
+          "its",
           "your",
           "of",
           "my",
@@ -1992,6 +2037,11 @@
           "-RBGT",
           "-RBGTD"
         ]
+      },
+      {
+        "stroke": "SKPWH",
+        "text": "and",
+        "agreement": "plural"
       }
     ],
     "operators": [
@@ -3077,7 +3127,7 @@
     ],
     "prefixes": [
       {
-        "stroke": "TW",
+        "stroke": "TWH",
         "text": "with",
         "tails": [
           "a",
@@ -3091,7 +3141,16 @@
           "it",
           "his",
           "that",
-          "like"
+          "like",
+          "they",
+          "can",
+          "of",
+          "off",
+          "he",
+          "she",
+          "though",
+          "else",
+          "if"
         ]
       },
       {
@@ -3109,11 +3168,20 @@
           "it",
           "his",
           "that",
-          "like"
+          "like",
+          "they",
+          "can",
+          "if",
+          "of",
+          "off",
+          "he",
+          "she",
+          "though",
+          "else"
         ]
       },
       {
-        "stroke": "ST*",
+        "stroke": "STP*",
         "text": "it",
         "tails": [
           "a",
@@ -3130,11 +3198,17 @@
           "can",
           "if",
           "though",
-          "off"
+          "off",
+          "them",
+          "of",
+          "he",
+          "she",
+          "else",
+          "us"
         ]
       },
       {
-        "stroke": "A*UF",
+        "stroke": "SKH*",
         "text": "off",
         "tails": [
           "a",
@@ -3152,11 +3226,16 @@
           "if",
           "he",
           "she",
-          "though"
+          "though",
+          "can",
+          "else",
+          "you",
+          "of",
+          "off"
         ]
       },
       {
-        "stroke": "R*UP",
+        "stroke": "PR*U",
         "text": "up",
         "tails": [
           "a",
@@ -3171,11 +3250,19 @@
           "that",
           "off",
           "if",
-          "though"
+          "though",
+          "us",
+          "can",
+          "else",
+          "an",
+          "you",
+          "of",
+          "he",
+          "she"
         ]
       },
       {
-        "stroke": "K*",
+        "stroke": "SK*",
         "text": "can",
         "tails": [
           "a",
@@ -3194,7 +3281,38 @@
           "them",
           "of",
           "he",
-          "she"
+          "she",
+          "can",
+          "off",
+          "else",
+          "us"
+        ]
+      },
+      {
+        "stroke": "SKP*",
+        "text": "and",
+        "tails": [
+          "a",
+          "an",
+          "like",
+          "the",
+          "at",
+          "them",
+          "us",
+          "you",
+          "they",
+          "her",
+          "it",
+          "his",
+          "that",
+          "can",
+          "if",
+          "of",
+          "off",
+          "he",
+          "she",
+          "though",
+          "else"
         ]
       },
       {
@@ -3218,7 +3336,10 @@
           "if",
           "off",
           "he",
-          "she"
+          "she",
+          "of",
+          "though",
+          "else"
         ]
       },
       {
@@ -3241,11 +3362,15 @@
           "off",
           "of",
           "he",
-          "she"
+          "she",
+          "them",
+          "us",
+          "if",
+          "though"
         ]
       },
       {
-        "stroke": "TP*F",
+        "stroke": "TPW*",
         "text": "if",
         "tails": [
           "a",
@@ -3259,7 +3384,16 @@
           "his",
           "that",
           "he",
-          "she"
+          "she",
+          "like",
+          "us",
+          "can",
+          "if",
+          "of",
+          "though",
+          "else",
+          "them",
+          "off"
         ]
       },
       {
@@ -3285,7 +3419,8 @@
           "of",
           "he",
           "she",
-          "though"
+          "though",
+          "else"
         ]
       },
       {
@@ -3310,7 +3445,9 @@
           "though",
           "off",
           "he",
-          "she"
+          "she",
+          "of",
+          "else"
         ]
       },
       {
@@ -3334,11 +3471,14 @@
           "off",
           "of",
           "he",
-          "she"
+          "she",
+          "like",
+          "them",
+          "else"
         ]
       },
       {
-        "stroke": "TPO*F",
+        "stroke": "TKPO*",
         "text": "for",
         "tails": [
           "a",
@@ -3356,11 +3496,16 @@
           "if",
           "though",
           "he",
-          "she"
+          "she",
+          "like",
+          "can",
+          "of",
+          "else",
+          "off"
         ]
       },
       {
-        "stroke": "RO*F",
+        "stroke": "WRO*",
         "text": "of",
         "tails": [
           "a",
@@ -3374,7 +3519,16 @@
           "it",
           "his",
           "that",
-          "like"
+          "like",
+          "they",
+          "can",
+          "if",
+          "of",
+          "he",
+          "she",
+          "though",
+          "else",
+          "off"
         ]
       },
       {
@@ -3398,7 +3552,10 @@
           "of",
           "he",
           "she",
-          "though"
+          "though",
+          "them",
+          "us",
+          "if"
         ]
       },
       {
@@ -3423,7 +3580,9 @@
           "off",
           "of",
           "he",
-          "she"
+          "she",
+          "like",
+          "else"
         ]
       },
       {
@@ -3447,11 +3606,14 @@
           "though",
           "off",
           "he",
-          "she"
+          "she",
+          "like",
+          "of",
+          "else"
         ]
       },
       {
-        "stroke": "HR*",
+        "stroke": "WHR*",
         "text": "will",
         "tails": [
           "at",
@@ -3468,7 +3630,20 @@
           "it",
           "that",
           "if",
-          "though"
+          "though",
+          "can",
+          "off",
+          "else",
+          "them",
+          "us",
+          "his"
+        ]
+      },
+      {
+        "stroke": "SKH",
+        "text": "off",
+        "tails": [
+          "the"
         ]
       }
     ]

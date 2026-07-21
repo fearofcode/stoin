@@ -30,10 +30,10 @@ every generated phrase is one stroke, and checks the full FV Cartesian product.
 It fails on internal collisions and hard Phoenix collisions. Phoenix is the
 only compatibility target for the checked-in layout.
 
-The checked-in layout has 13 soft Phoenix collisions and no hard or internal
-collisions. Some produce the same text (`A*UFT` is `off the` in both systems);
-others intentionally replace a Phoenix phrase, such as `HR*F` changing from
-`all of` to generated `will of`.
+The checked-in layout has 19 soft Phoenix collisions and no hard or internal
+collisions. Some produce the same text (`SKP*F` is `and of` in both systems);
+others intentionally replace a Phoenix phrase, such as `SKP*G` changing from
+`and go` to generated `and can`.
 
 ## Family summary
 
@@ -118,7 +118,8 @@ starter and therefore cannot collapse into a form component.
 | `-RPB` | he (auxiliary inversion) | `-RB` | she (auxiliary inversion) |
 | `-P` | it | `-S` | us |
 | `-R` | her | `-Z` | his |
-| `-RZ` | your | `-FB` | of |
+| `-PZ` | its | `-RZ` | your |
+| `-FB` | of | `-TS` | they (auxiliary inversion) |
 | `-PL` | my | `-PLS` | myself |
 | `-PLT` | me | `-RT` | that |
 
@@ -126,7 +127,9 @@ Per-verb allowlists in `phrasing.json` remove ungrammatical or low-value
 combinations. Individual tails can also carry stem and form allowlists. The
 auxiliary inversion tails use `-RPB` for *he* and `-RB` (the `SH` chord) for
 *she*. The neighboring shapes make *he* feel like an inversion of *she* while
-remaining disjoint from every IV form. `with` moves to `-GT`, retaining the
+remaining disjoint from every IV form. `-TS` adds plural *they* inversions for
+the be, have, and do stems, while `-PZ` supplies possessive *its* wherever the
+other possessive tails are allowed. `with` moves to `-GT`, retaining the
 ending of Phoenix's `WEUGT` outline. The selected starters keep the entire
 allowlisted universe free of hard Phoenix and internal collisions.
 
@@ -139,6 +142,9 @@ Examples:
 | `SKPWO-RB` | is she |
 | `SKPWOE-RPBD` | were he |
 | `SKPWOERBD` | were she |
+| `SKPWOETS` | are they |
+| `TKPOETS` | have they |
+| `STKHOETS` | do they |
 | `SKPWO-GT` | is with |
 | `SKPWAO-BD` | could be a |
 | `STHO-P` | says it |
@@ -174,6 +180,13 @@ empty in Phoenix.
 | `STWH` | that / third singular |
 | `STWHR` | there / third singular |
 | `TKPHR` | there / plural agreement |
+| `SKPWH` | and / plural agreement |
+
+The `and` starter keeps Phoenix's mnemonic `SKP` core but cannot use `SKP*`:
+`*` is already the FV negative operator, so a starred starter would collapse
+ordinary and negative forms. `SKPWH` is the nearest audited variant whose full
+FV bank stays distinct from Phoenix words, commands, and the NV bank. Plural
+agreement gives the useful base forms `and are`, `and do`, and `and go`.
 
 ### FV operators and structures
 
@@ -209,6 +222,8 @@ Examples:
 | `STPWH-B` | it is |
 | `SKWHR*U-RLT` | she doesn't tell |
 | `STWHAOU` | that'll |
+| `SKPWH-G` | and go |
+| `SKPWH*-G` | and do not go |
 
 ## Nonverb phrases
 
@@ -218,40 +233,54 @@ entry.
 
 | Outline prefix | Text | Outline prefix | Text |
 | --- | --- | --- | --- |
-| `TW` | with | `STP` | at |
-| `ST*` | it | `A*UF` | off |
-| `R*UP` | up | `K*` | can |
-| `SKWRO*` | just | `WHR` | all |
-| `TP*F` | if | `STPHRO` | only |
-| `PWH` | but | `STHA` | that |
-| `TPO*F` | for | `RO*F` | of |
-| `TKPWH*` | anything | `SP*` | as |
-| `SRAO*` | even | `HR*` | will |
+| `TWH` | with | `STP` | at |
+| `STP*` | it | `SKH*` | off |
+| `PR*U` | up | `SK*` | can |
+| `SKP*` | and | `SKWRO*` | just |
+| `WHR` | all | `TPW*` | if |
+| `STPHRO` | only | `PWH` | but |
+| `STHA` | that | `TKPO*` | for |
+| `WRO*` | of | `TKPWH*` | anything |
+| `SP*` | as | `SRAO*` | even |
+| `WHR*` | will | `SKH` | off (compatibility alias) |
 
-NV tails are defined in `phrasing.json`, with per-prefix allowlists. Most are
-right-hand mnemonic chords. The exceptions introduced for the new families are
+NV tails are defined in `phrasing.json`, with explicit per-prefix lists. Every
+primary prefix exposes all 21 tails: the layout is a complete 19 by 21 Cartesian
+product, and grammaticality is not a filter. The prefix assignments were chosen
+globally so all 399 combinations have distinct outlines and avoid Phoenix words
+and commands. The `SKP*` bank intentionally replaces 14 Phoenix phrases with
+the systematic NV meanings, while retaining no collisions with Phoenix words or
+commands. Most tails are right-hand mnemonic chords. The exceptions
+introduced for the new families are
 `EUF` for `if`, `-F` for `of`, `-FP` for `off`, `-RPB` for `he`, and `-RB` for
 `she`; `-BT` is the shared `at` tail. The `off` tail is omitted after prefixes
 containing `-F`, where it would collapse with the existing `-P` (`it`) tail.
-The `at` tail is available after every prefix. Allowlisted subject fragments
-include `K*RPB` (`can he`), `K*RB` (`can she`), `TP*FRPB` (`if he`), and
-`TP*FRB` (`if she`). The `HR*` bank also includes common continuations such as
-`HR*U` (`will you`), `HR*SZ` (`will they`), `HR*P` (`will it`), and `HR*EUF`
+The `at` tail is available after every prefix. Subject fragments include
+`SK*RPB` (`can he`), `SK*RB` (`can she`), `TPW*RPB` (`if he`), and
+`TPW*RB` (`if she`). The `WHR*` bank also includes continuations such as
+`WHR*U` (`will you`), `WHR*SZ` (`will they`), `WHR*P` (`will it`), and `WHR*EUF`
 (`will if`).
 
 Examples:
 
 | Outline | Output |
 | --- | --- |
-| `TW-B` | with a |
+| `TWH-B` | with a |
 | `TKPWH*BL` | anything like |
 | `SP*EUF` | as if |
 | `SRAO*EUF` | even if |
 | `SRAO*FP` | even off |
 | `SRAO*GT` | even though |
 | `SRAO*BT` | even at |
-| `RO*FBT` | of at |
-| `HR*F` | will of |
-| `K*RPB` | can he |
-| `TP*FRB` | if she |
+| `WRO*BT` | of at |
+| `WHR*F` | will of |
+| `SK*RPB` | can he |
+| `SKP*B` | and a |
+| `SKP*G` | and can |
+| `TPW*RB` | if she |
 | `SP*F` | as of |
+| `SKH-T` | off the |
+| `SKH*U` | off you |
+| `SKH*F` | off of |
+| `PR*URPB` | up he |
+| `PR*URB` | up she |
