@@ -1203,6 +1203,128 @@ static bool parse_final_verbs(Phrasing *phrasing, const cJSON *root, const char 
         && parse_fv_starters(phrasing, starters, path);
 }
 
+static bool index_list_contains(const size_t *indices, size_t value)
+{
+    for (size_t i = 0; i < arrlenu(indices); ++i) {
+        if (indices[i] == value) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool bits_list_contains(const uint64_t *bits, uint64_t value)
+{
+    for (size_t i = 0; i < arrlenu(bits); ++i) {
+        if (bits[i] == value) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool iv_combination_is_allowed(
+    const Iv_Stem *stem,
+    size_t tail_index,
+    const Phrase_Tail *tail,
+    const Phrase_Form *form
+)
+{
+    return (!stem->has_tail_allowlist || index_list_contains(stem->tail_indices, tail_index))
+        && (!tail->has_stem_allowlist || bits_list_contains(tail->stem_bits, stem->bits))
+        && (!tail->has_form_allowlist || bits_list_contains(tail->form_bits, form->bits));
+}
+
+static bool fv_starter_allows_ender(const Fv_Starter *starter, size_t ender_index)
+{
+    return !starter->has_ender_allowlist
+        || index_list_contains(starter->ender_indices, ender_index);
+}
+
+static bool validate_phrase_fragment_overlaps(const Phrasing *phrasing, const char *path)
+{
+    for (size_t i = 0; i < arrlenu(phrasing->iv_stems); ++i) {
+        const Iv_Stem *stem = &phrasing->iv_stems[i];
+        for (size_t j = 0; j < arrlenu(stem->forms); ++j) {
+            const Phrase_Form *form = &stem->forms[j];
+            if ((stem->bits & form->bits) != 0) {
+                fprintf(stderr,
+                    "stoin: phrasing '%s' initial_verbs stem %zu and form %zu overlap\n",
+                    path,
+                    i,
+                    j);
+                return false;
+            }
+            for (size_t k = 0; k < arrlenu(phrasing->iv_tails); ++k) {
+                const Phrase_Tail *tail = &phrasing->iv_tails[k];
+                if (iv_combination_is_allowed(stem, k, tail, form)
+                    && (((stem->bits | form->bits) & tail->bits) != 0)) {
+                    fprintf(stderr,
+                        "stoin: phrasing '%s' initial_verbs stem %zu, form %zu, and tail %zu overlap\n",
+                        path,
+                        i,
+                        j,
+                        k);
+                    return false;
+                }
+            }
+        }
+    }
+
+    for (size_t i = 0; i < arrlenu(phrasing->nv_prefixes); ++i) {
+        const Nv_Prefix *prefix = &phrasing->nv_prefixes[i];
+        for (size_t j = 0; j < arrlenu(prefix->tail_indices); ++j) {
+            const size_t tail_index = prefix->tail_indices[j];
+            if ((prefix->bits & phrasing->nv_tails[tail_index].bits) != 0) {
+                fprintf(stderr,
+                    "stoin: phrasing '%s' nonverbs prefix %zu and tail %zu overlap\n",
+                    path,
+                    i,
+                    tail_index);
+                return false;
+            }
+        }
+    }
+
+    for (size_t i = 0; i < arrlenu(phrasing->fv_starters); ++i) {
+        const Fv_Starter *starter = &phrasing->fv_starters[i];
+        for (size_t j = 0; j < arrlenu(phrasing->fv_operators); ++j) {
+            const Fv_Operator *operator = &phrasing->fv_operators[j];
+            for (size_t k = 0; k < arrlenu(phrasing->fv_structures); ++k) {
+                const Fv_Structure_Row *structure = &phrasing->fv_structures[k];
+                for (size_t m = 0; m < arrlenu(phrasing->fv_enders); ++m) {
+                    if (!fv_starter_allows_ender(starter, m)) {
+                        continue;
+                    }
+                    const Fv_Ender *ender = &phrasing->fv_enders[m];
+                    const uint64_t fragments[] = {
+                        starter->bits,
+                        operator->bits,
+                        structure->bits,
+                        ender->bits,
+                        phrasing->contraction_bits,
+                    };
+                    for (size_t first = 0; first < 5; ++first) {
+                        for (size_t second = first + 1; second < 5; ++second) {
+                            if ((fragments[first] & fragments[second]) != 0) {
+                                fprintf(stderr,
+                                    "stoin: phrasing '%s' final_verbs starter %zu, operator %zu, structure %zu, and ender %zu overlap\n",
+                                    path,
+                                    i,
+                                    j,
+                                    k,
+                                    m);
+                                return false;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return true;
+}
+
 static bool validate_shared_phrase_banks(const Phrasing *phrasing, const char *path)
 {
     if (arrlenu(phrasing->iv_tails) != arrlenu(phrasing->nv_tails)) {
@@ -1296,6 +1418,7 @@ Phrasing *phrasing_load(const char *path)
         && parse_initial_verbs(phrasing, root, path)
         && parse_nonverbs(phrasing, root, path)
         && parse_final_verbs(phrasing, root, path)
+        && validate_phrase_fragment_overlaps(phrasing, path)
         && (!shared_banks || validate_shared_phrase_banks(phrasing, path));
     cJSON_Delete(root);
     free(file);
@@ -1358,41 +1481,8 @@ static Phrase_Lookup_Result lookup_initial_verb(const Phrasing *phrasing, uint64
             const Phrase_Form *form = &stem->forms[j];
             for (size_t k = 0; k < arrlenu(phrasing->iv_tails); ++k) {
                 const Phrase_Tail *tail = &phrasing->iv_tails[k];
-                if (tail->has_stem_allowlist) {
-                    bool allowed = false;
-                    for (size_t m = 0; m < arrlenu(tail->stem_bits); ++m) {
-                        if (tail->stem_bits[m] == stem->bits) {
-                            allowed = true;
-                            break;
-                        }
-                    }
-                    if (!allowed) {
-                        continue;
-                    }
-                }
-                if (tail->has_form_allowlist) {
-                    bool allowed = false;
-                    for (size_t m = 0; m < arrlenu(tail->form_bits); ++m) {
-                        if (tail->form_bits[m] == form->bits) {
-                            allowed = true;
-                            break;
-                        }
-                    }
-                    if (!allowed) {
-                        continue;
-                    }
-                }
-                if (stem->has_tail_allowlist) {
-                    bool allowed = false;
-                    for (size_t m = 0; m < arrlenu(stem->tail_indices); ++m) {
-                        if (stem->tail_indices[m] == k) {
-                            allowed = true;
-                            break;
-                        }
-                    }
-                    if (!allowed) {
-                        continue;
-                    }
+                if (!iv_combination_is_allowed(stem, k, tail, form)) {
+                    continue;
                 }
                 if (bits == (stem->bits | form->bits | tail->bits)) {
                     return copy_phrase_words(form->text, tail->text, out_utf8);
@@ -1719,17 +1809,8 @@ static Phrase_Lookup_Result lookup_final_verb(const Phrasing *phrasing, uint64_t
                 const Fv_Structure_Row *structure = &phrasing->fv_structures[k];
                 for (size_t m = 0; m < arrlenu(phrasing->fv_enders); ++m) {
                     const Fv_Ender *ender = &phrasing->fv_enders[m];
-                    if (starter->has_ender_allowlist) {
-                        bool allowed = false;
-                        for (size_t n = 0; n < arrlenu(starter->ender_indices); ++n) {
-                            if (starter->ender_indices[n] == m) {
-                                allowed = true;
-                                break;
-                            }
-                        }
-                        if (!allowed) {
-                            continue;
-                        }
+                    if (!fv_starter_allows_ender(starter, m)) {
+                        continue;
                     }
                     const uint64_t long_bits = starter->bits | operator.bits | structure->bits | ender->bits;
                     const bool contraction = bits == (long_bits | phrasing->contraction_bits);

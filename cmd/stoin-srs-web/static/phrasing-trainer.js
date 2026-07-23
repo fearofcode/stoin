@@ -21,7 +21,7 @@ let phraseQueue = [];
 let phraseIndex = 0;
 let phraseMistake = false;
 const phraseCheckedByKey = new Map();
-const phraseStorageKey = 'stoin.phrasingTrainer.v12';
+const phraseStorageKey = 'stoin.phrasingTrainer.v13';
 
 const familyLabels = {
 	initial_verbs: 'Initial verbs',
@@ -420,11 +420,12 @@ function initialSections() {
 		{
 			title: 'IV tails',
 			options: tails.map(function(tail) {
+				const label = tail.text || 'no tail';
 				return sectionOption(
 					bankKey(family, 'tails', tail.id),
-					tail.text,
-					tail.stroke,
-					['initial verbs', tail.id, tail.text, tail.stroke],
+					label,
+					displayStroke(tail.stroke),
+					['initial verbs', tail.id, label, tail.stroke],
 					defaultFamilyChecked(family)
 				);
 			}),
@@ -452,11 +453,12 @@ function nonverbSections() {
 		{
 			title: 'NV tails',
 			options: tails.map(function(tail) {
+				const label = tail.text || 'no tail';
 				return sectionOption(
 					bankKey(family, 'tails', tail.id),
-					tail.text,
-					tail.stroke,
-					['nonverbs', tail.id, tail.text, tail.stroke],
+					label,
+					displayStroke(tail.stroke),
+					['nonverbs', tail.id, label, tail.stroke],
 					defaultFamilyChecked(family)
 				);
 			}),
@@ -635,28 +637,6 @@ function stemAllowsTail(stem, tail) {
 function tailAllowsStemForm(tail, stem, form) {
 	return (!Array.isArray(tail.stems) || tail.stems.includes(stem.stroke))
 		&& (!Array.isArray(tail.forms) || tail.forms.includes(form.stroke));
-}
-
-function initialVerbStrokeBits() {
-	const claimed = new Set();
-	const initialVerbs = phraseData.initial_verbs;
-	(initialVerbs.stems || []).forEach(function(stem) {
-		(stem.forms || []).forEach(function(form) {
-			(initialVerbs.tails || []).forEach(function(tail) {
-				if (!stemAllowsTail(stem, tail) || !tailAllowsStemForm(tail, stem, form)) return;
-				try {
-					claimed.add(
-						parseStrokeBits(stem.stroke)
-						| parseStrokeBits(form.stroke)
-						| parseStrokeBits(tail.stroke)
-					);
-				} catch (error) {
-					// Invalid fragments cannot claim a runtime phrase outline.
-				}
-			});
-		});
-	});
-	return claimed;
 }
 
 function generateInitialVerbPrompts() {
@@ -949,7 +929,6 @@ function starterAllowsEnder(starter, ender) {
 function generateFinalVerbPrompts() {
 	if (!familyEnabled('final_verbs')) return [];
 	const finalVerbs = phraseData.final_verbs;
-	const initialVerbBits = initialVerbStrokeBits();
 	const starters = selectedFinalVerbRows('starters');
 	const operators = selectedFinalVerbRows('operators');
 	const structures = selectedFinalVerbRows('structures');
@@ -984,7 +963,6 @@ function generateFinalVerbPrompts() {
 								return;
 							}
 						}
-						if (initialVerbBits.has(parseStrokeBits(stroke))) return;
 						const phrase = mode === 'contraction'
 							? buildFvContraction(starter, op, structure.kind, ender)
 							: buildFvLong(starter, op, structure.kind, ender);
@@ -1006,7 +984,7 @@ function uniquePrompts(prompts) {
 	const seen = new Set();
 	const out = [];
 	prompts.forEach(function(prompt) {
-		const key = prompt.stroke + '\n' + prompt.phrase;
+		const key = prompt.lesson + '\n' + prompt.stroke + '\n' + prompt.phrase;
 		if (!seen.has(key)) {
 			seen.add(key);
 			out.push(prompt);
@@ -1037,7 +1015,10 @@ function repeatedShuffledPasses(pool, repetitions) {
 	if (!pool.length || repetitions <= 0) return [];
 	const out = [];
 	for (let i = 0; i < repetitions; i++) {
-		out.push.apply(out, shuffle(pool));
+		const pass = shuffle(pool);
+		for (let j = 0; j < pass.length; j++) {
+			out.push(pass[j]);
+		}
 	}
 	return out;
 }

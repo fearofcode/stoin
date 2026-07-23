@@ -235,6 +235,18 @@ int main(void)
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, true);
+    ok = ok && handle_test_stroke(steno, "PH-B");
+    ok = ok && handle_test_stroke(steno, "PH-BL");
+    ok = ok && handle_test_stroke(steno, "T-B");
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, false);
+    ok = ok && expect_string(
+        "mnemonic IV stems remain disjoint from shared tails",
+        output.text,
+        "makes a makes like takes a");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
     steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, true);
     ok = ok && handle_test_stroke(steno, "SK-B");
     steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, false);

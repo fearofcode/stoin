@@ -95,6 +95,24 @@ static bool expect_invalid_tail_allowlist(
     return ok;
 }
 
+static bool expect_invalid_fragment_overlap(const char *path)
+{
+    const char *tails = "{\"id\":\"a\",\"stroke\":\"-B\",\"text\":\"a\"}";
+    const char *stems =
+        "{\"stroke\":\"PW-B\",\"forms\":[{\"stroke\":\"\",\"text\":\"is\"}]}";
+    if (!write_phrasing_fixture(path, tails, stems)) {
+        return false;
+    }
+
+    Phrasing *phrasing = phrasing_load(path);
+    const bool ok = expect_size(
+        "phrase fragments may not claim the same key",
+        phrasing != NULL ? 1 : 0,
+        0);
+    phrasing_destroy(phrasing);
+    return ok;
+}
+
 bool test_phrasing_tail_filters(void)
 {
     const char *path = "build/test-phrasing-tail-filters.json";
@@ -178,6 +196,7 @@ bool test_phrasing_tail_filters(void)
         "IV tail form allowlist rejects duplicate outlines",
         "{\"id\":\"a\",\"stroke\":\"-B\",\"text\":\"a\",\"forms\":[\"E\",\"E\"]}",
         "") && ok;
+    ok = expect_invalid_fragment_overlap(path) && ok;
 
     remove(path);
     return ok;

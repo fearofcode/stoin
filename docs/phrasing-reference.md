@@ -41,8 +41,8 @@
 | PWHR | believes | believed | believe |  | believing | to believe |  | can believe | could believe |
 | KW | becomes | became | become |  | becoming | to become |  | can become | could become |
 | KH | runs | ran | run |  | running | to run |  | can run | could run |
-| KPL | makes | made | make |  | making | to make |  | can make | could make |
-| PH | takes | took | take |  | taking | to take |  | can take | could take |
+| PH | makes | made | make |  | making | to make |  | can make | could make |
+| T | takes | took | take |  | taking | to take |  | can take | could take |
 | TP | finds | found | find |  | finding | to find |  | can find | could find |
 | STP | gives | gave | give |  | giving | to give |  | can give | could give |
 | STW | uses | used | use |  | using | to use |  | can use | could use |

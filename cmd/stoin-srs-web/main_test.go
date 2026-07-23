@@ -1271,6 +1271,7 @@ func TestStaticPhrasingTrainerScript(t *testing.T) {
 		!strings.Contains(body, "d_contraction") ||
 		!strings.Contains(body, "fvDoNegativeContraction") ||
 		!strings.Contains(body, "stemAllowsTail") ||
+		!strings.Contains(body, "tail.text || 'no tail'") ||
 		!strings.Contains(body, "initialFormLabel") ||
 		!strings.Contains(body, "third-person singular present (he/she/it goes)") ||
 		!strings.Contains(body, "modal could + base form (could go)") ||
@@ -1282,7 +1283,6 @@ func TestStaticPhrasingTrainerScript(t *testing.T) {
 		!strings.Contains(body, "past-form selection") ||
 		!strings.Contains(body, "starterAllowsEnder") ||
 		!strings.Contains(body, "starter.label") ||
-		!strings.Contains(body, "initialVerbStrokeBits") ||
 		!strings.Contains(body, "combineStrokeParts") ||
 		!strings.Contains(body, "phraseFilterInput") ||
 		!strings.Contains(body, "phraseShowOutlines") ||
@@ -1291,13 +1291,15 @@ func TestStaticPhrasingTrainerScript(t *testing.T) {
 		!strings.Contains(body, "restorePhraseSettings") ||
 		!strings.Contains(body, "savePhraseSettings") ||
 		!strings.Contains(body, "repeatedShuffledPasses") ||
+		!strings.Contains(body, "for (let j = 0; j < pass.length; j++)") ||
 		!strings.Contains(body, "repeatedPromptBlocks") ||
 		!strings.Contains(body, "normalizedPromptPhrase") {
 		t.Fatalf("expected trainer script contents, got %q", rec.Body.String())
 	}
-	if strings.Contains(body, "uniqueStrings(entry.texts).join(' / ')") ||
+	if strings.Contains(body, "initialVerbStrokeBits") ||
+		strings.Contains(body, "uniqueStrings(entry.texts).join(' / ')") ||
 		strings.Contains(body, "examples.join(' / ')") {
-		t.Fatalf("expected compact IV labels instead of combined verb lists, got %q", body)
+		t.Fatalf("expected pedal-scoped prompts and compact IV labels, got %q", body)
 	}
 }
 
@@ -1388,7 +1390,7 @@ func TestPhrasingDataRoute(t *testing.T) {
 		`"id": "at"`,
 		`"id": "like"`,
 		`"stroke": "-BL"`,
-		`"stroke": "KPL"`,
+		`"stroke": "PH"`,
 		`"stroke": "SWR"`,
 		`"stroke": "WH"`,
 		`"stroke": "STP"`,
