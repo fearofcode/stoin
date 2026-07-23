@@ -52,7 +52,12 @@ static bool expect_phrase_lookup(
     }
 
     char *text = NULL;
-    const Phrase_Lookup_Result result = phrasing_lookup(phrasing, bits, &text);
+    const Phrase_Lookup_Result result = phrasing_lookup(
+        phrasing,
+        PHRASE_NAMESPACE_INITIAL_VERB,
+        bits,
+        &text
+    );
     bool ok = true;
     if (expected == NULL) {
         ok = expect_size(name, result, PHRASE_LOOKUP_MISS)

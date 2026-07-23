@@ -562,6 +562,7 @@ void platform_poll_input_events(void)
 
 void platform_shutdown(void)
 {
+    platform_pedals_shutdown();
     platform_file_watcher_stop();
 
     if (g_macos.tap_thread_started) {

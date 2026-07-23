@@ -33,6 +33,7 @@ COMMON_SOURCES := \
 	src/file_stability.c \
 	src/format.c \
 	src/gemini_pr.c \
+	src/json_util.c \
 	src/keymap.c \
 	src/orthography.c \
 	src/phrasing.c \
@@ -64,6 +65,7 @@ PLATFORM_SOURCES := \
 	src/platform_macos.c \
 	src/platform_macos_file_watcher.c \
 	src/platform_macos_output.c \
+	src/platform_macos_pedals.c \
 	src/platform_posix_serial.c
 else ifeq ($(PLATFORM),linux)
 PLATFORM_CFLAGS += -D_DEFAULT_SOURCE

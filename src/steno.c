@@ -1,8 +1,6 @@
 #include "steno_internal.h"
 
 #include "file_stability.h"
-#include "steno_stroke.h"
-#include "text_util.h"
 #include "util.h"
 
 #include <stdio.h>
@@ -31,6 +29,44 @@ static void reset_chord(Steno *steno)
 {
     steno->down_keycodes = 0;
     steno->chord_bits = 0;
+    steno->chord_phrase_namespace = PHRASE_NAMESPACE_NONE;
+}
+
+static Phrase_Namespace current_or_pending_phrase_namespace(const Steno *steno)
+{
+    if (steno == NULL) {
+        return PHRASE_NAMESPACE_NONE;
+    }
+
+    const bool initial = steno->initial_verb_phrase_down
+        || steno->initial_verb_phrase_pending;
+    const bool final = steno->final_verb_phrase_down
+        || steno->final_verb_phrase_pending;
+    const bool nonverb = steno->nonverb_phrase_down
+        || steno->nonverb_phrase_pending;
+    const unsigned int active_count = (initial ? 1u : 0u)
+        + (final ? 1u : 0u)
+        + (nonverb ? 1u : 0u);
+    if (active_count != 1) {
+        return PHRASE_NAMESPACE_NONE;
+    }
+    if (initial) {
+        return PHRASE_NAMESPACE_INITIAL_VERB;
+    }
+    if (final) {
+        return PHRASE_NAMESPACE_FINAL_VERB;
+    }
+    return PHRASE_NAMESPACE_NONVERB;
+}
+
+static void clear_pending_phrase_namespaces(Steno *steno)
+{
+    if (steno == NULL) {
+        return;
+    }
+    steno->initial_verb_phrase_pending = false;
+    steno->final_verb_phrase_pending = false;
+    steno->nonverb_phrase_pending = false;
 }
 
 enum {
@@ -281,7 +317,6 @@ void steno_destroy(Steno *steno)
     orthography_destroy(&steno->orthography);
     phrasing_destroy(steno->phrasing);
     dictionary_stack_destroy(&steno->dictionary_stack);
-    free(steno->lookup_phrase);
     free(steno->phrasing_path);
     free(steno->spacing.spacing);
     free(steno);
@@ -333,6 +368,9 @@ bool steno_handle_event(Steno *steno, const Input_Event *event)
     const uint64_t physical_bit = keycode_physical_bit(event->keycode);
     if (event->is_down) {
         if ((steno->down_keycodes & physical_bit) == 0 && !event->is_repeat) {
+            if (steno->down_keycodes == 0) {
+                steno->chord_phrase_namespace = current_or_pending_phrase_namespace(steno);
+            }
             steno->down_keycodes |= physical_bit;
             steno->chord_bits |= binding->bits;
         }
@@ -343,8 +381,10 @@ bool steno_handle_event(Steno *steno, const Input_Event *event)
     if (steno->down_keycodes == 0) {
         Stroke_Input stroke = {
             .bits = steno->chord_bits,
+            .phrase_namespace = steno->chord_phrase_namespace,
         };
         (void)steno_translate_stroke_input(steno, stroke);
+        clear_pending_phrase_namespaces(steno);
         reset_chord(steno);
     }
     return true;
@@ -358,7 +398,12 @@ bool steno_handle_stroke(Steno *steno, Stroke_Input stroke)
     if (!steno->session_active) {
         return false;
     }
-    return steno_translate_stroke_input(steno, stroke);
+    if (stroke.phrase_namespace == PHRASE_NAMESPACE_NONE) {
+        stroke.phrase_namespace = current_or_pending_phrase_namespace(steno);
+    }
+    const bool ok = steno_translate_stroke_input(steno, stroke);
+    clear_pending_phrase_namespaces(steno);
+    return ok;
 }
 
 bool steno_handle_stroke_bits(Steno *steno, uint64_t bits)
@@ -370,6 +415,41 @@ bool steno_handle_stroke_bits(Steno *steno, uint64_t bits)
         .bits = bits,
     };
     return steno_handle_stroke(steno, stroke);
+}
+
+void steno_set_phrase_namespace(Steno *steno, Phrase_Namespace namespace, bool is_down)
+{
+    if (steno == NULL) {
+        return;
+    }
+
+    bool *down = NULL;
+    bool *pending = NULL;
+    switch (namespace) {
+    case PHRASE_NAMESPACE_INITIAL_VERB:
+        down = &steno->initial_verb_phrase_down;
+        pending = &steno->initial_verb_phrase_pending;
+        break;
+    case PHRASE_NAMESPACE_FINAL_VERB:
+        down = &steno->final_verb_phrase_down;
+        pending = &steno->final_verb_phrase_pending;
+        break;
+    case PHRASE_NAMESPACE_NONVERB:
+        down = &steno->nonverb_phrase_down;
+        pending = &steno->nonverb_phrase_pending;
+        break;
+    case PHRASE_NAMESPACE_NONE:
+    default:
+        return;
+    }
+
+    *down = is_down;
+    if (is_down) {
+        *pending = true;
+    }
+    if (steno->down_keycodes != 0) {
+        steno->chord_phrase_namespace = current_or_pending_phrase_namespace(steno);
+    }
 }
 
 void steno_set_session_active(Steno *steno, bool active)
@@ -384,6 +464,10 @@ void steno_set_session_active(Steno *steno, bool active)
     steno->control_down = false;
     steno->option_down = false;
     steno->command_down = false;
+    steno->initial_verb_phrase_down = false;
+    steno->final_verb_phrase_down = false;
+    steno->nonverb_phrase_down = false;
+    clear_pending_phrase_namespaces(steno);
 }
 
 size_t steno_key_binding_count(const Steno *steno)
@@ -406,37 +490,11 @@ bool steno_lookup_stroke(Steno *steno, const char *stroke, const char **out_tran
     if (steno == NULL || stroke == NULL || out_translation == NULL) {
         return false;
     }
-    const char *dictionary_translation = NULL;
-    const bool dictionary_found = dictionary_lookup_stroke(
+    return dictionary_lookup_stroke(
         &steno->dictionary_stack.dictionary,
         stroke,
-        &dictionary_translation
+        out_translation
     );
-    if (dictionary_found
-        && (strchr(stroke, '/') != NULL || !text_is_plain_multiword(dictionary_translation))) {
-        *out_translation = dictionary_translation;
-        return true;
-    }
-
-    uint64_t bits = 0;
-    if (!stroke_string_to_bits(stroke, &bits)) {
-        return false;
-    }
-    free(steno->lookup_phrase);
-    steno->lookup_phrase = NULL;
-    const Phrase_Lookup_Result phrase_result = phrasing_lookup(
-        steno->phrasing,
-        bits,
-        &steno->lookup_phrase
-    );
-    if (phrase_result == PHRASE_LOOKUP_HIT) {
-        *out_translation = steno->lookup_phrase;
-        return true;
-    }
-    if (dictionary_found) {
-        *out_translation = dictionary_translation;
-    }
-    return dictionary_found;
 }
 
 bool steno_dump_dictionary_json(const Steno *steno, const char *path)

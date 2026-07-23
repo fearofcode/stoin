@@ -2,6 +2,7 @@
 #define STENO_H
 
 #include "platform.h"
+#include "phrasing.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -25,6 +26,7 @@ typedef struct Spacing_State {
 
 typedef struct Stroke_Input {
     uint64_t bits;
+    Phrase_Namespace phrase_namespace;
     uint64_t received_ns;
 } Stroke_Input;
 
@@ -52,6 +54,7 @@ void steno_destroy(Steno *steno);
 bool steno_handle_event(Steno *steno, const Input_Event *event);
 bool steno_handle_stroke(Steno *steno, Stroke_Input stroke);
 bool steno_handle_stroke_bits(Steno *steno, uint64_t bits);
+void steno_set_phrase_namespace(Steno *steno, Phrase_Namespace namespace, bool is_down);
 void steno_set_session_active(Steno *steno, bool active);
 bool steno_reload_dictionary(Steno *steno);
 bool steno_reload_dictionary_if_changed(Steno *steno);

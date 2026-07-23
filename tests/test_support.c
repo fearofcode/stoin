@@ -135,7 +135,10 @@ bool handle_phrase_test_stroke(Steno *steno, const char *stroke)
         return false;
     }
 
-    const bool ok = steno_handle_stroke_bits(steno, bits);
+    const bool ok = steno_handle_stroke(steno, ((Stroke_Input) {
+        .bits = bits,
+        .phrase_namespace = PHRASE_NAMESPACE_INITIAL_VERB,
+    }));
     if (!ok) {
         fprintf(stderr, "test failed: phrase stroke '%s' was not handled\n", stroke);
     }

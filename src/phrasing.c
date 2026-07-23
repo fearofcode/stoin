@@ -1203,6 +1203,64 @@ static bool parse_final_verbs(Phrasing *phrasing, const cJSON *root, const char 
         && parse_fv_starters(phrasing, starters, path);
 }
 
+static bool validate_shared_phrase_banks(const Phrasing *phrasing, const char *path)
+{
+    if (arrlenu(phrasing->iv_tails) != arrlenu(phrasing->nv_tails)) {
+        fprintf(stderr,
+            "stoin: phrasing '%s' shared IV/NV tail banks must have the same length\n",
+            path);
+        return false;
+    }
+    for (size_t i = 0; i < arrlenu(phrasing->iv_tails); ++i) {
+        const Phrase_Tail *iv = &phrasing->iv_tails[i];
+        const Phrase_Tail *nv = &phrasing->nv_tails[i];
+        if (iv->bits != nv->bits
+            || strcmp(iv->id, nv->id) != 0
+            || strcmp(iv->text, nv->text) != 0) {
+            fprintf(stderr,
+                "stoin: phrasing '%s' shared IV/NV tail banks differ at index %zu\n",
+                path,
+                i);
+            return false;
+        }
+    }
+
+    if (arrlenu(phrasing->fv_starters) != arrlenu(phrasing->nv_prefixes)) {
+        fprintf(stderr,
+            "stoin: phrasing '%s' shared FV/NV starter banks must have the same length\n",
+            path);
+        return false;
+    }
+    for (size_t i = 0; i < arrlenu(phrasing->fv_starters); ++i) {
+        const Fv_Starter *fv = &phrasing->fv_starters[i];
+        const Nv_Prefix *nv = &phrasing->nv_prefixes[i];
+        if (fv->bits != nv->bits || strcmp(fv->text, nv->text) != 0) {
+            fprintf(stderr,
+                "stoin: phrasing '%s' shared FV/NV starter banks differ at index %zu\n",
+                path,
+                i);
+            return false;
+        }
+        if (arrlenu(nv->tail_indices) != arrlenu(phrasing->nv_tails)) {
+            fprintf(stderr,
+                "stoin: phrasing '%s' shared NV prefix at index %zu must enable every tail\n",
+                path,
+                i);
+            return false;
+        }
+        for (size_t j = 0; j < arrlenu(nv->tail_indices); ++j) {
+            if (nv->tail_indices[j] != j) {
+                fprintf(stderr,
+                    "stoin: phrasing '%s' shared NV prefix at index %zu must list tails in shared-bank order\n",
+                    path,
+                    i);
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 Phrasing *phrasing_load(const char *path)
 {
     size_t size = 0;
@@ -1233,9 +1291,12 @@ Phrasing *phrasing_load(const char *path)
         return NULL;
     }
 
-    const bool ok = parse_initial_verbs(phrasing, root, path)
+    bool shared_banks = false;
+    const bool ok = parse_optional_bool(root, "shared_banks", false, &shared_banks)
+        && parse_initial_verbs(phrasing, root, path)
         && parse_nonverbs(phrasing, root, path)
-        && parse_final_verbs(phrasing, root, path);
+        && parse_final_verbs(phrasing, root, path)
+        && (!shared_banks || validate_shared_phrase_banks(phrasing, path));
     cJSON_Delete(root);
     free(file);
     if (!ok) {
@@ -1697,6 +1758,7 @@ static Phrase_Lookup_Result lookup_final_verb(const Phrasing *phrasing, uint64_t
 
 Phrase_Lookup_Result phrasing_lookup(
     const Phrasing *phrasing,
+    Phrase_Namespace namespace,
     uint64_t stroke_bits,
     char **out_utf8
 )
@@ -1709,12 +1771,15 @@ Phrase_Lookup_Result phrasing_lookup(
         return PHRASE_LOOKUP_MISS;
     }
 
-    Phrase_Lookup_Result result = lookup_initial_verb(phrasing, stroke_bits, out_utf8);
-    if (result != PHRASE_LOOKUP_MISS) {
-        return result;
+    switch (namespace) {
+    case PHRASE_NAMESPACE_INITIAL_VERB:
+        return lookup_initial_verb(phrasing, stroke_bits, out_utf8);
+    case PHRASE_NAMESPACE_FINAL_VERB:
+        return lookup_final_verb(phrasing, stroke_bits, out_utf8);
+    case PHRASE_NAMESPACE_NONVERB:
+        return lookup_nonverb(phrasing, stroke_bits, out_utf8);
+    case PHRASE_NAMESPACE_NONE:
+    default:
+        return PHRASE_LOOKUP_MISS;
     }
-    result = lookup_nonverb(phrasing, stroke_bits, out_utf8);
-    return result != PHRASE_LOOKUP_MISS
-        ? result
-        : lookup_final_verb(phrasing, stroke_bits, out_utf8);
 }

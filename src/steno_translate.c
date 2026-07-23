@@ -1,8 +1,6 @@
 #include "steno_internal.h"
 
 #include "steno_stroke.h"
-#include "text_util.h"
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -144,44 +142,72 @@ static bool translate_dictionary_bits_with_trace(
     }
     set_replacement_format_case_state(steno, &match);
 
-    char *phrase_translation = NULL;
-    bool phrase = false;
-    const bool soft_dictionary_phrase = match.translation != NULL
-        && match.stroke_count == 1
-        && !match.suffix_match
-        && text_is_plain_multiword(match.translation);
-    if (match.translation == NULL || soft_dictionary_phrase) {
-        const Phrase_Lookup_Result result = phrasing_lookup(
-            steno->phrasing,
-            bits,
-            &phrase_translation
-        );
-        if (result == PHRASE_LOOKUP_ERROR) {
-            free(phrase_translation);
-            translation_match_destroy(&match);
-            return false;
-        }
-        if (result == PHRASE_LOOKUP_HIT) {
-            match.translation = phrase_translation;
-            phrase = true;
-        }
-    }
-
     trace_stroke_with_mode(
         steno,
         match.outline,
         match.translation,
-        phrase ? TRACE_STROKE_PHRASE : trace_mode
+        trace_mode
     );
     const bool ok = steno_apply_translation_match(steno, &match);
     if (ok) {
-        if (match.translation != NULL && !phrase) {
+        if (match.translation != NULL) {
             steno_maybe_emit_brevity_suggestion(steno);
         }
         count_completed_stroke(steno);
     }
-    free(phrase_translation);
     translation_match_destroy(&match);
+    return ok;
+}
+
+static bool translate_phrase_bits(
+    Steno *steno,
+    Phrase_Namespace namespace,
+    uint64_t bits,
+    bool *out_hit
+)
+{
+    if (out_hit != NULL) {
+        *out_hit = false;
+    }
+    if (bits == 0) {
+        return true;
+    }
+
+    char raw_chord[64] = {0};
+    if (!chord_bits_to_string(bits, raw_chord, sizeof(raw_chord))) {
+        return false;
+    }
+
+    char *phrase = NULL;
+    const Phrase_Lookup_Result result = phrasing_lookup(
+        steno->phrasing,
+        namespace,
+        bits,
+        &phrase
+    );
+    if (result == PHRASE_LOOKUP_ERROR) {
+        free(phrase);
+        return false;
+    }
+    if (result == PHRASE_LOOKUP_MISS) {
+        free(phrase);
+        return true;
+    }
+
+    Translation_Match match = {0};
+    match.translation = phrase;
+    match.strokes[0] = bits;
+    match.stroke_count = 1;
+    snprintf(match.outline, sizeof(match.outline), "%s", raw_chord);
+    trace_stroke_with_mode(steno, raw_chord, phrase, TRACE_STROKE_PHRASE);
+    const bool ok = steno_apply_translation_match(steno, &match);
+    if (ok) {
+        count_completed_stroke(steno);
+        if (out_hit != NULL) {
+            *out_hit = true;
+        }
+    }
+    free(phrase);
     return ok;
 }
 
@@ -192,5 +218,14 @@ bool steno_translate_chord_bits(Steno *steno, uint64_t bits)
 
 bool steno_translate_stroke_input(Steno *steno, Stroke_Input stroke)
 {
+    if (stroke.phrase_namespace != PHRASE_NAMESPACE_NONE) {
+        bool hit = false;
+        if (!translate_phrase_bits(steno, stroke.phrase_namespace, stroke.bits, &hit)) {
+            return false;
+        }
+        if (hit) {
+            return true;
+        }
+    }
     return translate_dictionary_bits_with_trace(steno, stroke.bits, TRACE_STROKE_NORMAL);
 }

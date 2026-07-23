@@ -145,7 +145,6 @@ int main(void)
     uint64_t right_arrow_bits = 0;
     uint64_t dictionary_toggle_bits = 0;
     uint64_t phrase_is_a_bits = 0;
-    uint64_t khrep_bits = 0;
     ok = ok && stroke_string_to_bits("STOER", &story_bits);
     ok = ok && stroke_string_to_bits("-Z", &plural_bits);
     ok = ok && stroke_string_to_bits("-D", &past_bits);
@@ -214,760 +213,100 @@ int main(void)
     ok = ok && stroke_string_to_bits("PHROF", &plover_bits);
     ok = ok && stroke_string_to_bits("STPH-G", &right_arrow_bits);
     ok = ok && stroke_string_to_bits("STPH", &dictionary_toggle_bits);
-    ok = ok && stroke_string_to_bits("SKPWOB", &phrase_is_a_bits);
-    ok = ok && stroke_string_to_bits("SKPHOEP", &khrep_bits);
+    ok = ok && stroke_string_to_bits("PW-B", &phrase_is_a_bits);
 
-    clear_test_output(&output);
-    reset_output_log(&output);
-    ok = ok && steno_handle_stroke_bits(steno, phrase_is_a_bits);
-    ok = ok && expect_string("phrase is active in the ordinary namespace", output.text, "is a");
 
+    config.phrasing_path = "phrasing.json";
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
+    reset_output_log(&output);
     ok = ok && handle_test_stroke(steno, "PW-B");
-    ok = ok && expect_string("ordinary dictionary chord remains unchanged on phrase miss", output.text, "dictionary is a");
-
-    ok = ok && reset_test_steno(&steno, &config);
-    clear_test_output(&output);
-    ok = ok && handle_test_stroke(steno, "SKPWOP");
-    ok = ok && expect_string("dictionary word still overrides generated phrase", output.text, "sit");
-
-    ok = ok && reset_test_steno(&steno, &config);
-    clear_test_output(&output);
-    ok = ok && handle_test_stroke(steno, "SKPWOT");
-    ok = ok && expect_string("dictionary miss uses generated phrase", output.text, "is the");
-    ok = ok && handle_test_stroke(steno, "TO");
     ok = ok && expect_string(
-        "phrase remains open to a longer dictionary outline",
+        "ordinary dictionary namespace ignores phrase tables",
         output.text,
-        "dictionary extended phrase fallback");
+        "dictionary is a");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    ok = ok && handle_test_stroke(steno, "SKWHR-B");
-    ok = ok && expect_string("final verb phrase uses ordinary lookup", output.text, "she is");
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, true);
+    ok = ok && handle_test_stroke(steno, "PW-B");
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, false);
+    ok = ok && expect_string("initial verb pedal selects IV", output.text, "is a");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    reset_output_log(&output);
-    ok = ok && handle_phrase_test_stroke(steno, "SKPWOB");
-    ok = ok && expect_string("initial verb chord is distinct from dictionary", output.text, "is a");
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, true);
+    ok = ok && handle_test_stroke(steno, "SK-B");
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, false);
+    ok = ok && expect_string("final verb pedal selects FV", output.text, "she is");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    reset_output_log(&output);
-    ok = ok && handle_phrase_test_stroke(steno, "TKHB");
-    ok = ok && expect_string("nonverb phrase has a distinct ordinary chord", output.text, "near a");
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, true);
+    ok = ok && handle_test_stroke(steno, "WH-B");
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, false);
+    ok = ok && expect_string("nonverb pedal selects NV", output.text, "with a");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    reset_output_log(&output);
-    ok = ok && handle_phrase_test_stroke(steno, "SKPWOB");
-    ok = ok && expect_string("initial verb is a", output.text, "is a");
-    ok = ok && handle_phrase_test_stroke(steno, "SKPWOT");
-    ok = ok && expect_string("initial verb spacing", output.text, "is a is the");
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, true);
+    ok = ok && handle_test_stroke(steno, "SK-B");
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, false);
+    ok = ok && expect_string("same chord has IV meaning", output.text, "asks a");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, true);
+    ok = ok && handle_test_stroke(steno, "SK-B");
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, false);
+    ok = ok && expect_string("same chord has NV meaning", output.text, "she a");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, true);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, false);
+    ok = ok && handle_test_stroke(steno, "PW-T");
+    ok = ok && expect_string("pedal tap arms the next stroke", output.text, "is the");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, true);
+    ok = ok && handle_test_stroke(steno, "PW-B");
+    ok = ok && handle_test_stroke(steno, "PW-T");
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, false);
+    ok = ok && expect_string("held pedal applies to consecutive strokes", output.text, "is a is the");
     ok = ok && steno_handle_stroke_bits(steno, undo_bits);
-    ok = ok && expect_string("initial verb undo", output.text, "is a");
-
-    const struct {
-        const char *stroke;
-        const char *expected;
-    } initial_verb_cases[] = {
-        { "SKPWOB", "is a" },
-        { "SKPWOBD", "was a" },
-        { "SKPWOEB", "are a" },
-        { "SKPWOEBD", "were a" },
-        { "SKPWOUB", "to be a" },
-        { "SKPWAOB", "can be a" },
-        { "SKPWAOBD", "could be a" },
-        { "SKPWOT", "is the" },
-        { "TKPOBD", "had a" },
-        { "TKPOUB", "to have a" },
-        { "TKPAOP", "can have it" },
-        { "TKPAOPD", "could have it" },
-        { "STHOP", "says it" },
-        { "STHOPD", "said it" },
-        { "STHOEP", "say it" },
-        { "STHOUP", "to say it" },
-        { "STHO*P", "saying it" },
-        { "STHAOP", "can say it" },
-        { "TWHOP", "thinks it" },
-        { "TWHOPD", "thought it" },
-        { "TWHOEP", "think it" },
-        { "TWHOUP", "to think it" },
-        { "TWHO*P", "thinking it" },
-        { "TWHAOP", "can think it" },
-        { "TWHROS", "tells us" },
-        { "TWHROSD", "told us" },
-        { "TWHROES", "tell us" },
-        { "TWHROUS", "to tell us" },
-        { "TWHRO*S", "telling us" },
-        { "TWHRAOS", "can tell us" },
-        { "TKHOP", "holds it" },
-        { "TKHOPD", "held it" },
-        { "TKHOEP", "hold it" },
-        { "TKHOUP", "to hold it" },
-        { "TKHO*P", "holding it" },
-        { "TKHAOP", "can hold it" },
-        { "TKHAOPD", "could hold it" },
-        { "STHROS", "sells us" },
-        { "STHROSD", "sold us" },
-        { "STHROES", "sell us" },
-        { "STHROUS", "to sell us" },
-        { "STHRO*S", "selling us" },
-        { "STHRAOP", "can sell it" },
-        { "SPWROS", "spells us" },
-        { "SPWROSD", "spelled us" },
-        { "SPWROES", "spell us" },
-        { "SPWROUS", "to spell us" },
-        { "SPWRO*S", "spelling us" },
-        { "SPWRAOP", "can spell it" },
-        { "KPROP", "keeps it" },
-        { "KPROPD", "kept it" },
-        { "KPROEP", "keep it" },
-        { "KPROUP", "to keep it" },
-        { "KPRO*P", "keeping it" },
-        { "KPRAOP", "can keep it" },
-        { "KPROS", "keeps us" },
-        { "KPROSD", "kept us" },
-        { "KPRO*S", "keeping us" },
-        { "SKPHOB", "calls a" },
-        { "SKPHOBD", "called a" },
-        { "SKPHOEP", "call it" },
-        { "SKPHOUP", "to call it" },
-        { "SKPHAOP", "can call it" },
-        { "SKPHAOPD", "could call it" },
-        { "SKPHO*P", "calling it" },
-    };
-    for (size_t i = 0; i < sizeof(initial_verb_cases) / sizeof(initial_verb_cases[0]); ++i) {
-        ok = ok && expect_phrase_stroke_output(
-            &steno,
-            &config,
-            &output,
-            "initial verb set 1",
-            initial_verb_cases[i].stroke,
-            initial_verb_cases[i].expected);
-    }
-
-    const struct {
-        const char *stroke;
-        const char *expected;
-    } nonverb_cases[] = {
-        { "TWB", "with a" },
-        { "TW-PB", "with an" },
-        { "TW-S", "with us" },
-        { "PWH-RT", "anything that" },
-        { "PWHBL", "anything like" },
-        { "PWHLS", "anything else" },
-        { "TWR-PB", "as an" },
-        { "TWRF", "as if" },
-        { "TWRGT", "as though" },
-        { "WHR-S", "even us" },
-        { "WHR-RT", "even that" },
-        { "WHRGT", "even though" },
-    };
-    for (size_t i = 0; i < sizeof(nonverb_cases) / sizeof(nonverb_cases[0]); ++i) {
-        ok = ok && expect_phrase_stroke_output(
-            &steno,
-            &config,
-            &output,
-            "nonverb set 1",
-            nonverb_cases[i].stroke,
-            nonverb_cases[i].expected);
-    }
+    ok = ok && expect_string("phrase output participates in undo", output.text, "is a");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    ok = ok && handle_test_stroke(steno, "SKPHOEP");
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, true);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, true);
+    ok = ok && handle_test_stroke(steno, "PW-B");
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, false);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, false);
     ok = ok && expect_string(
-        "ordinary lookup finds initial verb phrase",
+        "simultaneous pedals do not choose an arbitrary namespace",
         output.text,
-        "call it");
-    ok = ok && reset_test_steno(&steno, &config);
-    clear_test_output(&output);
-    ok = ok && steno_handle_stroke(steno, ((Stroke_Input) {
-        .bits = khrep_bits,
-    }));
-    ok = ok && expect_string("direct stroke input finds initial verb phrase", output.text, "call it");
-
-    const struct {
-        const char *stroke;
-        const char *expected;
-    } final_verb_long_cases[] = {
-        { "SKWHR-B", "she is" },
-        { "SKWHR-BD", "she was" },
-        { "SKWHR*E", "she is not" },
-        { "SKWHR*ED", "she was not" },
-        { "SWHR-F", "I have" },
-        { "SWHR-FD", "I had" },
-        { "SKPWR-GD", "you went" },
-        { "SKWHRAO-G", "she will go" },
-        { "SKWHRAO*G", "she will not go" },
-        { "SKWHREG", "she is going" },
-        { "SKWHR-FG", "she has gone" },
-        { "SKPWR-PBT", "you know that" },
-        { "SKWHR-PBG", "she thinks" },
-        { "SKWHR-PBGD", "she thought" },
-        { "SKWHR-PBGT", "she thinks that" },
-        { "SKWHR-PBGTD", "she thought that" },
-        { "SKWHR-BS", "she says" },
-        { "SKWHR-BSD", "she said" },
-        { "SKWHR-BTS", "she says that" },
-        { "SKWHR-BTSD", "she said that" },
-        { "SKWHR-RLT", "she tells" },
-        { "SKWHR-RLTD", "she told" },
-        { "SKWHR-PBL", "she holds" },
-        { "SKWHR-PBLD", "she held" },
-        { "SKWHR-LS", "she sells" },
-        { "SKWHR-LSD", "she sold" },
-        { "SKWHR-PLS", "she spells" },
-        { "SKWHR-PLSD", "she spelled" },
-        { "SKWHR-RPBTS", "she keeps" },
-        { "SKWHR-RPBTSD", "she kept" },
-        { "TKWH-TS", "they have to" },
-    };
-    for (size_t i = 0; i < sizeof(final_verb_long_cases) / sizeof(final_verb_long_cases[0]); ++i) {
-        ok = ok && expect_phrase_stroke_output(
-            &steno,
-            &config,
-            &output,
-            "final verb long forms",
-            final_verb_long_cases[i].stroke,
-            final_verb_long_cases[i].expected);
-    }
-
-    const struct {
-        const char *stroke;
-        const char *expected;
-    } final_verb_contraction_cases[] = {
-        { "SKWHRUB", "she's" },
-        { "SKWHR*EU", "she isn't" },
-        { "SKWHR*EUD", "she wasn't" },
-        { "SKWHRAOUG", "she'll go" },
-        { "SKWHRAO*UG", "she won't go" },
-        { "SWHRUF", "I've" },
-        { "KWHRUFG", "he's gone" },
-        { "TKWHAOUG", "they'll go" },
-        { "TKWHUFRLTD", "they'd told" },
-        { "TKWHEUFRLTD", "they'd been telling" },
-        { "TKWHAOURLTD", "they'd tell" },
-        { "TKWHAOUFRLTD", "they'd have told" },
-        { "TKWH*URLTD", "they didn't tell" },
-        { "SKWHR*URLT", "she doesn't tell" },
-    };
-    for (size_t i = 0; i < sizeof(final_verb_contraction_cases) / sizeof(final_verb_contraction_cases[0]); ++i) {
-        ok = ok && expect_phrase_stroke_output(
-            &steno,
-            &config,
-            &output,
-            "final verb contractions",
-            final_verb_contraction_cases[i].stroke,
-            final_verb_contraction_cases[i].expected);
-    }
-
-    Steno_Config follow_on_config = config;
-    follow_on_config.phrasing_path = "phrasing.json";
-    const char *follow_on_form_strokes[] = { "", "-D", "E", "*", "U", "A", "A-D" };
-    const struct {
-        const char *stem;
-        const char *forms[7];
-    } follow_on_iv_rows[] = {
-        { "STKHO", { "does", "did", "do", "doing", "to do", "can do", "could do" } },
-        { "KPWHO", { "goes", "went", "go", "going", "to go", "can go", "could go" } },
-        { "SKWHO", { "wants", "wanted", "want", "wanting", "to want", "can want", "could want" } },
-        { "STPRO", { "puts", "put", "put", "putting", "to put", "can put", "could put" } },
-        { "SKPRO", { "asks", "asked", "ask", "asking", "to ask", "can ask", "could ask" } },
-        { "STPO", { "happens", "happened", "happen", "happening", "to happen", "can happen", "could happen" } },
-        { "SWHO", { "feels", "felt", "feel", "feeling", "to feel", "can feel", "could feel" } },
-        { "TKHRO", { "comes", "came", "come", "coming", "to come", "can come", "could come" } },
-        { "TPWHO", { "knows", "knew", "know", "knowing", "to know", "can know", "could know" } },
-        { "TKPHO", { "gets", "got", "get", "getting", "to get", "can get", "could get" } },
-        { "TPWRO", { "believes", "believed", "believe", "believing", "to believe", "can believe", "could believe" } },
-        { "KWHO", { "becomes", "became", "become", "becoming", "to become", "can become", "could become" } },
-        { "SKHRO", { "runs", "ran", "run", "running", "to run", "can run", "could run" } },
-        { "KPHRO", { "makes", "made", "make", "making", "to make", "can make", "could make" } },
-        { "PWHO", { "takes", "took", "take", "taking", "to take", "can take", "could take" } },
-        { "TPWO", { "finds", "found", "find", "finding", "to find", "can find", "could find" } },
-        { "STPWO", { "gives", "gave", "give", "giving", "to give", "can give", "could give" } },
-        { "STWO", { "uses", "used", "use", "using", "to use", "can use", "could use" } },
-        { "TKWRO", { "works", "worked", "work", "working", "to work", "can work", "could work" } },
-        { "SKPO", { "needs", "needed", "need", "needing", "to need", "can need", "could need" } },
-        { "STKWO", { "remembers", "remembered", "remember", "remembering", "to remember", "can remember", "could remember" } },
-        { "SKHO", { "understands", "understood", "understand", "understanding", "to understand", "can understand", "could understand" } },
-        { "STKRO", { "tries", "tried", "try", "trying", "to try", "can try", "could try" } },
-        { "TKPRO", { "expects", "expected", "expect", "expecting", "to expect", "can expect", "could expect" } },
-    };
-    uint64_t follow_on_tail_bits = 0;
-    ok = ok && stroke_string_to_bits("-RT", &follow_on_tail_bits);
-    for (size_t i = 0; ok && i < sizeof(follow_on_iv_rows) / sizeof(follow_on_iv_rows[0]); ++i) {
-        for (size_t j = 0; ok && j < sizeof(follow_on_form_strokes) / sizeof(follow_on_form_strokes[0]); ++j) {
-            uint64_t stem_bits = 0;
-            uint64_t form_bits = 0;
-            ok = ok && stroke_string_to_bits(follow_on_iv_rows[i].stem, &stem_bits);
-            if (follow_on_form_strokes[j][0] != '\0') {
-                ok = ok && stroke_string_to_bits(follow_on_form_strokes[j], &form_bits);
-            }
-            ok = ok && reset_test_steno(&steno, &follow_on_config);
-            clear_test_output(&output);
-            reset_output_log(&output);
-            ok = ok && steno_handle_stroke(steno, ((Stroke_Input) {
-                .bits = stem_bits | form_bits | follow_on_tail_bits,
-            }));
-            char expected[128] = {0};
-            char name[128] = {0};
-            snprintf(expected, sizeof(expected), "%s that", follow_on_iv_rows[i].forms[j]);
-            snprintf(name, sizeof(name), "verb follow-on IV %s %s", follow_on_iv_rows[i].stem, follow_on_form_strokes[j]);
-            ok = ok && expect_string(name, output.text, expected);
-        }
-    }
-
-    const struct {
-        const char *id;
-        const char *ender;
-        const char *past_ender;
-        const char *forms[5];
-    } follow_on_fv_rows[] = {
-        { "happen", "-PZ", "-PDZ", { "happen", "happens", "happened", "happening", "happened" } },
-        { "feel", "-LT", "-LTD", { "feel", "feels", "felt", "feeling", "felt" } },
-        { "come", "-BG", "-BGD", { "come", "comes", "came", "coming", "come" } },
-        { "believe", "-BL", "-BLD", { "believe", "believes", "believed", "believing", "believed" } },
-        { "become", "-RPBG", "-RPBGD", { "become", "becomes", "became", "becoming", "become" } },
-        { "run", "-R", "-RD", { "run", "runs", "ran", "running", "run" } },
-        { "make", "-RPBL", "-RPBLD", { "make", "makes", "made", "making", "made" } },
-        { "take", "-RBT", "-RBTD", { "take", "takes", "took", "taking", "taken" } },
-        { "give", "-GZ", "-GDZ", { "give", "gives", "gave", "giving", "given" } },
-        { "use", "-Z", "-DZ", { "use", "uses", "used", "using", "used" } },
-        { "work", "-RBG", "-RBGD", { "work", "works", "worked", "working", "worked" } },
-        { "remember", "-RPL", "-RPLD", { "remember", "remembers", "remembered", "remembering", "remembered" } },
-        { "understand", "-RPB", "-RPBD", { "understand", "understands", "understood", "understanding", "understood" } },
-        { "expect", "-PGS", "-PGSD", { "expect", "expects", "expected", "expecting", "expected" } },
-        { "ask", "-RBS", "-RBSD", { "ask", "asks", "asked", "asking", "asked" } },
-    };
-    const struct {
-        const char *starter;
-        const char *structure;
-        bool past;
-        const char *prefix;
-    } follow_on_fv_forms[] = {
-        { "SWHR", "", false, "I " },
-        { "SKWHR", "", false, "she " },
-        { "SKWHR", "", true, "she " },
-        { "SKWHR", "E", false, "she is " },
-        { "SKWHR", "-F", false, "she has " },
-    };
-    for (size_t i = 0; ok && i < sizeof(follow_on_fv_rows) / sizeof(follow_on_fv_rows[0]); ++i) {
-        for (size_t j = 0; ok && j < sizeof(follow_on_fv_forms) / sizeof(follow_on_fv_forms[0]); ++j) {
-            uint64_t starter_bits = 0;
-            uint64_t structure_bits = 0;
-            uint64_t ender_bits = 0;
-            ok = ok && stroke_string_to_bits(follow_on_fv_forms[j].starter, &starter_bits);
-            if (follow_on_fv_forms[j].structure[0] != '\0') {
-                ok = ok && stroke_string_to_bits(follow_on_fv_forms[j].structure, &structure_bits);
-            }
-            ok = ok && stroke_string_to_bits(
-                follow_on_fv_forms[j].past ? follow_on_fv_rows[i].past_ender : follow_on_fv_rows[i].ender,
-                &ender_bits
-            );
-            ok = ok && reset_test_steno(&steno, &follow_on_config);
-            clear_test_output(&output);
-            reset_output_log(&output);
-            ok = ok && steno_handle_stroke(steno, ((Stroke_Input) {
-                .bits = starter_bits | structure_bits | ender_bits,
-            }));
-            char expected[128] = {0};
-            char name[128] = {0};
-            snprintf(expected, sizeof(expected), "%s%s", follow_on_fv_forms[j].prefix, follow_on_fv_rows[i].forms[j]);
-            snprintf(name, sizeof(name), "verb follow-on FV %s form %zu", follow_on_fv_rows[i].id, j);
-            ok = ok && expect_string(name, output.text, expected);
-        }
-    }
-
-    const struct {
-        const char *stroke;
-        const char *expected;
-    } verb_follow_on_cases[] = {
-        { "STKWH-B", "this is" },
-        { "STKWH-BD", "this was" },
-        { "STKWH-FG", "this has gone" },
-        { "STKWHAO*", "this will not" },
-        { "STKWHAOU", "this'll" },
-        { "STKWH-PGS", "this expects" },
-        { "STPWH-B", "it is" },
-        { "STPWR-B", "we are" },
-        { "STWH-B", "that is" },
-        { "STWH-BD", "that was" },
-        { "STWHUB", "that's" },
-        { "STWHUFG", "that's gone" },
-        { "STWHAO*", "that will not" },
-        { "STWHAOU", "that'll" },
-        { "TKWHEUFRLTD", "they'd been telling" },
-        { "TKWHAOURLTD", "they'd tell" },
-        { "TKWH*URLTD", "they didn't tell" },
-        { "SKWHR*URLT", "she doesn't tell" },
-        { "TKPHR-B", "there are" },
-        { "TKPHR-BD", "there were" },
-        { "TKPHRE", "there are" },
-        { "TKPHRED", "there were" },
-        { "TKPHRUB", "there're" },
-        { "TKPHR*EUD", "there weren't" },
-        { "TKPHRAO*", "there will not" },
-        { "TKPHRAOU", "there'll" },
-        { "TKPHRE-F", "there have been" },
-        { "TKPHREUF", "there've been" },
-        { "TKPHR-BG", "there come" },
-        { "TKPHR-BGD", "there came" },
-        { "TKPHR-PZ", "there happen" },
-        { "TKPHR-PDZ", "there happened" },
-        { "TKPHR-RBS", "TKPHR-RBS" },
-        { "STWHRE", "there is" },
-        { "STWHRED", "there was" },
-        { "STWHR*E", "there is not" },
-        { "STWHR*ED", "there was not" },
-        { "STWHREU", "there's" },
-        { "STWHR*EUD", "there wasn't" },
-        { "STWHRAO*", "there will not" },
-        { "STWHRAOU", "there'll" },
-        { "STWHRAO*U", "there won't" },
-        { "STWHRAOE", "there will be" },
-        { "STWHRE-F", "there has been" },
-        { "STWHREUF", "there's been" },
-        { "STWHR-BT", "there is a" },
-        { "STWHR-BTD", "there was a" },
-        { "STWHR-TS", "there has to" },
-        { "STWHR-TSD", "there had to" },
-        { "STWHR-G", "there goes" },
-        { "STWHR-GD", "there went" },
-        { "STWHRAO-GT", "there will go to" },
-        { "STWHR-GTD", "there went to" },
-        { "STWHR-L", "there looks" },
-        { "STWHR-LD", "there looked" },
-        { "STWHR-PZ", "there happens" },
-        { "STWHR-PDZ", "there happened" },
-        { "STWHR-LTS", "there feels like" },
-        { "STWHR-LTSD", "there felt like" },
-        { "STWHRAO-BG", "there will come" },
-        { "STWHR-BGD", "there came" },
-        { "STWHR-BGT", "there comes to" },
-        { "STWHR-BGTD", "there came to" },
-        { "STWHR-RPBG", "there becomes" },
-        { "STWHR-RPBGD", "there became" },
-        { "STWHR-RPBGT", "there becomes a" },
-        { "STWHR-RPBGTD", "there became a" },
-        { "STWHRAO-R", "there will run" },
-        { "STWHRE-RD", "there was running" },
-        { "STWHR-RBT", "there takes" },
-        { "STWHR-RBTD", "there took" },
-        { "STWHR-RPGT", "there needs to" },
-        { "STWHR-RPGTD", "there needed to" },
-        { "STWHR-GTS", "there gets to" },
-        { "STWHR-GTSD", "there got to" },
-        { "STWHR-RBG", "there works" },
-        { "STWHR-RBGD", "there worked" },
-        { "STWHR-RBGT", "there works on" },
-        { "STWHR-RBGTD", "there worked on" },
-        { "TWHROB", "tells a" },
-        { "TWHROBD", "told a" },
-        { "TWHRO*T", "telling the" },
-        { "TWHRO*B", "telling a" },
-        { "TWHROR", "tells her" },
-        { "TWHRORBS", "TWHRORBS" },
-        { "SKPWOPB", "is an" },
-        { "SKPWO-RPB", "is he" },
-        { "SKPWO-RB", "is she" },
-        { "SKPWOE-RPBD", "were he" },
-        { "SKPWOERBD", "were she" },
-        { "SKPWOGT", "is with" },
-        { "TKPO-RPB", "has he" },
-        { "TKPO-RB", "has she" },
-        { "STKHOP", "does it" },
-        { "STKHO-RPB", "does he" },
-        { "STKHO-RB", "does she" },
-        { "STKHOPB", "does an" },
-        { "STKHOPD", "did it" },
-        { "STKHOEP", "do it" },
-        { "STKHO*P", "doing it" },
-        { "STKHOUP", "to do it" },
-        { "STKHAOP", "can do it" },
-        { "STKHAOPD", "could do it" },
-        { "STPROP", "puts it" },
-        { "SPWROSZ", "spells out" },
-        { "KPWHOLTD", "went at" },
-        { "SKWHOB", "wants a" },
-        { "SKWHO*P", "wanting it" },
-        { "SKPROUPLT", "to ask me" },
-        { "STPOLTD", "happened at" },
-        { "SWHORT", "feels that" },
-        { "SWHOBL", "feels like" },
-        { "SWHOEBL", "feel like" },
-        { "SWHOBLD", "felt like" },
-        { "SWHO*BL", "feeling like" },
-        { "TKHROELT", "come at" },
-        { "TPWHAORT", "can know that" },
-        { "TKPHO*P", "getting it" },
-        { "TPWRORTD", "believed that" },
-        { "KWHOB", "becomes a" },
-        { "PWHO*P", "taking it" },
-        { "TPWAORT", "can find that" },
-        { "STPWOPD", "gave it" },
-        { "STWOEP", "use it" },
-        { "TKWRO*LT", "working at" },
-        { "SKPOUP", "to need it" },
-        { "STKWORTD", "remembered that" },
-        { "SKHOERT", "understand that" },
-        { "STKRAOPD", "could try it" },
-        { "TKPRORT", "expects that" },
-        { "KPHOP", "catches it" },
-        { "SKHROP", "runs it" },
-        { "KPHRORTD", "made that" },
-        { "KPHROBL", "makes like" },
-        { "KPROBL", "keeps like" },
-        { "KPROPL", "keeps my" },
-        { "STPOPLT", "STPOPLT" },
-        { "TKHROS", "TKHROS" },
-        { "KWHOLT", "KWHOLT" },
-        { "STWOFB", "STWOFB" },
-        { "SKWHR-RB", "she catches" },
-        { "SKWHR-RBS", "she asks" },
-        { "SKWHR-RBSD", "she asked" },
-        { "SKWHR-PZ", "she happens" },
-        { "SKWHR-PDZ", "she happened" },
-        { "SKWHR-LT", "she feels" },
-        { "SKWHR-LTD", "she felt" },
-        { "SKWHR-LTS", "she feels like" },
-        { "SKWHR-LTSD", "she felt like" },
-        { "SKWHR-BG", "she comes" },
-        { "SKWHR-BGD", "she came" },
-        { "SKWHR-BGT", "she comes to" },
-        { "SKWHR-BGTD", "she came to" },
-        { "SKWHR-BL", "she believes" },
-        { "SKWHR-BLD", "she believed" },
-        { "SKWHR-BLT", "she believes that" },
-        { "SKWHR-BLTD", "she believed that" },
-        { "SKWHR-RPBG", "she becomes" },
-        { "SKWHR-RPBGD", "she became" },
-        { "SKWHR-RPBGT", "she becomes a" },
-        { "SKWHR-RPBGTD", "she became a" },
-        { "SKWHR-R", "she runs" },
-        { "SKWHR-RD", "she ran" },
-        { "SKWHR-RPBL", "she makes" },
-        { "SKWHR-RPBLD", "she made" },
-        { "SKWHR-RPBLT", "she makes a" },
-        { "SKWHR-RPBLTD", "she made a" },
-        { "SKWHR-RBT", "she takes" },
-        { "SKWHR-RBTD", "she took" },
-        { "SKWHR-GZ", "she gives" },
-        { "SKWHR-GDZ", "she gave" },
-        { "SKWHR-Z", "she uses" },
-        { "SKWHR-DZ", "she used" },
-        { "SKWHR-RBG", "she works" },
-        { "SKWHR-RBGD", "she worked" },
-        { "SKWHR-RBGT", "she works on" },
-        { "SKWHR-RBGTD", "she worked on" },
-        { "SKWHR-RPL", "she remembers" },
-        { "SKWHR-RPLD", "she remembered" },
-        { "SKWHR-RPLT", "she remembers that" },
-        { "SKWHR-RPLTD", "she remembered that" },
-        { "SKWHR-RPB", "she understands" },
-        { "SKWHR-RPBD", "she understood" },
-        { "SKWHR-RPBT", "she understands the" },
-        { "SKWHR-RPBTD", "she understood the" },
-        { "SKWHR-PGS", "she expects" },
-        { "SKWHR-PGSD", "she expected" },
-        { "SKWHR-PGTS", "she expects that" },
-        { "SKWHR-PGTSD", "she expected that" },
-        { "SKWHR-FBG", "she has come" },
-        { "SKWHR-FR", "she has run" },
-        { "SKWHR-FRPBL", "she has made" },
-        { "SKWHR-FRBT", "she has taken" },
-        { "SKWHR-FGZ", "she has given" },
-        { "SKWHR-FRPB", "she has understood" },
-        { "SKWHRE-BG", "she is coming" },
-        { "SKWHRE-R", "she is running" },
-        { "SKWHRE-Z", "she is using" },
-        { "SKPWH-B", "and are" },
-        { "SKPWH-G", "and go" },
-        { "SKPWH*-G", "and do not go" },
-        { "SKPWH*U-G", "and don't go" },
-        { "SKPWHA-G", "and can go" },
-        { "SKPWHE-G", "and are going" },
-        { "SKPWH-FG", "and have gone" },
-        { "SKPWHE-FG", "and have been going" },
-    };
-    for (size_t i = 0; i < sizeof(verb_follow_on_cases) / sizeof(verb_follow_on_cases[0]); ++i) {
-        ok = ok && expect_phrase_stroke_output(
-            &steno,
-            &follow_on_config,
-            &output,
-            "verb follow-on coverage",
-            verb_follow_on_cases[i].stroke,
-            verb_follow_on_cases[i].expected);
-    }
-
-    ok = ok && expect_phrase_stroke_output(
-        &steno,
-        &follow_on_config,
-        &output,
-        "production nonverb is an ordinary distinct chord",
-        "TWHB",
-        "with a");
-    ok = ok && expect_phrase_stroke_output(
-        &steno,
-        &follow_on_config,
-        &output,
-        "production nonverb an tail",
-        "TWH-PB",
-        "with an");
-    ok = ok && expect_phrase_stroke_output(
-        &steno,
-        &follow_on_config,
-        &output,
-        "production nonverb like tail",
-        "TKPWH*BL",
-        "anything like");
-    ok = ok && expect_phrase_stroke_output(
-        &steno,
-        &follow_on_config,
-        &output,
-        "production nonverb universal an tail",
-        "STHAPB",
-        "that an");
-    ok = ok && expect_phrase_stroke_output(
-        &steno,
-        &follow_on_config,
-        &output,
-        "production nonverb as an",
-        "SP*PB",
-        "as an");
-    const struct {
-        const char *stroke;
-        const char *expected;
-    } production_nonverb_prefix_cases[] = {
-        { "SKWRO*BL", "just like" },
-        { "WHRLS", "all else" },
-        { "TPW*P", "if it" },
-        { "SK*PLT", "can them" },
-        { "SK*F", "can of" },
-        { "SK*RPB", "can he" },
-        { "SK*RB", "can she" },
-        { "TPW*RPB", "if he" },
-        { "TPW*RB", "if she" },
-        { "SKH*SZ", "off they" },
-        { "WHRF", "all of" },
-        { "STPHRORPB", "only he" },
-        { "STHARB", "that she" },
-        { "TKPWH*RPB", "anything he" },
-        { "SP*F", "as of" },
-        { "SRAO*RB", "even she" },
-        { "WHR*U", "will you" },
-        { "WHR*SZ", "will they" },
-        { "WHR*P", "will it" },
-        { "WHR*EUF", "will if" },
-        { "TWH-SZ", "with they" },
-        { "STPEUF", "at if" },
-        { "STP*PLT", "it them" },
-        { "SKH*LS", "off else" },
-        { "PR*US", "up us" },
-        { "SK*G", "can can" },
-        { "SKWRO*LS", "just else" },
-        { "WHR-PLT", "all them" },
-        { "TPW*EUF", "if if" },
-        { "STPHROLS", "only else" },
-        { "PWHLS", "but else" },
-        { "STHAPLT", "that them" },
-        { "TKPO*F", "for of" },
-        { "WRO*F", "of of" },
-        { "TKPWH*PLT", "anything them" },
-        { "SP*LS", "as else" },
-        { "SRAO*LS", "even else" },
-        { "WHR*G", "will can" },
-        { "SKH-T", "off the" },
-        { "SKH*T", "off the" },
-        { "SKH*U", "off you" },
-        { "SKH*F", "off of" },
-        { "SKH*FP", "off off" },
-        { "PR*UPB", "up an" },
-        { "PR*U", "up you" },
-        { "PR*UF", "up of" },
-        { "PR*URPB", "up he" },
-        { "PR*URB", "up she" },
-        { "STPHROEUF", "only if" },
-        { "STP*FP", "it off" },
-        { "PR*UFP", "up off" },
-        { "SKWRO*FP", "just off" },
-        { "WHRFP", "all off" },
-        { "STPHROFP", "only off" },
-        { "STHAFP", "that off" },
-        { "TKPWH*FP", "anything off" },
-        { "SP*FP", "as off" },
-        { "SRAO*EUF", "even if" },
-        { "SRAO*FP", "even off" },
-        { "TWHBT", "with at" },
-        { "STPBT", "at at" },
-        { "SK*BT", "can at" },
-        { "WRO*BT", "of at" },
-        { "SRAO*BT", "even at" },
-        { "WHR*BT", "will at" },
-        { "PWHGT", "but though" },
-        { "TKPO*T", "for the" },
-        { "STHAU", "that you" },
-        { "SK*SZ", "can they" },
-        { "STHAG", "that can" },
-        { "WHR*F", "will of" },
-        { "WHR*-RPB", "will he" },
-        { "WHR*RB", "will she" },
-        { "TWHEUF", "with if" },
-        { "STP*S", "it us" },
-        { "SK*S", "can us" },
-        { "SKP*B", "and a" },
-        { "SKP*G", "and can" },
-        { "SKP*FP", "and off" },
-        { "SKP*RPB", "and he" },
-        { "TPW*PLT", "if them" },
-        { "TPW*FP", "if off" },
-        { "TKPO*FP", "for off" },
-        { "WRO*FP", "of off" },
-        { "WHR*PLT", "will them" },
-        { "WHR*S", "will us" },
-        { "WHR*Z", "will his" },
-    };
-    for (size_t i = 0; i < sizeof(production_nonverb_prefix_cases) / sizeof(production_nonverb_prefix_cases[0]); ++i) {
-        ok = ok && expect_phrase_stroke_output(
-            &steno,
-            &follow_on_config,
-            &output,
-            "production nonverb prefix",
-            production_nonverb_prefix_cases[i].stroke,
-            production_nonverb_prefix_cases[i].expected);
-    }
+        "dictionary is a");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    ok = ok && handle_phrase_test_stroke(steno, "SKPWOPB");
-    ok = ok && expect_string("unassigned IV stroke falls back to raw outline", output.text, "SKPWOPB");
-
-    ok = ok && reset_test_steno(&steno, &config);
-    clear_test_output(&output);
-    ok = ok && handle_phrase_test_stroke(steno, "SKWHRUBD");
-    ok = ok && expect_string("unnatural contraction form stays unassigned", output.text, "SKWHRUBD");
-
-    ok = ok && reset_test_steno(&steno, &config);
-    clear_test_output(&output);
-    ok = ok && handle_phrase_test_stroke(steno, "SAO");
-    ok = ok && expect_string("phrase miss falls back to raw outline", output.text, "SAO");
-
-    ok = ok && reset_test_steno(&steno, &config);
-    clear_test_output(&output);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, true);
     ok = ok && steno_handle_stroke(steno, ((Stroke_Input) {
         .bits = phrase_fallback_test_bits,
     }));
-    ok = ok && expect_string("phrase miss uses dictionary lookup", output.text, "test");
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, false);
+    ok = ok && expect_string("pedal phrase miss falls back to dictionary", output.text, "test");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    ok = ok && handle_phrase_test_stroke(steno, "KAT");
-    ok = ok && handle_phrase_test_stroke(steno, "TO");
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, true);
+    ok = ok && handle_test_stroke(steno, "KAT");
+    ok = ok && handle_test_stroke(steno, "TO");
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, false);
     ok = ok && expect_string(
-        "phrase misses preserve multi-stroke dictionary lookup",
+        "pedal misses preserve multi-stroke dictionary lookup",
         output.text,
         "main combined");
 
@@ -975,59 +314,52 @@ int main(void)
     clear_test_output(&output);
     ok = ok && steno_handle_stroke(steno, ((Stroke_Input) {
         .bits = phrase_is_a_bits,
+        .phrase_namespace = PHRASE_NAMESPACE_INITIAL_VERB,
     }));
     ok = ok && steno_handle_stroke_bits(steno, phrase_fallback_test_bits);
-    ok = ok && steno_handle_stroke_bits(steno, phrase_is_a_bits);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, true);
+    ok = ok && handle_test_stroke(steno, "WH-B");
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, false);
     ok = ok && expect_string(
-        "phrases and dictionary words interleave normally",
+        "pedal phrases and dictionary words interleave",
         output.text,
-        "is a test is a");
+        "is a test with a");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    ok = ok && steno_handle_stroke_bits(steno, phrase_is_a_bits);
-    ok = ok && expect_string("ordinary stroke input uses phrase lookup", output.text, "is a");
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, true);
+    steno_set_session_active(steno, false);
+    steno_set_session_active(steno, true);
+    ok = ok && handle_test_stroke(steno, "PW-B");
+    ok = ok && expect_string("session reset clears pedal state", output.text, "dictionary is a");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    ok = ok && steno_handle_stroke(steno, ((Stroke_Input) {
-        .bits = phrase_fallback_test_bits,
-    }));
-    ok = ok && expect_string("phrase-shaped miss uses dictionary lookup", output.text, "test");
-
-    ok = ok && reset_test_steno(&steno, &config);
-    clear_test_output(&output);
-    ok = ok && steno_handle_stroke_bits(steno, cat_bits);
-    ok = ok && steno_handle_stroke(steno, ((Stroke_Input) {
-        .bits = toggle_star_bits,
-    }));
-    ok = ok && expect_string("star command remains in dictionary namespace", output.text, "kitty");
-
-    ok = ok && reset_test_steno(&steno, &config);
-    clear_test_output(&output);
-    ok = ok && send_key_event(steno, "e", true);
-    ok = ok && send_key_event(steno, "d", true);
+    ok = ok && send_key_event(steno, "c", true);
     ok = ok && send_key_event(steno, "k", true);
-    ok = ok && send_key_event(steno, "e", false);
-    ok = ok && send_key_event(steno, "d", false);
+    ok = ok && send_key_event(steno, "c", false);
     ok = ok && send_key_event(steno, "k", false);
-    ok = ok && expect_string("qwerty dictionary chord remains unchanged on phrase miss", output.text, "dictionary is a");
+    ok = ok && expect_string("qwerty chord stays in dictionary without pedal", output.text, "dictionary is a");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    ok = ok && send_key_event(steno, "a", true);
-    ok = ok && send_key_event(steno, "s", true);
-    ok = ok && send_key_event(steno, "e", true);
-    ok = ok && send_key_event(steno, "d", true);
-    ok = ok && send_key_event(steno, "backspace", true);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, true);
+    ok = ok && send_key_event(steno, "c", true);
     ok = ok && send_key_event(steno, "k", true);
-    ok = ok && send_key_event(steno, "a", false);
-    ok = ok && send_key_event(steno, "s", false);
-    ok = ok && send_key_event(steno, "e", false);
-    ok = ok && send_key_event(steno, "d", false);
-    ok = ok && send_key_event(steno, "backspace", false);
+    ok = ok && send_key_event(steno, "c", false);
     ok = ok && send_key_event(steno, "k", false);
-    ok = ok && expect_string("qwerty chord emits phrase without a pedal", output.text, "is a");
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, false);
+    ok = ok && expect_string("qwerty chord uses held IV pedal", output.text, "is a");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    ok = ok && send_key_event(steno, "c", true);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, true);
+    ok = ok && send_key_event(steno, "k", true);
+    ok = ok && send_key_event(steno, "c", false);
+    ok = ok && send_key_event(steno, "k", false);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, false);
+    ok = ok && expect_string("pedal press during qwerty chord selects IV", output.text, "is a");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
@@ -1037,6 +369,7 @@ int main(void)
     ok = ok && send_key_event(steno, "u", false);
     ok = ok && expect_string("qwerty shift tap has no side effect", output.text, "fee");
 
+    config.phrasing_path = "tests/test-phrasing.json";
     ok = ok && reset_test_steno(&steno, &config);
 
     clear_test_output(&output);
