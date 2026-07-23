@@ -37,6 +37,7 @@ COMMON_SOURCES := \
 	src/keymap.c \
 	src/orthography.c \
 	src/phrasing.c \
+	src/phrasing_json.c \
 	src/raw_serial.c \
 	src/retro.c \
 	src/runtime_config.c \
