@@ -113,12 +113,43 @@ static bool brevity_suggestions_enabled(const Steno *steno)
     return steno != NULL && (steno->print_suggestions || steno->suggestion_log_file != NULL);
 }
 
+static const char *suggestion_source_name(Phrase_Namespace namespace)
+{
+    switch (namespace) {
+    case PHRASE_NAMESPACE_INITIAL_VERB:
+        return "initial verb";
+    case PHRASE_NAMESPACE_FINAL_VERB:
+        return "final verb";
+    case PHRASE_NAMESPACE_NONVERB:
+        return "non verb";
+    case PHRASE_NAMESPACE_NONE:
+    default:
+        return "dictionary";
+    }
+}
+
+static const char *suggestion_source_id(Phrase_Namespace namespace)
+{
+    switch (namespace) {
+    case PHRASE_NAMESPACE_INITIAL_VERB:
+        return "initial_verb";
+    case PHRASE_NAMESPACE_FINAL_VERB:
+        return "final_verb";
+    case PHRASE_NAMESPACE_NONVERB:
+        return "non_verb";
+    case PHRASE_NAMESPACE_NONE:
+    default:
+        return "dictionary";
+    }
+}
+
 static void log_brevity_suggestion(
     Steno *steno,
     const char *suggested_outline,
     const char *typed_outline,
     const char *text,
-    size_t typed_stroke_count
+    size_t typed_stroke_count,
+    Phrase_Namespace source
 )
 {
     if (steno == NULL || steno->suggestion_log_file == NULL) {
@@ -140,6 +171,7 @@ static void log_brevity_suggestion(
         && cJSON_AddStringToObject(root, "suggested_outline", suggested_outline) != NULL
         && cJSON_AddStringToObject(root, "typed_outline", typed_outline) != NULL
         && cJSON_AddStringToObject(root, "text", text) != NULL
+        && cJSON_AddStringToObject(root, "source", suggestion_source_id(source)) != NULL
         && cJSON_AddNumberToObject(root, "typed_strokes", (double)typed_stroke_count) != NULL
         && cJSON_AddNumberToObject(root, "suggested_strokes", (double)suggested_stroke_count) != NULL
         && cJSON_AddNumberToObject(root, "saved_strokes", (double)saved_strokes) != NULL;
@@ -194,7 +226,17 @@ void steno_maybe_emit_brevity_suggestion(Steno *steno)
         }
 
         char suggested_outline[BREVITY_BUFFER_BYTES] = {0};
-        if (!dictionary_find_translation_outline(
+        Phrase_Namespace source = PHRASE_NAMESPACE_NONE;
+        const Phrase_Lookup_Result phrase_result = phrasing_find_translation_outline(
+            steno->phrasing,
+            candidate_text,
+            typed_outline.data,
+            typed_stroke_count - 1,
+            &source,
+            suggested_outline,
+            sizeof(suggested_outline));
+        if (phrase_result != PHRASE_LOOKUP_HIT
+            && !dictionary_find_translation_outline(
                 &steno->dictionary_stack.dictionary,
                 candidate_text,
                 typed_outline.data,
@@ -209,13 +251,18 @@ void steno_maybe_emit_brevity_suggestion(Steno *steno)
             suggested_outline,
             typed_outline.data,
             candidate_text,
-            typed_stroke_count);
+            typed_stroke_count,
+            source);
 
         if (!steno->print_suggestions) {
             return;
         }
         FILE *file = steno->suggestions_file != NULL ? steno->suggestions_file : stdout;
-        fprintf(file, "Suggestion: Use %s for \"%s\"\n", suggested_outline, candidate_text);
+        fprintf(file,
+            "Suggestion [%s]: Use %s for \"%s\"\n",
+            suggestion_source_name(source),
+            suggested_outline,
+            candidate_text);
         fflush(file);
         return;
     }

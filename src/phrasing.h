@@ -1,6 +1,7 @@
 #ifndef PHRASING_H
 #define PHRASING_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 typedef struct Phrasing Phrasing;
@@ -26,5 +27,15 @@ Phrase_Lookup_Result phrasing_lookup(
     Phrase_Namespace namespace,
     uint64_t stroke_bits,
     char **out_utf8
+);
+
+Phrase_Lookup_Result phrasing_find_translation_outline(
+    Phrasing *phrasing,
+    const char *translation,
+    const char *exclude_outline,
+    size_t max_stroke_count,
+    Phrase_Namespace *out_namespace,
+    char *out_outline,
+    size_t out_outline_size
 );
 #endif

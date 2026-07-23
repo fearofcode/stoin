@@ -109,6 +109,16 @@ typedef struct Fv_Ender {
     bool past;
 } Fv_Ender;
 
+typedef struct Phrase_Suggestion {
+    uint64_t bits;
+    Phrase_Namespace namespace;
+} Phrase_Suggestion;
+
+typedef struct Phrase_Suggestion_Entry {
+    char *key;
+    Phrase_Suggestion value;
+} Phrase_Suggestion_Entry;
+
 struct Phrasing {
     Iv_Stem *iv_stems;
     Phrase_Tail *iv_tails;
@@ -119,7 +129,10 @@ struct Phrasing {
     Fv_Structure_Row *fv_structures;
     Fv_Verb *fv_verbs;
     Fv_Ender *fv_enders;
+    Phrase_Suggestion_Entry *suggestions;
     uint64_t contraction_bits;
+    bool suggestions_initialized;
+    bool suggestions_failed;
 };
 
 static bool append_word(char **out, const char *word)
@@ -1470,6 +1483,7 @@ void phrasing_destroy(Phrasing *phrasing)
         free(phrasing->fv_enders[i].suffix);
     }
     arrfree(phrasing->fv_enders);
+    shfree(phrasing->suggestions);
     free(phrasing);
 }
 
@@ -1835,6 +1849,244 @@ static Phrase_Lookup_Result lookup_final_verb(const Phrasing *phrasing, uint64_t
         }
     }
     return PHRASE_LOOKUP_MISS;
+}
+
+typedef struct Seen_Phrase_Bits {
+    uint64_t key;
+    bool value;
+} Seen_Phrase_Bits;
+
+static bool phrase_suggestion_is_better(
+    Phrase_Suggestion candidate,
+    Phrase_Suggestion current
+)
+{
+    if (candidate.namespace != current.namespace) {
+        return candidate.namespace < current.namespace;
+    }
+
+    char candidate_outline[64] = {0};
+    char current_outline[64] = {0};
+    if (!chord_bits_to_string(candidate.bits, candidate_outline, sizeof(candidate_outline))
+        || !chord_bits_to_string(current.bits, current_outline, sizeof(current_outline))) {
+        return false;
+    }
+
+    const size_t candidate_length = strlen(candidate_outline);
+    const size_t current_length = strlen(current_outline);
+    return candidate_length < current_length
+        || (candidate_length == current_length
+            && strcmp(candidate_outline, current_outline) < 0);
+}
+
+static bool add_phrase_suggestion(
+    Phrase_Suggestion_Entry **suggestions,
+    Seen_Phrase_Bits **seen_bits,
+    const char *text,
+    Phrase_Namespace namespace,
+    uint64_t bits
+)
+{
+    if (hmgeti(*seen_bits, bits) >= 0) {
+        return true;
+    }
+    hmput(*seen_bits, bits, true);
+    if (text == NULL || text[0] == '\0') {
+        return true;
+    }
+
+    const Phrase_Suggestion candidate = {
+        .bits = bits,
+        .namespace = namespace,
+    };
+    const ptrdiff_t index = shgeti(*suggestions, text);
+    if (index < 0) {
+        shput(*suggestions, text, candidate);
+    } else if (phrase_suggestion_is_better(candidate, (*suggestions)[index].value)) {
+        (*suggestions)[index].value = candidate;
+    }
+    return true;
+}
+
+static bool add_initial_verb_suggestions(Phrasing *phrasing)
+{
+    Seen_Phrase_Bits *seen_bits = NULL;
+    for (size_t i = 0; i < arrlenu(phrasing->iv_stems); ++i) {
+        const Iv_Stem *stem = &phrasing->iv_stems[i];
+        for (size_t j = 0; j < arrlenu(stem->forms); ++j) {
+            const Phrase_Form *form = &stem->forms[j];
+            for (size_t k = 0; k < arrlenu(phrasing->iv_tails); ++k) {
+                const Phrase_Tail *tail = &phrasing->iv_tails[k];
+                if (!iv_combination_is_allowed(stem, k, tail, form)) {
+                    continue;
+                }
+
+                char *text = NULL;
+                const Phrase_Lookup_Result result = copy_phrase_words(form->text, tail->text, &text);
+                if (result == PHRASE_LOOKUP_ERROR) {
+                    hmfree(seen_bits);
+                    return false;
+                }
+                const bool ok = add_phrase_suggestion(
+                    &phrasing->suggestions,
+                    &seen_bits,
+                    text,
+                    PHRASE_NAMESPACE_INITIAL_VERB,
+                    stem->bits | form->bits | tail->bits);
+                free(text);
+                if (!ok) {
+                    hmfree(seen_bits);
+                    return false;
+                }
+            }
+        }
+    }
+    hmfree(seen_bits);
+    return true;
+}
+
+static bool add_final_verb_suggestions(Phrasing *phrasing)
+{
+    Seen_Phrase_Bits *seen_bits = NULL;
+    for (size_t i = 0; i < arrlenu(phrasing->fv_starters); ++i) {
+        const Fv_Starter *starter = &phrasing->fv_starters[i];
+        for (size_t j = 0; j < arrlenu(phrasing->fv_operators); ++j) {
+            const Fv_Operator operator = phrasing->fv_operators[j];
+            for (size_t k = 0; k < arrlenu(phrasing->fv_structures); ++k) {
+                const Fv_Structure_Row *structure = &phrasing->fv_structures[k];
+                for (size_t m = 0; m < arrlenu(phrasing->fv_enders); ++m) {
+                    if (!fv_starter_allows_ender(starter, m)) {
+                        continue;
+                    }
+                    const Fv_Ender *ender = &phrasing->fv_enders[m];
+                    const uint64_t long_bits =
+                        starter->bits | operator.bits | structure->bits | ender->bits;
+
+                    char *text = NULL;
+                    if (build_fv_long(starter, operator, structure->structure, ender, &text)
+                        && text != NULL
+                        && text[0] != '\0') {
+                        add_phrase_suggestion(
+                            &phrasing->suggestions,
+                            &seen_bits,
+                            text,
+                            PHRASE_NAMESPACE_FINAL_VERB,
+                            long_bits);
+                    }
+                    arrfree(text);
+
+                    text = NULL;
+                    if (build_fv_contraction(starter, operator, structure->structure, ender, &text)
+                        && text != NULL
+                        && text[0] != '\0') {
+                        add_phrase_suggestion(
+                            &phrasing->suggestions,
+                            &seen_bits,
+                            text,
+                            PHRASE_NAMESPACE_FINAL_VERB,
+                            long_bits | phrasing->contraction_bits);
+                    }
+                    arrfree(text);
+                }
+            }
+        }
+    }
+    hmfree(seen_bits);
+    return true;
+}
+
+static bool add_nonverb_suggestions(Phrasing *phrasing)
+{
+    Seen_Phrase_Bits *seen_bits = NULL;
+    for (size_t i = 0; i < arrlenu(phrasing->nv_prefixes); ++i) {
+        const Nv_Prefix *prefix = &phrasing->nv_prefixes[i];
+        for (size_t j = 0; j < arrlenu(prefix->tail_indices); ++j) {
+            const Phrase_Tail *tail = &phrasing->nv_tails[prefix->tail_indices[j]];
+            char *text = NULL;
+            const Phrase_Lookup_Result result = copy_phrase_words(prefix->text, tail->text, &text);
+            if (result == PHRASE_LOOKUP_ERROR) {
+                hmfree(seen_bits);
+                return false;
+            }
+            const bool ok = add_phrase_suggestion(
+                &phrasing->suggestions,
+                &seen_bits,
+                text,
+                PHRASE_NAMESPACE_NONVERB,
+                prefix->bits | tail->bits);
+            free(text);
+            if (!ok) {
+                hmfree(seen_bits);
+                return false;
+            }
+        }
+    }
+    hmfree(seen_bits);
+    return true;
+}
+
+static bool initialize_phrase_suggestions(Phrasing *phrasing)
+{
+    phrasing->suggestions_initialized = true;
+    sh_new_strdup(phrasing->suggestions);
+    if (!add_initial_verb_suggestions(phrasing)
+        || !add_final_verb_suggestions(phrasing)
+        || !add_nonverb_suggestions(phrasing)) {
+        shfree(phrasing->suggestions);
+        phrasing->suggestions = NULL;
+        phrasing->suggestions_failed = true;
+        return false;
+    }
+    return true;
+}
+
+Phrase_Lookup_Result phrasing_find_translation_outline(
+    Phrasing *phrasing,
+    const char *translation,
+    const char *exclude_outline,
+    size_t max_stroke_count,
+    Phrase_Namespace *out_namespace,
+    char *out_outline,
+    size_t out_outline_size
+)
+{
+    if (out_namespace == NULL || out_outline == NULL || out_outline_size == 0) {
+        return PHRASE_LOOKUP_ERROR;
+    }
+    *out_namespace = PHRASE_NAMESPACE_NONE;
+    out_outline[0] = '\0';
+    if (phrasing == NULL || translation == NULL || max_stroke_count < 1) {
+        return PHRASE_LOOKUP_MISS;
+    }
+    if (!phrasing->suggestions_initialized && !initialize_phrase_suggestions(phrasing)) {
+        return PHRASE_LOOKUP_ERROR;
+    }
+    if (phrasing->suggestions_failed) {
+        return PHRASE_LOOKUP_ERROR;
+    }
+
+    const ptrdiff_t index = shgeti(phrasing->suggestions, translation);
+    if (index < 0) {
+        return PHRASE_LOOKUP_MISS;
+    }
+
+    char outline[64] = {0};
+    if (!chord_bits_to_string(
+            phrasing->suggestions[index].value.bits,
+            outline,
+            sizeof(outline))) {
+        return PHRASE_LOOKUP_ERROR;
+    }
+    if (exclude_outline != NULL && strcmp(outline, exclude_outline) == 0) {
+        return PHRASE_LOOKUP_MISS;
+    }
+    if (snprintf(out_outline, out_outline_size, "%s", outline) >= (int)out_outline_size) {
+        out_outline[0] = '\0';
+        return PHRASE_LOOKUP_ERROR;
+    }
+
+    *out_namespace = phrasing->suggestions[index].value.namespace;
+    return PHRASE_LOOKUP_HIT;
 }
 
 Phrase_Lookup_Result phrasing_lookup(

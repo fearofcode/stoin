@@ -418,12 +418,12 @@ bool test_dictionary_runtime(void)
             ok = ok && expect_file_contains(
                 suggestions_file,
                 "brevity suggests shorter phrase",
-                "Suggestion: Use TPH-T for \"in the\"\n");
+                "Suggestion [dictionary]: Use TPH-T for \"in the\"\n");
             ok = ok && handle_test_stroke(suggestions_steno, "PW-G");
             ok = ok && expect_file_contains(
                 suggestions_file,
                 "brevity prefers longer phrase",
-                "Suggestion: Use TPH-T/PWG for \"in the beginning\"\n");
+                "Suggestion [dictionary]: Use TPH-T/PWG for \"in the beginning\"\n");
             ok = ok && expect_string(
                 "brevity suggestions do not change output",
                 output.text,
@@ -448,7 +448,7 @@ bool test_dictionary_runtime(void)
             ok = ok && expect_file_contains(
                 suffix_suggestions_file,
                 "brevity suggests collapsed attached suffix",
-                "Suggestion: Use KWEUL for \"quickly\"\n");
+                "Suggestion [dictionary]: Use KWEUL for \"quickly\"\n");
             ok = ok && expect_string(
                 "collapsed attached suffix output",
                 output.text,
@@ -510,6 +510,10 @@ bool test_dictionary_runtime(void)
                 "\"text\":\"in the\"");
             ok = ok && expect_file_contains(
                 suggestion_log_file,
+                "suggestion log source",
+                "\"source\":\"dictionary\"");
+            ok = ok && expect_file_contains(
+                suggestion_log_file,
                 "suggestion log typed strokes",
                 "\"typed_strokes\":2");
             ok = ok && expect_file_contains(
@@ -529,6 +533,78 @@ bool test_dictionary_runtime(void)
     if (suggestion_log_file != NULL) {
         fclose(suggestion_log_file);
     }
+
+    const char *phrase_suggestions_dictionary_path = "build/test-phrase-suggestions-dictionary.json";
+    ok = ok && write_text_file(
+        phrase_suggestions_dictionary_path,
+        "{\n"
+        "  \"S\": \"is\",\n"
+        "  \"T\": \"a\",\n"
+        "  \"K\": \"she\",\n"
+        "  \"W\": \"with\",\n"
+        "  \"TPH-T\": \"is a\"\n"
+        "}\n");
+
+    FILE *phrase_suggestions_file = tmpfile();
+    FILE *phrase_suggestion_log_file = tmpfile();
+    ok = ok && phrase_suggestions_file != NULL && phrase_suggestion_log_file != NULL;
+    if (phrase_suggestions_file != NULL && phrase_suggestion_log_file != NULL) {
+        Steno_Config phrase_suggestions_config = config;
+        phrase_suggestions_config.dictionary_path = phrase_suggestions_dictionary_path;
+        phrase_suggestions_config.suggestions_file = phrase_suggestions_file;
+        phrase_suggestions_config.suggestion_log_file = phrase_suggestion_log_file;
+        phrase_suggestions_config.print_suggestions = true;
+
+        Steno *initial_verb_suggestions_steno = steno_create(&phrase_suggestions_config);
+        ok = ok && initial_verb_suggestions_steno != NULL;
+        if (initial_verb_suggestions_steno != NULL) {
+            clear_test_output(&output);
+            ok = ok && handle_test_stroke(initial_verb_suggestions_steno, "S");
+            ok = ok && handle_test_stroke(initial_verb_suggestions_steno, "T");
+            ok = ok && expect_file_contains(
+                phrase_suggestions_file,
+                "phrase suggestion wins over dictionary suggestion",
+                "Suggestion [initial verb]: Use SKPWOB for \"is a\"\n");
+            ok = ok && expect_file_contains(
+                phrase_suggestion_log_file,
+                "phrase suggestion log source",
+                "\"source\":\"initial_verb\"");
+            steno_destroy(initial_verb_suggestions_steno);
+        }
+
+        Steno *final_verb_suggestions_steno = steno_create(&phrase_suggestions_config);
+        ok = ok && final_verb_suggestions_steno != NULL;
+        if (final_verb_suggestions_steno != NULL) {
+            clear_test_output(&output);
+            ok = ok && handle_test_stroke(final_verb_suggestions_steno, "K");
+            ok = ok && handle_test_stroke(final_verb_suggestions_steno, "S");
+            ok = ok && expect_file_contains(
+                phrase_suggestions_file,
+                "final verb phrase suggestion",
+                "Suggestion [final verb]: Use SKWHRB for \"she is\"\n");
+            steno_destroy(final_verb_suggestions_steno);
+        }
+
+        Steno *nonverb_suggestions_steno = steno_create(&phrase_suggestions_config);
+        ok = ok && nonverb_suggestions_steno != NULL;
+        if (nonverb_suggestions_steno != NULL) {
+            clear_test_output(&output);
+            ok = ok && handle_test_stroke(nonverb_suggestions_steno, "W");
+            ok = ok && handle_test_stroke(nonverb_suggestions_steno, "T");
+            ok = ok && expect_file_contains(
+                phrase_suggestions_file,
+                "nonverb phrase suggestion",
+                "Suggestion [non verb]: Use TWB for \"with a\"\n");
+            steno_destroy(nonverb_suggestions_steno);
+        }
+    }
+    if (phrase_suggestion_log_file != NULL) {
+        fclose(phrase_suggestion_log_file);
+    }
+    if (phrase_suggestions_file != NULL) {
+        fclose(phrase_suggestions_file);
+    }
+    remove(phrase_suggestions_dictionary_path);
 
 
     const bool phrasing_tail_filters_ok = test_phrasing_tail_filters();

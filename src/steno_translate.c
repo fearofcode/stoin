@@ -202,6 +202,7 @@ static bool translate_phrase_bits(
     trace_stroke_with_mode(steno, raw_chord, phrase, TRACE_STROKE_PHRASE);
     const bool ok = steno_apply_translation_match(steno, &match);
     if (ok) {
+        steno_maybe_emit_brevity_suggestion(steno);
         count_completed_stroke(steno);
         if (out_hit != NULL) {
             *out_hit = true;
