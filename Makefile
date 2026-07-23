@@ -79,7 +79,11 @@ else ifeq ($(PLATFORM),windows)
 PLATFORM_CFLAGS += -D_WIN32_WINNT=0x0601
 PLATFORM_LDFLAGS += -luser32 -lsetupapi -ladvapi32
 PLATFORM_SOURCES := \
-	src/platform_windows.c
+	src/platform_windows.c \
+	src/platform_windows_file_watcher.c \
+	src/platform_windows_output.c \
+	src/platform_windows_pedals.c \
+	src/platform_windows_serial.c
 EXE_EXT := .exe
 else
 $(error Unsupported PLATFORM '$(PLATFORM)'; use PLATFORM=macos, PLATFORM=linux, or PLATFORM=windows)
