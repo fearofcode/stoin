@@ -1301,6 +1301,43 @@ func TestStaticPhrasingTrainerScript(t *testing.T) {
 	}
 }
 
+func TestStaticAndJSONResponsesAreNeverCached(t *testing.T) {
+	app := testApp(t)
+	mux := http.NewServeMux()
+	app.routes(mux)
+
+	for _, path := range []string{
+		"/static/phrasing-trainer.js",
+		"/phrasing-data.json",
+	} {
+		t.Run(path, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			req.Header.Set("If-None-Match", `"stale"`)
+			req.Header.Set("If-Modified-Since", time.Now().Add(24*time.Hour).Format(http.TimeFormat))
+			req.Header.Set("Range", "bytes=0-9")
+			rec := httptest.NewRecorder()
+
+			mux.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("expected fresh 200 response, got %d", rec.Code)
+			}
+			if got := rec.Header().Get("Cache-Control"); got != "no-store, max-age=0" {
+				t.Fatalf("expected no-store Cache-Control, got %q", got)
+			}
+			if got := rec.Header().Get("Pragma"); got != "no-cache" {
+				t.Fatalf("expected no-cache Pragma, got %q", got)
+			}
+			if got := rec.Header().Get("Expires"); got != "0" {
+				t.Fatalf("expected expired response, got %q", got)
+			}
+			if got := rec.Header().Get("Content-Range"); got != "" {
+				t.Fatalf("expected full response without Content-Range, got %q", got)
+			}
+		})
+	}
+}
+
 func TestStaticSessionScriptIncludesHints(t *testing.T) {
 	app := testApp(t)
 	mux := http.NewServeMux()

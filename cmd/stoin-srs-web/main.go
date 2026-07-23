@@ -96,23 +96,46 @@ func loadTemplates() (*template.Template, error) {
 		ParseFS(assetFS, "templates/*.html")
 }
 
+func withoutCaching(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store, max-age=0")
+		w.Header().Set("Pragma", "no-cache")
+		w.Header().Set("Expires", "0")
+
+		// ServeContent honors these headers with 304, 412, or partial responses.
+		// Local development assets should always be read and returned in full.
+		for _, header := range []string{
+			"If-Match",
+			"If-None-Match",
+			"If-Modified-Since",
+			"If-Unmodified-Since",
+			"If-Range",
+			"Range",
+		} {
+			r.Header.Del(header)
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
 func (a *App) routes(mux *http.ServeMux) {
 	staticFS, err := fs.Sub(assetFS, "static")
 	if err != nil {
 		panic(err)
 	}
 
-	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
+	mux.Handle("/static/", withoutCaching(http.StripPrefix("/static/", http.FileServer(http.FS(staticFS)))))
 	mux.HandleFunc("/", a.handleIndex)
 	mux.HandleFunc("/deck", a.handleDeck)
 	mux.HandleFunc("/deck/edit", a.handleDeckEdit)
 	mux.HandleFunc("/backup", a.handleBackup)
-	mux.HandleFunc("/hint", a.handleHint)
+	mux.Handle("/hint", withoutCaching(http.HandlerFunc(a.handleHint)))
 	mux.HandleFunc("/import", a.handleImport)
 	mux.HandleFunc("/item/delete", a.handleItemDelete)
 	mux.HandleFunc("/item/edit", a.handleItemEdit)
 	mux.HandleFunc("/phrasing", a.handlePhrasingTrainer)
-	mux.HandleFunc("/phrasing-data.json", a.handlePhrasingData)
+	mux.Handle("/phrasing-data.json", withoutCaching(http.HandlerFunc(a.handlePhrasingData)))
 	mux.HandleFunc("/session/start", a.handleSessionStart)
 	mux.HandleFunc("/session/review-all-due", a.handleReviewAllDue)
 	mux.HandleFunc("/session/submit", a.handleSessionSubmit)

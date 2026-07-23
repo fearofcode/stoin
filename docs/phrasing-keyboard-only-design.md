@@ -30,7 +30,7 @@ every generated phrase is one stroke, and checks the full FV Cartesian product.
 It fails on internal collisions and hard Phoenix collisions. Phoenix is the
 only compatibility target for the checked-in layout.
 
-The checked-in layout has 19 soft Phoenix collisions and no hard or internal
+The checked-in layout has 75 soft Phoenix collisions and no hard or internal
 collisions. Some produce the same text (`SKP*F` is `and of` in both systems);
 others intentionally replace a Phoenix phrase, such as `SKP*G` changing from
 `and go` to generated `and can`.
@@ -83,12 +83,15 @@ which separates IV from the NV family without adding another stroke.
 | `TKWRO` | work | `SKPO` | need |
 | `STKWO` | remember | `SKHO` | understand |
 | `STKRO` | try | `TKPRO` | expect |
+| `STWRO` | read |  |  |
 
 The allocation retains every key from the original pre-number-bar mnemonic in
-31 of 38 starters. Five are exact apart from the required `O`: hold `TKHO`,
-make `KPHRO`, use `STWO`, need `SKPO`, and understand `SKHO`. The remaining
+31 of the original 38 starters. Five are exact apart from the required `O`:
+hold `TKHO`, make `KPHRO`, use `STWO`, need `SKPO`, and understand `SKHO`. The remaining
 starters were selected globally rather than independently so the entire phrase
-universe stays collision-free while no starter exceeds five keys.
+universe stays collision-free while no starter exceeds five keys. `STWRO` adds
+the complete read paradigm and every generally eligible tail without introducing
+a collision.
 
 ### IV forms
 
@@ -122,6 +125,7 @@ starter and therefore cannot collapse into a form component.
 | `-FB` | of | `-TS` | they (auxiliary inversion) |
 | `-PL` | my | `-PLS` | myself |
 | `-PLT` | me | `-RT` | that |
+| `-PBLGTS` | something |  |  |
 
 Per-verb allowlists in `phrasing.json` remove ungrammatical or low-value
 combinations. Individual tails can also carry stem and form allowlists. The
@@ -130,7 +134,8 @@ auxiliary inversion tails use `-RPB` for *he* and `-RB` (the `SH` chord) for
 remaining disjoint from every IV form. `-TS` adds plural *they* inversions for
 the be, have, and do stems, while `-PZ` supplies possessive *its* wherever the
 other possessive tails are allowed. `with` moves to `-GT`, retaining the
-ending of Phoenix's `WEUGT` outline. The selected starters keep the entire
+ending of Phoenix's `WEUGT` outline. `-PBLGTS` supplies *something* to every IV
+stem and form. The selected starters keep the entire
 allowlisted universe free of hard Phoenix and internal collisions.
 
 Examples:
@@ -151,6 +156,8 @@ Examples:
 | `STHO*-P` | saying it |
 | `TWHOU-RT` | to think that |
 | `KPROU-P` | to keep it |
+| `STWROU-P` | to read it |
+| `STWROU-T` | to read the |
 
 ## Final-verb phrases
 
@@ -243,18 +250,49 @@ entry.
 | `WRO*` | of | `TKPWH*` | anything |
 | `SP*` | as | `SRAO*` | even |
 | `WHR*` | will | `SKH` | off (compatibility alias) |
+| `STPHO*` | not | `SRO*` | or |
+| `SO*` | so | `WHA*` | what |
+| `WH*` | when | `STH*E` | then |
+| `SHO*` | how | `WHAO*` | who |
+| `TWO*` | to | `TPRAO*` | from |
+| `WHO*U` | without | `STPHRO*` | nor |
+| `SPWA*U` | because | `TPWO*U` | about |
+| `TKWR*` | yet | `SHRAO*` | also |
+
+| Tail | Text | Tail | Text |
+| --- | --- | --- | --- |
+| `-B` | a | `-PB` | an |
+| `-BL` | like | `-T` | the |
+| `-BT` | at | `-PLT` | them |
+| `-S` | us | `U` | you |
+| `-SZ` | they | `-R` | her |
+| `-P` | it | `-Z` | his |
+| `-RT` | that | `-G` | can |
+| `EUF` | if | `-F` | of |
+| `-FP` | off | `-RPB` | he |
+| `-RB` | she | `-GT` | though |
+| `-LS` | else | `-PBLGTS` | something |
+| `-PBT` | not | `-RPL` | more |
+| `-L` | well | `-FPBL` | much |
+| `-PBL` | many | `-FPB` | enough |
+| `-PBG` | again | `-FRB` | over |
+| `-FRPL` | from | `-PLS` | some |
+| `-GD` | good | `-RL` | really |
+| `-BGD` | back | `-RTS` | right |
+| `-LZ` | less |  |  |
 
 NV tails are defined in `phrasing.json`, with explicit per-prefix lists. Every
-primary prefix exposes all 21 tails: the layout is a complete 19 by 21 Cartesian
+primary prefix exposes all 37 tails: the layout is a complete 35 by 37 Cartesian
 product, and grammaticality is not a filter. The prefix assignments were chosen
-globally so all 399 combinations have distinct outlines and avoid Phoenix words
+globally so all 1,295 combinations have distinct outlines and avoid Phoenix words
 and commands. The `SKP*` bank intentionally replaces 14 Phoenix phrases with
 the systematic NV meanings, while retaining no collisions with Phoenix words or
 commands. Most tails are right-hand mnemonic chords. The exceptions
 introduced for the new families are
 `EUF` for `if`, `-F` for `of`, `-FP` for `off`, `-RPB` for `he`, and `-RB` for
-`she`; `-BT` is the shared `at` tail. The `off` tail is omitted after prefixes
-containing `-F`, where it would collapse with the existing `-P` (`it`) tail.
+`she`; `-BT` is the shared `at` tail, and `-PBLGTS` supplies *something*. The
+`off` tail is omitted after prefixes containing `-F`, where it would collapse
+with the existing `-P` (`it`) tail.
 The `at` tail is available after every prefix. Subject fragments include
 `SK*RPB` (`can he`), `SK*RB` (`can she`), `TPW*RPB` (`if he`), and
 `TPW*RB` (`if she`). The `WHR*` bank also includes continuations such as
@@ -277,6 +315,7 @@ Examples:
 | `SK*RPB` | can he |
 | `SKP*B` | and a |
 | `SKP*G` | and can |
+| `SKP*PBLGTS` | and something |
 | `TPW*RB` | if she |
 | `SP*F` | as of |
 | `SKH-T` | off the |
