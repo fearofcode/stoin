@@ -1,12 +1,12 @@
 # Phrasing Reference
 
-## Pedals
+## Namespace keys
 
-| Pedal | Namespace | Stroke shape |
-| --- | --- | --- |
-| Initial verb | IV | IV stem + IV form + shared tail |
-| Final verb | FV | shared starter + FV operator + FV structure + FV ender + optional contraction |
-| Nonverb | NV | shared starter + shared tail |
+| Key role | Namespace | Lookup order | Stroke shape |
+| --- | --- | --- | --- |
+| Initial verb | IV | IV → FV → NV | IV stem + IV form + shared tail |
+| Final verb | FV | FV → IV → NV | shared starter + FV operator + FV structure + FV ender + optional contraction |
+| Initial verb + final verb, or optional nonverb | NV | NV → IV → FV | shared starter + shared tail |
 
 ## IV
 
@@ -23,7 +23,7 @@
 | KPH | catches | caught | catch |  | catching | to catch |  | can catch | could catch |
 | TW | looks | looked | look |  | looking | to look |  | can look | could look |
 | HR | holds | held | hold |  | holding | to hold |  | can hold | could hold |
-| SH | sells | sold | sell |  | selling | to sell |  | can sell | could sell |
+| SHR | sells | sold | sell |  | selling | to sell |  | can sell | could sell |
 | SPW | spells | spelled | spell |  | spelling | to spell |  | can spell | could spell |
 | PHR | pulls | pulled | pull |  | pulling | to pull |  | can pull | could pull |
 | STPH | puts | put | put |  | putting | to put |  | can put | could put |
@@ -76,6 +76,21 @@
 | -FS | if |
 | -F | of |
 | -FP | off |
+| OPB | on |
+| -FR | for |
+| O | to |
+| OR | or |
+| OPBL | only |
+| OLS | also |
+| -PBLG | just |
+| -LTS | still |
+| OFT | often |
+| -FRT | after |
+| ORT | other |
+| OPBT | onto |
+| -PBLS | unless |
+| -RGT | there |
+| -FPS | such |
 | -RPB | he |
 | -RB | she |
 | -GT | though |
@@ -152,7 +167,8 @@
 | SKWR | just | third_singular |
 | HR | all | plural |
 | TPW | if | third_singular |
-| TPH | only | third_singular |
+| TPH | in | third_singular |
+| PHR | only | third_singular |
 | PW | but | third_singular |
 | TPR | for | third_singular |
 | TPWH | of | third_singular |
@@ -174,6 +190,7 @@
 | TPWR | about | third_singular |
 | TKWR | yet | third_singular |
 | SWHR | also | third_singular |
+| SKH | such | third_singular |
 
 ### Operators
 
@@ -227,8 +244,8 @@
 | -RPG | -RPGD | need | ∅ |
 | -RPGT | -RPGTD | need | to |
 | -S | -SD | see | ∅ |
-| -BS | -BSD | say | ∅ |
-| -BTS | -BTSD | say | that |
+| -BGS | -BGSD | say | ∅ |
+| -BGTS | -BGTSD | say | that |
 | -GS | -GSD | get | ∅ |
 | -GTS | -GTSD | get | to |
 | -PBLG | -PBLGD | find | ∅ |

@@ -1,6 +1,7 @@
 #ifndef PHRASING_H
 #define PHRASING_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -19,6 +20,11 @@ typedef enum Phrase_Lookup_Result {
     PHRASE_LOOKUP_ERROR,
 } Phrase_Lookup_Result;
 
+Phrase_Namespace phrase_namespace_from_active_keys(
+    bool initial_verb,
+    bool final_verb,
+    bool nonverb
+);
 Phrasing *phrasing_load(const char *path);
 void phrasing_destroy(Phrasing *phrasing);
 

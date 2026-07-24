@@ -98,7 +98,8 @@ func loadTemplates() (*template.Template, error) {
 
 func withoutCaching(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Cache-Control", "no-store, max-age=0")
+		w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+		w.Header().Set("CDN-Cache-Control", "no-store")
 		w.Header().Set("Pragma", "no-cache")
 		w.Header().Set("Expires", "0")
 
@@ -134,7 +135,7 @@ func (a *App) routes(mux *http.ServeMux) {
 	mux.HandleFunc("/import", a.handleImport)
 	mux.HandleFunc("/item/delete", a.handleItemDelete)
 	mux.HandleFunc("/item/edit", a.handleItemEdit)
-	mux.HandleFunc("/phrasing", a.handlePhrasingTrainer)
+	mux.Handle("/phrasing", withoutCaching(http.HandlerFunc(a.handlePhrasingTrainer)))
 	mux.Handle("/phrasing-data.json", withoutCaching(http.HandlerFunc(a.handlePhrasingData)))
 	mux.HandleFunc("/session/start", a.handleSessionStart)
 	mux.HandleFunc("/session/review-all-due", a.handleReviewAllDue)

@@ -39,11 +39,20 @@ sudo chown "$USER":stoin /dev/uinput
 sudo chmod 660 /dev/uinput
 ```
 
-TX Bolt and Gemini PR input only need serial access plus `/dev/uinput` output access.
+TX Bolt and Gemini PR input without phrase keys only need serial access plus `/dev/uinput` output access.
 
-## Qwerty keyboard capture
+## Keyboard capture and phrase keys
 
-The `--input qwerty` mode also needs read/grab access to physical keyboard event devices under `/dev/input/event*`. This is separate from `/dev/uinput`.
+The `--input qwerty` mode and the `--initial-verb-key`, `--final-verb-key`, and `--nonverb-key` options need read/grab access to physical keyboard event devices under `/dev/input/event*`. This is separate from `/dev/uinput`.
+
+For example, these options assign F13 and F14 to the verb namespaces; pressing
+both selects the nonverb namespace:
+
+```sh
+stoin --initial-verb-key F13 --final-verb-key F14
+```
+
+`--nonverb-key F15` can optionally assign a dedicated nonverb key as well.
 
 Warning: access to keyboard event devices lets a process read raw keyboard input. Only grant this to a group whose members you trust.
 

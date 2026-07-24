@@ -630,23 +630,23 @@
         "past": true
       },
       {
-        "stroke": "-BS",
+        "stroke": "-BGS",
         "verb": "say",
         "past": false
       },
       {
-        "stroke": "-BSD",
+        "stroke": "-BGSD",
         "verb": "say",
         "past": true
       },
       {
-        "stroke": "-BTS",
+        "stroke": "-BGTS",
         "verb": "say",
         "suffix": "that",
         "past": false
       },
       {
-        "stroke": "-BTSD",
+        "stroke": "-BGTSD",
         "verb": "say",
         "suffix": "that",
         "past": true

@@ -44,19 +44,7 @@ static Phrase_Namespace current_or_pending_phrase_namespace(const Steno *steno)
         || steno->final_verb_phrase_pending;
     const bool nonverb = steno->nonverb_phrase_down
         || steno->nonverb_phrase_pending;
-    const unsigned int active_count = (initial ? 1u : 0u)
-        + (final ? 1u : 0u)
-        + (nonverb ? 1u : 0u);
-    if (active_count != 1) {
-        return PHRASE_NAMESPACE_NONE;
-    }
-    if (initial) {
-        return PHRASE_NAMESPACE_INITIAL_VERB;
-    }
-    if (final) {
-        return PHRASE_NAMESPACE_FINAL_VERB;
-    }
-    return PHRASE_NAMESPACE_NONVERB;
+    return phrase_namespace_from_active_keys(initial, final, nonverb);
 }
 
 static void clear_pending_phrase_namespaces(Steno *steno)

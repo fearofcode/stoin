@@ -388,7 +388,6 @@ void platform_shutdown(void)
 {
     g_windows.running = false;
     platform_file_watcher_stop();
-    platform_pedals_shutdown();
 
     if (g_windows.watcher_timer_id != 0) {
         KillTimer(NULL, g_windows.watcher_timer_id);

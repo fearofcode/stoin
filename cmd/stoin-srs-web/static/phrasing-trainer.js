@@ -1443,7 +1443,15 @@ function showPhraseLoadError(message) {
 
 async function loadPhraseData() {
 	try {
-		const response = await fetch('/phrasing-data.json', { cache: 'no-store' });
+		const dataURL = new URL('/phrasing-data.json', window.location.href);
+		dataURL.searchParams.set('_', Date.now() + '-' + Math.random());
+		const response = await fetch(dataURL, {
+			cache: 'no-store',
+			headers: {
+				'Cache-Control': 'no-cache',
+				'Pragma': 'no-cache'
+			}
+		});
 		if (!response.ok) {
 			throw new Error('phrasing-data.json returned HTTP ' + response.status);
 		}

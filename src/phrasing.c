@@ -12,6 +12,27 @@
 
 #include "../third_party/stb_ds.h"
 
+Phrase_Namespace phrase_namespace_from_active_keys(
+    bool initial_verb,
+    bool final_verb,
+    bool nonverb
+)
+{
+    if (initial_verb && final_verb) {
+        return PHRASE_NAMESPACE_NONVERB;
+    }
+    if (initial_verb && !final_verb && !nonverb) {
+        return PHRASE_NAMESPACE_INITIAL_VERB;
+    }
+    if (final_verb && !initial_verb && !nonverb) {
+        return PHRASE_NAMESPACE_FINAL_VERB;
+    }
+    if (nonverb && !initial_verb && !final_verb) {
+        return PHRASE_NAMESPACE_NONVERB;
+    }
+    return PHRASE_NAMESPACE_NONE;
+}
+
 static bool append_word(char **out, const char *word)
 {
     if (out == NULL || word == NULL || word[0] == '\0') {

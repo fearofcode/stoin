@@ -33,9 +33,9 @@ COMMON_SOURCES := \
 	src/file_stability.c \
 	src/format.c \
 	src/gemini_pr.c \
-	src/json_util.c \
 	src/keymap.c \
 	src/orthography.c \
+	src/phrase_keys.c \
 	src/phrasing.c \
 	src/phrasing_json.c \
 	src/raw_serial.c \
@@ -61,12 +61,12 @@ VENDOR_SOURCES := \
 	third_party/cjson/cJSON.c
 
 ifeq ($(PLATFORM),macos)
-PLATFORM_LDFLAGS += -framework ApplicationServices -framework CoreFoundation -framework IOKit
+PLATFORM_LDFLAGS += -framework ApplicationServices -framework CoreFoundation
 PLATFORM_SOURCES := \
 	src/platform_macos.c \
 	src/platform_macos_file_watcher.c \
 	src/platform_macos_output.c \
-	src/platform_macos_pedals.c \
+	src/platform_posix_atomic.c \
 	src/platform_posix_serial.c
 else ifeq ($(PLATFORM),linux)
 PLATFORM_CFLAGS += -D_DEFAULT_SOURCE
@@ -74,6 +74,7 @@ PLATFORM_SOURCES := \
 	src/platform_linux.c \
 	src/platform_linux_file_watcher.c \
 	src/platform_linux_output.c \
+	src/platform_posix_atomic.c \
 	src/platform_posix_serial.c
 else ifeq ($(PLATFORM),windows)
 PLATFORM_CFLAGS += -D_WIN32_WINNT=0x0601
@@ -82,7 +83,7 @@ PLATFORM_SOURCES := \
 	src/platform_windows.c \
 	src/platform_windows_file_watcher.c \
 	src/platform_windows_output.c \
-	src/platform_windows_pedals.c \
+	src/platform_windows_atomic.c \
 	src/platform_windows_serial.c
 EXE_EXT := .exe
 else

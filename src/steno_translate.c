@@ -178,19 +178,34 @@ static bool translate_phrase_bits(
         return false;
     }
 
-    char *phrase = NULL;
-    const Phrase_Lookup_Result result = phrasing_lookup(
-        steno->phrasing,
+    const Phrase_Namespace verb_fallback = namespace == PHRASE_NAMESPACE_INITIAL_VERB
+        ? PHRASE_NAMESPACE_FINAL_VERB
+        : PHRASE_NAMESPACE_INITIAL_VERB;
+    const Phrase_Namespace lookup_order[] = {
         namespace,
-        bits,
-        &phrase
-    );
-    if (result == PHRASE_LOOKUP_ERROR) {
-        free(phrase);
-        return false;
+        verb_fallback,
+        namespace == PHRASE_NAMESPACE_NONVERB
+            ? PHRASE_NAMESPACE_FINAL_VERB
+            : PHRASE_NAMESPACE_NONVERB,
+    };
+
+    char *phrase = NULL;
+    for (size_t i = 0; i < sizeof(lookup_order) / sizeof(lookup_order[0]); ++i) {
+        const Phrase_Lookup_Result result = phrasing_lookup(
+            steno->phrasing,
+            lookup_order[i],
+            bits,
+            &phrase
+        );
+        if (result == PHRASE_LOOKUP_ERROR) {
+            free(phrase);
+            return false;
+        }
+        if (result == PHRASE_LOOKUP_HIT) {
+            break;
+        }
     }
-    if (result == PHRASE_LOOKUP_MISS) {
-        free(phrase);
+    if (phrase == NULL) {
         return true;
     }
 

@@ -2,6 +2,7 @@
 
 #include "gemini_pr.h"
 #include "orthography.h"
+#include "phrase_keys.h"
 #include "phrasing.h"
 #include "runtime_config.h"
 #include "stentura.h"
@@ -25,10 +26,190 @@ bool test_core_units(void)
     const bool f13_resolved = platform_keycode_from_name("F13", &f13_keycode);
     ok = ok && expect_size("F13 key resolves", f13_resolved ? 1 : 0, 1);
     ok = ok && expect_size("F13 keycode", f13_keycode, 105);
+    uint16_t f14_keycode = 0;
+    const bool f14_resolved = platform_keycode_from_name("f14", &f14_keycode);
+    ok = ok && expect_size("F14 key resolves", f14_resolved ? 1 : 0, 1);
+    ok = ok && expect_size("F14 keycode", f14_keycode, 107);
+    uint16_t f15_keycode = 0;
+    const bool f15_resolved = platform_keycode_from_name("F15", &f15_keycode);
+    ok = ok && expect_size("F15 key resolves", f15_resolved ? 1 : 0, 1);
+    ok = ok && expect_size("F15 keycode", f15_keycode, 113);
     uint16_t f16_keycode = 0;
     const bool f16_resolved = platform_keycode_from_name("F16", &f16_keycode);
     ok = ok && expect_size("F16 key resolves", f16_resolved ? 1 : 0, 1);
     ok = ok && expect_size("F16 keycode", f16_keycode, 106);
+    ok = ok && expect_size(
+        "initial plus final selects nonverb",
+        phrase_namespace_from_active_keys(true, true, false),
+        PHRASE_NAMESPACE_NONVERB
+    );
+    ok = ok && expect_size(
+        "initial plus final still selects nonverb with direct nonverb active",
+        phrase_namespace_from_active_keys(true, true, true),
+        PHRASE_NAMESPACE_NONVERB
+    );
+    ok = ok && expect_size(
+        "initial plus direct nonverb remains ambiguous",
+        phrase_namespace_from_active_keys(true, false, true),
+        PHRASE_NAMESPACE_NONE
+    );
+
+    Phrase_Keys phrase_keys = {0};
+    ok = ok && phrase_keys_bind(
+        &phrase_keys,
+        PHRASE_NAMESPACE_INITIAL_VERB,
+        "F13",
+        f13_keycode
+    );
+    ok = ok && phrase_keys_bind(
+        &phrase_keys,
+        PHRASE_NAMESPACE_FINAL_VERB,
+        "F14",
+        f14_keycode
+    );
+    ok = ok && phrase_keys_bind(
+        &phrase_keys,
+        PHRASE_NAMESPACE_NONVERB,
+        "F15",
+        f15_keycode
+    );
+    ok = ok && phrase_keys_have_distinct_keycodes(&phrase_keys);
+    ok = ok && phrase_keys_any_enabled(&phrase_keys);
+    ok = ok && phrase_keys_init(&phrase_keys);
+
+    Input_Event phrase_key_event = {
+        .keycode = f13_keycode,
+        .is_down = true,
+    };
+    Phrase_Namespace event_namespace = PHRASE_NAMESPACE_NONE;
+    bool event_is_down = false;
+    ok = ok && phrase_keys_handle_event(
+        &phrase_keys,
+        &phrase_key_event,
+        &event_namespace,
+        &event_is_down
+    );
+    ok = ok && expect_size(
+        "initial phrase key event namespace",
+        event_namespace,
+        PHRASE_NAMESPACE_INITIAL_VERB
+    );
+    ok = ok && expect_size("initial phrase key event is down", event_is_down, 1);
+    ok = ok && expect_size(
+        "initial phrase key selects namespace",
+        phrase_keys_take_namespace(&phrase_keys),
+        PHRASE_NAMESPACE_INITIAL_VERB
+    );
+    ok = ok && expect_size(
+        "held initial phrase key stays active",
+        phrase_keys_take_namespace(&phrase_keys),
+        PHRASE_NAMESPACE_INITIAL_VERB
+    );
+    phrase_key_event.is_repeat = true;
+    ok = ok && phrase_keys_handle_event(&phrase_keys, &phrase_key_event, NULL, NULL);
+    ok = ok && expect_size(
+        "repeated phrase key remains active",
+        phrase_keys_take_namespace(&phrase_keys),
+        PHRASE_NAMESPACE_INITIAL_VERB
+    );
+    phrase_key_event.is_repeat = false;
+    phrase_key_event.is_down = false;
+    ok = ok && phrase_keys_handle_event(&phrase_keys, &phrase_key_event, NULL, NULL);
+    ok = ok && expect_size(
+        "released initial phrase key is inactive",
+        phrase_keys_take_namespace(&phrase_keys),
+        PHRASE_NAMESPACE_NONE
+    );
+
+    phrase_key_event.keycode = f14_keycode;
+    phrase_key_event.is_down = true;
+    ok = ok && phrase_keys_handle_event(&phrase_keys, &phrase_key_event, NULL, NULL);
+    phrase_key_event.is_down = false;
+    ok = ok && phrase_keys_handle_event(&phrase_keys, &phrase_key_event, NULL, NULL);
+    ok = ok && expect_size(
+        "tapped final phrase key arms one stroke",
+        phrase_keys_take_namespace(&phrase_keys),
+        PHRASE_NAMESPACE_FINAL_VERB
+    );
+    ok = ok && expect_size(
+        "tapped final phrase key latch is consumed",
+        phrase_keys_take_namespace(&phrase_keys),
+        PHRASE_NAMESPACE_NONE
+    );
+
+    phrase_key_event.keycode = f13_keycode;
+    phrase_key_event.is_down = true;
+    ok = ok && phrase_keys_handle_event(&phrase_keys, &phrase_key_event, NULL, NULL);
+    phrase_key_event.keycode = f15_keycode;
+    ok = ok && phrase_keys_handle_event(&phrase_keys, &phrase_key_event, NULL, NULL);
+    ok = ok && expect_size(
+        "initial plus direct nonverb keys remain ambiguous",
+        phrase_keys_take_namespace(&phrase_keys),
+        PHRASE_NAMESPACE_NONE
+    );
+    phrase_keys_reset(&phrase_keys);
+    ok = ok && expect_size(
+        "phrase key reset clears held state",
+        phrase_keys_take_namespace(&phrase_keys),
+        PHRASE_NAMESPACE_NONE
+    );
+    phrase_keys_destroy(&phrase_keys);
+
+    Phrase_Keys composite_phrase_keys = {0};
+    ok = ok && phrase_keys_bind(
+        &composite_phrase_keys,
+        PHRASE_NAMESPACE_INITIAL_VERB,
+        "F13",
+        f13_keycode
+    );
+    ok = ok && phrase_keys_bind(
+        &composite_phrase_keys,
+        PHRASE_NAMESPACE_FINAL_VERB,
+        "F14",
+        f14_keycode
+    );
+    ok = ok && phrase_keys_init(&composite_phrase_keys);
+    phrase_key_event.keycode = f13_keycode;
+    phrase_key_event.is_down = true;
+    ok = ok && phrase_keys_handle_event(
+        &composite_phrase_keys,
+        &phrase_key_event,
+        NULL,
+        NULL
+    );
+    phrase_key_event.is_down = false;
+    ok = ok && phrase_keys_handle_event(
+        &composite_phrase_keys,
+        &phrase_key_event,
+        NULL,
+        NULL
+    );
+    phrase_key_event.keycode = f14_keycode;
+    phrase_key_event.is_down = true;
+    ok = ok && phrase_keys_handle_event(
+        &composite_phrase_keys,
+        &phrase_key_event,
+        NULL,
+        NULL
+    );
+    phrase_key_event.is_down = false;
+    ok = ok && phrase_keys_handle_event(
+        &composite_phrase_keys,
+        &phrase_key_event,
+        NULL,
+        NULL
+    );
+    ok = ok && expect_size(
+        "tapped initial and final bindings select nonverb without a direct key",
+        phrase_keys_take_namespace(&composite_phrase_keys),
+        PHRASE_NAMESPACE_NONVERB
+    );
+    ok = ok && expect_size(
+        "composite nonverb latches are consumed together",
+        phrase_keys_take_namespace(&composite_phrase_keys),
+        PHRASE_NAMESPACE_NONE
+    );
+    phrase_keys_destroy(&composite_phrase_keys);
 
     const char *runtime_config_path = "build/test-runtime-config.json";
     ok = ok && write_text_file(

@@ -1261,7 +1261,11 @@ func TestStaticPhrasingTrainerScript(t *testing.T) {
 		t.Fatalf("expected static trainer script, got %d", rec.Code)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "fetch('/phrasing-data.json'") ||
+	if !strings.Contains(body, "new URL('/phrasing-data.json'") ||
+		!strings.Contains(body, "dataURL.searchParams.set('_', Date.now() + '-' + Math.random())") ||
+		!strings.Contains(body, "fetch(dataURL") ||
+		!strings.Contains(body, "cache: 'no-store'") ||
+		!strings.Contains(body, "'Cache-Control': 'no-cache'") ||
 		!strings.Contains(body, "validatePhraseData") ||
 		!strings.Contains(body, "initial_verbs") ||
 		!strings.Contains(body, "final_verbs") ||
@@ -1309,6 +1313,7 @@ func TestStaticAndJSONResponsesAreNeverCached(t *testing.T) {
 	app.routes(mux)
 
 	for _, path := range []string{
+		"/phrasing",
 		"/static/phrasing-trainer.js",
 		"/phrasing-data.json",
 	} {
@@ -1324,8 +1329,11 @@ func TestStaticAndJSONResponsesAreNeverCached(t *testing.T) {
 			if rec.Code != http.StatusOK {
 				t.Fatalf("expected fresh 200 response, got %d", rec.Code)
 			}
-			if got := rec.Header().Get("Cache-Control"); got != "no-store, max-age=0" {
+			if got := rec.Header().Get("Cache-Control"); got != "no-store, no-cache, must-revalidate, max-age=0" {
 				t.Fatalf("expected no-store Cache-Control, got %q", got)
+			}
+			if got := rec.Header().Get("CDN-Cache-Control"); got != "no-store" {
+				t.Fatalf("expected no-store CDN-Cache-Control, got %q", got)
 			}
 			if got := rec.Header().Get("Pragma"); got != "no-cache" {
 				t.Fatalf("expected no-cache Pragma, got %q", got)
@@ -1337,6 +1345,48 @@ func TestStaticAndJSONResponsesAreNeverCached(t *testing.T) {
 				t.Fatalf("expected full response without Content-Range, got %q", got)
 			}
 		})
+	}
+}
+
+func TestPhrasingDataIsReadFreshOnEveryRequest(t *testing.T) {
+	dir := t.TempDir()
+	phrasingPath := filepath.Join(dir, "phrasing.json")
+	if err := os.WriteFile(phrasingPath, []byte(`{"version":"first"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	app, err := NewAppWithPhrasing(filepath.Join(dir, "srs.sqlite3"), phrasingPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := app.db.Close(); err != nil {
+			t.Fatal(err)
+		}
+	})
+	mux := http.NewServeMux()
+	app.routes(mux)
+
+	readVersion := func() string {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodGet, "/phrasing-data.json", nil)
+		req.Header.Set("If-None-Match", `"stale"`)
+		req.Header.Set("If-Modified-Since", time.Now().Add(24*time.Hour).Format(http.TimeFormat))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected fresh 200 response, got %d", rec.Code)
+		}
+		return strings.TrimSpace(rec.Body.String())
+	}
+
+	if got := readVersion(); got != `{"version":"first"}` {
+		t.Fatalf("expected first file contents, got %q", got)
+	}
+	if err := os.WriteFile(phrasingPath, []byte(`{"version":"second"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := readVersion(); got != `{"version":"second"}` {
+		t.Fatalf("expected updated file contents, got %q", got)
 	}
 }
 

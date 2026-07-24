@@ -52,6 +52,17 @@ The restore helper builds and validates a temporary database before replacing
 the target. If the target database already exists, it is preserved beside it
 with a timestamped `.before-restore-...` suffix.
 
+To reset every item in groups named `Phrases` to the five-repetition intro
+schedule and delete their review history:
+
+```sh
+scripts/reset_phrases.sh
+scripts/reset_phrases.sh practice.sqlite3
+```
+
+The reset script previews the affected counts, requires confirmation, creates
+a timestamped backup, and validates the database after the transaction.
+
 ## Import Format
 
 Paste grouped text into the import form:

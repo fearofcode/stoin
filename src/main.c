@@ -1,4 +1,5 @@
 #include "gemini_pr.h"
+#include "phrase_keys.h"
 #include "platform.h"
 #include "raw_serial.h"
 #include "runtime_config.h"
@@ -28,7 +29,6 @@ typedef enum Input_Mode {
 #define DEFAULT_CONFIG_PATH "stoin-config.json"
 #define DEFAULT_WORD_LIST_PATH "american_english_words.txt"
 #define DEFAULT_PHRASING_PATH "phrasing.json"
-#define DEFAULT_PEDAL_CONFIG_PATH "stoin-pedals.json"
 #define INPUT_EVENT_POLL_SLEEP_MS 10
 #define TX_BOLT_STROKE_IDLE_FLUSH_MS 100
 
@@ -39,6 +39,7 @@ typedef struct App {
     bool time_translations;
     bool trace_key_events;
     bool qwerty_input;
+    Phrase_Keys *phrase_keys;
 } App;
 
 static volatile sig_atomic_t g_stop_requested;
@@ -69,6 +70,7 @@ static bool update_session_active(App *app)
 
     const bool active = platform_user_session_is_active();
     if (!app->session_state_known || app->session_active != active) {
+        phrase_keys_reset(app->phrase_keys);
         steno_set_session_active(app->steno, active);
         if (app->session_state_known) {
             fprintf(stderr,
@@ -91,7 +93,6 @@ static void run_app_maintenance(App *app)
         return;
     }
 
-    platform_pedals_poll();
     platform_file_watcher_poll();
     (void)update_session_active(app);
 }
@@ -164,10 +165,10 @@ static bool handle_stroke_bits(App *app, uint64_t bits, uint64_t received_ns)
     if (app->time_translations) {
         platform_translation_timing_begin(received_ns);
     }
-    platform_pedals_poll();
     Stroke_Input stroke = {
         .bits = bits,
         .received_ns = received_ns,
+        .phrase_namespace = phrase_keys_take_namespace(app->phrase_keys),
     };
     const bool handled = steno_handle_stroke(app->steno, stroke);
     if (app->time_translations) {
@@ -176,28 +177,25 @@ static bool handle_stroke_bits(App *app, uint64_t bits, uint64_t received_ns)
     return handled;
 }
 
-static void handle_pedal_event(Platform_Pedal_Role role, bool is_down, void *userdata)
+static bool update_phrase_key_from_event(App *app, const Input_Event *event, bool update_steno)
 {
-    App *app = userdata;
-    if (app == NULL || app->steno == NULL) {
-        return;
+    if (app == NULL || app->phrase_keys == NULL || event == NULL) {
+        return false;
     }
 
-    switch (role) {
-    case PLATFORM_PEDAL_ROLE_INITIAL_VERB:
-        steno_set_phrase_namespace(app->steno, PHRASE_NAMESPACE_INITIAL_VERB, is_down);
-        break;
-    case PLATFORM_PEDAL_ROLE_FINAL_VERB:
-        steno_set_phrase_namespace(app->steno, PHRASE_NAMESPACE_FINAL_VERB, is_down);
-        break;
-    case PLATFORM_PEDAL_ROLE_NONVERB:
-        steno_set_phrase_namespace(app->steno, PHRASE_NAMESPACE_NONVERB, is_down);
-        break;
-    case PLATFORM_PEDAL_ROLE_NONE:
-    case PLATFORM_PEDAL_ROLE_COUNT:
-    default:
-        break;
+    Phrase_Namespace phrase_namespace = PHRASE_NAMESPACE_NONE;
+    bool is_down = false;
+    if (!phrase_keys_handle_event(
+            app->phrase_keys,
+            event,
+            &phrase_namespace,
+            &is_down)) {
+        return false;
     }
+    if (update_steno && app->steno != NULL && !event->is_repeat) {
+        steno_set_phrase_namespace(app->steno, phrase_namespace, is_down);
+    }
+    return true;
 }
 
 static bool handle_stroke_bits_callback(uint64_t bits, uint64_t received_ns, void *userdata)
@@ -227,7 +225,7 @@ static void print_key_event(const Input_Event *event)
     fflush(stdout);
 }
 
-static bool handle_trace_input(const Input_Event *event, void *userdata)
+static bool handle_phrase_key_input(const Input_Event *event, void *userdata)
 {
     App *app = userdata;
 
@@ -235,7 +233,7 @@ static bool handle_trace_input(const Input_Event *event, void *userdata)
         print_key_event(event);
     }
 
-    return false;
+    return update_phrase_key_from_event(app, event, false);
 }
 
 static bool handle_input(const Input_Event *event, void *userdata)
@@ -249,6 +247,9 @@ static bool handle_input(const Input_Event *event, void *userdata)
         print_key_event(event);
     }
 
+    if (update_phrase_key_from_event(app, event, true)) {
+        return true;
+    }
     if (app == NULL || !app->qwerty_input) {
         return false;
     }
@@ -265,7 +266,8 @@ static bool handle_input(const Input_Event *event, void *userdata)
 
 static bool app_wants_keyboard_events(const App *app)
 {
-    return app != NULL && app->trace_key_events;
+    return app != NULL
+        && (app->trace_key_events || phrase_keys_any_enabled(app->phrase_keys));
 }
 
 static void sleep_with_input_events(const App *app, unsigned int milliseconds)
@@ -296,8 +298,8 @@ static void print_usage(void)
     fputs("             [--input tx-bolt|gemini-pr|stentura|qwerty]\n", stderr);
     fputs("             [--serial-port PATH] [--serial-baud BAUD]\n", stderr);
     fputs("             [--multiple-inputs] [--multi-input-window-ms MS]\n", stderr);
-    fputs("             [--pedal-config PATH]\n", stderr);
-    fputs("             [--register-pedal initial-verb|final-verb|nonverb]\n", stderr);
+    fputs("             [--initial-verb-key KEY] [--final-verb-key KEY]\n", stderr);
+    fputs("             [--nonverb-key KEY]\n", stderr);
     fputs("             [--trace-key-events]\n", stderr);
     fputs("             [--print-suggestions] [--suggestion-log PATH]\n", stderr);
     fputs("             [--time-translations]\n", stderr);
@@ -329,38 +331,68 @@ static bool parse_milliseconds(const char *value, unsigned int *out_milliseconds
     return true;
 }
 
-static bool parse_pedal_role(const char *value, Platform_Pedal_Role *out_role)
+static const char *phrase_namespace_label(Phrase_Namespace phrase_namespace)
 {
-    if (value == NULL || out_role == NULL) {
+    switch (phrase_namespace) {
+    case PHRASE_NAMESPACE_INITIAL_VERB:
+        return "initial verb";
+    case PHRASE_NAMESPACE_FINAL_VERB:
+        return "final verb";
+    case PHRASE_NAMESPACE_NONVERB:
+        return "non-verb";
+    case PHRASE_NAMESPACE_NONE:
+    default:
+        return "unassigned";
+    }
+}
+
+static bool bind_phrase_key(
+    Phrase_Keys *phrase_keys,
+    Phrase_Namespace phrase_namespace,
+    const char *name
+)
+{
+    uint16_t keycode = 0;
+    if (!platform_keycode_from_name(name, &keycode)) {
+        fprintf(stderr,
+            "stoin: unknown %s phrase key '%s'\n",
+            phrase_namespace_label(phrase_namespace),
+            name);
         return false;
     }
-    if (strcmp(value, "initial") == 0
-        || strcmp(value, "initial-verb") == 0
-        || strcmp(value, "initial_verb") == 0
-        || strcmp(value, "iv") == 0
-        || strcmp(value, "verb") == 0
-        || strcmp(value, "core") == 0
-        || strcmp(value, "phrase-core") == 0
-        || strcmp(value, "phrase_core") == 0) {
-        *out_role = PLATFORM_PEDAL_ROLE_INITIAL_VERB;
-        return true;
+    return phrase_keys_bind(phrase_keys, phrase_namespace, name, keycode);
+}
+
+static void print_phrase_key_status(const Phrase_Keys *phrase_keys)
+{
+    for (Phrase_Namespace phrase_namespace = PHRASE_NAMESPACE_INITIAL_VERB;
+         phrase_namespace < PHRASE_KEY_BINDING_COUNT;
+         ++phrase_namespace) {
+        const Phrase_Key_Binding *binding = phrase_keys_get(phrase_keys, phrase_namespace);
+        if (binding != NULL && binding->enabled) {
+            printf("stoin: %s phrase key = %s (keycode %u)\n",
+                phrase_namespace_label(phrase_namespace),
+                binding->name,
+                (unsigned int)binding->keycode);
+        }
     }
-    if (strcmp(value, "final") == 0
-        || strcmp(value, "final-verb") == 0
-        || strcmp(value, "final_verb") == 0
-        || strcmp(value, "fv") == 0) {
-        *out_role = PLATFORM_PEDAL_ROLE_FINAL_VERB;
-        return true;
+
+    const Phrase_Key_Binding *initial = phrase_keys_get(
+        phrase_keys,
+        PHRASE_NAMESPACE_INITIAL_VERB
+    );
+    const Phrase_Key_Binding *final = phrase_keys_get(
+        phrase_keys,
+        PHRASE_NAMESPACE_FINAL_VERB
+    );
+    if (initial != NULL
+        && initial->enabled
+        && final != NULL
+        && final->enabled) {
+        printf("stoin: non-verb phrases also use %s + %s\n",
+            initial->name,
+            final->name);
     }
-    if (strcmp(value, "nonverb") == 0
-        || strcmp(value, "non-verb") == 0
-        || strcmp(value, "phrase-nonverb") == 0
-        || strcmp(value, "phrase_nonverb") == 0
-        || strcmp(value, "nv") == 0) {
-        *out_role = PLATFORM_PEDAL_ROLE_NONVERB;
-        return true;
-    }
-    return false;
 }
 
 static bool resolve_serial_port(const char *requested_port, char *out_path, size_t out_size)
@@ -765,8 +797,7 @@ int main(int argc, char **argv)
     bool print_suggestions = false;
     const char *suggestion_log_path = NULL;
     bool time_translations = false;
-    const char *pedal_config_path = DEFAULT_PEDAL_CONFIG_PATH;
-    Platform_Pedal_Role register_pedal_role = PLATFORM_PEDAL_ROLE_NONE;
+    Phrase_Keys phrase_keys = {0};
 
     bool raw_serial_requested = false;
     for (int i = 1; i < argc; ++i) {
@@ -810,11 +841,29 @@ int main(int argc, char **argv)
                 runtime_config_destroy(&runtime_config);
                 return 1;
             }
-        } else if (strcmp(argv[i], "--pedal-config") == 0 && i + 1 < argc) {
-            pedal_config_path = argv[++i];
-        } else if (strcmp(argv[i], "--register-pedal") == 0 && i + 1 < argc) {
-            if (!parse_pedal_role(argv[++i], &register_pedal_role)) {
-                fprintf(stderr, "stoin: unknown pedal role '%s'\n", argv[i]);
+        } else if (strcmp(argv[i], "--initial-verb-key") == 0 && i + 1 < argc) {
+            if (!bind_phrase_key(
+                    &phrase_keys,
+                    PHRASE_NAMESPACE_INITIAL_VERB,
+                    argv[++i])) {
+                print_usage();
+                runtime_config_destroy(&runtime_config);
+                return 1;
+            }
+        } else if (strcmp(argv[i], "--final-verb-key") == 0 && i + 1 < argc) {
+            if (!bind_phrase_key(
+                    &phrase_keys,
+                    PHRASE_NAMESPACE_FINAL_VERB,
+                    argv[++i])) {
+                print_usage();
+                runtime_config_destroy(&runtime_config);
+                return 1;
+            }
+        } else if (strcmp(argv[i], "--nonverb-key") == 0 && i + 1 < argc) {
+            if (!bind_phrase_key(
+                    &phrase_keys,
+                    PHRASE_NAMESPACE_NONVERB,
+                    argv[++i])) {
                 print_usage();
                 runtime_config_destroy(&runtime_config);
                 return 1;
@@ -914,6 +963,11 @@ int main(int argc, char **argv)
         runtime_config_destroy(&runtime_config);
         return 1;
     }
+    if (!phrase_keys_have_distinct_keycodes(&phrase_keys)) {
+        fputs("stoin: initial verb, final verb, and non-verb phrase keys must be distinct\n", stderr);
+        runtime_config_destroy(&runtime_config);
+        return 1;
+    }
     if (raw_serial_dump) {
         const int status = raw_serial_run(serial_port, serial_baud_rate);
         runtime_config_destroy(&runtime_config);
@@ -992,6 +1046,15 @@ int main(int argc, char **argv)
         }
     }
 
+    if (!phrase_keys_init(&phrase_keys)) {
+        fputs("stoin: failed to initialize phrase key state\n", stderr);
+        if (suggestion_log_file != NULL) {
+            fclose(suggestion_log_file);
+        }
+        runtime_config_destroy(&runtime_config);
+        return 1;
+    }
+
     App app = {
         .steno = create_steno(
             runtime_config.dictionary_paths,
@@ -1007,8 +1070,10 @@ int main(int argc, char **argv)
         .time_translations = time_translations,
         .trace_key_events = trace_key_events,
         .qwerty_input = input_mode == INPUT_MODE_QWERTY,
+        .phrase_keys = &phrase_keys,
     };
     if (app.steno == NULL) {
+        phrase_keys_destroy(&phrase_keys);
         if (suggestion_log_file != NULL) {
             fclose(suggestion_log_file);
         }
@@ -1023,25 +1088,15 @@ int main(int argc, char **argv)
         }
     }
 
-    if (!platform_pedals_init(
-            pedal_config_path,
-            register_pedal_role,
-            handle_pedal_event,
-            &app)) {
-        steno_destroy(app.steno);
-        if (suggestion_log_file != NULL) {
-            fclose(suggestion_log_file);
-        }
-        runtime_config_destroy(&runtime_config);
-        return 1;
-    }
+    print_phrase_key_status(&phrase_keys);
 
     int status = 0;
     if (input_mode == INPUT_MODE_QWERTY) {
         status = run_qwerty(&app);
     } else {
         if (app_wants_keyboard_events(&app)) {
-            if (!platform_init_listen_only(handle_trace_input, &app)) {
+            if (!platform_init_listen_only(handle_phrase_key_input, &app)) {
+                phrase_keys_destroy(&phrase_keys);
                 steno_destroy(app.steno);
                 if (suggestion_log_file != NULL) {
                     fclose(suggestion_log_file);
@@ -1075,7 +1130,7 @@ int main(int argc, char **argv)
         }
     }
 
-    platform_pedals_shutdown();
+    phrase_keys_destroy(&phrase_keys);
     steno_destroy(app.steno);
     if (suggestion_log_file != NULL && fclose(suggestion_log_file) != 0 && status == 0) {
         status = 1;
