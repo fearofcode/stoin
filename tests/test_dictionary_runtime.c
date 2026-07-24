@@ -42,6 +42,21 @@ static void test_phrasing_watch_callback(void *userdata)
     }
 }
 
+static size_t substring_occurrence_count(const char *text, const char *substring)
+{
+    if (text == NULL || substring == NULL || substring[0] == '\0') {
+        return 0;
+    }
+
+    size_t count = 0;
+    const size_t substring_length = strlen(substring);
+    while ((text = strstr(text, substring)) != NULL) {
+        ++count;
+        text += substring_length;
+    }
+    return count;
+}
+
 bool test_dictionary_runtime(void)
 {
     Test_Output output = {0};
@@ -542,6 +557,7 @@ bool test_dictionary_runtime(void)
         "  \"T\": \"a\",\n"
         "  \"K\": \"she\",\n"
         "  \"W\": \"with\",\n"
+        "  \"TP-PL\": \"{.}\",\n"
         "  \"TPH-T\": \"is a\"\n"
         "}\n");
 
@@ -569,6 +585,20 @@ bool test_dictionary_runtime(void)
                 phrase_suggestion_log_file,
                 "phrase suggestion log source",
                 "\"source\":\"initial_verb\"");
+            ok = ok && handle_test_stroke(initial_verb_suggestions_steno, "TP-PL");
+            ok = ok && handle_test_stroke(initial_verb_suggestions_steno, "S");
+            ok = ok && handle_test_stroke(initial_verb_suggestions_steno, "T");
+            char repeated_suggestions[2048] = {0};
+            ok = ok && read_file_contents(
+                phrase_suggestions_file,
+                repeated_suggestions,
+                sizeof(repeated_suggestions));
+            ok = ok && expect_size(
+                "sentence capitalization repeats phrase suggestion",
+                substring_occurrence_count(
+                    repeated_suggestions,
+                    "Suggestion [initial verb]: Use SKPWOB for \"is a\"\n"),
+                2);
             steno_destroy(initial_verb_suggestions_steno);
         }
 

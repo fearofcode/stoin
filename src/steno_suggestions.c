@@ -65,6 +65,26 @@ static const char *skip_leading_ascii_space(const char *s)
     return s;
 }
 
+static bool copy_with_ascii_lowercase(char *destination, size_t destination_size, const char *source)
+{
+    if (destination == NULL || destination_size == 0 || source == NULL) {
+        return false;
+    }
+
+    bool changed = false;
+    size_t i = 0;
+    for (; source[i] != '\0' && i + 1 < destination_size; ++i) {
+        char c = source[i];
+        if (c >= 'A' && c <= 'Z') {
+            c = (char)(c + ('a' - 'A'));
+            changed = true;
+        }
+        destination[i] = c;
+    }
+    destination[i] = '\0';
+    return source[i] == '\0' && changed;
+}
+
 static bool append_translation_outline(
     Fixed_String_Buffer *outline,
     const Translation *translation,
@@ -225,24 +245,52 @@ void steno_maybe_emit_brevity_suggestion(Steno *steno)
             continue;
         }
 
+        char lowercase_text[BREVITY_BUFFER_BYTES] = {0};
+        const bool has_lowercase_text = copy_with_ascii_lowercase(
+            lowercase_text,
+            sizeof(lowercase_text),
+            candidate_text);
+        const char *lookup_texts[] = {
+            candidate_text,
+            has_lowercase_text ? lowercase_text : NULL,
+        };
+
         char suggested_outline[BREVITY_BUFFER_BYTES] = {0};
         Phrase_Namespace source = PHRASE_NAMESPACE_NONE;
-        const Phrase_Lookup_Result phrase_result = phrasing_find_translation_outline(
-            steno->phrasing,
-            candidate_text,
-            typed_outline.data,
-            typed_stroke_count - 1,
-            &source,
-            suggested_outline,
-            sizeof(suggested_outline));
-        if (phrase_result != PHRASE_LOOKUP_HIT
-            && !dictionary_find_translation_outline(
+        const char *suggestion_text = NULL;
+        for (size_t i = 0; i < sizeof(lookup_texts) / sizeof(lookup_texts[0]); ++i) {
+            if (lookup_texts[i] == NULL) {
+                continue;
+            }
+            if (phrasing_find_translation_outline(
+                    steno->phrasing,
+                    lookup_texts[i],
+                    typed_outline.data,
+                    typed_stroke_count - 1,
+                    &source,
+                    suggested_outline,
+                    sizeof(suggested_outline))
+                == PHRASE_LOOKUP_HIT) {
+                suggestion_text = lookup_texts[i];
+                break;
+            }
+        }
+        for (size_t i = 0;
+             suggestion_text == NULL && i < sizeof(lookup_texts) / sizeof(lookup_texts[0]);
+             ++i) {
+            if (lookup_texts[i] != NULL
+                && dictionary_find_translation_outline(
                 &steno->dictionary_stack.dictionary,
-                candidate_text,
+                lookup_texts[i],
                 typed_outline.data,
                 typed_stroke_count - 1,
                 suggested_outline,
                 sizeof(suggested_outline))) {
+                source = PHRASE_NAMESPACE_NONE;
+                suggestion_text = lookup_texts[i];
+            }
+        }
+        if (suggestion_text == NULL) {
             continue;
         }
 
@@ -250,7 +298,7 @@ void steno_maybe_emit_brevity_suggestion(Steno *steno)
             steno,
             suggested_outline,
             typed_outline.data,
-            candidate_text,
+            suggestion_text,
             typed_stroke_count,
             source);
 
@@ -262,7 +310,7 @@ void steno_maybe_emit_brevity_suggestion(Steno *steno)
             "Suggestion [%s]: Use %s for \"%s\"\n",
             suggestion_source_name(source),
             suggested_outline,
-            candidate_text);
+            suggestion_text);
         fflush(file);
         return;
     }

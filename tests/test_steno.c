@@ -247,6 +247,62 @@ int main(void)
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, true);
+    ok = ok && handle_test_stroke(steno, "STHR");
+    ok = ok && handle_test_stroke(steno, "STHR-D");
+    ok = ok && handle_test_stroke(steno, "STHRE");
+    ok = ok && handle_test_stroke(steno, "STHR*");
+    ok = ok && handle_test_stroke(steno, "STHRU");
+    ok = ok && handle_test_stroke(steno, "STHRA");
+    ok = ok && handle_test_stroke(steno, "STHRA-D");
+    ok = ok && handle_test_stroke(steno, "STHR-T");
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, false);
+    ok = ok && expect_string(
+        "steal IV stem forms and shared tails",
+        output.text,
+        "steals stole steal stealing to steal can steal could steal steals the");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, true);
+    ok = ok && handle_test_stroke(steno, "SH");
+    ok = ok && handle_test_stroke(steno, "SH-D");
+    ok = ok && handle_test_stroke(steno, "SHE");
+    ok = ok && handle_test_stroke(steno, "SH*");
+    ok = ok && handle_test_stroke(steno, "SHU");
+    ok = ok && handle_test_stroke(steno, "SHA");
+    ok = ok && handle_test_stroke(steno, "SHA-D");
+    ok = ok && handle_test_stroke(steno, "SH-RP");
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, false);
+    ok = ok && expect_string(
+        "show IV stem forms and shared tails",
+        output.text,
+        "shows showed show showing to show can show could show shows you");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, true);
+    ok = ok && handle_test_stroke(steno, "STWHR-B");
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, false);
+    ok = ok && expect_string(
+        "those is a plural FV starter",
+        output.text,
+        "those are");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, true);
+    ok = ok && handle_test_stroke(steno, "STWHR-RPLG");
+    ok = ok && handle_test_stroke(steno, "STWHR-FT");
+    ok = ok && handle_test_stroke(steno, "STWHR-F");
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, false);
+    ok = ok && expect_string(
+        "those is an NV prefix with shared tails",
+        output.text,
+        "those who those with those of");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
     steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, true);
     ok = ok && handle_test_stroke(steno, "SK-B");
     steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, false);
@@ -361,6 +417,36 @@ int main(void)
     ok = ok && handle_test_stroke(steno, "SKH-BGS");
     steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, false);
     ok = ok && expect_string("such is an FV starter", output.text, "such says");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, true);
+    ok = ok && handle_test_stroke(steno, "TKPR-RT");
+    ok = ok && handle_test_stroke(steno, "SKWR-FRB");
+    ok = ok && handle_test_stroke(steno, "SKWROFR");
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, false);
+    ok = ok && expect_string(
+        "before works on both sides of NV and over is remapped",
+        output.text,
+        "before that just before just over");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, true);
+    ok = ok && handle_test_stroke(steno, "TKPW-FRB");
+    ok = ok && handle_test_stroke(steno, "TKPWOFR");
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, false);
+    ok = ok && expect_string(
+        "before and remapped over are IV tails",
+        output.text,
+        "goes before goes over");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, true);
+    ok = ok && handle_test_stroke(steno, "TKPR-BGS");
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, false);
+    ok = ok && expect_string("before is an FV starter", output.text, "before says");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);

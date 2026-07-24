@@ -23,7 +23,9 @@
 | KPH | catches | caught | catch |  | catching | to catch |  | can catch | could catch |
 | TW | looks | looked | look |  | looking | to look |  | can look | could look |
 | HR | holds | held | hold |  | holding | to hold |  | can hold | could hold |
+| SH | shows | showed | show |  | showing | to show |  | can show | could show |
 | SHR | sells | sold | sell |  | selling | to sell |  | can sell | could sell |
+| STHR | steals | stole | steal |  | stealing | to steal |  | can steal | could steal |
 | SPW | spells | spelled | spell |  | spelling | to spell |  | can spell | could spell |
 | PHR | pulls | pulled | pull |  | pulling | to pull |  | can pull | could pull |
 | STPH | puts | put | put |  | putting | to put |  | can put | could put |
@@ -103,7 +105,8 @@
 | -PBL | many |
 | -FPB | enough |
 | -PBG | again |
-| -FRB | over |
+| -FRB | before |
+| OFR | over |
 | -FRPL | from |
 | -PLS | some |
 | -GZ | good |
@@ -146,6 +149,7 @@
 | P | it | third_singular |
 | W | we | plural |
 | T | they | plural |
+| STWHR | those | plural |
 | TP | this | third_singular |
 | ST | that | third_singular |
 | TK | there (singular) | third_singular |
@@ -191,6 +195,7 @@
 | TKWR | yet | third_singular |
 | SWHR | also | third_singular |
 | SKH | such | third_singular |
+| TKPR | before | third_singular |
 
 ### Operators
 
