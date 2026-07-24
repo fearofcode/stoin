@@ -3,10 +3,89 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+func TestLoadWordFrequencyDataDownloadsAndCaches(t *testing.T) {
+	cachePath := filepath.Join(t.TempDir(), "count_1w.txt")
+	t.Setenv(wordFrequencyCacheEnvironment, cachePath)
+
+	requestCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		requestCount++
+		response.Header().Set("Content-Type", "text/plain")
+		_, _ = response.Write([]byte("common\t20\nrare\t1\n"))
+	}))
+	defer server.Close()
+
+	previousURL := wordFrequencyURL
+	previousClient := wordFrequencyHTTPClient
+	wordFrequencyURL = server.URL
+	wordFrequencyHTTPClient = server.Client()
+	t.Cleanup(func() {
+		wordFrequencyURL = previousURL
+		wordFrequencyHTTPClient = previousClient
+	})
+
+	var stderr bytes.Buffer
+	data, err := loadWordFrequencyData(&stderr)
+	if err != nil {
+		t.Fatalf("first loadWordFrequencyData: %v", err)
+	}
+	if data != "common\t20\nrare\t1\n" {
+		t.Fatalf("downloaded frequency data = %q", data)
+	}
+	if requestCount != 1 {
+		t.Fatalf("download requests = %d, want 1", requestCount)
+	}
+	if !strings.Contains(stderr.String(), server.URL) || !strings.Contains(stderr.String(), cachePath) {
+		t.Fatalf("download notice = %q, want URL and cache path", stderr.String())
+	}
+
+	data, err = loadWordFrequencyData(&stderr)
+	if err != nil {
+		t.Fatalf("cached loadWordFrequencyData: %v", err)
+	}
+	if data != "common\t20\nrare\t1\n" {
+		t.Fatalf("cached frequency data = %q", data)
+	}
+	if requestCount != 1 {
+		t.Fatalf("download requests after cached load = %d, want 1", requestCount)
+	}
+}
+
+func TestLoadWordFrequencyDataReportsDownloadFailure(t *testing.T) {
+	cachePath := filepath.Join(t.TempDir(), "count_1w.txt")
+	t.Setenv(wordFrequencyCacheEnvironment, cachePath)
+
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		http.Error(response, "unavailable", http.StatusServiceUnavailable)
+	}))
+	defer server.Close()
+
+	previousURL := wordFrequencyURL
+	previousClient := wordFrequencyHTTPClient
+	wordFrequencyURL = server.URL
+	wordFrequencyHTTPClient = server.Client()
+	t.Cleanup(func() {
+		wordFrequencyURL = previousURL
+		wordFrequencyHTTPClient = previousClient
+	})
+
+	_, err := loadWordFrequencyData(io.Discard)
+	if err == nil || !strings.Contains(err.Error(), "503 Service Unavailable") {
+		t.Fatalf("loadWordFrequencyData error = %v, want HTTP status", err)
+	}
+	if _, statErr := os.Stat(cachePath); !os.IsNotExist(statErr) {
+		t.Fatalf("failed download cache stat error = %v, want not-exist", statErr)
+	}
+}
 
 func TestGZPluralAddsSOnlyToSimpleNFinalTranslations(t *testing.T) {
 	entry := func(rawOutline, value string) (string, sourceEntry) {
@@ -89,7 +168,16 @@ func TestTwoWayConflictUsesFrequencyAndStarredAlternative(t *testing.T) {
 	if claim == nil || !claim.conflict || len(claim.alternatives) != 1 {
 		t.Fatalf("POEGSZ claim = %#v, want a two-way conflict", claim)
 	}
-	additional, ambiguousCount, joinCount, boundaryCount := selectSafeCandidates(sources, claims, nil)
+	frequencies := map[string]uint64{
+		"possessing": 2,
+		"potions":    1,
+	}
+	additional, ambiguousCount, joinCount, boundaryCount := selectSafeCandidates(
+		sources,
+		claims,
+		nil,
+		frequencies,
+	)
 	if ambiguousCount != 0 || joinCount != 0 || boundaryCount != 0 {
 		t.Fatalf(
 			"resolved conflict counts = (%d, %d, %d), want (0, 0, 0)",
@@ -123,7 +211,7 @@ func TestTwoWayConflictFallsBackToLongerTranslation(t *testing.T) {
 		},
 	}
 
-	additional, ambiguousCount, _, _ := selectSafeCandidates(nil, claims, nil)
+	additional, ambiguousCount, _, _ := selectSafeCandidates(nil, claims, nil, nil)
 	if ambiguousCount != 0 {
 		t.Fatalf("ambiguous count = %d, want 0", ambiguousCount)
 	}
@@ -168,7 +256,12 @@ func TestTwoWayConflictPrefersMatchingReferenceValue(t *testing.T) {
 	preferenceKey, preference := entry("PHRAEUD", "played")
 	preferences := map[string]sourceEntry{preferenceKey: preference}
 
-	additional, ambiguousCount, joinCount, boundaryCount := selectSafeCandidates(sources, claims, preferences)
+	additional, ambiguousCount, joinCount, boundaryCount := selectSafeCandidates(
+		sources,
+		claims,
+		preferences,
+		nil,
+	)
 	if ambiguousCount != 0 || joinCount != 0 || boundaryCount != 0 {
 		t.Fatalf(
 			"preferred conflict counts = (%d, %d, %d), want (0, 0, 0)",
@@ -365,7 +458,7 @@ func TestTwoWayConflictRepeatsRROutlineUntilAvailable(t *testing.T) {
 		},
 	}
 
-	additional, ambiguousCount, _, boundaryCount := selectSafeCandidates(sources, claims, nil)
+	additional, ambiguousCount, _, boundaryCount := selectSafeCandidates(sources, claims, nil, nil)
 	if ambiguousCount != 0 || boundaryCount != 0 {
 		t.Fatalf(
 			"repeated R-R conflict counts = (%d, %d), want (0, 0)",
@@ -402,7 +495,7 @@ func TestTwoWayConflictStaysAmbiguousWhenStarredOutlineIsOccupied(t *testing.T) 
 		},
 	}
 
-	additional, ambiguousCount, _, _ := selectSafeCandidates(sources, claims, nil)
+	additional, ambiguousCount, _, _ := selectSafeCandidates(sources, claims, nil, nil)
 	if ambiguousCount != 1 {
 		t.Fatalf("ambiguous count = %d, want 1", ambiguousCount)
 	}
@@ -814,7 +907,7 @@ func TestSupplementalEntriesUseSafetyChecks(t *testing.T) {
 			value:   aeurgzEntry.value,
 		},
 	}
-	generated, ambiguousCount, joinCount, boundaryCount := selectSafeCandidates(sources, claims, nil)
+	generated, ambiguousCount, joinCount, boundaryCount := selectSafeCandidates(sources, claims, nil, nil)
 	if ambiguousCount != 1 || joinCount != 0 || boundaryCount != 0 {
 		t.Fatalf("generated safety counts = (%d, %d, %d), want (1, 0, 0)", ambiguousCount, joinCount, boundaryCount)
 	}
@@ -834,7 +927,7 @@ func TestSupplementalEntriesUseSafetyChecks(t *testing.T) {
 		t.Fatalf("supplemental candidates = %d, want 3", len(supplementalKeys))
 	}
 
-	additional, ambiguousCount, joinCount, boundaryCount := selectSafeCandidates(sources, claims, nil)
+	additional, ambiguousCount, joinCount, boundaryCount := selectSafeCandidates(sources, claims, nil, nil)
 	if ambiguousCount != 0 {
 		t.Fatalf("ambiguous candidates = %d, want 0", ambiguousCount)
 	}

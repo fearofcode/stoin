@@ -1,3 +1,10 @@
+/*
+ * Portions adapted from Plover's plover/formatting.py.
+ * Copyright (c) 2010-2011 Joshua Harlan Lifton.
+ * Rewritten and modified for Stoin in 2026.
+ * See LICENSE.txt and NOTICE.md.
+ */
+
 #include "format.h"
 
 #include "text_util.h"

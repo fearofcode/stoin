@@ -97,9 +97,12 @@ different source translations claim it and its final-stroke starred variant is
 unavailable, or if it fails the word-boundary conflict check adapted from
 `lapwing_augmentor`. When exactly two translations claim an outline and adding
 `*` to its final stroke is unoccupied, both are retained. The translation with
-the higher count in the bundled `count_1w.txt` corpus receives the ordinary
+the higher count in Peter Norvig's `count_1w.txt` corpus receives the ordinary
 outline and the other receives both the starred outline and an outline with a
-standalone `/R-R` disambiguation stroke appended. If that `/R-R` outline is
+standalone `/R-R` disambiguation stroke appended. The corpus is downloaded from
+<https://www.norvig.com/ngrams/count_1w.txt> the first time it is needed and
+cached in the platform's user cache directory as `stoin/count_1w.txt`. Set
+`STOIN_COUNT_1W_PATH` to use a different cache path. If the `/R-R` outline is
 already occupied, another `/R-R` stroke is appended until an unused outline is
 found. If either translation is absent from the corpus, the longer translation
 receives the ordinary outline;

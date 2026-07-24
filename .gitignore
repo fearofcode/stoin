@@ -15,6 +15,7 @@ build/
 compile_commands.json
 __pycache__/
 *.py[cod]
+cmd/stoin-dict-augment/count_1w.txt
 
 # Local runtime logs
 *.log

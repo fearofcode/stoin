@@ -1,5 +1,37 @@
 # Third-Party Notices
 
+## Project License and Plover-Derived Code
+
+Stoin is free software licensed under the GNU General Public License, version 2,
+or (at your option) any later version. See `LICENSE.txt`.
+
+Portions of `src/format.c` and `src/orthography.c` are C ports or adaptations of
+Plover's formatting and English orthography implementations:
+
+<https://github.com/opensteno/plover>
+
+Those upstream files carry the following notice:
+
+```text
+Copyright (c) 2010-2011 Joshua Harlan Lifton. See LICENSE.txt for details.
+```
+
+Plover is distributed under the GNU General Public License, version 2 or (at
+your option) any later version. Stoin's ports have been rewritten and modified.
+
+## Norvig Word-Frequency Data
+
+`stoin-dict-augment` downloads Peter Norvig's `count_1w.txt` word-frequency
+file on demand from:
+
+<https://www.norvig.com/ngrams/count_1w.txt>
+
+The file is cached locally and is not distributed in this repository. Norvig
+states that the data files are derived from the Google Web Trillion Word Corpus,
+which was distributed by the Linguistic Data Consortium. His corpus page is:
+
+<https://www.norvig.com/ngrams/>
+
 ## Lapwing Dictionaries
 
 The bundled `lapwing-base.json` and `lapwing-commands.json` dictionaries are

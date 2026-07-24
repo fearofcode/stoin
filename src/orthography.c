@@ -1,3 +1,10 @@
+/*
+ * Portions adapted from Plover's plover/orthography.py.
+ * Copyright (c) 2010-2011 Joshua Harlan Lifton.
+ * Rewritten and modified for Stoin in 2026.
+ * See LICENSE.txt and NOTICE.md.
+ */
+
 #include "orthography.h"
 
 #include "util.h"

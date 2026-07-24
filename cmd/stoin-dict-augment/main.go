@@ -2,21 +2,31 @@ package main
 
 import (
 	"bufio"
-	_ "embed"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 )
 
-//go:embed count_1w.txt
-var count1W string
+const (
+	wordFrequencyCacheEnvironment = "STOIN_COUNT_1W_PATH"
+	wordFrequencyDownloadLimit    = 64 << 20
+)
+
+var (
+	wordFrequencyURL        = "https://www.norvig.com/ngrams/count_1w.txt"
+	wordFrequencyHTTPClient = &http.Client{
+		Timeout: 2 * time.Minute,
+	}
+)
 
 type stenoKey uint8
 
@@ -186,7 +196,20 @@ func run(
 
 	excludedTranslations := rrMarkedTranslations(sources)
 	claims := generateCandidateClaims(sources, excludedTranslations, preferences)
-	augmentations, ambiguousCount, joinCount, boundaryCount := selectSafeCandidates(sources, claims, preferences)
+	wordFrequencyData := ""
+	if hasUnrankedTwoWayConflict(claims, preferences) {
+		wordFrequencyData, err = loadWordFrequencyData(stderr)
+		if err != nil {
+			return err
+		}
+	}
+	frequencies := conflictWordFrequencies(claims, wordFrequencyData)
+	augmentations, ambiguousCount, joinCount, boundaryCount := selectSafeCandidates(
+		sources,
+		claims,
+		preferences,
+		frequencies,
+	)
 
 	var supplemental map[string]sourceEntry
 	var supplementalKeys map[string]struct{}
@@ -207,8 +230,20 @@ func run(
 		retainAcceptedClaims(claims, augmentations)
 		importStats, supplementalKeys = addSupplementalClaims(sources, supplemental, claims, supplementalExcluded)
 
+		if wordFrequencyData == "" && hasUnrankedTwoWayConflict(claims, preferences) {
+			wordFrequencyData, err = loadWordFrequencyData(stderr)
+			if err != nil {
+				return err
+			}
+		}
+		frequencies = conflictWordFrequencies(claims, wordFrequencyData)
 		var additionalAmbiguous, additionalJoin, additionalBoundary int
-		augmentations, additionalAmbiguous, additionalJoin, additionalBoundary = selectSafeCandidates(sources, claims, preferences)
+		augmentations, additionalAmbiguous, additionalJoin, additionalBoundary = selectSafeCandidates(
+			sources,
+			claims,
+			preferences,
+			frequencies,
+		)
 		ambiguousCount += additionalAmbiguous
 		joinCount += additionalJoin
 		boundaryCount += additionalBoundary
@@ -228,7 +263,19 @@ func run(
 		}
 
 		occupied := sourcesWithAdditions(sources, augmentations)
-		derived, derivedAmbiguous, derivedJoin, derivedBoundary := selectSafeCandidates(occupied, derivedClaims, preferences)
+		if wordFrequencyData == "" && hasUnrankedTwoWayConflict(derivedClaims, preferences) {
+			wordFrequencyData, err = loadWordFrequencyData(stderr)
+			if err != nil {
+				return err
+			}
+		}
+		frequencies = conflictWordFrequencies(derivedClaims, wordFrequencyData)
+		derived, derivedAmbiguous, derivedJoin, derivedBoundary := selectSafeCandidates(
+			occupied,
+			derivedClaims,
+			preferences,
+			frequencies,
+		)
 		ambiguousCount += derivedAmbiguous
 		joinCount += derivedJoin
 		boundaryCount += derivedBoundary
@@ -1096,7 +1143,131 @@ func mergeSuffixStroke(left, suffix uint32, forceDZForG bool) (uint32, bool) {
 	return merged, true
 }
 
-func conflictWordFrequencies(claims map[string]*candidateClaim) map[string]uint64 {
+func hasUnrankedTwoWayConflict(
+	claims map[string]*candidateClaim,
+	preferences map[string]sourceEntry,
+) bool {
+	for outline, claim := range claims {
+		if claim.conflict && len(claim.alternatives) == 1 {
+			if preferred, ok := preferences[outline]; ok &&
+				(preferred.value == claim.value || preferred.value == claim.alternatives[0]) {
+				continue
+			}
+			return true
+		}
+	}
+	return false
+}
+
+func wordFrequencyCachePath() (string, error) {
+	if path := os.Getenv(wordFrequencyCacheEnvironment); path != "" {
+		return path, nil
+	}
+	cacheDirectory, err := os.UserCacheDir()
+	if err != nil {
+		return "", fmt.Errorf("locate user cache directory for word frequencies: %w", err)
+	}
+	return filepath.Join(cacheDirectory, "stoin", "count_1w.txt"), nil
+}
+
+func validWordFrequencyData(data []byte) bool {
+	scanner := bufio.NewScanner(strings.NewReader(string(data)))
+	for scanner.Scan() {
+		word, rawCount, found := strings.Cut(scanner.Text(), "\t")
+		if !found || word == "" {
+			continue
+		}
+		count, err := strconv.ParseUint(rawCount, 10, 64)
+		if err == nil && count != 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func downloadWordFrequencyData(path string, stderr io.Writer) ([]byte, error) {
+	if stderr != nil {
+		fmt.Fprintf(stderr, "Downloading word frequencies from %s to %s\n", wordFrequencyURL, path)
+	}
+	response, err := wordFrequencyHTTPClient.Get(wordFrequencyURL)
+	if err != nil {
+		return nil, fmt.Errorf("download word frequencies from %s: %w", wordFrequencyURL, err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf(
+			"download word frequencies from %s: unexpected HTTP status %s",
+			wordFrequencyURL,
+			response.Status,
+		)
+	}
+
+	data, err := io.ReadAll(io.LimitReader(response.Body, wordFrequencyDownloadLimit+1))
+	if err != nil {
+		return nil, fmt.Errorf("download word frequencies from %s: %w", wordFrequencyURL, err)
+	}
+	if len(data) > wordFrequencyDownloadLimit {
+		return nil, fmt.Errorf(
+			"download word frequencies from %s: response exceeds %d bytes",
+			wordFrequencyURL,
+			wordFrequencyDownloadLimit,
+		)
+	}
+	if !validWordFrequencyData(data) {
+		return nil, fmt.Errorf("download word frequencies from %s: response is not count_1w data", wordFrequencyURL)
+	}
+
+	directory := filepath.Dir(path)
+	if err := os.MkdirAll(directory, 0o755); err != nil {
+		return nil, fmt.Errorf("create word frequency cache directory %q: %w", directory, err)
+	}
+	temporary, err := os.CreateTemp(directory, "count_1w-*.tmp")
+	if err != nil {
+		return nil, fmt.Errorf("create temporary word frequency cache file: %w", err)
+	}
+	temporaryPath := temporary.Name()
+	defer os.Remove(temporaryPath)
+	if _, err := temporary.Write(data); err != nil {
+		temporary.Close()
+		return nil, fmt.Errorf("write temporary word frequency cache file: %w", err)
+	}
+	if err := temporary.Chmod(0o644); err != nil {
+		temporary.Close()
+		return nil, fmt.Errorf("set word frequency cache permissions: %w", err)
+	}
+	if err := temporary.Close(); err != nil {
+		return nil, fmt.Errorf("close temporary word frequency cache file: %w", err)
+	}
+	if err := os.Rename(temporaryPath, path); err != nil {
+		return nil, fmt.Errorf("install word frequency cache at %q: %w", path, err)
+	}
+	return data, nil
+}
+
+func loadWordFrequencyData(stderr io.Writer) (string, error) {
+	path, err := wordFrequencyCachePath()
+	if err != nil {
+		return "", err
+	}
+	data, err := os.ReadFile(path)
+	if err == nil {
+		if !validWordFrequencyData(data) {
+			return "", fmt.Errorf("word frequency cache %q is not valid count_1w data", path)
+		}
+		return string(data), nil
+	}
+	if !os.IsNotExist(err) {
+		return "", fmt.Errorf("read word frequency cache %q: %w", path, err)
+	}
+
+	data, err = downloadWordFrequencyData(path, stderr)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+func conflictWordFrequencies(claims map[string]*candidateClaim, wordFrequencyData string) map[string]uint64 {
 	wanted := make(map[string]struct{})
 	for _, claim := range claims {
 		if claim.conflict && len(claim.alternatives) == 1 {
@@ -1109,7 +1280,7 @@ func conflictWordFrequencies(claims map[string]*candidateClaim) map[string]uint6
 	}
 
 	frequencies := make(map[string]uint64)
-	scanner := bufio.NewScanner(strings.NewReader(count1W))
+	scanner := bufio.NewScanner(strings.NewReader(wordFrequencyData))
 	for scanner.Scan() {
 		word, rawCount, found := strings.Cut(scanner.Text(), "\t")
 		if !found {
@@ -1212,13 +1383,12 @@ func selectSafeCandidates(
 	sources map[string]sourceEntry,
 	claims map[string]*candidateClaim,
 	preferences map[string]sourceEntry,
+	frequencies map[string]uint64,
 ) (map[string]string, int, int, int) {
 	additional := make(map[string]string)
 	outlineByKey := make(map[string][]uint32)
 	ambiguousCount := 0
 	joinCount := 0
-	frequencies := conflictWordFrequencies(claims)
-
 	for _, key := range sortedKeys(claims) {
 		claim := claims[key]
 		alternatives := claim.alternatives
