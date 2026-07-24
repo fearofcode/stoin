@@ -1274,7 +1274,6 @@ func TestStaticPhrasingTrainerScript(t *testing.T) {
 		!strings.Contains(body, "generateNonverbPrompts") ||
 		!strings.Contains(body, "d_contraction") ||
 		!strings.Contains(body, "fvDoNegativeContraction") ||
-		!strings.Contains(body, "stemAllowsTail") ||
 		!strings.Contains(body, "tail.text || 'no tail'") ||
 		!strings.Contains(body, "initialFormLabel") ||
 		!strings.Contains(body, "third-person singular present (he/she/it goes)") ||
@@ -1285,7 +1284,6 @@ func TestStaticPhrasingTrainerScript(t *testing.T) {
 		!strings.Contains(body, "perfect progressive (a form of have + been + present participle: has been going)") ||
 		!strings.Contains(body, "auxiliary only (main-verb slot empty: can / be / have / have been)") ||
 		!strings.Contains(body, "past-form selection") ||
-		!strings.Contains(body, "starterAllowsEnder") ||
 		!strings.Contains(body, "starter.label") ||
 		!strings.Contains(body, "combineStrokeParts") ||
 		!strings.Contains(body, "phraseFilterInput") ||

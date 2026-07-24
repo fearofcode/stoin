@@ -710,49 +710,23 @@
     "prefixes": [
       {
         "stroke": "TW",
-        "text": "with",
-        "tails": [
-          "a",
-          "an",
-          "us"
-        ]
+        "text": "with"
       },
       {
         "stroke": "TKH",
-        "text": "near",
-        "tails": [
-          "a",
-          "an"
-        ]
+        "text": "near"
       },
       {
         "stroke": "PWH",
-        "text": "anything",
-        "tails": [
-          "an",
-          "that",
-          "like",
-          "else"
-        ]
+        "text": "anything"
       },
       {
         "stroke": "TWR",
-        "text": "as",
-        "tails": [
-          "an",
-          "if",
-          "though"
-        ]
+        "text": "as"
       },
       {
         "stroke": "WHR",
-        "text": "even",
-        "tails": [
-          "an",
-          "that",
-          "us",
-          "though"
-        ]
+        "text": "even"
       }
     ]
   }

@@ -394,68 +394,6 @@ static bool parse_phrase_form_array(
     return true;
 }
 
-static bool parse_optional_stroke_allowlist(
-    const cJSON *parent,
-    const char *field,
-    uint64_t **out_bits,
-    bool *out_has_allowlist,
-    const char *path,
-    const char *context
-)
-{
-    const cJSON *array = cJSON_GetObjectItemCaseSensitive(parent, field);
-    if (array == NULL) {
-        return true;
-    }
-
-    *out_has_allowlist = true;
-    if (!cJSON_IsArray(array)) {
-        print_field_error(path, context, field, "must be an array");
-        return false;
-    }
-
-    const cJSON *item = NULL;
-    size_t index = 0;
-    cJSON_ArrayForEach(item, array) {
-        if (!cJSON_IsString(item) || item->valuestring == NULL) {
-            fprintf(stderr,
-                "stoin: phrasing '%s' %s.%s[%zu] must be a stroke string\n",
-                path,
-                context,
-                field,
-                index);
-            return false;
-        }
-
-        uint64_t bits = 0;
-        if (!parse_stroke_string(item->valuestring, &bits)) {
-            fprintf(stderr,
-                "stoin: phrasing '%s' %s.%s[%zu] has invalid outline '%s'\n",
-                path,
-                context,
-                field,
-                index,
-                item->valuestring);
-            return false;
-        }
-        for (size_t i = 0; i < arrlenu(*out_bits); ++i) {
-            if ((*out_bits)[i] == bits) {
-                fprintf(stderr,
-                    "stoin: phrasing '%s' %s.%s[%zu] duplicates outline '%s'\n",
-                    path,
-                    context,
-                    field,
-                    index,
-                    item->valuestring[0] != '\0' ? item->valuestring : "<empty>");
-                return false;
-            }
-        }
-        arrput(*out_bits, bits);
-        ++index;
-    }
-    return true;
-}
-
 static void destroy_phrase_tail_contents(Phrase_Tail *tail)
 {
     if (tail == NULL) {
@@ -463,14 +401,11 @@ static void destroy_phrase_tail_contents(Phrase_Tail *tail)
     }
     free(tail->id);
     free(tail->text);
-    arrfree(tail->stem_bits);
-    arrfree(tail->form_bits);
 }
 
 static bool parse_tail_array(
     Phrase_Tail **out_tails,
     const cJSON *array,
-    bool parse_iv_allowlists,
     const char *path,
     const char *context
 )
@@ -507,50 +442,10 @@ static bool parse_tail_array(
             free(tail.id);
             return false;
         }
-        if (parse_iv_allowlists
-            && (!parse_optional_stroke_allowlist(
-                    item,
-                    "stems",
-                    &tail.stem_bits,
-                    &tail.has_stem_allowlist,
-                    path,
-                    item_context)
-                || !parse_optional_stroke_allowlist(
-                    item,
-                    "forms",
-                    &tail.form_bits,
-                    &tail.has_form_allowlist,
-                    path,
-                    item_context))) {
-            destroy_phrase_tail_contents(&tail);
-            return false;
-        }
         arrput(*out_tails, tail);
         ++index;
     }
     return true;
-}
-
-static bool find_tail_index(const Phrase_Tail *tails, const char *id, size_t *out_index)
-{
-    for (size_t i = 0; i < arrlenu(tails); ++i) {
-        if (strcmp(tails[i].id, id) == 0) {
-            *out_index = i;
-            return true;
-        }
-    }
-    return false;
-}
-
-static bool find_ender_index(const Fv_Ender *enders, uint64_t bits, size_t *out_index)
-{
-    for (size_t i = 0; i < arrlenu(enders); ++i) {
-        if (enders[i].bits == bits) {
-            *out_index = i;
-            return true;
-        }
-    }
-    return false;
 }
 
 static void destroy_iv_stem_contents(Iv_Stem *stem)
@@ -562,7 +457,6 @@ static void destroy_iv_stem_contents(Iv_Stem *stem)
         free(stem->forms[i].text);
     }
     arrfree(stem->forms);
-    arrfree(stem->tail_indices);
 }
 
 static void destroy_nv_prefix_contents(Nv_Prefix *prefix)
@@ -571,7 +465,6 @@ static void destroy_nv_prefix_contents(Nv_Prefix *prefix)
         return;
     }
     free(prefix->text);
-    arrfree(prefix->tail_indices);
 }
 
 static void destroy_fv_starter_contents(Fv_Starter *starter)
@@ -584,65 +477,6 @@ static void destroy_fv_starter_contents(Fv_Starter *starter)
     free(starter->have_contraction);
     free(starter->will_contraction);
     free(starter->d_contraction);
-    arrfree(starter->ender_indices);
-}
-
-static bool parse_iv_stem_tail_allowlist(
-    Iv_Stem *stem,
-    const cJSON *stem_object,
-    const Phrase_Tail *tails,
-    const char *path,
-    const char *context
-)
-{
-    const cJSON *allowlist = cJSON_GetObjectItemCaseSensitive(stem_object, "tails");
-    if (allowlist == NULL) {
-        return true;
-    }
-
-    stem->has_tail_allowlist = true;
-    if (!cJSON_IsArray(allowlist)) {
-        print_field_error(path, context, "tails", "must be an array");
-        return false;
-    }
-
-    const cJSON *item = NULL;
-    size_t item_index = 0;
-    cJSON_ArrayForEach(item, allowlist) {
-        if (!cJSON_IsString(item) || item->valuestring == NULL) {
-            fprintf(stderr,
-                "stoin: phrasing '%s' %s.tails[%zu] must be a string\n",
-                path,
-                context,
-                item_index);
-            return false;
-        }
-
-        size_t tail_index = 0;
-        if (!find_tail_index(tails, item->valuestring, &tail_index)) {
-            fprintf(stderr,
-                "stoin: phrasing '%s' %s.tails[%zu] references unknown tail id '%s'\n",
-                path,
-                context,
-                item_index,
-                item->valuestring);
-            return false;
-        }
-        for (size_t i = 0; i < arrlenu(stem->tail_indices); ++i) {
-            if (stem->tail_indices[i] == tail_index) {
-                fprintf(stderr,
-                    "stoin: phrasing '%s' %s.tails[%zu] duplicates tail id '%s'\n",
-                    path,
-                    context,
-                    item_index,
-                    item->valuestring);
-                return false;
-            }
-        }
-        arrput(stem->tail_indices, tail_index);
-        ++item_index;
-    }
-    return true;
 }
 
 static bool parse_initial_verbs(Phrasing *phrasing, const cJSON *root, const char *path)
@@ -655,7 +489,7 @@ static bool parse_initial_verbs(Phrasing *phrasing, const cJSON *root, const cha
     const cJSON *tails = required_array(section, "tails", path, "initial_verbs");
     const cJSON *stems = required_array(section, "stems", path, "initial_verbs");
     if (tails == NULL || stems == NULL
-        || !parse_tail_array(&phrasing->iv_tails, tails, true, path, "initial_verbs.tails")) {
+        || !parse_tail_array(&phrasing->iv_tails, tails, path, "initial_verbs.tails")) {
         return false;
     }
 
@@ -674,11 +508,6 @@ static bool parse_initial_verbs(Phrasing *phrasing, const cJSON *root, const cha
             return false;
         }
         if (!iv_stem_stroke_is_unique(phrasing->iv_stems, stem.bits, path, context)) {
-            return false;
-        }
-
-        if (!parse_iv_stem_tail_allowlist(&stem, item, phrasing->iv_tails, path, context)) {
-            destroy_iv_stem_contents(&stem);
             return false;
         }
 
@@ -708,7 +537,7 @@ static bool parse_nonverbs(Phrasing *phrasing, const cJSON *root, const char *pa
     const cJSON *tails = required_array(section, "tails", path, "nonverbs");
     const cJSON *prefixes = required_array(section, "prefixes", path, "nonverbs");
     if (tails == NULL || prefixes == NULL
-        || !parse_tail_array(&phrasing->nv_tails, tails, false, path, "nonverbs.tails")) {
+        || !parse_tail_array(&phrasing->nv_tails, tails, path, "nonverbs.tails")) {
         return false;
     }
 
@@ -732,50 +561,6 @@ static bool parse_nonverbs(Phrasing *phrasing, const cJSON *root, const char *pa
             return false;
         }
 
-        const cJSON *tail_ids = required_array(item, "tails", path, context);
-        if (tail_ids == NULL) {
-            destroy_nv_prefix_contents(&prefix);
-            return false;
-        }
-        const cJSON *tail_id = NULL;
-        size_t tail_id_index = 0;
-        cJSON_ArrayForEach(tail_id, tail_ids) {
-            if (!cJSON_IsString(tail_id) || tail_id->valuestring == NULL) {
-                fprintf(stderr,
-                    "stoin: phrasing '%s' %s.tails[%zu] must be a string\n",
-                    path,
-                    context,
-                    tail_id_index);
-                destroy_nv_prefix_contents(&prefix);
-                return false;
-            }
-
-            size_t tail_index = 0;
-            if (!find_tail_index(phrasing->nv_tails, tail_id->valuestring, &tail_index)) {
-                fprintf(stderr,
-                    "stoin: phrasing '%s' %s.tails[%zu] references unknown tail id '%s'\n",
-                    path,
-                    context,
-                    tail_id_index,
-                    tail_id->valuestring);
-                destroy_nv_prefix_contents(&prefix);
-                return false;
-            }
-            for (size_t i = 0; i < arrlenu(prefix.tail_indices); ++i) {
-                if (prefix.tail_indices[i] == tail_index) {
-                    fprintf(stderr,
-                        "stoin: phrasing '%s' %s.tails[%zu] duplicates tail id '%s'\n",
-                        path,
-                        context,
-                        tail_id_index,
-                        tail_id->valuestring);
-                    destroy_nv_prefix_contents(&prefix);
-                    return false;
-                }
-            }
-            arrput(prefix.tail_indices, tail_index);
-            ++tail_id_index;
-        }
         arrput(phrasing->nv_prefixes, prefix);
         ++index;
     }
@@ -822,68 +607,6 @@ static bool parse_fv_starters(Phrasing *phrasing, const cJSON *array, const char
             fprintf(stderr, "stoin: phrasing '%s' %s contraction fields must be strings\n", path, context);
             destroy_fv_starter_contents(&starter);
             return false;
-        }
-
-        const cJSON *allowlist = cJSON_GetObjectItemCaseSensitive(item, "enders");
-        if (allowlist != NULL) {
-            starter.has_ender_allowlist = true;
-            if (!cJSON_IsArray(allowlist)) {
-                print_field_error(path, context, "enders", "must be an array");
-                destroy_fv_starter_contents(&starter);
-                return false;
-            }
-
-            const cJSON *allowed_ender = NULL;
-            size_t allowed_index = 0;
-            cJSON_ArrayForEach(allowed_ender, allowlist) {
-                if (!cJSON_IsString(allowed_ender) || allowed_ender->valuestring == NULL) {
-                    fprintf(stderr,
-                        "stoin: phrasing '%s' %s.enders[%zu] must be a string\n",
-                        path,
-                        context,
-                        allowed_index);
-                    destroy_fv_starter_contents(&starter);
-                    return false;
-                }
-
-                uint64_t ender_bits = 0;
-                if (!parse_stroke_string(allowed_ender->valuestring, &ender_bits)) {
-                    fprintf(stderr,
-                        "stoin: phrasing '%s' %s.enders[%zu] has invalid outline '%s'\n",
-                        path,
-                        context,
-                        allowed_index,
-                        allowed_ender->valuestring);
-                    destroy_fv_starter_contents(&starter);
-                    return false;
-                }
-
-                size_t ender_index = 0;
-                if (!find_ender_index(phrasing->fv_enders, ender_bits, &ender_index)) {
-                    fprintf(stderr,
-                        "stoin: phrasing '%s' %s.enders[%zu] references unknown ender '%s'\n",
-                        path,
-                        context,
-                        allowed_index,
-                        allowed_ender->valuestring);
-                    destroy_fv_starter_contents(&starter);
-                    return false;
-                }
-                for (size_t i = 0; i < arrlenu(starter.ender_indices); ++i) {
-                    if (starter.ender_indices[i] == ender_index) {
-                        fprintf(stderr,
-                            "stoin: phrasing '%s' %s.enders[%zu] duplicates ender '%s'\n",
-                            path,
-                            context,
-                            allowed_index,
-                            allowed_ender->valuestring);
-                        destroy_fv_starter_contents(&starter);
-                        return false;
-                    }
-                }
-                arrput(starter.ender_indices, ender_index);
-                ++allowed_index;
-            }
         }
 
         arrput(phrasing->fv_starters, starter);
@@ -1081,8 +804,7 @@ static bool validate_phrase_fragment_overlaps(const Phrasing *phrasing, const ch
             }
             for (size_t k = 0; k < arrlenu(phrasing->iv_tails); ++k) {
                 const Phrase_Tail *tail = &phrasing->iv_tails[k];
-                if (iv_combination_is_allowed(stem, k, tail, form)
-                    && (((stem->bits | form->bits) & tail->bits) != 0)) {
+                if (((stem->bits | form->bits) & tail->bits) != 0) {
                     fprintf(stderr,
                         "stoin: phrasing '%s' initial_verbs stem %zu, form %zu, and tail %zu overlap\n",
                         path,
@@ -1097,14 +819,13 @@ static bool validate_phrase_fragment_overlaps(const Phrasing *phrasing, const ch
 
     for (size_t i = 0; i < arrlenu(phrasing->nv_prefixes); ++i) {
         const Nv_Prefix *prefix = &phrasing->nv_prefixes[i];
-        for (size_t j = 0; j < arrlenu(prefix->tail_indices); ++j) {
-            const size_t tail_index = prefix->tail_indices[j];
-            if ((prefix->bits & phrasing->nv_tails[tail_index].bits) != 0) {
+        for (size_t j = 0; j < arrlenu(phrasing->nv_tails); ++j) {
+            if ((prefix->bits & phrasing->nv_tails[j].bits) != 0) {
                 fprintf(stderr,
                     "stoin: phrasing '%s' nonverbs prefix %zu and tail %zu overlap\n",
                     path,
                     i,
-                    tail_index);
+                    j);
                 return false;
             }
         }
@@ -1117,9 +838,6 @@ static bool validate_phrase_fragment_overlaps(const Phrasing *phrasing, const ch
             for (size_t k = 0; k < arrlenu(phrasing->fv_structures); ++k) {
                 const Fv_Structure_Row *structure = &phrasing->fv_structures[k];
                 for (size_t m = 0; m < arrlenu(phrasing->fv_enders); ++m) {
-                    if (!fv_starter_allows_ender(starter, m)) {
-                        continue;
-                    }
                     const Fv_Ender *ender = &phrasing->fv_enders[m];
                     const uint64_t fragments[] = {
                         starter->bits,
@@ -1186,22 +904,6 @@ static bool validate_shared_phrase_banks(const Phrasing *phrasing, const char *p
                 path,
                 i);
             return false;
-        }
-        if (arrlenu(nv->tail_indices) != arrlenu(phrasing->nv_tails)) {
-            fprintf(stderr,
-                "stoin: phrasing '%s' shared NV prefix at index %zu must enable every tail\n",
-                path,
-                i);
-            return false;
-        }
-        for (size_t j = 0; j < arrlenu(nv->tail_indices); ++j) {
-            if (nv->tail_indices[j] != j) {
-                fprintf(stderr,
-                    "stoin: phrasing '%s' shared NV prefix at index %zu must list tails in shared-bank order\n",
-                    path,
-                    i);
-                return false;
-            }
         }
     }
     return true;

@@ -67,9 +67,6 @@ static Phrase_Lookup_Result lookup_initial_verb(const Phrasing *phrasing, uint64
             const Phrase_Form *form = &stem->forms[j];
             for (size_t k = 0; k < arrlenu(phrasing->iv_tails); ++k) {
                 const Phrase_Tail *tail = &phrasing->iv_tails[k];
-                if (!iv_combination_is_allowed(stem, k, tail, form)) {
-                    continue;
-                }
                 if (bits == (stem->bits | form->bits | tail->bits)) {
                     return copy_phrase_words(form->text, tail->text, out_utf8);
                 }
@@ -83,8 +80,8 @@ static Phrase_Lookup_Result lookup_nonverb(const Phrasing *phrasing, uint64_t bi
 {
     for (size_t i = 0; i < arrlenu(phrasing->nv_prefixes); ++i) {
         const Nv_Prefix *prefix = &phrasing->nv_prefixes[i];
-        for (size_t j = 0; j < arrlenu(prefix->tail_indices); ++j) {
-            const Phrase_Tail *tail = &phrasing->nv_tails[prefix->tail_indices[j]];
+        for (size_t j = 0; j < arrlenu(phrasing->nv_tails); ++j) {
+            const Phrase_Tail *tail = &phrasing->nv_tails[j];
             if (bits == (prefix->bits | tail->bits)) {
                 return copy_phrase_words(prefix->text, tail->text, out_utf8);
             }
@@ -395,9 +392,6 @@ static Phrase_Lookup_Result lookup_final_verb(const Phrasing *phrasing, uint64_t
                 const Fv_Structure_Row *structure = &phrasing->fv_structures[k];
                 for (size_t m = 0; m < arrlenu(phrasing->fv_enders); ++m) {
                     const Fv_Ender *ender = &phrasing->fv_enders[m];
-                    if (!fv_starter_allows_ender(starter, m)) {
-                        continue;
-                    }
                     const uint64_t long_bits = starter->bits | operator.bits | structure->bits | ender->bits;
                     const bool contraction = bits == (long_bits | phrasing->contraction_bits);
                     if (bits != long_bits && !contraction) {
@@ -489,10 +483,6 @@ static bool add_initial_verb_suggestions(Phrasing *phrasing)
             const Phrase_Form *form = &stem->forms[j];
             for (size_t k = 0; k < arrlenu(phrasing->iv_tails); ++k) {
                 const Phrase_Tail *tail = &phrasing->iv_tails[k];
-                if (!iv_combination_is_allowed(stem, k, tail, form)) {
-                    continue;
-                }
-
                 char *text = NULL;
                 const Phrase_Lookup_Result result = copy_phrase_words(form->text, tail->text, &text);
                 if (result == PHRASE_LOOKUP_ERROR) {
@@ -527,9 +517,6 @@ static bool add_final_verb_suggestions(Phrasing *phrasing)
             for (size_t k = 0; k < arrlenu(phrasing->fv_structures); ++k) {
                 const Fv_Structure_Row *structure = &phrasing->fv_structures[k];
                 for (size_t m = 0; m < arrlenu(phrasing->fv_enders); ++m) {
-                    if (!fv_starter_allows_ender(starter, m)) {
-                        continue;
-                    }
                     const Fv_Ender *ender = &phrasing->fv_enders[m];
                     const uint64_t long_bits =
                         starter->bits | operator.bits | structure->bits | ender->bits;
@@ -572,8 +559,8 @@ static bool add_nonverb_suggestions(Phrasing *phrasing)
     Seen_Phrase_Bits *seen_bits = NULL;
     for (size_t i = 0; i < arrlenu(phrasing->nv_prefixes); ++i) {
         const Nv_Prefix *prefix = &phrasing->nv_prefixes[i];
-        for (size_t j = 0; j < arrlenu(prefix->tail_indices); ++j) {
-            const Phrase_Tail *tail = &phrasing->nv_tails[prefix->tail_indices[j]];
+        for (size_t j = 0; j < arrlenu(phrasing->nv_tails); ++j) {
+            const Phrase_Tail *tail = &phrasing->nv_tails[j];
             char *text = NULL;
             const Phrase_Lookup_Result result = copy_phrase_words(prefix->text, tail->text, &text);
             if (result == PHRASE_LOOKUP_ERROR) {

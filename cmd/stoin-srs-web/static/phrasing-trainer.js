@@ -630,15 +630,6 @@ function findStemForm(stem, stroke) {
 	return null;
 }
 
-function stemAllowsTail(stem, tail) {
-	return !Array.isArray(stem.tails) || stem.tails.includes(tail.id);
-}
-
-function tailAllowsStemForm(tail, stem, form) {
-	return (!Array.isArray(tail.stems) || tail.stems.includes(stem.stroke))
-		&& (!Array.isArray(tail.forms) || tail.forms.includes(form.stroke));
-}
-
 function generateInitialVerbPrompts() {
 	if (!familyEnabled('initial_verbs')) return [];
 	const prompts = [];
@@ -647,7 +638,6 @@ function generateInitialVerbPrompts() {
 			const form = findStemForm(stem, formOption.stroke);
 			if (!form) return;
 			selectedInitialTails().forEach(function(tail) {
-				if (!stemAllowsTail(stem, tail) || !tailAllowsStemForm(tail, stem, form)) return;
 				prompts.push({
 					lesson: familyLabels.initial_verbs,
 					stroke: combineStrokeParts([stem.stroke, form.stroke, tail.stroke]),
@@ -670,7 +660,6 @@ function generateNonverbPrompts() {
 	const prompts = [];
 	prefixes.forEach(function(prefix) {
 		tails.forEach(function(tail) {
-			if (!Array.isArray(prefix.tails) || prefix.tails.indexOf(tail.id) === -1) return;
 			prompts.push({
 				lesson: familyLabels.nonverbs,
 				stroke: combineStrokeParts([prefix.stroke, tail.stroke]),
@@ -918,14 +907,6 @@ function selectedFinalVerbModes() {
 	});
 }
 
-function starterAllowsEnder(starter, ender) {
-	if (!Array.isArray(starter.enders)) return true;
-	const enderBits = parseStrokeBits(ender.stroke);
-	return starter.enders.some(function(allowedStroke) {
-		return parseStrokeBits(allowedStroke) === enderBits;
-	});
-}
-
 function generateFinalVerbPrompts() {
 	if (!familyEnabled('final_verbs')) return [];
 	const finalVerbs = phraseData.final_verbs;
@@ -941,7 +922,6 @@ function generateFinalVerbPrompts() {
 		operators.forEach(function(op) {
 			structures.forEach(function(structure) {
 				enders.forEach(function(ender) {
-					if (!starterAllowsEnder(starter, ender)) return;
 					let longStroke = '';
 					try {
 						longStroke = combineStrokeParts([starter.stroke, op.stroke, structure.stroke, ender.stroke]);
@@ -1314,32 +1294,7 @@ function validatePhraseData(data) {
 		if (tailIds.has(tail.id)) {
 			throw new Error('initial_verbs.tails[' + index + '].id duplicates ' + tail.id);
 		}
-		['stems', 'forms'].forEach(function(field) {
-			if (tail[field] === undefined) return;
-			if (!Array.isArray(tail[field]) || tail[field].some(function(value) { return typeof value !== 'string'; })) {
-				throw new Error('initial_verbs.tails[' + index + '].' + field + ' must be an array of stroke strings');
-			}
-			if (new Set(tail[field]).size !== tail[field].length) {
-				throw new Error('initial_verbs.tails[' + index + '].' + field + ' must not contain duplicates');
-			}
-		});
 		tailIds.add(tail.id);
-	});
-	data.initial_verbs.stems.forEach(function(stem, index) {
-		if (stem.tails === undefined) return;
-		if (!Array.isArray(stem.tails)) {
-			throw new Error('initial_verbs.stems[' + index + '].tails must be an array');
-		}
-		const seenTailIds = new Set();
-		stem.tails.forEach(function(tailId) {
-			if (typeof tailId !== 'string' || !tailIds.has(tailId)) {
-				throw new Error('initial_verbs.stems[' + index + '].tails references unknown tail ' + String(tailId));
-			}
-			if (seenTailIds.has(tailId)) {
-				throw new Error('initial_verbs.stems[' + index + '].tails duplicates ' + tailId);
-			}
-			seenTailIds.add(tailId);
-		});
 	});
 	if (data.nonverbs !== undefined) {
 		requireArray(data.nonverbs, 'prefixes', 'nonverbs');
@@ -1353,21 +1308,6 @@ function validatePhraseData(data) {
 				throw new Error('nonverbs.tails[' + index + '].id duplicates ' + tail.id);
 			}
 			nonverbTailIds.add(tail.id);
-		});
-		data.nonverbs.prefixes.forEach(function(prefix, index) {
-			if (!prefix || !Array.isArray(prefix.tails)) {
-				throw new Error('nonverbs.prefixes[' + index + '].tails must be an array');
-			}
-			const seenTailIds = new Set();
-			prefix.tails.forEach(function(tailId) {
-				if (typeof tailId !== 'string' || !nonverbTailIds.has(tailId)) {
-					throw new Error('nonverbs.prefixes[' + index + '].tails references unknown tail ' + String(tailId));
-				}
-				if (seenTailIds.has(tailId)) {
-					throw new Error('nonverbs.prefixes[' + index + '].tails duplicates ' + tailId);
-				}
-				seenTailIds.add(tailId);
-			});
 		});
 	}
 	requireArray(data.final_verbs, 'starters', 'final_verbs');
@@ -1399,29 +1339,6 @@ function validatePhraseData(data) {
 			if (starter[field] !== undefined && typeof starter[field] !== 'string') {
 				throw new Error('final_verbs.starters[' + index + '].' + field + ' must be a string');
 			}
-		});
-		if (starter.enders === undefined) return;
-		if (!Array.isArray(starter.enders)) {
-			throw new Error('final_verbs.starters[' + index + '].enders must be an array');
-		}
-		const seenEnderBits = new Set();
-		starter.enders.forEach(function(enderStroke, allowedIndex) {
-			if (typeof enderStroke !== 'string') {
-				throw new Error('final_verbs.starters[' + index + '].enders[' + allowedIndex + '] must be a string');
-			}
-			let bits = 0;
-			try {
-				bits = parseStrokeBits(enderStroke);
-			} catch (error) {
-				throw new Error('final_verbs.starters[' + index + '].enders[' + allowedIndex + '] has invalid outline ' + enderStroke);
-			}
-			if (!enderBits.has(bits)) {
-				throw new Error('final_verbs.starters[' + index + '].enders references unknown ender ' + enderStroke);
-			}
-			if (seenEnderBits.has(bits)) {
-				throw new Error('final_verbs.starters[' + index + '].enders duplicates ' + enderStroke);
-			}
-			seenEnderBits.add(bits);
 		});
 	});
 	if (typeof data.final_verbs.contraction_stroke !== 'string') {

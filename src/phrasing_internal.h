@@ -44,24 +44,17 @@ typedef struct Phrase_Form {
 typedef struct Iv_Stem {
     uint64_t bits;
     Phrase_Form *forms;
-    size_t *tail_indices;
-    bool has_tail_allowlist;
 } Iv_Stem;
 
 typedef struct Phrase_Tail {
     char *id;
     uint64_t bits;
     char *text;
-    uint64_t *stem_bits;
-    uint64_t *form_bits;
-    bool has_stem_allowlist;
-    bool has_form_allowlist;
 } Phrase_Tail;
 
 typedef struct Nv_Prefix {
     uint64_t bits;
     char *text;
-    size_t *tail_indices;
 } Nv_Prefix;
 
 typedef struct Fv_Starter {
@@ -72,8 +65,6 @@ typedef struct Fv_Starter {
     char *have_contraction;
     char *will_contraction;
     char *d_contraction;
-    size_t *ender_indices;
-    bool has_ender_allowlist;
 } Fv_Starter;
 
 typedef struct Fv_Operator {
@@ -130,46 +121,5 @@ struct Phrasing {
     bool suggestions_initialized;
     bool suggestions_failed;
 };
-
-static inline bool phrasing_index_list_contains(const size_t *indices, size_t value)
-{
-    for (size_t i = 0; i < arrlenu(indices); ++i) {
-        if (indices[i] == value) {
-            return true;
-        }
-    }
-    return false;
-}
-
-static inline bool phrasing_bits_list_contains(const uint64_t *bits, uint64_t value)
-{
-    for (size_t i = 0; i < arrlenu(bits); ++i) {
-        if (bits[i] == value) {
-            return true;
-        }
-    }
-    return false;
-}
-
-static inline bool iv_combination_is_allowed(
-    const Iv_Stem *stem,
-    size_t tail_index,
-    const Phrase_Tail *tail,
-    const Phrase_Form *form
-)
-{
-    return (!stem->has_tail_allowlist
-            || phrasing_index_list_contains(stem->tail_indices, tail_index))
-        && (!tail->has_stem_allowlist
-            || phrasing_bits_list_contains(tail->stem_bits, stem->bits))
-        && (!tail->has_form_allowlist
-            || phrasing_bits_list_contains(tail->form_bits, form->bits));
-}
-
-static inline bool fv_starter_allows_ender(const Fv_Starter *starter, size_t ender_index)
-{
-    return !starter->has_ender_allowlist
-        || phrasing_index_list_contains(starter->ender_indices, ender_index);
-}
 
 #endif

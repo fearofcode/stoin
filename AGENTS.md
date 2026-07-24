@@ -80,4 +80,6 @@ The same steno stroke should behave the same way regardless of whether it came f
 
 When touching steno parsing, serial decoding, translation matching, retroactive behavior, or command handling, add tests. Steno edge cases are compact and easy to regress.
 
+Do not update `tests/test_steno.c` merely to recapitulate additions or remappings in `phrasing.json`. Add or change those tests when C implementation behavior changes, the phrasing schema gains a new rule or structure, or a data change exercises a mechanism that existing tests do not cover. Ordinary entries using existing phrase-table structure only need the existing validation and test suite.
+
 The project intentionally uses bitsets for stroke identity. Treat outline strings as user-facing notation for those bits.
