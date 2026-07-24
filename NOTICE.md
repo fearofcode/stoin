@@ -5,19 +5,29 @@
 Stoin is free software licensed under the GNU General Public License, version 2,
 or (at your option) any later version. See `LICENSE.txt`.
 
-Portions of `src/format.c` and `src/orthography.c` are C ports or adaptations of
-Plover's formatting and English orthography implementations:
+Stoin includes code and data ported, adapted, or developed with reference to
+Plover:
 
 <https://github.com/opensteno/plover>
 
-Those upstream files carry the following notice:
+- `src/format.c` and `src/orthography.c` port or adapt Plover's formatting and
+  English orthography implementations.
+- Gemini PR support in `src/gemini_pr.c`, Stentura support in
+  `src/stentura.c`, and TX Bolt support in `src/tx_bolt.c` port or adapt
+  Plover's corresponding machine protocol implementations.
+- QWERTY steno input and key mapping in `src/steno.c`, `src/keymap.c`, and the
+  platform keyboard-capture code were developed with reference to Plover's
+  keyboard machine, keymap, and keyboard-capture implementations.
+- `american_english_words.txt` is copied from
+  `plover/assets/american_english_words.txt`.
 
-```text
-Copyright (c) 2010-2011 Joshua Harlan Lifton. See LICENSE.txt for details.
-```
+Relevant upstream files carry copyright notices for Joshua Harlan Lifton
+(2010-2011) and Hesky Fisher (2011); see the Plover source files for the
+individual notices.
 
 Plover is distributed under the GNU General Public License, version 2 or (at
-your option) any later version. Stoin's ports have been rewritten and modified.
+your option) any later version. Stoin's ports and adaptations have been
+rewritten and modified.
 
 ## Norvig Word-Frequency Data
 
