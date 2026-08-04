@@ -95,10 +95,14 @@ variations. For example, both `STPHUG/-LG` and `STPHUG/-L/-G` can produce
 Existing source outlines are never replaced. A generated outline is omitted if
 different source translations claim it and its final-stroke starred variant is
 unavailable, or if it fails the word-boundary conflict check adapted from
-`lapwing_augmentor`. When exactly two translations claim an outline and adding
-`*` to its final stroke is unoccupied, both are retained. The translation with
-the higher count in Peter Norvig's `count_1w.txt` corpus receives the ordinary
-outline and the other receives both the starred outline and an outline with a
+`lapwing_augmentor`. A separate or folded joining suffix is also omitted when
+removing that suffix reveals an existing source outline from an unrelated word
+family. For example, `KOR/-S/-Z` ("choruses") may produce `KOR/-SZ`, but it may
+not produce `KORS/Z` or `KORSZ`, because `KORS` is the source outline for
+"course" and `-Z` is `{^s}`. When exactly two translations claim an outline and
+adding `*` to its final stroke is unoccupied, both are retained. The translation
+with the higher count in Peter Norvig's `count_1w.txt` corpus receives the
+ordinary outline and the other receives both the starred outline and an outline with a
 standalone `/R-R` disambiguation stroke appended. The corpus is downloaded from
 <https://www.norvig.com/ngrams/count_1w.txt> the first time it is needed and
 cached in the platform's user cache directory as `stoin/count_1w.txt`. Set

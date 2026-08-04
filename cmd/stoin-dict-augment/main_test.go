@@ -593,6 +593,52 @@ func TestLeadingCollapseDoesNotShadowUnrelatedFinalDBase(t *testing.T) {
 	}
 }
 
+func TestSuffixFoldingDoesNotShadowUnrelatedSourceWordFamily(t *testing.T) {
+	entry := func(rawOutline, value string) (string, sourceEntry) {
+		outline, ok := parseOutline(rawOutline)
+		if !ok {
+			t.Fatalf("parseOutline(%q) failed", rawOutline)
+		}
+		key := formatOutline(outline)
+		return key, sourceEntry{outline: outline, value: value}
+	}
+
+	sources := make(map[string]sourceEntry)
+	for _, source := range []struct {
+		outline string
+		value   string
+	}{
+		{outline: "KOR/-S", value: "chorus"},
+		{outline: "KOR/-S/-Z", value: "choruses"},
+		{outline: "KORS", value: "course"},
+		{outline: "KA/-T/-Z", value: "cats"},
+		{outline: "KAT", value: "cat"},
+		{outline: "-SZ", value: "{^ess}"},
+		{outline: "-Z", value: "{^s}"},
+	} {
+		key, parsed := entry(source.outline, source.value)
+		sources[key] = parsed
+	}
+
+	claims := generateCandidateClaims(sources, nil, nil)
+	additional, _, _, _ := selectSafeCandidates(sources, claims, nil, nil)
+	if _, generated := additional["KORS/Z"]; generated {
+		t.Fatal("KORS/Z for choruses shadowed course + {^s}")
+	}
+	if _, generated := additional["KORSZ"]; generated {
+		t.Fatal("KORSZ for choruses shadowed folded course + {^s}")
+	}
+	if value := additional["KOR/-SZ"]; value != "choruses" {
+		t.Fatalf("safe KOR/-SZ = %q, want choruses", value)
+	}
+	if value := additional["KAT/Z"]; value != "cats" {
+		t.Fatalf("related KAT/Z = %q, want cats", value)
+	}
+	if value := additional["KATZ"]; value != "cats" {
+		t.Fatalf("related KATZ = %q, want cats", value)
+	}
+}
+
 func TestTrailingDropDoesNotShadowJoinedComposition(t *testing.T) {
 	entry := func(rawOutline, value string) (string, sourceEntry) {
 		outline, ok := parseOutline(rawOutline)

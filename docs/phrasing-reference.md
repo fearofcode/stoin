@@ -70,6 +70,7 @@
 | -BZ | as |
 | -PLT | them |
 | -S | us |
+| OB | we |
 | -RP | you |
 | -TS | they |
 | -R | her |

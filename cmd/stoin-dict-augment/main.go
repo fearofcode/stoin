@@ -78,6 +78,12 @@ type candidateClaim struct {
 	conflict     bool
 }
 
+type joiningSuffix struct {
+	stroke uint32
+	bits   uint32
+	text   string
+}
+
 type stringListFlag []string
 
 func (values *stringListFlag) String() string {
@@ -934,6 +940,109 @@ func plainTranslationsShareStem(first, second string) bool {
 	return shared >= required
 }
 
+func sourceJoiningSuffixes(sources map[string]sourceEntry) []joiningSuffix {
+	suffixes := make([]joiningSuffix, 0)
+	seen := make(map[joiningSuffix]struct{})
+	for _, entry := range sources {
+		if len(entry.outline) != 1 || len(entry.value) < 4 ||
+			!strings.HasPrefix(entry.value, "{^") || !strings.HasSuffix(entry.value, "}") {
+			continue
+		}
+		text := entry.value[2 : len(entry.value)-1]
+		if text == "" || strings.ContainsAny(text, "{}") {
+			continue
+		}
+		bits, ok := foldableSuffixBits(entry.outline[0])
+		if !ok {
+			continue
+		}
+		suffix := joiningSuffix{stroke: entry.outline[0], bits: bits, text: strings.ToLower(text)}
+		if _, exists := seen[suffix]; exists {
+			continue
+		}
+		seen[suffix] = struct{}{}
+		suffixes = append(suffixes, suffix)
+	}
+	return suffixes
+}
+
+func unrelatedPlainBase(value string, base sourceEntry) bool {
+	if strings.ContainsAny(value, "{}") || strings.ContainsAny(base.value, "{}") {
+		return false
+	}
+	return !plainTranslationsShareStem(base.value, value)
+}
+
+func foldedSuffixShadowsUnrelatedBase(
+	outline []uint32,
+	value string,
+	sources map[string]sourceEntry,
+	suffixBits, foldMask uint32,
+	forceDZ bool,
+) bool {
+	finalIndex := len(outline) - 1
+	final := outline[finalIndex]
+	if final&foldMask != foldMask {
+		return false
+	}
+	baseStroke := final &^ foldMask
+	if baseStroke == 0 {
+		return false
+	}
+	merged, ok := mergeSuffixStroke(baseStroke, suffixBits, forceDZ)
+	if !ok || merged != final {
+		return false
+	}
+
+	baseOutline := append([]uint32(nil), outline...)
+	baseOutline[finalIndex] = baseStroke
+	base, exists := sources[formatOutline(baseOutline)]
+	return exists && unrelatedPlainBase(value, base)
+}
+
+func shadowsUnrelatedSuffixBase(
+	outline []uint32,
+	value string,
+	sources map[string]sourceEntry,
+	suffixes []joiningSuffix,
+) bool {
+	if len(outline) == 0 || strings.ContainsAny(value, "{}") {
+		return false
+	}
+	lowerValue := strings.ToLower(value)
+
+	finalIndex := len(outline) - 1
+	final := outline[finalIndex]
+	if finalIndex != 0 {
+		baseKey := formatOutline(outline[:finalIndex])
+		if base, exists := sources[baseKey]; exists {
+			for _, suffix := range suffixes {
+				if strings.HasSuffix(lowerValue, suffix.text) &&
+					final == suffix.stroke && unrelatedPlainBase(value, base) {
+					return true
+				}
+			}
+		}
+	}
+
+	for _, suffix := range suffixes {
+		if !strings.HasSuffix(lowerValue, suffix.text) {
+			continue
+		}
+		if foldedSuffixShadowsUnrelatedBase(outline, value, sources, suffix.bits, suffix.bits, false) {
+			return true
+		}
+		if suffix.bits&bit(keyRightG) == 0 {
+			continue
+		}
+		fallbackMask := suffix.bits&^bit(keyRightG) | bit(keyRightD) | bit(keyRightZ)
+		if foldedSuffixShadowsUnrelatedBase(outline, value, sources, suffix.bits, fallbackMask, true) {
+			return true
+		}
+	}
+	return false
+}
+
 func leftHandConsonantFold(consonants uint32) (uint32, bool) {
 	// Prefer the same unambiguous complete-chord moves as Lapwing when a
 	// right-hand consonant coda becomes the beginning of the following stroke.
@@ -1450,12 +1559,23 @@ func selectSafeCandidates(
 		outlineByKey[key] = claim.outline
 	}
 
+	joiningSuffixes := sourceJoiningSuffixes(sources)
+	suffixConflicts := make([]string, 0)
+	for _, key := range sortedKeys(additional) {
+		if shadowsUnrelatedSuffixBase(outlineByKey[key], additional[key], sources, joiningSuffixes) {
+			suffixConflicts = append(suffixConflicts, key)
+		}
+	}
+	for _, key := range suffixConflicts {
+		delete(additional, key)
+	}
+
 	prefixes := newOutlineTrie()
 	for _, entry := range sources {
 		prefixes.insert(entry.outline)
 	}
 	ignored := ignoredBoundaryOutlines()
-	boundaryCount := 0
+	boundaryCount := len(suffixConflicts)
 
 	// Checking against the complete candidate set is intentionally conservative.
 	// It also removes the order dependence in lapwing_augmentor's insertion pass.
@@ -1468,7 +1588,7 @@ func selectSafeCandidates(
 	for _, key := range boundaryConflicts {
 		delete(additional, key)
 	}
-	boundaryCount = len(boundaryConflicts)
+	boundaryCount += len(boundaryConflicts)
 
 	return additional, ambiguousCount, joinCount, boundaryCount
 }

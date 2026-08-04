@@ -48,6 +48,11 @@
         "text": "us"
       },
       {
+        "id": "we",
+        "stroke": "OB",
+        "text": "we"
+      },
+      {
         "id": "you",
         "stroke": "-RP",
         "text": "you"
@@ -3200,6 +3205,11 @@
         "id": "us",
         "stroke": "-S",
         "text": "us"
+      },
+      {
+        "id": "we",
+        "stroke": "OB",
+        "text": "we"
       },
       {
         "id": "you",
