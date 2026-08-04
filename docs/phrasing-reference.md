@@ -49,6 +49,7 @@
 | STP | gives | gave | give |  | giving | to give |  | can give | could give |
 | STW | uses | used | use |  | using | to use |  | can use | could use |
 | WR | works | worked | work |  | working | to work |  | can work | could work |
+| STR | stores | stored | store |  | storing | to store |  | can store | could store |
 | SKP | needs | needed | need |  | needing | to need |  | can need | could need |
 | SKW | remembers | remembered | remember |  | remembering | to remember |  | can remember | could remember |
 | SKH | understands | understood | understand |  | understanding | to understand |  | can understand | could understand |
@@ -66,6 +67,7 @@
 | -BL | like |
 | -T | the |
 | -BT | at |
+| -BZ | as |
 | -PLT | them |
 | -S | us |
 | -RP | you |
@@ -274,6 +276,7 @@
 | -Z | -DZ | use | ∅ |
 | -RBG | -RBGD | work | ∅ |
 | -RBGT | -RBGTD | work | on |
+| -RPS | -RPSD | store | ∅ |
 | -RPL | -RPLD | remember | ∅ |
 | -RPLT | -RPLTD | remember | that |
 | -RPB | -RPBD | understand | ∅ |

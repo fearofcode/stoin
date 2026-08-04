@@ -33,6 +33,11 @@
         "text": "at"
       },
       {
+        "id": "as",
+        "stroke": "-BZ",
+        "text": "as"
+      },
+      {
         "id": "them",
         "stroke": "-PLT",
         "text": "them"
@@ -1535,6 +1540,39 @@
         ]
       },
       {
+        "stroke": "STR",
+        "forms": [
+          {
+            "stroke": "",
+            "text": "stores"
+          },
+          {
+            "stroke": "-D",
+            "text": "stored"
+          },
+          {
+            "stroke": "E",
+            "text": "store"
+          },
+          {
+            "stroke": "*",
+            "text": "storing"
+          },
+          {
+            "stroke": "U",
+            "text": "to store"
+          },
+          {
+            "stroke": "A",
+            "text": "can store"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could store"
+          }
+        ]
+      },
+      {
         "stroke": "SKP",
         "forms": [
           {
@@ -2443,6 +2481,14 @@
         "past_participle": "worked"
       },
       {
+        "id": "store",
+        "base": "store",
+        "third": "stores",
+        "past": "stored",
+        "present_participle": "storing",
+        "past_participle": "stored"
+      },
+      {
         "id": "remember",
         "base": "remember",
         "third": "remembers",
@@ -3021,6 +3067,16 @@
         "past": true
       },
       {
+        "stroke": "-RPS",
+        "verb": "store",
+        "past": false
+      },
+      {
+        "stroke": "-RPSD",
+        "verb": "store",
+        "past": true
+      },
+      {
         "stroke": "-RPL",
         "verb": "remember",
         "past": false
@@ -3129,6 +3185,11 @@
         "id": "at",
         "stroke": "-BT",
         "text": "at"
+      },
+      {
+        "id": "as",
+        "stroke": "-BZ",
+        "text": "as"
       },
       {
         "id": "them",
