@@ -13,6 +13,10 @@
 {{if .EditDeck}}
 <form class="panel deck-edit-form" method="post" action="/deck/edit">
 	<input type="hidden" name="deck_id" value="{{.Deck.ID}}">
+	<label class="deck-name-field" for="deck-name">Deck name
+		<input id="deck-name" name="name" value="{{.Deck.Name}}" required>
+	</label>
+	{{if .DeckError}}<p class="item-error">{{.DeckError}}</p>{{end}}
 	<label><input type="checkbox" name="paused" value="1" {{if .Deck.Paused}}checked{{end}}> Pause scheduled reviews</label>
 	<p class="small">Paused decks do not appear in due reviews. Their schedule is preserved, and all practice options remain available.</p>
 	<div class="actions">

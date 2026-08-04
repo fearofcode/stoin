@@ -94,6 +94,16 @@ func redirectWithItemError(w http.ResponseWriter, r *http.Request, deckID int64,
 	http.Redirect(w, r, u.String(), http.StatusSeeOther)
 }
 
+func redirectWithDeckError(w http.ResponseWriter, r *http.Request, deckID int64, message string) {
+	u := &url.URL{Path: "/deck"}
+	query := u.Query()
+	query.Set("id", strconv.FormatInt(deckID, 10))
+	query.Set("edit_deck", "1")
+	query.Set("deck_error", message)
+	u.RawQuery = query.Encode()
+	http.Redirect(w, r, u.String(), http.StatusSeeOther)
+}
+
 func methodNotAllowed(w http.ResponseWriter) {
 	http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 }

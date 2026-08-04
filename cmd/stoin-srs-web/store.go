@@ -9,6 +9,7 @@ import (
 )
 
 var (
+	ErrDuplicateDeck         = errors.New("deck name already exists")
 	ErrDuplicateItem         = errors.New("item already exists in deck")
 	ErrReviewItemUnavailable = errors.New("review item belongs to a paused or missing deck")
 )
@@ -231,6 +232,27 @@ WHERE id = ?`, id).Scan(&deck.ID, &deck.Name, &deck.CreatedAt, &deck.Paused)
 func (a *App) setDeckPaused(ctx context.Context, id int64, paused bool) error {
 	result, err := a.db.ExecContext(ctx, `UPDATE decks SET paused = ? WHERE id = ?`, boolInt(paused), id)
 	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+func (a *App) updateDeck(ctx context.Context, id int64, name string, paused bool) error {
+	result, err := a.db.ExecContext(ctx, `
+UPDATE decks
+SET name = ?, paused = ?
+WHERE id = ?`, name, boolInt(paused), id)
+	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "constraint") {
+			return ErrDuplicateDeck
+		}
 		return err
 	}
 	affected, err := result.RowsAffected()

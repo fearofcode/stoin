@@ -83,6 +83,7 @@ type DeckPageData struct {
 	Errors         []ParseIssue
 	Notice         string
 	EditItemID     int64
+	DeckError      string
 	ItemError      string
 	Form           ImportFormData
 	TotalItems     int

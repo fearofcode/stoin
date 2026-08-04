@@ -814,17 +814,23 @@ func TestReviewAllStartsDeckSessionWithoutSelection(t *testing.T) {
 	}
 }
 
-func TestDeckPauseHandlerPersistsAndResumes(t *testing.T) {
+func TestDeckEditHandlerRenamesPausesAndValidatesName(t *testing.T) {
 	app := testApp(t)
 	ctx := context.Background()
 	deckID, err := app.getOrCreateDeck(ctx, "briefs", time.Now().UTC())
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, err := app.getOrCreateDeck(ctx, "existing deck", time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
 
-	post := func(id int64, paused bool) *httptest.ResponseRecorder {
+	post := func(id int64, name string, paused bool) *httptest.ResponseRecorder {
 		t.Helper()
-		form := url.Values{"deck_id": {fmt.Sprint(id)}}
+		form := url.Values{
+			"deck_id": {fmt.Sprint(id)},
+			"name":    {name},
+		}
 		if paused {
 			form.Set("paused", "1")
 		}
@@ -835,7 +841,7 @@ func TestDeckPauseHandlerPersistsAndResumes(t *testing.T) {
 		return rec
 	}
 
-	if rec := post(deckID, true); rec.Code != http.StatusSeeOther {
+	if rec := post(deckID, "  renamed briefs  ", true); rec.Code != http.StatusSeeOther {
 		t.Fatalf("expected pause redirect, got %d with body %q", rec.Code, rec.Body.String())
 	}
 	deck, err := app.deckByID(ctx, deckID)
@@ -845,7 +851,10 @@ func TestDeckPauseHandlerPersistsAndResumes(t *testing.T) {
 	if !deck.Paused {
 		t.Fatal("expected deck to be paused")
 	}
-	if rec := post(deckID, false); rec.Code != http.StatusSeeOther {
+	if deck.Name != "renamed briefs" {
+		t.Fatalf("expected trimmed renamed deck, got %q", deck.Name)
+	}
+	if rec := post(deckID, "renamed briefs", false); rec.Code != http.StatusSeeOther {
 		t.Fatalf("expected resume redirect, got %d with body %q", rec.Code, rec.Body.String())
 	}
 	deck, err = app.deckByID(ctx, deckID)
@@ -855,7 +864,22 @@ func TestDeckPauseHandlerPersistsAndResumes(t *testing.T) {
 	if deck.Paused {
 		t.Fatal("expected deck to be resumed")
 	}
-	if rec := post(deckID+999, true); rec.Code != http.StatusNotFound {
+
+	for _, invalidName := range []string{"   ", "existing deck"} {
+		rec := post(deckID, invalidName, true)
+		if rec.Code != http.StatusSeeOther || !strings.Contains(rec.Header().Get("Location"), "deck_error=") {
+			t.Fatalf("expected invalid name %q to reopen deck edit with an error, got %d location %q", invalidName, rec.Code, rec.Header().Get("Location"))
+		}
+	}
+	deck, err = app.deckByID(ctx, deckID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if deck.Name != "renamed briefs" || deck.Paused {
+		t.Fatalf("invalid edits changed deck to %#v", deck)
+	}
+
+	if rec := post(deckID+999, "missing", true); rec.Code != http.StatusNotFound {
 		t.Fatalf("expected unknown deck edit to return 404, got %d", rec.Code)
 	}
 }
@@ -959,13 +983,16 @@ func TestIndexAndDeckPagesPresentPausedDeckControls(t *testing.T) {
 		}
 	}
 
-	editReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/deck?id=%d&edit_deck=1", pausedID), nil)
+	editReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/deck?id=%d&edit_deck=1&deck_error=Rename+failed", pausedID), nil)
 	editRec := httptest.NewRecorder()
 	app.handleDeck(editRec, editReq)
 	if editRec.Code != http.StatusOK {
 		t.Fatalf("expected deck edit page, got %d", editRec.Code)
 	}
-	if body := editRec.Body.String(); !strings.Contains(body, `action="/deck/edit"`) || !strings.Contains(body, `name="paused" value="1" checked`) {
+	if body := editRec.Body.String(); !strings.Contains(body, `action="/deck/edit"`) ||
+		!strings.Contains(body, `name="name" value="Zulu paused"`) ||
+		!strings.Contains(body, `name="paused" value="1" checked`) ||
+		!strings.Contains(body, "Rename failed") {
 		t.Fatalf("expected checked paused toggle in deck edit form, got %q", body)
 	}
 }

@@ -53,6 +53,7 @@ func (a *App) handleDeck(w http.ResponseWriter, r *http.Request) {
 	data.Notice = r.URL.Query().Get("notice")
 	data.EditDeck = r.URL.Query().Get("edit_deck") == "1"
 	data.EditItemID = parseOptionalInt64(r.URL.Query().Get("edit_item_id"))
+	data.DeckError = r.URL.Query().Get("deck_error")
 	data.ItemError = r.URL.Query().Get("item_error")
 	a.render(w, "deck", data)
 }
@@ -71,8 +72,17 @@ func (a *App) handleDeckEdit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid deck edit", http.StatusBadRequest)
 		return
 	}
+	name := strings.TrimSpace(r.FormValue("name"))
+	if name == "" {
+		redirectWithDeckError(w, r, deckID, "Deck name cannot be empty.")
+		return
+	}
 	paused := r.FormValue("paused") != ""
-	if err := a.setDeckPaused(r.Context(), deckID, paused); err != nil {
+	if err := a.updateDeck(r.Context(), deckID, name, paused); err != nil {
+		if errors.Is(err, ErrDuplicateDeck) {
+			redirectWithDeckError(w, r, deckID, "A deck with that name already exists.")
+			return
+		}
 		if errors.Is(err, sql.ErrNoRows) {
 			http.NotFound(w, r)
 			return
@@ -80,11 +90,7 @@ func (a *App) handleDeckEdit(w http.ResponseWriter, r *http.Request) {
 		serverError(w, err)
 		return
 	}
-	notice := "Deck reviews resumed."
-	if paused {
-		notice = "Deck paused; practice is still available."
-	}
-	redirectWithNotice(w, r, deckPath(deckID), notice)
+	redirectWithNotice(w, r, deckPath(deckID), "Deck updated.")
 }
 
 func (a *App) handleItemEdit(w http.ResponseWriter, r *http.Request) {
