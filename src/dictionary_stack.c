@@ -163,6 +163,7 @@ bool dictionary_stack_load(Dictionary_Stack *stack)
     if (!refresh_dictionary_stamps(stack)) {
         fputs("stoin: warning: failed to capture dictionary file stamps; hot reload may not work\n", stderr);
     }
+    ++stack->revision;
     return true;
 }
 
@@ -190,6 +191,7 @@ bool dictionary_stack_reload(Dictionary_Stack *stack)
     }
 
     stack->reload_error_reported = false;
+    ++stack->revision;
     fprintf(stderr, "stoin: reloaded %zu dictionary entries\n", dictionary_count(&stack->dictionary));
     return true;
 }
@@ -346,6 +348,11 @@ bool dictionary_stack_toggle(Dictionary_Stack *stack, const char *selections)
         p = end + 1;
     }
     return true;
+}
+
+uint64_t dictionary_stack_revision(const Dictionary_Stack *stack)
+{
+    return stack == NULL ? 0 : stack->revision;
 }
 
 bool dictionary_stack_get_paths(const Dictionary_Stack *stack, const char *const **out_paths, size_t *out_path_count)

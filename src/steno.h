@@ -60,6 +60,7 @@ bool steno_reload_dictionary(Steno *steno);
 bool steno_reload_dictionary_if_changed(Steno *steno);
 bool steno_reload_phrasing(Steno *steno);
 bool steno_reload_phrasing_if_changed(Steno *steno);
+uint64_t steno_source_revision(const Steno *steno);
 bool steno_get_dictionary_paths(const Steno *steno, const char *const **out_paths, size_t *out_path_count);
 bool steno_get_phrasing_path(const Steno *steno, const char **out_path);
 size_t steno_key_binding_count(const Steno *steno);

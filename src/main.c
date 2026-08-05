@@ -31,6 +31,7 @@ typedef enum Input_Mode {
 #define DEFAULT_PHRASING_PATH "phrasing.json"
 #define DEFAULT_HINT_INDEX_PATH ".stoin-runtime-hints.json"
 #define INPUT_EVENT_POLL_SLEEP_MS 10
+#define MAINTENANCE_INTERVAL_MS 1000
 #define TX_BOLT_STROKE_IDLE_FLUSH_MS 100
 
 typedef struct App {
@@ -41,6 +42,10 @@ typedef struct App {
     bool trace_key_events;
     bool qwerty_input;
     bool hint_index_error_reported;
+    bool hint_index_revision_valid;
+    bool maintenance_time_known;
+    uint64_t hint_index_source_revision;
+    uint64_t last_maintenance_ms;
     Phrase_Keys *phrase_keys;
     const char *hint_index_path;
 } App;
@@ -96,20 +101,33 @@ static void run_app_maintenance(App *app)
         return;
     }
 
+    const uint64_t now_ms = platform_monotonic_ms();
+    if (app->maintenance_time_known
+        && now_ms - app->last_maintenance_ms < MAINTENANCE_INTERVAL_MS) {
+        return;
+    }
+    app->last_maintenance_ms = now_ms;
+    app->maintenance_time_known = true;
+
     platform_file_watcher_poll();
     (void)update_session_active(app);
 }
 
 static bool refresh_hint_index(App *app)
 {
-    if (app == NULL || app->hint_index_path == NULL) {
+    if (app == NULL || app->steno == NULL || app->hint_index_path == NULL) {
         return true;
     }
+    const uint64_t source_revision = steno_source_revision(app->steno);
     if (steno_write_hint_index(app->steno, app->hint_index_path)) {
+        app->hint_index_source_revision = source_revision;
+        app->hint_index_revision_valid = true;
         app->hint_index_error_reported = false;
         return true;
     }
 
+    app->hint_index_source_revision = source_revision;
+    app->hint_index_revision_valid = true;
     (void)remove(app->hint_index_path);
     if (!app->hint_index_error_reported) {
         fprintf(stderr,
@@ -118,6 +136,18 @@ static bool refresh_hint_index(App *app)
         app->hint_index_error_reported = true;
     }
     return false;
+}
+
+static bool refresh_hint_index_if_changed(App *app)
+{
+    if (app == NULL || app->steno == NULL || app->hint_index_path == NULL) {
+        return true;
+    }
+    const uint64_t source_revision = steno_source_revision(app->steno);
+    return app->hint_index_revision_valid
+            && source_revision == app->hint_index_source_revision
+        ? true
+        : refresh_hint_index(app);
 }
 
 static void remove_hint_index(const App *app)
@@ -133,7 +163,7 @@ static void reload_watched_files(void *userdata)
     if (app != NULL) {
         (void)steno_reload_dictionary_if_changed(app->steno);
         (void)steno_reload_phrasing_if_changed(app->steno);
-        (void)refresh_hint_index(app);
+        (void)refresh_hint_index_if_changed(app);
     }
 }
 
@@ -205,6 +235,7 @@ static bool handle_stroke_bits(App *app, uint64_t bits, uint64_t received_ns)
     if (app->time_translations) {
         platform_translation_timing_cancel();
     }
+    (void)refresh_hint_index_if_changed(app);
     return handled;
 }
 
@@ -292,6 +323,7 @@ static bool handle_input(const Input_Event *event, void *userdata)
     if (app != NULL && app->time_translations) {
         platform_translation_timing_cancel();
     }
+    (void)refresh_hint_index_if_changed(app);
     return handled;
 }
 

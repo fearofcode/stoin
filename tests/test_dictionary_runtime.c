@@ -138,18 +138,33 @@ bool test_dictionary_runtime(void)
         uint64_t reload_bits = 0;
         ok = ok && stroke_string_to_bits("S", &reload_bits);
 
+        const uint64_t initial_source_revision = steno_source_revision(reload_steno);
+        ok = ok && steno_reload_dictionary_if_changed(reload_steno);
+        ok = ok && expect_u64(
+            "unchanged dictionary keeps source revision",
+            steno_source_revision(reload_steno),
+            initial_source_revision);
+
         clear_test_output(&output);
         ok = ok && steno_handle_stroke_bits(reload_steno, reload_bits);
         ok = ok && expect_string("hot reload initial dictionary", output.text, "old");
 
         ok = ok && write_text_file(reload_path, "{");
         ok = ok && !steno_reload_dictionary(reload_steno);
+        ok = ok && expect_u64(
+            "failed dictionary reload keeps source revision",
+            steno_source_revision(reload_steno),
+            initial_source_revision);
         clear_test_output(&output);
         ok = ok && steno_handle_stroke_bits(reload_steno, reload_bits);
         ok = ok && expect_string("hot reload keeps old dictionary on parse failure", output.text, " old");
 
         ok = ok && write_text_file(reload_path, "{ \"S\": \"newer\" }\n");
         ok = ok && steno_reload_dictionary(reload_steno);
+        ok = ok && expect_u64(
+            "dictionary reload advances source revision",
+            steno_source_revision(reload_steno),
+            initial_source_revision + 1);
         clear_test_output(&output);
         ok = ok && steno_handle_stroke_bits(reload_steno, reload_bits);
         ok = ok && expect_string("hot reload updated dictionary", output.text, " newer");
@@ -268,12 +283,18 @@ bool test_dictionary_runtime(void)
         Steno *phrasing_reload_steno = steno_create(&phrasing_reload_config);
         ok = ok && phrasing_reload_steno != NULL;
         if (phrasing_reload_steno != NULL) {
+            const uint64_t initial_phrasing_revision =
+                steno_source_revision(phrasing_reload_steno);
             clear_test_output(&output);
             ok = ok && handle_phrase_test_stroke(phrasing_reload_steno, "SKPO-B");
             ok = ok && expect_string("hot reload initial phrasing", output.text, "is a");
 
             ok = ok && write_text_file(reload_phrasing_path, "{");
             ok = ok && !steno_reload_phrasing(phrasing_reload_steno);
+            ok = ok && expect_u64(
+                "failed phrasing reload keeps source revision",
+                steno_source_revision(phrasing_reload_steno),
+                initial_phrasing_revision);
             clear_test_output(&output);
             ok = ok && handle_phrase_test_stroke(phrasing_reload_steno, "SKPO-B");
             ok = ok && expect_string("hot reload keeps old phrasing on parse failure", output.text, " is a");
@@ -286,6 +307,10 @@ bool test_dictionary_runtime(void)
 
             ok = ok && write_text_file(reload_phrasing_path, phrasing_was);
             ok = ok && steno_reload_phrasing(phrasing_reload_steno);
+            ok = ok && expect_u64(
+                "phrasing reload advances source revision",
+                steno_source_revision(phrasing_reload_steno),
+                initial_phrasing_revision + 1);
             clear_test_output(&output);
             ok = ok && handle_phrase_test_stroke(phrasing_reload_steno, "SKPO-B");
             ok = ok && expect_string("hot reload updated phrasing", output.text, " was a");

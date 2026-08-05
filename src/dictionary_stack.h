@@ -6,12 +6,14 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 typedef struct Dictionary_Stack {
     char **paths;
     bool *enabled;
     Platform_File_Stamp *stamps;
     Dictionary dictionary;
+    uint64_t revision;
     bool reload_error_reported;
 } Dictionary_Stack;
 
@@ -26,6 +28,7 @@ bool dictionary_stack_load(Dictionary_Stack *stack);
 bool dictionary_stack_reload(Dictionary_Stack *stack);
 bool dictionary_stack_reload_if_changed(Dictionary_Stack *stack);
 bool dictionary_stack_toggle(Dictionary_Stack *stack, const char *selections);
+uint64_t dictionary_stack_revision(const Dictionary_Stack *stack);
 bool dictionary_stack_get_paths(const Dictionary_Stack *stack, const char *const **out_paths, size_t *out_path_count);
 void dictionary_stack_destroy(Dictionary_Stack *stack);
 

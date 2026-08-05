@@ -170,6 +170,7 @@ bool steno_reload_phrasing(Steno *steno)
     }
 
     steno->phrasing_reload_error_reported = false;
+    ++steno->phrasing_revision;
     fprintf(stderr, "stoin: reloaded phrasing from %s\n", steno->phrasing_path);
     return true;
 }
@@ -217,6 +218,15 @@ bool steno_get_dictionary_paths(const Steno *steno, const char *const **out_path
         out_paths,
         out_path_count
     );
+}
+
+uint64_t steno_source_revision(const Steno *steno)
+{
+    if (steno == NULL) {
+        return 0;
+    }
+    return dictionary_stack_revision(&steno->dictionary_stack)
+        + steno->phrasing_revision;
 }
 
 bool steno_get_phrasing_path(const Steno *steno, const char **out_path)
@@ -270,6 +280,7 @@ Steno *steno_create(const Steno_Config *config)
         if (!refresh_phrasing_stamp(steno)) {
             fputs("stoin: warning: failed to capture phrasing file stamp; hot reload may not work\n", stderr);
         }
+        ++steno->phrasing_revision;
     }
 
     if (!dictionary_stack_set_paths(

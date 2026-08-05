@@ -27,6 +27,7 @@ struct Steno {
     uint64_t chord_bits;
     Phrase_Namespace chord_phrase_namespace;
     Platform_File_Stamp phrasing_stamp;
+    uint64_t phrasing_revision;
     size_t strokes_since_compaction;
     bool enabled;
     bool session_active;
