@@ -78,8 +78,10 @@
 | -Z | his |
 | -RT | that |
 | -G | can |
-| -FS | if |
+| -FZ | if |
 | -F | of |
+| -FT | of the |
+| -FS | of us |
 | -FP | off |
 | OPB | on |
 | -FR | for |
@@ -119,7 +121,7 @@
 | -LZ | less |
 | -RPG | up |
 | -SZ | out |
-| -FT | with |
+| -FGT | with |
 | -RZ | your |
 | -PZ | its |
 | -PLZ | my |

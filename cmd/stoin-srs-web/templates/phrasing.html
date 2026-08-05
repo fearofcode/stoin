@@ -5,6 +5,12 @@
 <div class="phrase-workspace">
 	<section class="panel phrase-setup">
 		<div class="trainer-controls">
+			<label>Prompt source
+				<select id="phrase-source">
+					<option value="banks" selected>selected banks</option>
+					<option value="pasted">pasted phrase list</option>
+				</select>
+			</label>
 			<label>Repetitions
 				<input type="number" id="phrase-count" min="1" max="100" value="7">
 			</label>
@@ -23,7 +29,7 @@
 				</select>
 			</label>
 		</div>
-		<div class="phrase-picker">
+		<div class="phrase-picker phrase-source-panel" id="phrase-bank-source">
 			<div class="phrase-picker-header">
 				<span>Banks</span>
 				<div class="phrase-picker-actions">
@@ -34,6 +40,11 @@
 			</div>
 			<input type="search" id="phrase-filter" class="phrase-filter" placeholder="Search banks" autocomplete="off" spellcheck="false">
 			<div class="phrase-focus-list" id="phrase-focus-list"></div>
+		</div>
+		<div class="phrase-pasted phrase-source-panel" id="phrase-pasted-source" hidden>
+			<label for="phrase-pasted-list">Phrases, one per line</label>
+			<textarea id="phrase-pasted-list" rows="12" placeholder="is he&#10;is she&#10;were he" spellcheck="false"></textarea>
+			<p class="small" id="phrase-pasted-status">Paste phrases, then choose Restart.</p>
 		</div>
 		<div class="actions">
 			<button type="button" id="phrase-restart" class="primary">Restart</button>

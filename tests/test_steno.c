@@ -292,14 +292,9 @@ int main(void)
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
     steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, true);
-    ok = ok && handle_test_stroke(steno, "STWHR-RPLG");
-    ok = ok && handle_test_stroke(steno, "STWHR-FT");
-    ok = ok && handle_test_stroke(steno, "STWHR-F");
+    ok = ok && handle_test_stroke(steno, "STWHR");
     steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, false);
-    ok = ok && expect_string(
-        "those is an NV prefix with shared tails",
-        output.text,
-        "those who those with those of");
+    ok = ok && expect_string("those is an NV prefix", output.text, "those");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);

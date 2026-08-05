@@ -1353,6 +1353,10 @@ func TestPhrasingTrainerPage(t *testing.T) {
 		"<h1>Phrasing Trainer</h1>",
 		`src="/static/phrasing-trainer.js"`,
 		"Repetitions",
+		"Prompt source",
+		"pasted phrase list",
+		"Phrases, one per line",
+		`id="phrase-pasted-list"`,
 		"selected bank order",
 		"Search banks",
 		"phrase-show-outlines",
@@ -1387,6 +1391,11 @@ func TestStaticPhrasingTrainerScript(t *testing.T) {
 		!strings.Contains(body, "nonverbs") ||
 		!strings.Contains(body, "generateFinalVerbPrompts") ||
 		!strings.Contains(body, "generateNonverbPrompts") ||
+		!strings.Contains(body, "pastedPhrasePool") ||
+		!strings.Contains(body, "allPhrasingPromptLookup") ||
+		!strings.Contains(body, "phraseSourceSelect") ||
+		!strings.Contains(body, "phrasePastedList") ||
+		!strings.Contains(body, "Not found in the phrase system") ||
 		!strings.Contains(body, "d_contraction") ||
 		!strings.Contains(body, "fvDoNegativeContraction") ||
 		!strings.Contains(body, "tail.text || 'no tail'") ||

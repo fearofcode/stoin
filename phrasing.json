@@ -89,13 +89,23 @@
       },
       {
         "id": "if",
-        "stroke": "-FS",
+        "stroke": "-FZ",
         "text": "if"
       },
       {
         "id": "of",
         "stroke": "-F",
         "text": "of"
+      },
+      {
+        "id": "of_the",
+        "stroke": "-FT",
+        "text": "of the"
+      },
+      {
+        "id": "of_us",
+        "stroke": "-FS",
+        "text": "of us"
       },
       {
         "id": "off",
@@ -294,7 +304,7 @@
       },
       {
         "id": "with",
-        "stroke": "-FT",
+        "stroke": "-FGT",
         "text": "with"
       },
       {
@@ -3248,13 +3258,23 @@
       },
       {
         "id": "if",
-        "stroke": "-FS",
+        "stroke": "-FZ",
         "text": "if"
       },
       {
         "id": "of",
         "stroke": "-F",
         "text": "of"
+      },
+      {
+        "id": "of_the",
+        "stroke": "-FT",
+        "text": "of the"
+      },
+      {
+        "id": "of_us",
+        "stroke": "-FS",
+        "text": "of us"
       },
       {
         "id": "off",
@@ -3453,7 +3473,7 @@
       },
       {
         "id": "with",
-        "stroke": "-FT",
+        "stroke": "-FGT",
         "text": "with"
       },
       {

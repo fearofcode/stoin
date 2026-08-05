@@ -548,6 +548,29 @@ button:disabled {
 	margin-top: 12px;
 }
 
+.phrase-source-panel[hidden] {
+	display: none;
+}
+
+.phrase-pasted {
+	display: grid;
+	gap: 8px;
+	margin-top: 12px;
+}
+
+.phrase-pasted label {
+	color: var(--muted);
+}
+
+.phrase-pasted textarea {
+	min-height: 240px;
+	resize: vertical;
+}
+
+.phrase-pasted .small {
+	margin: 0;
+}
+
 .phrase-picker-header {
 	align-items: center;
 	display: flex;

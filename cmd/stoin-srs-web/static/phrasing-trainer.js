@@ -2,6 +2,11 @@ let phraseData = null;
 
 const phraseCountInput = document.getElementById('phrase-count');
 const phraseOrderSelect = document.getElementById('phrase-order');
+const phraseSourceSelect = document.getElementById('phrase-source');
+const phraseBankSource = document.getElementById('phrase-bank-source');
+const phrasePastedSource = document.getElementById('phrase-pasted-source');
+const phrasePastedList = document.getElementById('phrase-pasted-list');
+const phrasePastedStatus = document.getElementById('phrase-pasted-status');
 const phraseFocusList = document.getElementById('phrase-focus-list');
 const phraseFilterInput = document.getElementById('phrase-filter');
 const phraseShowOutlines = document.getElementById('phrase-show-outlines');
@@ -20,6 +25,9 @@ const phraseStatus = document.getElementById('phrase-status');
 let phraseQueue = [];
 let phraseIndex = 0;
 let phraseMistake = false;
+let pastedPromptLookup = null;
+let pastedPhraseLineCount = 0;
+let pastedUnmatchedPhrases = [];
 const phraseCheckedByKey = new Map();
 const phraseStorageKey = 'stoin.phrasingTrainer.v13';
 
@@ -630,14 +638,18 @@ function findStemForm(stem, stroke) {
 	return null;
 }
 
-function generateInitialVerbPrompts() {
-	if (!familyEnabled('initial_verbs')) return [];
+function generateInitialVerbPrompts(selectedOnly) {
+	const useSelection = selectedOnly !== false;
+	if (useSelection && !familyEnabled('initial_verbs')) return [];
+	const stems = useSelection ? selectedInitialStems() : (phraseData.initial_verbs.stems || []);
+	const forms = useSelection ? selectedInitialForms() : initialFormOptions();
+	const tails = useSelection ? selectedInitialTails() : (phraseData.initial_verbs.tails || []);
 	const prompts = [];
-	selectedInitialStems().forEach(function(stem) {
-		selectedInitialForms().forEach(function(formOption) {
+	stems.forEach(function(stem) {
+		forms.forEach(function(formOption) {
 			const form = findStemForm(stem, formOption.stroke);
 			if (!form) return;
-			selectedInitialTails().forEach(function(tail) {
+			tails.forEach(function(tail) {
 				prompts.push({
 					lesson: familyLabels.initial_verbs,
 					stroke: combineStrokeParts([stem.stroke, form.stroke, tail.stroke]),
@@ -649,14 +661,18 @@ function generateInitialVerbPrompts() {
 	return prompts;
 }
 
-function generateNonverbPrompts() {
-	if (!familyEnabled('nonverbs')) return [];
-	const prefixes = (phraseData.nonverbs.prefixes || []).filter(function(prefix) {
+function generateNonverbPrompts(selectedOnly) {
+	const useSelection = selectedOnly !== false;
+	if (!phraseData.nonverbs) return [];
+	if (useSelection && !familyEnabled('nonverbs')) return [];
+	const allPrefixes = phraseData.nonverbs.prefixes || [];
+	const allTails = phraseData.nonverbs.tails || [];
+	const prefixes = useSelection ? allPrefixes.filter(function(prefix) {
 		return bankOptionChecked('nonverbs', 'prefixes', prefix.stroke);
-	});
-	const tails = (phraseData.nonverbs.tails || []).filter(function(tail) {
+	}) : allPrefixes;
+	const tails = useSelection ? allTails.filter(function(tail) {
 		return bankOptionChecked('nonverbs', 'tails', tail.id);
-	});
+	}) : allTails;
 	const prompts = [];
 	prefixes.forEach(function(prefix) {
 		tails.forEach(function(tail) {
@@ -907,16 +923,20 @@ function selectedFinalVerbModes() {
 	});
 }
 
-function generateFinalVerbPrompts() {
-	if (!familyEnabled('final_verbs')) return [];
+function generateFinalVerbPrompts(selectedOnly) {
+	const useSelection = selectedOnly !== false;
+	if (useSelection && !familyEnabled('final_verbs')) return [];
 	const finalVerbs = phraseData.final_verbs;
-	const starters = selectedFinalVerbRows('starters');
-	const operators = selectedFinalVerbRows('operators');
-	const structures = selectedFinalVerbRows('structures');
-	const enders = selectedFinalVerbRows('enders', function(row, index) { return String(index); }).map(function(ender) {
+	const starters = useSelection ? selectedFinalVerbRows('starters') : (finalVerbs.starters || []);
+	const operators = useSelection ? selectedFinalVerbRows('operators') : (finalVerbs.operators || []);
+	const structures = useSelection ? selectedFinalVerbRows('structures') : (finalVerbs.structures || []);
+	const selectedEnders = useSelection
+		? selectedFinalVerbRows('enders', function(row, index) { return String(index); })
+		: (finalVerbs.enders || []);
+	const enders = selectedEnders.map(function(ender) {
 		return Object.assign({}, ender, { verbObj: finalVerbByID(ender.verb) });
 	});
-	const modes = selectedFinalVerbModes();
+	const modes = useSelection ? selectedFinalVerbModes() : ['long', 'contraction'];
 	const prompts = [];
 	starters.forEach(function(starter) {
 		operators.forEach(function(op) {
@@ -973,11 +993,72 @@ function uniquePrompts(prompts) {
 	return out;
 }
 
-function currentPool() {
+function generatedPromptPool(selectedOnly) {
 	return uniquePrompts([]
-		.concat(generateInitialVerbPrompts())
-		.concat(generateFinalVerbPrompts())
-		.concat(generateNonverbPrompts()));
+		.concat(generateInitialVerbPrompts(selectedOnly))
+		.concat(generateFinalVerbPrompts(selectedOnly))
+		.concat(generateNonverbPrompts(selectedOnly)));
+}
+
+function promptLessonRank(prompt) {
+	switch (prompt.lesson) {
+	case familyLabels.initial_verbs: return 0;
+	case familyLabels.final_verbs: return 1;
+	case familyLabels.nonverbs: return 2;
+	default: return 3;
+	}
+}
+
+function promptIsBetter(candidate, current) {
+	if (!current) return true;
+	const candidateRank = promptLessonRank(candidate);
+	const currentRank = promptLessonRank(current);
+	if (candidateRank !== currentRank) return candidateRank < currentRank;
+	if (candidate.stroke.length !== current.stroke.length) {
+		return candidate.stroke.length < current.stroke.length;
+	}
+	return candidate.stroke < current.stroke;
+}
+
+function allPhrasingPromptLookup() {
+	if (pastedPromptLookup) return pastedPromptLookup;
+	pastedPromptLookup = new Map();
+	generatedPromptPool(false).forEach(function(prompt) {
+		const key = normalizeAnswer(prompt.phrase);
+		const current = pastedPromptLookup.get(key);
+		if (promptIsBetter(prompt, current)) pastedPromptLookup.set(key, prompt);
+	});
+	return pastedPromptLookup;
+}
+
+function pastedPhraseLines() {
+	return phrasePastedList.value.split(/\r?\n/).map(function(line) {
+		return line.trim();
+	}).filter(function(line) {
+		return line !== '';
+	});
+}
+
+function pastedPhrasePool() {
+	const lines = pastedPhraseLines();
+	const lookup = allPhrasingPromptLookup();
+	const prompts = [];
+	const unmatched = [];
+	lines.forEach(function(line) {
+		const prompt = lookup.get(normalizeAnswer(line));
+		if (prompt) prompts.push(prompt);
+		else unmatched.push(line);
+	});
+	pastedPhraseLineCount = lines.length;
+	pastedUnmatchedPhrases = unmatched;
+	return prompts;
+}
+
+function currentPool() {
+	if (phraseSourceSelect.value === 'pasted') return pastedPhrasePool();
+	pastedPhraseLineCount = 0;
+	pastedUnmatchedPhrases = [];
+	return generatedPromptPool(true);
 }
 
 function shuffle(items) {
@@ -1069,8 +1150,10 @@ function savePhraseSettings() {
 	const settings = {
 		repetitions: repetitionCount(),
 		order: phraseOrderSelect.value,
+		source: phraseSourceSelect.value,
 		hints: phraseHintsSelect.value,
 		showOutlines: phraseShowOutlines.checked,
+		pastedPhrases: phrasePastedList.value,
 		checkedByKey: Array.from(phraseCheckedByKey.entries()),
 	};
 	localStorageSet(phraseStorageKey, JSON.stringify(settings));
@@ -1086,11 +1169,17 @@ function restorePhraseSettings() {
 	if (typeof settings.order === 'string' && optionExists(phraseOrderSelect, settings.order)) {
 		phraseOrderSelect.value = settings.order;
 	}
+	if (typeof settings.source === 'string' && optionExists(phraseSourceSelect, settings.source)) {
+		phraseSourceSelect.value = settings.source;
+	}
 	if (typeof settings.hints === 'string' && optionExists(phraseHintsSelect, settings.hints)) {
 		phraseHintsSelect.value = settings.hints;
 	}
 	if (typeof settings.showOutlines === 'boolean') {
 		phraseShowOutlines.checked = settings.showOutlines;
+	}
+	if (typeof settings.pastedPhrases === 'string') {
+		phrasePastedList.value = settings.pastedPhrases;
 	}
 	if (Array.isArray(settings.checkedByKey)) {
 		phraseCheckedByKey.clear();
@@ -1166,10 +1255,36 @@ function populateFocusOptions() {
 	}
 }
 
+function updatePromptSourceVisibility() {
+	const pasted = phraseSourceSelect.value === 'pasted';
+	phraseBankSource.hidden = pasted;
+	phrasePastedSource.hidden = !pasted;
+}
+
+function updatePastedPhraseStatus(poolLength) {
+	if (phraseSourceSelect.value !== 'pasted') return;
+	if (pastedPhraseLineCount === 0) {
+		phrasePastedStatus.textContent = 'Paste phrases, then choose Restart.';
+		return;
+	}
+	if (pastedUnmatchedPhrases.length === 0) {
+		phrasePastedStatus.textContent = 'Matched all ' + poolLength + ' pasted phrase'
+			+ (poolLength === 1 ? '.' : 's.');
+		return;
+	}
+	const preview = pastedUnmatchedPhrases.slice(0, 5).join(' / ');
+	const remaining = pastedUnmatchedPhrases.length - Math.min(5, pastedUnmatchedPhrases.length);
+	phrasePastedStatus.textContent = 'Matched ' + poolLength + ' of ' + pastedPhraseLineCount
+		+ '. Not found in the phrase system: ' + preview
+		+ (remaining > 0 ? ' / +' + remaining + ' more' : '');
+}
+
 function rebuildPhraseQueue() {
 	syncFocusSelectionFromInputs();
+	updatePromptSourceVisibility();
 	populateFocusOptions();
 	const pool = currentPool();
+	updatePastedPhraseStatus(pool.length);
 	const repetitions = repetitionCount();
 	const order = phraseOrderSelect.value;
 	if (order === 'selected') {
@@ -1182,13 +1297,14 @@ function rebuildPhraseQueue() {
 	phraseIndex = 0;
 	phraseMistake = false;
 	phraseAnswer.value = '';
+	const promptKind = phraseSourceSelect.value === 'pasted' ? 'matched pasted prompt' : 'generated prompt';
 	if (order === 'selected') {
-		phraseSetSummary.textContent = pool.length + ' generated prompt'
+		phraseSetSummary.textContent = pool.length + ' ' + promptKind
 			+ (pool.length === 1 ? '' : 's')
 			+ ' x ' + repetitions + ' each'
 			+ ' = ' + phraseQueue.length + ' exercises';
 	} else {
-		phraseSetSummary.textContent = pool.length + ' prompt'
+		phraseSetSummary.textContent = pool.length + ' ' + promptKind
 			+ (pool.length === 1 ? '' : 's')
 			+ ' x ' + repetitions
 			+ ' = ' + phraseQueue.length + ' exercises';
@@ -1390,6 +1506,16 @@ phraseOrderSelect.addEventListener('change', function() {
 	rebuildPhraseQueue();
 	savePhraseSettings();
 });
+phraseSourceSelect.addEventListener('change', function() {
+	rebuildPhraseQueue();
+	savePhraseSettings();
+});
+phrasePastedList.addEventListener('input', function() {
+	phrasePastedStatus.textContent = 'Choose Restart to use the updated list.';
+});
+phrasePastedList.addEventListener('change', function() {
+	savePhraseSettings();
+});
 phraseFocusList.addEventListener('change', function() {
 	rebuildPhraseQueue();
 	savePhraseSettings();
@@ -1421,7 +1547,10 @@ phraseHintsSelect.addEventListener('change', function() {
 	savePhraseSettings();
 	renderPhraseTrainer();
 });
-phraseRestart.addEventListener('click', rebuildPhraseQueue);
+phraseRestart.addEventListener('click', function() {
+	rebuildPhraseQueue();
+	savePhraseSettings();
+});
 phraseReroll.addEventListener('click', rebuildPhraseQueue);
 phraseAnswer.addEventListener('input', advancePhraseIfCorrect);
 phraseAnswer.addEventListener('keydown', function(event) {
