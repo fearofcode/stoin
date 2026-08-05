@@ -14,14 +14,15 @@ import (
 )
 
 const (
-	defaultDBPath       = "stoin-srs-web.sqlite3"
-	defaultAddr         = "127.0.0.1:8080"
-	defaultConfigPath   = "stoin-config.json"
-	defaultPhrasingPath = "phrasing.json"
-	introRepetitions    = 5
-	reviewAllDueLimit   = 100
-	sessionLineMaxRunes = 52
-	maxRequestBodyBytes = 4 << 20
+	defaultDBPath        = "stoin-srs-web.sqlite3"
+	defaultAddr          = "127.0.0.1:8080"
+	defaultConfigPath    = "stoin-config.json"
+	defaultPhrasingPath  = "phrasing.json"
+	defaultHintIndexPath = ".stoin-runtime-hints.json"
+	introRepetitions     = 5
+	reviewAllDueLimit    = 100
+	sessionLineMaxRunes  = 52
+	maxRequestBodyBytes  = 4 << 20
 )
 
 var scheduleDays = []int{1, 3, 7, 14, 30, 60, 120, 240}
@@ -39,11 +40,12 @@ type App struct {
 func main() {
 	dbPath := flag.String("db", defaultDBPath, "SQLite database path")
 	addr := flag.String("addr", defaultAddr, "HTTP listen address")
-	configPath := flag.String("config", defaultConfigPath, "Stoin config path for dictionary hints")
+	configPath := flag.String("config", defaultConfigPath, "Stoin config path for fallback dictionary hints")
+	hintIndexPath := flag.String("hint-index", defaultHintIndexPath, "Running Stoin process hint index path")
 	phrasingPath := flag.String("phrasing", defaultPhrasingPath, "Phrasing JSON path")
 	flag.Parse()
 
-	app, err := NewAppWithOptions(*dbPath, *phrasingPath, *configPath)
+	app, err := NewAppWithOptions(*dbPath, *phrasingPath, *configPath, *hintIndexPath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -57,14 +59,14 @@ func main() {
 }
 
 func NewApp(dbPath string) (*App, error) {
-	return NewAppWithOptions(dbPath, defaultPhrasingPath, defaultConfigPath)
+	return NewAppWithOptions(dbPath, defaultPhrasingPath, defaultConfigPath, "")
 }
 
 func NewAppWithPhrasing(dbPath string, phrasingPath string) (*App, error) {
-	return NewAppWithOptions(dbPath, phrasingPath, defaultConfigPath)
+	return NewAppWithOptions(dbPath, phrasingPath, defaultConfigPath, "")
 }
 
-func NewAppWithOptions(dbPath string, phrasingPath string, configPath string) (*App, error) {
+func NewAppWithOptions(dbPath string, phrasingPath string, configPath string, hintIndexPath string) (*App, error) {
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, err
@@ -80,7 +82,7 @@ func NewAppWithOptions(dbPath string, phrasingPath string, configPath string) (*
 	app := &App{
 		db:           db,
 		templates:    templates,
-		hints:        NewDictionaryHints(configPath),
+		hints:        NewDictionaryHints(configPath, hintIndexPath),
 		phrasingPath: phrasingPath,
 	}
 	if err := app.initSchema(context.Background()); err != nil {

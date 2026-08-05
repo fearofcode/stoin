@@ -18,12 +18,29 @@ Use a custom database or address directly:
 go run ./cmd/stoin-srs-web --db practice.sqlite3 --addr 127.0.0.1:8090
 ```
 
-The app uses `stoin-config.json` by default for review/practice hint outlines.
-Point it at another active dictionary configuration with:
+While Stoin is running, it publishes `.stoin-runtime-hints.json` from its
+resolved in-memory dictionary stack and phrase generator. The SRS app prefers
+that index, so `--dictionary` and `--phrasing` arguments passed to Stoin, stack
+overrides, and hot reloads are reflected in review/practice hints. Phrase hints
+are labeled as initial verb, final verb, or non-verb phrases.
+
+Stoin removes the runtime index on a normal exit. When it is not present, the
+SRS app falls back to `stoin-config.json`. Point the fallback loader at another
+configuration with:
 
 ```sh
 go run ./cmd/stoin-srs-web --config my-stoin-config.json
 ```
+
+To keep the generated index somewhere else, pass the same path to both
+processes:
+
+```sh
+./build/macos/stoin --hint-index /tmp/my-stoin-hints.json
+go run ./cmd/stoin-srs-web --hint-index /tmp/my-stoin-hints.json
+```
+
+Pass `--no-hint-index` to Stoin to disable publishing it.
 
 ## Backups
 
@@ -114,10 +131,10 @@ preserved, and both selected and all-word practice remain available.
 Practice mode accepts a practice count before starting the session.
 
 During review or practice, `Hint` shows the current word's outline from the
-configured dictionary stack. Requesting a hint marks that item as missed for the
-session, but leaves the word active until you type it correctly. In review and
-practice modes, that means the item is scheduled the same way as a skipped item
-when the session is submitted.
+running Stoin process when available, including its generated phrasing systems.
+Requesting a hint marks that item as missed for the session, but leaves the word
+active until you type it correctly. In review and practice modes, that means the
+item is scheduled the same way as a skipped item when the session is submitted.
 
 At the end of a practice session, any hinted or skipped items appear once each
 in a plain-text list beside the submit controls. The list can be copied for

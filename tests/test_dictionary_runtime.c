@@ -349,6 +349,47 @@ bool test_dictionary_runtime(void)
     }
     remove(dump_path);
 
+    const char *hint_first_path = "build/test-hint-first.json";
+    const char *hint_second_path = "build/test-hint-second.json";
+    const char *hint_index_path = "build/test-runtime-hints.json";
+    ok = ok && write_text_file(
+        hint_first_path,
+        "{\"PW\":\"alpha\",\"A\":\"old value\"}\n");
+    ok = ok && write_text_file(
+        hint_second_path,
+        "{\"PW\":\"beta\",\"SKWR\":\"alpha\",\"A\":\"is a\"}\n");
+    const char *const hint_dictionary_paths[] = {
+        hint_first_path,
+        hint_second_path,
+    };
+    Steno_Config hint_config = config;
+    hint_config.dictionary_path = NULL;
+    hint_config.dictionary_paths = hint_dictionary_paths;
+    hint_config.dictionary_path_count =
+        sizeof(hint_dictionary_paths) / sizeof(hint_dictionary_paths[0]);
+    Steno *hint_steno = steno_create(&hint_config);
+    ok = ok && hint_steno != NULL;
+    if (hint_steno != NULL) {
+        ok = ok && steno_write_hint_index(hint_steno, hint_index_path);
+        size_t hint_index_size = 0;
+        char *hint_index = read_entire_file(hint_index_path, &hint_index_size);
+        ok = ok && hint_index != NULL && hint_index_size > 0;
+        if (hint_index != NULL) {
+            ok = ok && strstr(
+                hint_index,
+                "\"alpha\":{\"outline\":\"SKWR\",\"source\":\"dictionary\"}") != NULL;
+            ok = ok && strstr(
+                hint_index,
+                "\"is a\":{\"outline\":\"SKPWOB\",\"source\":\"initial_verb\"}") != NULL;
+            ok = ok && strstr(hint_index, "\"old value\"") == NULL;
+            free(hint_index);
+        }
+        steno_destroy(hint_steno);
+    }
+    remove(hint_index_path);
+    remove(hint_first_path);
+    remove(hint_second_path);
+
     FILE *trace_file = tmpfile();
     ok = ok && trace_file != NULL;
     if (trace_file != NULL) {

@@ -20,6 +20,13 @@ typedef enum Phrase_Lookup_Result {
     PHRASE_LOOKUP_ERROR,
 } Phrase_Lookup_Result;
 
+typedef bool (*Phrase_Suggestion_Fn)(
+    const char *text,
+    const char *outline,
+    Phrase_Namespace namespace,
+    void *userdata
+);
+
 Phrase_Namespace phrase_namespace_from_active_keys(
     bool initial_verb,
     bool final_verb,
@@ -43,5 +50,10 @@ Phrase_Lookup_Result phrasing_find_translation_outline(
     Phrase_Namespace *out_namespace,
     char *out_outline,
     size_t out_outline_size
+);
+bool phrasing_for_each_suggestion(
+    Phrasing *phrasing,
+    Phrase_Suggestion_Fn callback,
+    void *userdata
 );
 #endif

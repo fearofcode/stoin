@@ -44,6 +44,7 @@ COMMON_SOURCES := \
 	src/stentura.c \
 	src/steno.c \
 	src/steno_apply.c \
+	src/steno_hints.c \
 	src/steno_suggestions.c \
 	src/steno_stroke.c \
 	src/steno_translate.c \

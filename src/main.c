@@ -29,6 +29,7 @@ typedef enum Input_Mode {
 #define DEFAULT_CONFIG_PATH "stoin-config.json"
 #define DEFAULT_WORD_LIST_PATH "american_english_words.txt"
 #define DEFAULT_PHRASING_PATH "phrasing.json"
+#define DEFAULT_HINT_INDEX_PATH ".stoin-runtime-hints.json"
 #define INPUT_EVENT_POLL_SLEEP_MS 10
 #define TX_BOLT_STROKE_IDLE_FLUSH_MS 100
 
@@ -39,7 +40,9 @@ typedef struct App {
     bool time_translations;
     bool trace_key_events;
     bool qwerty_input;
+    bool hint_index_error_reported;
     Phrase_Keys *phrase_keys;
+    const char *hint_index_path;
 } App;
 
 static volatile sig_atomic_t g_stop_requested;
@@ -97,12 +100,40 @@ static void run_app_maintenance(App *app)
     (void)update_session_active(app);
 }
 
+static bool refresh_hint_index(App *app)
+{
+    if (app == NULL || app->hint_index_path == NULL) {
+        return true;
+    }
+    if (steno_write_hint_index(app->steno, app->hint_index_path)) {
+        app->hint_index_error_reported = false;
+        return true;
+    }
+
+    (void)remove(app->hint_index_path);
+    if (!app->hint_index_error_reported) {
+        fprintf(stderr,
+            "stoin: warning: failed to publish SRS hint index '%s'\n",
+            app->hint_index_path);
+        app->hint_index_error_reported = true;
+    }
+    return false;
+}
+
+static void remove_hint_index(const App *app)
+{
+    if (app != NULL && app->hint_index_path != NULL) {
+        (void)remove(app->hint_index_path);
+    }
+}
+
 static void reload_watched_files(void *userdata)
 {
     App *app = userdata;
     if (app != NULL) {
         (void)steno_reload_dictionary_if_changed(app->steno);
         (void)steno_reload_phrasing_if_changed(app->steno);
+        (void)refresh_hint_index(app);
     }
 }
 
@@ -302,6 +333,7 @@ static void print_usage(void)
     fputs("             [--nonverb-key KEY]\n", stderr);
     fputs("             [--trace-key-events]\n", stderr);
     fputs("             [--print-suggestions] [--suggestion-log PATH]\n", stderr);
+    fputs("             [--hint-index PATH|--no-hint-index]\n", stderr);
     fputs("             [--time-translations]\n", stderr);
     fputs("             [--trace-strokes|--no-trace-strokes]\n", stderr);
     fputs("       stoin --raw-serial [--serial-port PATH] [--serial-baud BAUD]\n", stderr);
@@ -796,6 +828,7 @@ int main(int argc, char **argv)
     bool trace_key_events = false;
     bool print_suggestions = false;
     const char *suggestion_log_path = NULL;
+    const char *hint_index_path = DEFAULT_HINT_INDEX_PATH;
     bool time_translations = false;
     Phrase_Keys phrase_keys = {0};
 
@@ -903,6 +936,10 @@ int main(int argc, char **argv)
             print_suggestions = true;
         } else if (strcmp(argv[i], "--suggestion-log") == 0 && i + 1 < argc) {
             suggestion_log_path = argv[++i];
+        } else if (strcmp(argv[i], "--hint-index") == 0 && i + 1 < argc) {
+            hint_index_path = argv[++i];
+        } else if (strcmp(argv[i], "--no-hint-index") == 0) {
+            hint_index_path = NULL;
         } else if (strcmp(argv[i], "--time-translations") == 0
             || strcmp(argv[i], "--time-translation") == 0) {
             time_translations = true;
@@ -1071,6 +1108,7 @@ int main(int argc, char **argv)
         .trace_key_events = trace_key_events,
         .qwerty_input = input_mode == INPUT_MODE_QWERTY,
         .phrase_keys = &phrase_keys,
+        .hint_index_path = hint_index_path,
     };
     if (app.steno == NULL) {
         phrase_keys_destroy(&phrase_keys);
@@ -1079,6 +1117,9 @@ int main(int argc, char **argv)
         }
         runtime_config_destroy(&runtime_config);
         return 1;
+    }
+    if (refresh_hint_index(&app) && app.hint_index_path != NULL) {
+        printf("stoin: SRS hint index = %s\n", app.hint_index_path);
     }
     platform_translation_timing_set_enabled(time_translations);
     if (time_translations) {
@@ -1096,6 +1137,7 @@ int main(int argc, char **argv)
     } else {
         if (app_wants_keyboard_events(&app)) {
             if (!platform_init_listen_only(handle_phrase_key_input, &app)) {
+                remove_hint_index(&app);
                 phrase_keys_destroy(&phrase_keys);
                 steno_destroy(app.steno);
                 if (suggestion_log_file != NULL) {
@@ -1130,6 +1172,7 @@ int main(int argc, char **argv)
         }
     }
 
+    remove_hint_index(&app);
     phrase_keys_destroy(&phrase_keys);
     steno_destroy(app.steno);
     if (suggestion_log_file != NULL && fclose(suggestion_log_file) != 0 && status == 0) {

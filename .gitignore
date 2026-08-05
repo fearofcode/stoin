@@ -21,6 +21,7 @@ cmd/stoin-dict-augment/count_1w.txt
 *.log
 *.jsonl
 stoin-pedals.json
+.stoin-runtime-hints.json*
 
 # Local spaced repetition state
 *.db

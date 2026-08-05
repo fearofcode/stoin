@@ -67,5 +67,6 @@ size_t steno_dictionary_count(const Steno *steno);
 size_t steno_translation_history_stroke_count(const Steno *steno);
 bool steno_lookup_stroke(Steno *steno, const char *stroke, const char **out_translation);
 bool steno_dump_dictionary_json(const Steno *steno, const char *path);
+bool steno_write_hint_index(Steno *steno, const char *path);
 
 #endif

@@ -200,18 +200,24 @@ func (a *App) handleHint(w http.ResponseWriter, r *http.Request) {
 		serverError(w, err)
 		return
 	}
-	outlines, err := a.hints.Lookup(r.Context(), text)
+	hints, err := a.hints.Lookup(r.Context(), text)
 	if err != nil {
 		serverError(w, err)
 		return
 	}
+	outlines := make([]string, 0, len(hints))
+	for _, hint := range hints {
+		outlines = append(outlines, hint.Outline)
+	}
 	response := struct {
 		Found    bool     `json:"found"`
 		Text     string   `json:"text"`
+		Hints    []Hint   `json:"hints"`
 		Outlines []string `json:"outlines"`
 	}{
-		Found:    len(outlines) > 0,
+		Found:    len(hints) > 0,
 		Text:     text,
+		Hints:    hints,
 		Outlines: outlines,
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")

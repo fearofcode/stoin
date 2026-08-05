@@ -535,7 +535,7 @@ func TestHintRouteUsesConfiguredDictionaryStack(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	app, err := NewAppWithOptions(filepath.Join(dir, "srs.sqlite3"), "../../phrasing.json", configPath)
+	app, err := NewAppWithOptions(filepath.Join(dir, "srs.sqlite3"), "../../phrasing.json", configPath, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -569,6 +569,94 @@ func TestHintRouteUsesConfiguredDictionaryStack(t *testing.T) {
 	}
 	if strings.Contains(body, `"A"`) {
 		t.Fatalf("outline A should have been overridden to beta, got %q", body)
+	}
+	if !strings.Contains(body, `"source":"dictionary"`) {
+		t.Fatalf("expected dictionary hint source, got %q", body)
+	}
+}
+
+func TestHintRoutePrefersRunningStoinPhraseIndex(t *testing.T) {
+	dir := t.TempDir()
+	dictionaryPath := filepath.Join(dir, "fallback.json")
+	configPath := filepath.Join(dir, "stoin-config.json")
+	hintIndexPath := filepath.Join(dir, "runtime-hints.json")
+	if err := os.WriteFile(dictionaryPath, []byte(`{"A": "is he"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(configPath, []byte(fmt.Sprintf(`{"dictionaries": [%q]}`, dictionaryPath)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(
+		hintIndexPath,
+		[]byte(`{"version":1,"hints":{"is he":{"outline":"SKPORPB","source":"initial_verb"}}}`),
+		0o644,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	app, err := NewAppWithOptions(
+		filepath.Join(dir, "srs.sqlite3"),
+		"../../phrasing.json",
+		configPath,
+		hintIndexPath,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.db.Close()
+
+	ctx := context.Background()
+	deckID, err := app.getOrCreateDeck(ctx, "phrases", time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = app.ingestGroups(ctx, deckID, []ImportGroup{{Name: "words", Words: []string{"is he"}}}, "test", "one")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var itemID int64
+	if err := app.db.QueryRow(`SELECT id FROM items WHERE text = 'is he'`).Scan(&itemID); err != nil {
+		t.Fatal(err)
+	}
+
+	mux := http.NewServeMux()
+	app.routes(mux)
+	lookup := func() string {
+		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/hint?item_id=%d", itemID), nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected hint response, got %d with body %q", rec.Code, rec.Body.String())
+		}
+		return rec.Body.String()
+	}
+
+	body := lookup()
+	if !strings.Contains(body, `"outline":"SKPORPB"`) ||
+		!strings.Contains(body, `"source":"initial_verb"`) ||
+		strings.Contains(body, `"outline":"A"`) {
+		t.Fatalf("expected running Stoin phrase hint to replace config fallback, got %q", body)
+	}
+	if err := os.WriteFile(
+		hintIndexPath,
+		[]byte(`{"version":1,"hints":{"is he":{"outline":"TWR-RPB","source":"final_verb"}}}`),
+		0o644,
+	); err != nil {
+		t.Fatal(err)
+	}
+	body = lookup()
+	if !strings.Contains(body, `"outline":"TWR-RPB"`) ||
+		!strings.Contains(body, `"source":"final_verb"`) {
+		t.Fatalf("expected refreshed running Stoin phrase hint, got %q", body)
+	}
+
+	if err := os.Remove(hintIndexPath); err != nil {
+		t.Fatal(err)
+	}
+	body = lookup()
+	if !strings.Contains(body, `"outline":"A"`) ||
+		!strings.Contains(body, `"source":"dictionary"`) {
+		t.Fatalf("expected config fallback after Stoin index disappeared, got %q", body)
 	}
 }
 
@@ -1432,6 +1520,9 @@ func TestStaticSessionScriptIncludesHints(t *testing.T) {
 		"hinted[index]",
 		"fetch('/hint?item_id='",
 		"Outline: ",
+		"Initial verb phrase",
+		"Final verb phrase",
+		"Non-verb phrase",
 		"uniqueMissedItemTexts",
 		"seen.has(items[itemIndex].id)",
 		"missedTexts.join('\\n')",

@@ -259,6 +259,36 @@ function setHintForIndex(itemIndex, text) {
 	if (itemIndex === index && currentLine >= 0) hintDisplays[currentLine].textContent = text;
 	cancelAutoSubmit();
 }
+function hintSourceLabel(source) {
+	switch (source) {
+	case 'initial_verb': return 'Initial verb phrase';
+	case 'final_verb': return 'Final verb phrase';
+	case 'non_verb': return 'Non-verb phrase';
+	case 'dictionary': return 'Dictionary';
+	default: return 'Outline';
+	}
+}
+function formatHintResponse(data) {
+	if (Array.isArray(data.hints) && data.hints.length > 0) {
+		const grouped = [];
+		data.hints.forEach(function(hint) {
+			if (!hint || typeof hint.outline !== 'string' || hint.outline === '') return;
+			const label = hintSourceLabel(hint.source);
+			const existing = grouped.find(function(group) { return group.label === label; });
+			if (existing) existing.outlines.push(hint.outline);
+			else grouped.push({label: label, outlines: [hint.outline]});
+		});
+		if (grouped.length > 0) {
+			return grouped.map(function(group) {
+				return group.label + ': ' + group.outlines.join(' / ');
+			}).join(' · ');
+		}
+	}
+	if (Array.isArray(data.outlines) && data.outlines.length > 0) {
+		return 'Outline: ' + data.outlines.join(' / ');
+	}
+	return '';
+}
 lineInputs.forEach((input, lineIndex) => {
 	input.addEventListener('input', function() {
 		if (lineIndex !== currentLineIndex()) return;
@@ -284,11 +314,12 @@ hintButtons.forEach((button, lineIndex) => {
 				return response.json();
 			})
 			.then(function(data) {
-				if (!data.found || !Array.isArray(data.outlines) || data.outlines.length === 0) {
+				const hintText = formatHintResponse(data);
+				if (!data.found || hintText === '') {
 					setHintForIndex(itemIndex, 'No outline found.');
 					return;
 				}
-				setHintForIndex(itemIndex, 'Outline: ' + data.outlines.join(' / '));
+				setHintForIndex(itemIndex, hintText);
 			})
 			.catch(function() {
 				setHintForIndex(itemIndex, 'Hint unavailable.');

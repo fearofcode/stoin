@@ -599,6 +599,39 @@ static bool initialize_phrase_suggestions(Phrasing *phrasing)
     return true;
 }
 
+bool phrasing_for_each_suggestion(
+    Phrasing *phrasing,
+    Phrase_Suggestion_Fn callback,
+    void *userdata
+)
+{
+    if (phrasing == NULL || callback == NULL) {
+        return false;
+    }
+    if (!phrasing->suggestions_initialized && !initialize_phrase_suggestions(phrasing)) {
+        return false;
+    }
+    if (phrasing->suggestions_failed) {
+        return false;
+    }
+
+    for (ptrdiff_t i = 0; i < shlen(phrasing->suggestions); ++i) {
+        char outline[64] = {0};
+        if (!chord_bits_to_string(
+                phrasing->suggestions[i].value.bits,
+                outline,
+                sizeof(outline))
+            || !callback(
+                phrasing->suggestions[i].key,
+                outline,
+                phrasing->suggestions[i].value.namespace,
+                userdata)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 Phrase_Lookup_Result phrasing_find_translation_outline(
     Phrasing *phrasing,
     const char *translation,
