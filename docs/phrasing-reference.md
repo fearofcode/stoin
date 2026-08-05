@@ -6,6 +6,7 @@
 | --- | --- | --- | --- |
 | Initial verb | IV | IV → FV → NV | IV stem + IV form + shared tail |
 | Final verb | FV | FV → IV → NV | shared starter + FV operator + FV structure + FV ender + optional contraction |
+| Final verb + nonverb | Passive FV | Passive FV → FV → IV → NV | shared starter + FV operator + FV structure + FV ender + optional contraction, passive voice |
 | Initial verb + final verb, or optional nonverb | NV | NV → IV → FV | shared starter + shared tail |
 
 ## IV
@@ -70,6 +71,7 @@
 | -BZ | as |
 | -PLT | them |
 | -S | us |
+| -SZ | our |
 | OB | we |
 | -RP | you |
 | -TS | they |
@@ -120,7 +122,7 @@
 | -RTS | right |
 | -LZ | less |
 | -RPG | up |
-| -SZ | out |
+| OTS | out |
 | -FGT | with |
 | -RZ | your |
 | -PZ | its |

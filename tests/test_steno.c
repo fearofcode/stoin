@@ -305,6 +305,43 @@ int main(void)
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, true);
+    ok = ok && handle_test_stroke(steno, "K*");
+    ok = ok && handle_test_stroke(steno, "K*U");
+    ok = ok && handle_test_stroke(steno, "K*-D");
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, false);
+    ok = ok && expect_string(
+        "auxiliary-only do negatives",
+        output.text,
+        "he does not he doesn't he did not");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, true);
+    ok = ok && handle_test_stroke(steno, "K*-SD");
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, false);
+    ok = ok && expect_string("active FV remains distinct from passive FV", output.text, "he did not see");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, true);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, true);
+    ok = ok && handle_test_stroke(steno, "K*-SD");
+    ok = ok && handle_test_stroke(steno, "K*U-SD");
+    ok = ok && handle_test_stroke(steno, "K*E-SD");
+    ok = ok && handle_test_stroke(steno, "K*-FSD");
+    ok = ok && handle_test_stroke(steno, "KA*-S");
+    ok = ok && handle_test_stroke(steno, "KA*U-S");
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, false);
+    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, false);
+    ok = ok && expect_string(
+        "passive final verb voice",
+        output.text,
+        "he was not seen he wasn't seen he was not being seen"
+        " he had not been seen he cannot be seen he can't be seen");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
     steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, true);
     ok = ok && handle_test_stroke(steno, "WH-B");
     steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, false);

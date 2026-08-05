@@ -49,6 +49,11 @@ bool test_core_units(void)
         PHRASE_NAMESPACE_NONVERB
     );
     ok = ok && expect_size(
+        "final plus direct nonverb selects passive final verb",
+        phrase_namespace_from_active_keys(false, true, true),
+        PHRASE_NAMESPACE_PASSIVE_FINAL_VERB
+    );
+    ok = ok && expect_size(
         "initial plus direct nonverb remains ambiguous",
         phrase_namespace_from_active_keys(true, false, true),
         PHRASE_NAMESPACE_NONE
@@ -133,6 +138,27 @@ bool test_core_units(void)
     );
     ok = ok && expect_size(
         "tapped final phrase key latch is consumed",
+        phrase_keys_take_namespace(&phrase_keys),
+        PHRASE_NAMESPACE_NONE
+    );
+
+    phrase_key_event.keycode = f14_keycode;
+    phrase_key_event.is_down = true;
+    ok = ok && phrase_keys_handle_event(&phrase_keys, &phrase_key_event, NULL, NULL);
+    phrase_key_event.is_down = false;
+    ok = ok && phrase_keys_handle_event(&phrase_keys, &phrase_key_event, NULL, NULL);
+    phrase_key_event.keycode = f15_keycode;
+    phrase_key_event.is_down = true;
+    ok = ok && phrase_keys_handle_event(&phrase_keys, &phrase_key_event, NULL, NULL);
+    phrase_key_event.is_down = false;
+    ok = ok && phrase_keys_handle_event(&phrase_keys, &phrase_key_event, NULL, NULL);
+    ok = ok && expect_size(
+        "tapped final and nonverb phrase keys select passive final verb",
+        phrase_keys_take_namespace(&phrase_keys),
+        PHRASE_NAMESPACE_PASSIVE_FINAL_VERB
+    );
+    ok = ok && expect_size(
+        "passive final verb latches are consumed together",
         phrase_keys_take_namespace(&phrase_keys),
         PHRASE_NAMESPACE_NONE
     );
@@ -228,6 +254,25 @@ bool test_core_units(void)
 
     Phrasing *production_phrasing = phrasing_load("phrasing.json");
     ok = ok && expect_size("production phrasing loads", production_phrasing != NULL ? 1 : 0, 1);
+    Phrase_Namespace passive_suggestion_namespace = PHRASE_NAMESPACE_NONE;
+    char passive_suggestion_outline[64] = {0};
+    ok = ok && expect_size(
+        "passive phrase suggestion exists",
+        phrasing_find_translation_outline(
+            production_phrasing,
+            "he was not seen",
+            NULL,
+            1,
+            &passive_suggestion_namespace,
+            passive_suggestion_outline,
+            sizeof(passive_suggestion_outline)),
+        PHRASE_LOOKUP_HIT
+    );
+    ok = ok && expect_size(
+        "passive phrase suggestion namespace",
+        passive_suggestion_namespace,
+        PHRASE_NAMESPACE_PASSIVE_FINAL_VERB
+    );
     phrasing_destroy(production_phrasing);
 
     Orthography test_orthography = {0};

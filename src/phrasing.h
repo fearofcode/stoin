@@ -12,6 +12,7 @@ typedef enum Phrase_Namespace {
     PHRASE_NAMESPACE_INITIAL_VERB,
     PHRASE_NAMESPACE_FINAL_VERB,
     PHRASE_NAMESPACE_NONVERB,
+    PHRASE_NAMESPACE_PASSIVE_FINAL_VERB,
 } Phrase_Namespace;
 
 typedef enum Phrase_Lookup_Result {

@@ -195,6 +195,8 @@ static const char *hint_source_id(Phrase_Namespace source)
         return "initial_verb";
     case PHRASE_NAMESPACE_FINAL_VERB:
         return "final_verb";
+    case PHRASE_NAMESPACE_PASSIVE_FINAL_VERB:
+        return "passive_final_verb";
     case PHRASE_NAMESPACE_NONVERB:
         return "non_verb";
     case PHRASE_NAMESPACE_NONE:

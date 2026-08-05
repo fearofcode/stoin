@@ -4,7 +4,7 @@
 
 _Static_assert(
     PHRASE_KEY_BINDING_COUNT == PHRASE_NAMESPACE_NONVERB + 1,
-    "phrase key bindings must cover every phrase namespace"
+    "phrase key bindings must cover every physical phrase key namespace"
 );
 
 static bool phrase_namespace_is_bindable(Phrase_Namespace phrase_namespace)

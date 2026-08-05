@@ -660,6 +660,12 @@ func TestHintRoutePrefersRunningStoinPhraseIndex(t *testing.T) {
 	}
 }
 
+func TestPassiveFinalVerbHintSource(t *testing.T) {
+	if !validHintSource(hintSourcePassiveFinalVerb) {
+		t.Fatal("passive final verb hints should be accepted from the running Stoin process")
+	}
+}
+
 func TestSessionPageIncludesHintControls(t *testing.T) {
 	app := testApp(t)
 	ctx := context.Background()
@@ -1398,6 +1404,9 @@ func TestStaticPhrasingTrainerScript(t *testing.T) {
 		!strings.Contains(body, "Not found in the phrase system") ||
 		!strings.Contains(body, "d_contraction") ||
 		!strings.Contains(body, "fvDoNegativeContraction") ||
+		!strings.Contains(body, "appendPassiveFiniteComplement") ||
+		!strings.Contains(body, "passive_final_verbs") ||
+		!strings.Contains(body, "passive_contraction") ||
 		!strings.Contains(body, "tail.text || 'no tail'") ||
 		!strings.Contains(body, "initialFormLabel") ||
 		!strings.Contains(body, "third-person singular present (he/she/it goes)") ||
@@ -1406,7 +1415,7 @@ func TestStaticPhrasingTrainerScript(t *testing.T) {
 		!strings.Contains(body, "progressive (a form of be + present participle: is going)") ||
 		!strings.Contains(body, "perfect (a form of have + past participle: has gone)") ||
 		!strings.Contains(body, "perfect progressive (a form of have + been + present participle: has been going)") ||
-		!strings.Contains(body, "auxiliary only (main-verb slot empty: can / be / have / have been)") ||
+		!strings.Contains(body, "auxiliary only (main-verb slot empty: do not / can / be / have / have been)") ||
 		!strings.Contains(body, "past-form selection") ||
 		!strings.Contains(body, "starter.label") ||
 		!strings.Contains(body, "combineStrokeParts") ||
@@ -1531,6 +1540,7 @@ func TestStaticSessionScriptIncludesHints(t *testing.T) {
 		"Outline: ",
 		"Initial verb phrase",
 		"Final verb phrase",
+		"Passive final verb phrase (FV + NV pedals)",
 		"Non-verb phrase",
 		"uniqueMissedItemTexts",
 		"seen.has(items[itemIndex].id)",

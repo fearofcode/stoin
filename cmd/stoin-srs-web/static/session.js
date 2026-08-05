@@ -263,6 +263,7 @@ function hintSourceLabel(source) {
 	switch (source) {
 	case 'initial_verb': return 'Initial verb phrase';
 	case 'final_verb': return 'Final verb phrase';
+	case 'passive_final_verb': return 'Passive final verb phrase (FV + NV pedals)';
 	case 'non_verb': return 'Non-verb phrase';
 	case 'dictionary': return 'Dictionary';
 	default: return 'Outline';

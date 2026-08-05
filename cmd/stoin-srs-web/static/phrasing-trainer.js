@@ -34,6 +34,7 @@ const phraseStorageKey = 'stoin.phrasingTrainer.v13';
 const familyLabels = {
 	initial_verbs: 'Initial verbs',
 	final_verbs: 'Final verbs',
+	passive_final_verbs: 'Passive final verbs (FV + NV pedals)',
 	nonverbs: 'Nonverbs',
 };
 
@@ -515,8 +516,8 @@ function enderLabel(ender) {
 	const verb = finalVerbByID(ender.verb);
 	if (!verb) {
 		return ender.past
-			? 'auxiliary only, past-form selection (main-verb slot empty: could / was / had / had been)'
-			: 'auxiliary only (main-verb slot empty: can / be / have / have been)';
+			? 'auxiliary only, past-form selection (main-verb slot empty: did not / could / was / had / had been)'
+			: 'auxiliary only (main-verb slot empty: do not / can / be / have / have been)';
 	}
 	const parts = [verb.base];
 	if (ender.suffix) parts.push(ender.suffix);
@@ -530,6 +531,12 @@ function finalVerbSections() {
 	const modes = [
 		{ id: 'long', label: 'long forms', stroke: '' },
 		{ id: 'contraction', label: finalVerbs.contraction_stroke + ' contractions', stroke: finalVerbs.contraction_stroke },
+		{ id: 'passive_long', label: 'passive long forms (FV + NV pedals)', stroke: '' },
+		{
+			id: 'passive_contraction',
+			label: 'passive ' + finalVerbs.contraction_stroke + ' contractions (FV + NV pedals)',
+			stroke: finalVerbs.contraction_stroke,
+		},
 	];
 	return [
 		{
@@ -759,8 +766,32 @@ function appendVerbAndSuffix(words, verbWord, suffix) {
 	return true;
 }
 
-function appendModalComplement(words, structureKind, ender) {
+function appendModalComplement(words, structureKind, ender, passive) {
 	const verb = ender.verbObj;
+	if (passive) {
+		if (!verb) return false;
+		if (structureKind === 'simple') {
+			appendWord(words, 'be');
+			return appendVerbAndSuffix(words, verb.past_participle, ender.suffix);
+		}
+		if (structureKind === 'progressive') {
+			appendWord(words, 'be');
+			appendWord(words, 'being');
+			return appendVerbAndSuffix(words, verb.past_participle, ender.suffix);
+		}
+		if (structureKind === 'perfect') {
+			appendWord(words, 'have');
+			appendWord(words, 'been');
+			return appendVerbAndSuffix(words, verb.past_participle, ender.suffix);
+		}
+		if (structureKind === 'perfect_progressive') {
+			appendWord(words, 'have');
+			appendWord(words, 'been');
+			appendWord(words, 'being');
+			return appendVerbAndSuffix(words, verb.past_participle, ender.suffix);
+		}
+		return false;
+	}
 	if (structureKind === 'simple') {
 		return !verb || appendVerbAndSuffix(words, verb.base, ender.suffix);
 	}
@@ -780,8 +811,41 @@ function appendModalComplement(words, structureKind, ender) {
 	return false;
 }
 
-function appendBeContractionComplement(words, structureKind, ender) {
+function appendPassiveFiniteComplement(words, structureKind, ender) {
 	const verb = ender.verbObj;
+	if (!verb) return false;
+	if (structureKind === 'simple') {
+		return appendVerbAndSuffix(words, verb.past_participle, ender.suffix);
+	}
+	if (structureKind === 'progressive') {
+		appendWord(words, 'being');
+		return appendVerbAndSuffix(words, verb.past_participle, ender.suffix);
+	}
+	if (structureKind === 'perfect') {
+		appendWord(words, 'been');
+		return appendVerbAndSuffix(words, verb.past_participle, ender.suffix);
+	}
+	if (structureKind === 'perfect_progressive') {
+		appendWord(words, 'been');
+		appendWord(words, 'being');
+		return appendVerbAndSuffix(words, verb.past_participle, ender.suffix);
+	}
+	return false;
+}
+
+function appendBeContractionComplement(words, structureKind, ender, passive) {
+	const verb = ender.verbObj;
+	if (passive) {
+		if (!verb) return false;
+		if (structureKind === 'simple') {
+			return appendVerbAndSuffix(words, verb.past_participle, ender.suffix);
+		}
+		if (structureKind === 'progressive') {
+			appendWord(words, 'being');
+			return appendVerbAndSuffix(words, verb.past_participle, ender.suffix);
+		}
+		return false;
+	}
 	if (structureKind === 'simple' && verb && fvVerbKind(verb) === 'be') {
 		appendWord(words, ender.suffix);
 		return true;
@@ -792,8 +856,21 @@ function appendBeContractionComplement(words, structureKind, ender) {
 	return false;
 }
 
-function appendHaveContractionComplement(words, structureKind, ender) {
+function appendHaveContractionComplement(words, structureKind, ender, passive) {
 	const verb = ender.verbObj;
+	if (passive) {
+		if (!verb) return false;
+		if (structureKind === 'perfect') {
+			appendWord(words, 'been');
+			return appendVerbAndSuffix(words, verb.past_participle, ender.suffix);
+		}
+		if (structureKind === 'perfect_progressive') {
+			appendWord(words, 'been');
+			appendWord(words, 'being');
+			return appendVerbAndSuffix(words, verb.past_participle, ender.suffix);
+		}
+		return false;
+	}
 	if (structureKind === 'perfect') {
 		return !verb || appendVerbAndSuffix(words, verb.past_participle, ender.suffix);
 	}
@@ -804,13 +881,29 @@ function appendHaveContractionComplement(words, structureKind, ender) {
 	return false;
 }
 
-function buildFvLong(starter, op, structureKind, ender) {
+function buildFvLong(starter, op, structureKind, ender, passive) {
 	const verb = ender.verbObj;
-	if (op.modal === 'none' && structureKind === 'simple' && !verb) return null;
+	if (passive && !verb) return null;
 	const words = [starter.text];
+	if (!passive && op.modal === 'none' && structureKind === 'simple' && !verb) {
+		if (!op.negative) return null;
+		appendWord(words, fvDoWord(starter, ender.past));
+		appendWord(words, 'not');
+		return phraseFromWords(words);
+	}
 	if (op.modal !== 'none') {
 		appendWord(words, fvModalWord(op.modal, ender.past, op.negative));
-		return appendModalComplement(words, structureKind, ender) ? phraseFromWords(words) : null;
+		return appendModalComplement(words, structureKind, ender, passive) ? phraseFromWords(words) : null;
+	}
+	if (passive) {
+		appendWord(words,
+			structureKind === 'simple' || structureKind === 'progressive'
+				? fvBeWord(starter, ender.past)
+				: fvHaveWord(starter, ender.past));
+		if (op.negative) appendWord(words, 'not');
+		return appendPassiveFiniteComplement(words, structureKind, ender)
+			? phraseFromWords(words)
+			: null;
 	}
 	if (structureKind === 'simple') {
 		if (op.negative && fvVerbKind(verb) !== 'be') {
@@ -846,8 +939,9 @@ function buildFvLong(starter, op, structureKind, ender) {
 	return null;
 }
 
-function buildFvContraction(starter, op, structureKind, ender) {
+function buildFvContraction(starter, op, structureKind, ender, passive) {
 	const verb = ender.verbObj;
+	if (passive && !verb) return null;
 	const words = [];
 	if (op.modal !== 'none') {
 		if (op.negative) {
@@ -855,44 +949,46 @@ function buildFvContraction(starter, op, structureKind, ender) {
 			if (!modal) return null;
 			appendWord(words, starter.text);
 			appendWord(words, modal);
-			return appendModalComplement(words, structureKind, ender) ? phraseFromWords(words) : null;
+			return appendModalComplement(words, structureKind, ender, passive) ? phraseFromWords(words) : null;
 		}
 		if (op.modal === 'will') {
 			const contraction = ender.past ? starter.d_contraction : starter.will_contraction;
 			if (!contraction) return null;
 			appendWord(words, contraction);
-			return appendModalComplement(words, structureKind, ender) ? phraseFromWords(words) : null;
+			return appendModalComplement(words, structureKind, ender, passive) ? phraseFromWords(words) : null;
 		}
 		return null;
 	}
-	if (op.negative && structureKind === 'simple' && verb && fvVerbKind(verb) !== 'be') {
+	if (!passive && op.negative && structureKind === 'simple' && !verb) {
+		appendWord(words, starter.text);
+		appendWord(words, fvDoNegativeContraction(starter, ender.past));
+		return phraseFromWords(words);
+	}
+	if (!passive && op.negative && structureKind === 'simple' && verb && fvVerbKind(verb) !== 'be') {
 		appendWord(words, starter.text);
 		appendWord(words, fvDoNegativeContraction(starter, ender.past));
 		appendVerbAndSuffix(words, verb.base, ender.suffix);
 		return phraseFromWords(words);
 	}
-	if (op.negative
-		&& (structureKind === 'progressive'
-			|| (structureKind === 'simple' && verb && fvVerbKind(verb) === 'be'))) {
+	const usesBeContraction = structureKind === 'progressive'
+		|| (structureKind === 'simple' && (passive || (verb && fvVerbKind(verb) === 'be')));
+	if (op.negative && usesBeContraction) {
 		if (starter.agreement === 'first_singular' && !ender.past) {
 			if (!starter.be_contraction) return null;
 			appendWord(words, starter.be_contraction);
 			appendWord(words, 'not');
-			return appendBeContractionComplement(words, structureKind, ender) ? phraseFromWords(words) : null;
+			return appendBeContractionComplement(words, structureKind, ender, passive) ? phraseFromWords(words) : null;
 		}
 		const negative = fvBeNegativeContraction(starter, ender.past);
 		if (!negative) return null;
 		appendWord(words, starter.text);
 		appendWord(words, negative);
-		return appendBeContractionComplement(words, structureKind, ender) ? phraseFromWords(words) : null;
+		return appendBeContractionComplement(words, structureKind, ender, passive) ? phraseFromWords(words) : null;
 	}
-	if (!op.negative
-		&& !ender.past
-		&& (structureKind === 'progressive'
-			|| (structureKind === 'simple' && verb && fvVerbKind(verb) === 'be'))) {
+	if (!op.negative && !ender.past && usesBeContraction) {
 		if (!starter.be_contraction) return null;
 		appendWord(words, starter.be_contraction);
-		return appendBeContractionComplement(words, structureKind, ender) ? phraseFromWords(words) : null;
+		return appendBeContractionComplement(words, structureKind, ender, passive) ? phraseFromWords(words) : null;
 	}
 	if (structureKind === 'perfect' || structureKind === 'perfect_progressive') {
 		if (op.negative) {
@@ -900,12 +996,12 @@ function buildFvContraction(starter, op, structureKind, ender) {
 			if (!negative) return null;
 			appendWord(words, starter.text);
 			appendWord(words, negative);
-			return appendHaveContractionComplement(words, structureKind, ender) ? phraseFromWords(words) : null;
+			return appendHaveContractionComplement(words, structureKind, ender, passive) ? phraseFromWords(words) : null;
 		}
 		const contraction = ender.past ? starter.d_contraction : starter.have_contraction;
 		if (!contraction) return null;
 		appendWord(words, contraction);
-		return appendHaveContractionComplement(words, structureKind, ender) ? phraseFromWords(words) : null;
+		return appendHaveContractionComplement(words, structureKind, ender, passive) ? phraseFromWords(words) : null;
 	}
 	return null;
 }
@@ -918,7 +1014,7 @@ function selectedFinalVerbRows(bank, valueForRow) {
 }
 
 function selectedFinalVerbModes() {
-	return ['long', 'contraction'].filter(function(mode) {
+	return ['long', 'contraction', 'passive_long', 'passive_contraction'].filter(function(mode) {
 		return bankOptionChecked('final_verbs', 'modes', mode);
 	});
 }
@@ -936,7 +1032,9 @@ function generateFinalVerbPrompts(selectedOnly) {
 	const enders = selectedEnders.map(function(ender) {
 		return Object.assign({}, ender, { verbObj: finalVerbByID(ender.verb) });
 	});
-	const modes = useSelection ? selectedFinalVerbModes() : ['long', 'contraction'];
+	const modes = useSelection
+		? selectedFinalVerbModes()
+		: ['long', 'contraction', 'passive_long', 'passive_contraction'];
 	const prompts = [];
 	starters.forEach(function(starter) {
 		operators.forEach(function(op) {
@@ -949,8 +1047,10 @@ function generateFinalVerbPrompts(selectedOnly) {
 						return;
 					}
 					modes.forEach(function(mode) {
+						const passive = mode.indexOf('passive_') === 0;
+						const contraction = mode === 'contraction' || mode === 'passive_contraction';
 						let stroke = longStroke;
-						if (mode === 'contraction') {
+						if (contraction) {
 							try {
 								stroke = combineStrokeParts([
 									finalVerbs.contraction_stroke,
@@ -963,12 +1063,14 @@ function generateFinalVerbPrompts(selectedOnly) {
 								return;
 							}
 						}
-						const phrase = mode === 'contraction'
-							? buildFvContraction(starter, op, structure.kind, ender)
-							: buildFvLong(starter, op, structure.kind, ender);
+						const phrase = contraction
+							? buildFvContraction(starter, op, structure.kind, ender, passive)
+							: buildFvLong(starter, op, structure.kind, ender, passive);
 						if (!phrase) return;
 						prompts.push({
-							lesson: familyLabels.final_verbs,
+							lesson: passive
+								? familyLabels.passive_final_verbs
+								: familyLabels.final_verbs,
 							stroke: stroke,
 							phrase: phrase,
 						});
@@ -1004,8 +1106,9 @@ function promptLessonRank(prompt) {
 	switch (prompt.lesson) {
 	case familyLabels.initial_verbs: return 0;
 	case familyLabels.final_verbs: return 1;
-	case familyLabels.nonverbs: return 2;
-	default: return 3;
+	case familyLabels.passive_final_verbs: return 2;
+	case familyLabels.nonverbs: return 3;
+	default: return 4;
 	}
 }
 

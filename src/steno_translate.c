@@ -178,19 +178,31 @@ static bool translate_phrase_bits(
         return false;
     }
 
-    const Phrase_Namespace verb_fallback = namespace == PHRASE_NAMESPACE_INITIAL_VERB
-        ? PHRASE_NAMESPACE_FINAL_VERB
-        : PHRASE_NAMESPACE_INITIAL_VERB;
-    const Phrase_Namespace lookup_order[] = {
-        namespace,
-        verb_fallback,
-        namespace == PHRASE_NAMESPACE_NONVERB
+    Phrase_Namespace lookup_order[4] = {namespace};
+    size_t lookup_count = 0;
+    if (namespace == PHRASE_NAMESPACE_PASSIVE_FINAL_VERB) {
+        const Phrase_Namespace passive_order[] = {
+            PHRASE_NAMESPACE_PASSIVE_FINAL_VERB,
+            PHRASE_NAMESPACE_FINAL_VERB,
+            PHRASE_NAMESPACE_INITIAL_VERB,
+            PHRASE_NAMESPACE_NONVERB,
+        };
+        memcpy(lookup_order, passive_order, sizeof(passive_order));
+        lookup_count = sizeof(passive_order) / sizeof(passive_order[0]);
+    } else {
+        const Phrase_Namespace verb_fallback = namespace == PHRASE_NAMESPACE_INITIAL_VERB
             ? PHRASE_NAMESPACE_FINAL_VERB
-            : PHRASE_NAMESPACE_NONVERB,
-    };
+            : PHRASE_NAMESPACE_INITIAL_VERB;
+        lookup_order[0] = namespace;
+        lookup_order[1] = verb_fallback;
+        lookup_order[2] = namespace == PHRASE_NAMESPACE_NONVERB
+            ? PHRASE_NAMESPACE_FINAL_VERB
+            : PHRASE_NAMESPACE_NONVERB;
+        lookup_count = 3;
+    }
 
     char *phrase = NULL;
-    for (size_t i = 0; i < sizeof(lookup_order) / sizeof(lookup_order[0]); ++i) {
+    for (size_t i = 0; i < lookup_count; ++i) {
         const Phrase_Lookup_Result result = phrasing_lookup(
             steno->phrasing,
             lookup_order[i],

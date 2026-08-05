@@ -402,6 +402,8 @@ static const char *phrase_namespace_label(Phrase_Namespace phrase_namespace)
         return "initial verb";
     case PHRASE_NAMESPACE_FINAL_VERB:
         return "final verb";
+    case PHRASE_NAMESPACE_PASSIVE_FINAL_VERB:
+        return "passive final verb";
     case PHRASE_NAMESPACE_NONVERB:
         return "non-verb";
     case PHRASE_NAMESPACE_NONE:
@@ -456,6 +458,19 @@ static void print_phrase_key_status(const Phrase_Keys *phrase_keys)
         printf("stoin: non-verb phrases also use %s + %s\n",
             initial->name,
             final->name);
+    }
+
+    const Phrase_Key_Binding *nonverb = phrase_keys_get(
+        phrase_keys,
+        PHRASE_NAMESPACE_NONVERB
+    );
+    if (final != NULL
+        && final->enabled
+        && nonverb != NULL
+        && nonverb->enabled) {
+        printf("stoin: passive final-verb phrases use %s + %s\n",
+            final->name,
+            nonverb->name);
     }
 }
 

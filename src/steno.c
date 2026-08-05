@@ -437,6 +437,10 @@ void steno_set_phrase_namespace(Steno *steno, Phrase_Namespace namespace, bool i
         down = &steno->nonverb_phrase_down;
         pending = &steno->nonverb_phrase_pending;
         break;
+    case PHRASE_NAMESPACE_PASSIVE_FINAL_VERB:
+        steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, is_down);
+        steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, is_down);
+        return;
     case PHRASE_NAMESPACE_NONE:
     default:
         return;
