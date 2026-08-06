@@ -221,7 +221,6 @@ bool test_dictionary_runtime(void)
             "    \"stems\": [{\"stroke\": \"SKPO\", \"forms\": [{\"stroke\": \"\", \"text\": \"is\"}]}]\n"
             "  },\n"
             "  \"final_verbs\": {\n"
-            "    \"contraction_stroke\": \"U\",\n"
             "    \"starters\": [],\n"
             "    \"operators\": [],\n"
             "    \"structures\": [],\n"
@@ -236,7 +235,6 @@ bool test_dictionary_runtime(void)
             "    \"stems\": [{\"stroke\": \"SKPO\", \"forms\": [{\"stroke\": \"\", \"text\": \"was\"}]}]\n"
             "  },\n"
             "  \"final_verbs\": {\n"
-            "    \"contraction_stroke\": \"U\",\n"
             "    \"starters\": [],\n"
             "    \"operators\": [],\n"
             "    \"structures\": [],\n"
@@ -251,7 +249,6 @@ bool test_dictionary_runtime(void)
             "    \"stems\": [{\"stroke\": \"SKPO\", \"forms\": [{\"stroke\": \"\", \"text\": \"are\"}]}]\n"
             "  },\n"
             "  \"final_verbs\": {\n"
-            "    \"contraction_stroke\": \"U\",\n"
             "    \"starters\": [],\n"
             "    \"operators\": [],\n"
             "    \"structures\": [],\n"
@@ -269,7 +266,24 @@ bool test_dictionary_runtime(void)
             "    \"stems\": [{\"stroke\": \"SKPO\", \"forms\": [{\"stroke\": \"\", \"text\": \"is\"}]}]\n"
             "  },\n"
             "  \"final_verbs\": {\n"
-            "    \"contraction_stroke\": \"U\",\n"
+            "    \"starters\": [],\n"
+            "    \"operators\": [],\n"
+            "    \"structures\": [],\n"
+            "    \"verbs\": [],\n"
+            "    \"enders\": []\n"
+            "  }\n"
+            "}\n";
+        const char *phrasing_iv_nv_marker_collision =
+            "{\n"
+            "  \"initial_verbs\": {\n"
+            "    \"tails\": [{\"id\": \"a\", \"stroke\": \"-B\", \"text\": \"a\"}],\n"
+            "    \"stems\": [{\"stroke\": \"S\", \"forms\": [{\"stroke\": \"E\", \"text\": \"see\"}]}]\n"
+            "  },\n"
+            "  \"nonverbs\": {\n"
+            "    \"prefixes\": [{\"stroke\": \"S\", \"text\": \"I\"}],\n"
+            "    \"tails\": [{\"id\": \"a\", \"stroke\": \"-B\", \"text\": \"a\"}]\n"
+            "  },\n"
+            "  \"final_verbs\": {\n"
             "    \"starters\": [],\n"
             "    \"operators\": [],\n"
             "    \"structures\": [],\n"
@@ -304,6 +318,12 @@ bool test_dictionary_runtime(void)
             clear_test_output(&output);
             ok = ok && handle_phrase_test_stroke(phrasing_reload_steno, "SKPO-B");
             ok = ok && expect_string("hot reload keeps old phrasing on duplicate stroke", output.text, " is a");
+
+            ok = ok && write_text_file(reload_phrasing_path, phrasing_iv_nv_marker_collision);
+            ok = ok && !steno_reload_phrasing(phrasing_reload_steno);
+            clear_test_output(&output);
+            ok = ok && handle_phrase_test_stroke(phrasing_reload_steno, "SKPO-B");
+            ok = ok && expect_string("hot reload rejects IV/NV marker collision", output.text, " is a");
 
             ok = ok && write_text_file(reload_phrasing_path, phrasing_was);
             ok = ok && steno_reload_phrasing(phrasing_reload_steno);
@@ -674,7 +694,7 @@ bool test_dictionary_runtime(void)
             ok = ok && expect_file_contains(
                 phrase_suggestions_file,
                 "final verb phrase suggestion",
-                "Suggestion [final verb]: Use SKWHRB for \"she is\"\n");
+                "Suggestion [final verb]: Use SKWHRUB for \"she is\"\n");
             steno_destroy(final_verb_suggestions_steno);
         }
 
@@ -687,7 +707,7 @@ bool test_dictionary_runtime(void)
             ok = ok && expect_file_contains(
                 phrase_suggestions_file,
                 "nonverb phrase suggestion",
-                "Suggestion [non verb]: Use TWB for \"with a\"\n");
+                "Suggestion [non verb]: Use TWEB for \"with a\"\n");
             steno_destroy(nonverb_suggestions_steno);
         }
     }

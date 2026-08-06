@@ -49,13 +49,12 @@ Qwerty mode uses a low-level keyboard hook:
 build\windows\stoin.exe --input qwerty
 ```
 
-The same keyboard event path supports phrase namespace keys with any input mode:
+The same keyboard event path supports phrase keys with any input mode:
 
 ```sh
-build\windows\stoin.exe --initial-verb-key F13 --final-verb-key F14 --nonverb-key F15
+build\windows\stoin.exe --phrase-key F13 --phrase-key F14
 ```
 
-The nonverb key is optional: pressing the initial-verb and final-verb keys
-together also selects the nonverb namespace.
+`--phrase-key` is repeatable, so either pedal can activate the same phrase layer.
 
 Windows may block simulated input into elevated applications when Stoin itself is not elevated. If translations work in normal apps but not in an administrator window, run Stoin with matching privileges.

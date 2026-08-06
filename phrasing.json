@@ -416,7 +416,7 @@
             "text": "was"
           },
           {
-            "stroke": "E",
+            "stroke": "A*E",
             "text": "are"
           },
           {
@@ -424,11 +424,11 @@
             "text": "were"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to be"
           },
           {
-            "stroke": "EU",
+            "stroke": "AE",
             "text": "be"
           },
           {
@@ -453,11 +453,11 @@
             "text": "had"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "have"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to have"
           },
           {
@@ -482,7 +482,7 @@
             "text": "saw"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "see"
           },
           {
@@ -490,7 +490,7 @@
             "text": "seeing"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to see"
           },
           {
@@ -515,7 +515,7 @@
             "text": "said"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "say"
           },
           {
@@ -523,7 +523,7 @@
             "text": "saying"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to say"
           },
           {
@@ -548,7 +548,7 @@
             "text": "thought"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "think"
           },
           {
@@ -556,7 +556,7 @@
             "text": "thinking"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to think"
           },
           {
@@ -581,7 +581,7 @@
             "text": "told"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "tell"
           },
           {
@@ -589,7 +589,7 @@
             "text": "telling"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to tell"
           },
           {
@@ -614,7 +614,7 @@
             "text": "caught"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "catch"
           },
           {
@@ -622,7 +622,7 @@
             "text": "catching"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to catch"
           },
           {
@@ -647,7 +647,7 @@
             "text": "looked"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "look"
           },
           {
@@ -655,7 +655,7 @@
             "text": "looking"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to look"
           },
           {
@@ -680,7 +680,7 @@
             "text": "held"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "hold"
           },
           {
@@ -688,7 +688,7 @@
             "text": "holding"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to hold"
           },
           {
@@ -713,7 +713,7 @@
             "text": "showed"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "show"
           },
           {
@@ -721,7 +721,7 @@
             "text": "showing"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to show"
           },
           {
@@ -746,7 +746,7 @@
             "text": "sold"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "sell"
           },
           {
@@ -754,7 +754,7 @@
             "text": "selling"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to sell"
           },
           {
@@ -779,7 +779,7 @@
             "text": "stole"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "steal"
           },
           {
@@ -787,7 +787,7 @@
             "text": "stealing"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to steal"
           },
           {
@@ -812,7 +812,7 @@
             "text": "spelled"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "spell"
           },
           {
@@ -820,7 +820,7 @@
             "text": "spelling"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to spell"
           },
           {
@@ -845,7 +845,7 @@
             "text": "pulled"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "pull"
           },
           {
@@ -853,7 +853,7 @@
             "text": "pulling"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to pull"
           },
           {
@@ -878,7 +878,7 @@
             "text": "put"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "put"
           },
           {
@@ -886,7 +886,7 @@
             "text": "putting"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to put"
           },
           {
@@ -911,7 +911,7 @@
             "text": "kept"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "keep"
           },
           {
@@ -919,7 +919,7 @@
             "text": "keeping"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to keep"
           },
           {
@@ -944,7 +944,7 @@
             "text": "called"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "call"
           },
           {
@@ -952,7 +952,7 @@
             "text": "calling"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to call"
           },
           {
@@ -977,7 +977,7 @@
             "text": "did"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "do"
           },
           {
@@ -985,7 +985,7 @@
             "text": "doing"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to do"
           },
           {
@@ -1010,7 +1010,7 @@
             "text": "went"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "go"
           },
           {
@@ -1018,7 +1018,7 @@
             "text": "going"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to go"
           },
           {
@@ -1043,7 +1043,7 @@
             "text": "wanted"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "want"
           },
           {
@@ -1051,7 +1051,7 @@
             "text": "wanting"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to want"
           },
           {
@@ -1076,7 +1076,7 @@
             "text": "asked"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "ask"
           },
           {
@@ -1084,7 +1084,7 @@
             "text": "asking"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to ask"
           },
           {
@@ -1109,7 +1109,7 @@
             "text": "happened"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "happen"
           },
           {
@@ -1117,7 +1117,7 @@
             "text": "happening"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to happen"
           },
           {
@@ -1142,7 +1142,7 @@
             "text": "felt"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "feel"
           },
           {
@@ -1150,7 +1150,7 @@
             "text": "feeling"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to feel"
           },
           {
@@ -1175,7 +1175,7 @@
             "text": "came"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "come"
           },
           {
@@ -1183,7 +1183,7 @@
             "text": "coming"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to come"
           },
           {
@@ -1208,7 +1208,7 @@
             "text": "knew"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "know"
           },
           {
@@ -1216,7 +1216,7 @@
             "text": "knowing"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to know"
           },
           {
@@ -1241,7 +1241,7 @@
             "text": "got"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "get"
           },
           {
@@ -1249,7 +1249,7 @@
             "text": "getting"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to get"
           },
           {
@@ -1274,7 +1274,7 @@
             "text": "believed"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "believe"
           },
           {
@@ -1282,7 +1282,7 @@
             "text": "believing"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to believe"
           },
           {
@@ -1307,7 +1307,7 @@
             "text": "became"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "become"
           },
           {
@@ -1315,7 +1315,7 @@
             "text": "becoming"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to become"
           },
           {
@@ -1340,7 +1340,7 @@
             "text": "ran"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "run"
           },
           {
@@ -1348,7 +1348,7 @@
             "text": "running"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to run"
           },
           {
@@ -1373,7 +1373,7 @@
             "text": "made"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "make"
           },
           {
@@ -1381,7 +1381,7 @@
             "text": "making"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to make"
           },
           {
@@ -1406,7 +1406,7 @@
             "text": "took"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "take"
           },
           {
@@ -1414,7 +1414,7 @@
             "text": "taking"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to take"
           },
           {
@@ -1439,7 +1439,7 @@
             "text": "found"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "find"
           },
           {
@@ -1447,7 +1447,7 @@
             "text": "finding"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to find"
           },
           {
@@ -1472,7 +1472,7 @@
             "text": "gave"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "give"
           },
           {
@@ -1480,7 +1480,7 @@
             "text": "giving"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to give"
           },
           {
@@ -1505,7 +1505,7 @@
             "text": "used"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "use"
           },
           {
@@ -1513,7 +1513,7 @@
             "text": "using"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to use"
           },
           {
@@ -1538,7 +1538,7 @@
             "text": "worked"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "work"
           },
           {
@@ -1546,7 +1546,7 @@
             "text": "working"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to work"
           },
           {
@@ -1571,7 +1571,7 @@
             "text": "stored"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "store"
           },
           {
@@ -1579,7 +1579,7 @@
             "text": "storing"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to store"
           },
           {
@@ -1604,7 +1604,7 @@
             "text": "needed"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "need"
           },
           {
@@ -1612,7 +1612,7 @@
             "text": "needing"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to need"
           },
           {
@@ -1637,7 +1637,7 @@
             "text": "remembered"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "remember"
           },
           {
@@ -1645,7 +1645,7 @@
             "text": "remembering"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to remember"
           },
           {
@@ -1670,7 +1670,7 @@
             "text": "understood"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "understand"
           },
           {
@@ -1678,7 +1678,7 @@
             "text": "understanding"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to understand"
           },
           {
@@ -1703,7 +1703,7 @@
             "text": "tried"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "try"
           },
           {
@@ -1711,7 +1711,7 @@
             "text": "trying"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to try"
           },
           {
@@ -1736,7 +1736,7 @@
             "text": "expected"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "expect"
           },
           {
@@ -1744,7 +1744,7 @@
             "text": "expecting"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to expect"
           },
           {
@@ -1769,7 +1769,7 @@
             "text": "read"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "read"
           },
           {
@@ -1777,7 +1777,7 @@
             "text": "reading"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to read"
           },
           {
@@ -1793,77 +1793,48 @@
     ]
   },
   "final_verbs": {
-    "contraction_stroke": "U",
     "starters": [
       {
         "id": "i",
         "stroke": "S",
         "text": "I",
-        "agreement": "first_singular",
-        "be_contraction": "I'm",
-        "have_contraction": "I've",
-        "will_contraction": "I'll",
-        "d_contraction": "I'd"
+        "agreement": "first_singular"
       },
       {
         "id": "you",
         "stroke": "H",
         "text": "you",
-        "agreement": "plural",
-        "be_contraction": "you're",
-        "have_contraction": "you've",
-        "will_contraction": "you'll",
-        "d_contraction": "you'd"
+        "agreement": "plural"
       },
       {
         "id": "he",
         "stroke": "K",
         "text": "he",
-        "agreement": "third_singular",
-        "be_contraction": "he's",
-        "have_contraction": "he's",
-        "will_contraction": "he'll",
-        "d_contraction": "he'd"
+        "agreement": "third_singular"
       },
       {
         "id": "she",
         "stroke": "SK",
         "text": "she",
-        "agreement": "third_singular",
-        "be_contraction": "she's",
-        "have_contraction": "she's",
-        "will_contraction": "she'll",
-        "d_contraction": "she'd"
+        "agreement": "third_singular"
       },
       {
         "id": "it",
         "stroke": "P",
         "text": "it",
-        "agreement": "third_singular",
-        "be_contraction": "it's",
-        "have_contraction": "it's",
-        "will_contraction": "it'll",
-        "d_contraction": "it'd"
+        "agreement": "third_singular"
       },
       {
         "id": "we",
         "stroke": "W",
         "text": "we",
-        "agreement": "plural",
-        "be_contraction": "we're",
-        "have_contraction": "we've",
-        "will_contraction": "we'll",
-        "d_contraction": "we'd"
+        "agreement": "plural"
       },
       {
         "id": "they",
         "stroke": "T",
         "text": "they",
-        "agreement": "plural",
-        "be_contraction": "they're",
-        "have_contraction": "they've",
-        "will_contraction": "they'll",
-        "d_contraction": "they'd"
+        "agreement": "plural"
       },
       {
         "id": "those",
@@ -1875,40 +1846,27 @@
         "id": "this",
         "stroke": "TP",
         "text": "this",
-        "agreement": "third_singular",
-        "will_contraction": "this'll"
+        "agreement": "third_singular"
       },
       {
         "id": "that",
         "stroke": "ST",
         "text": "that",
-        "agreement": "third_singular",
-        "be_contraction": "that's",
-        "have_contraction": "that's",
-        "will_contraction": "that'll",
-        "d_contraction": "that'd"
+        "agreement": "third_singular"
       },
       {
         "id": "there_singular",
         "stroke": "TK",
         "text": "there",
         "label": "there (singular)",
-        "agreement": "third_singular",
-        "be_contraction": "there's",
-        "have_contraction": "there's",
-        "will_contraction": "there'll",
-        "d_contraction": "there'd"
+        "agreement": "third_singular"
       },
       {
         "id": "there_plural",
         "stroke": "TKW",
         "text": "there",
         "label": "there (plural)",
-        "agreement": "plural",
-        "be_contraction": "there're",
-        "have_contraction": "there've",
-        "will_contraction": "there'll",
-        "d_contraction": "there'd"
+        "agreement": "plural"
       },
       {
         "id": "and",
@@ -1920,69 +1878,49 @@
         "id": "who",
         "stroke": "KW",
         "text": "who",
-        "agreement": "third_singular",
-        "be_contraction": "who's",
-        "have_contraction": "who's",
-        "will_contraction": "who'll",
-        "d_contraction": "who'd"
+        "agreement": "third_singular"
       },
       {
         "id": "what",
         "stroke": "TW",
         "text": "what",
-        "agreement": "third_singular",
-        "be_contraction": "what's",
-        "have_contraction": "what's",
-        "will_contraction": "what'll",
-        "d_contraction": "what'd"
+        "agreement": "third_singular"
       },
       {
         "id": "someone",
         "stroke": "SP",
         "text": "someone",
-        "agreement": "third_singular",
-        "be_contraction": "someone's",
-        "have_contraction": "someone's"
+        "agreement": "third_singular"
       },
       {
         "id": "something",
         "stroke": "SPW",
         "text": "something",
-        "agreement": "third_singular",
-        "be_contraction": "something's",
-        "have_contraction": "something's"
+        "agreement": "third_singular"
       },
       {
         "id": "everyone",
         "stroke": "KP",
         "text": "everyone",
-        "agreement": "third_singular",
-        "be_contraction": "everyone's",
-        "have_contraction": "everyone's"
+        "agreement": "third_singular"
       },
       {
         "id": "everything",
         "stroke": "KPW",
         "text": "everything",
-        "agreement": "third_singular",
-        "be_contraction": "everything's",
-        "have_contraction": "everything's"
+        "agreement": "third_singular"
       },
       {
         "id": "nobody",
         "stroke": "SKPR",
         "text": "nobody",
-        "agreement": "third_singular",
-        "be_contraction": "nobody's",
-        "have_contraction": "nobody's"
+        "agreement": "third_singular"
       },
       {
         "id": "nothing",
         "stroke": "SKPW",
         "text": "nothing",
-        "agreement": "third_singular",
-        "be_contraction": "nothing's",
-        "have_contraction": "nothing's"
+        "agreement": "third_singular"
       },
       {
         "id": "with",
@@ -2058,7 +1996,7 @@
       },
       {
         "id": "of",
-        "stroke": "TPWH",
+        "stroke": "SKW",
         "text": "of",
         "agreement": "third_singular"
       },
@@ -3711,7 +3649,7 @@
         "text": "for"
       },
       {
-        "stroke": "TPWH",
+        "stroke": "SKW",
         "text": "of"
       },
       {

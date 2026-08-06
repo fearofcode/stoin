@@ -25,7 +25,7 @@ struct Steno {
     char *phrasing_path;
     uint64_t down_keycodes;
     uint64_t chord_bits;
-    Phrase_Namespace chord_phrase_namespace;
+    bool chord_phrase_active;
     Platform_File_Stamp phrasing_stamp;
     uint64_t phrasing_revision;
     size_t strokes_since_compaction;
@@ -35,12 +35,8 @@ struct Steno {
     bool control_down;
     bool option_down;
     bool command_down;
-    bool initial_verb_phrase_down;
-    bool final_verb_phrase_down;
-    bool nonverb_phrase_down;
-    bool initial_verb_phrase_pending;
-    bool final_verb_phrase_pending;
-    bool nonverb_phrase_pending;
+    bool phrase_down;
+    bool phrase_pending;
     Case_Mode case_mode;
     Case_Mode next_case;
     Spacing_State spacing;

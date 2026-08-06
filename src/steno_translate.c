@@ -161,7 +161,6 @@ static bool translate_dictionary_bits_with_trace(
 
 static bool translate_phrase_bits(
     Steno *steno,
-    Phrase_Namespace namespace,
     uint64_t bits,
     bool *out_hit
 )
@@ -178,44 +177,30 @@ static bool translate_phrase_bits(
         return false;
     }
 
-    Phrase_Namespace lookup_order[4] = {namespace};
-    size_t lookup_count = 0;
-    if (namespace == PHRASE_NAMESPACE_PASSIVE_FINAL_VERB) {
-        const Phrase_Namespace passive_order[] = {
-            PHRASE_NAMESPACE_PASSIVE_FINAL_VERB,
-            PHRASE_NAMESPACE_FINAL_VERB,
-            PHRASE_NAMESPACE_INITIAL_VERB,
-            PHRASE_NAMESPACE_NONVERB,
-        };
-        memcpy(lookup_order, passive_order, sizeof(passive_order));
-        lookup_count = sizeof(passive_order) / sizeof(passive_order[0]);
-    } else {
-        const Phrase_Namespace verb_fallback = namespace == PHRASE_NAMESPACE_INITIAL_VERB
-            ? PHRASE_NAMESPACE_FINAL_VERB
-            : PHRASE_NAMESPACE_INITIAL_VERB;
-        lookup_order[0] = namespace;
-        lookup_order[1] = verb_fallback;
-        lookup_order[2] = namespace == PHRASE_NAMESPACE_NONVERB
-            ? PHRASE_NAMESPACE_FINAL_VERB
-            : PHRASE_NAMESPACE_NONVERB;
-        lookup_count = 3;
+    Phrase_Namespace namespace = PHRASE_NAMESPACE_NONE;
+    uint64_t phrase_bits = 0;
+    if (!phrasing_decode_stroke(bits, &namespace, &phrase_bits)) {
+        return true;
     }
 
     char *phrase = NULL;
-    for (size_t i = 0; i < lookup_count; ++i) {
-        const Phrase_Lookup_Result result = phrasing_lookup(
+    Phrase_Lookup_Result result = phrasing_lookup(
+        steno->phrasing,
+        namespace,
+        phrase_bits,
+        &phrase
+    );
+    if (result == PHRASE_LOOKUP_MISS && namespace == PHRASE_NAMESPACE_NONVERB) {
+        result = phrasing_lookup(
             steno->phrasing,
-            lookup_order[i],
+            PHRASE_NAMESPACE_INITIAL_VERB,
             bits,
             &phrase
         );
-        if (result == PHRASE_LOOKUP_ERROR) {
-            free(phrase);
-            return false;
-        }
-        if (result == PHRASE_LOOKUP_HIT) {
-            break;
-        }
+    }
+    if (result == PHRASE_LOOKUP_ERROR) {
+        free(phrase);
+        return false;
     }
     if (phrase == NULL) {
         return true;
@@ -246,9 +231,9 @@ bool steno_translate_chord_bits(Steno *steno, uint64_t bits)
 
 bool steno_translate_stroke_input(Steno *steno, Stroke_Input stroke)
 {
-    if (stroke.phrase_namespace != PHRASE_NAMESPACE_NONE) {
+    if (stroke.phrase_active) {
         bool hit = false;
-        if (!translate_phrase_bits(steno, stroke.phrase_namespace, stroke.bits, &hit)) {
+        if (!translate_phrase_bits(steno, stroke.bits, &hit)) {
             return false;
         }
         if (hit) {

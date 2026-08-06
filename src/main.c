@@ -229,7 +229,7 @@ static bool handle_stroke_bits(App *app, uint64_t bits, uint64_t received_ns)
     Stroke_Input stroke = {
         .bits = bits,
         .received_ns = received_ns,
-        .phrase_namespace = phrase_keys_take_namespace(app->phrase_keys),
+        .phrase_active = phrase_keys_take_active(app->phrase_keys),
     };
     const bool handled = steno_handle_stroke(app->steno, stroke);
     if (app->time_translations) {
@@ -245,17 +245,15 @@ static bool update_phrase_key_from_event(App *app, const Input_Event *event, boo
         return false;
     }
 
-    Phrase_Namespace phrase_namespace = PHRASE_NAMESPACE_NONE;
-    bool is_down = false;
+    bool phrase_active = false;
     if (!phrase_keys_handle_event(
             app->phrase_keys,
             event,
-            &phrase_namespace,
-            &is_down)) {
+            &phrase_active)) {
         return false;
     }
     if (update_steno && app->steno != NULL && !event->is_repeat) {
-        steno_set_phrase_namespace(app->steno, phrase_namespace, is_down);
+        steno_set_phrase_active(app->steno, phrase_active);
     }
     return true;
 }
@@ -361,8 +359,7 @@ static void print_usage(void)
     fputs("             [--input tx-bolt|gemini-pr|stentura|qwerty]\n", stderr);
     fputs("             [--serial-port PATH] [--serial-baud BAUD]\n", stderr);
     fputs("             [--multiple-inputs] [--multi-input-window-ms MS]\n", stderr);
-    fputs("             [--initial-verb-key KEY] [--final-verb-key KEY]\n", stderr);
-    fputs("             [--nonverb-key KEY]\n", stderr);
+    fputs("             [--phrase-key KEY ...]\n", stderr);
     fputs("             [--trace-key-events]\n", stderr);
     fputs("             [--print-suggestions] [--suggestion-log PATH]\n", stderr);
     fputs("             [--hint-index PATH|--no-hint-index]\n", stderr);
@@ -395,82 +392,31 @@ static bool parse_milliseconds(const char *value, unsigned int *out_milliseconds
     return true;
 }
 
-static const char *phrase_namespace_label(Phrase_Namespace phrase_namespace)
-{
-    switch (phrase_namespace) {
-    case PHRASE_NAMESPACE_INITIAL_VERB:
-        return "initial verb";
-    case PHRASE_NAMESPACE_FINAL_VERB:
-        return "final verb";
-    case PHRASE_NAMESPACE_PASSIVE_FINAL_VERB:
-        return "passive final verb";
-    case PHRASE_NAMESPACE_NONVERB:
-        return "non-verb";
-    case PHRASE_NAMESPACE_NONE:
-    default:
-        return "unassigned";
-    }
-}
-
 static bool bind_phrase_key(
     Phrase_Keys *phrase_keys,
-    Phrase_Namespace phrase_namespace,
     const char *name
 )
 {
     uint16_t keycode = 0;
     if (!platform_keycode_from_name(name, &keycode)) {
-        fprintf(stderr,
-            "stoin: unknown %s phrase key '%s'\n",
-            phrase_namespace_label(phrase_namespace),
-            name);
+        fprintf(stderr, "stoin: unknown phrase key '%s'\n", name);
         return false;
     }
-    return phrase_keys_bind(phrase_keys, phrase_namespace, name, keycode);
+    return phrase_keys_bind(phrase_keys, name, keycode);
 }
 
 static void print_phrase_key_status(const Phrase_Keys *phrase_keys)
 {
-    for (Phrase_Namespace phrase_namespace = PHRASE_NAMESPACE_INITIAL_VERB;
-         phrase_namespace < PHRASE_KEY_BINDING_COUNT;
-         ++phrase_namespace) {
-        const Phrase_Key_Binding *binding = phrase_keys_get(phrase_keys, phrase_namespace);
-        if (binding != NULL && binding->enabled) {
-            printf("stoin: %s phrase key = %s (keycode %u)\n",
-                phrase_namespace_label(phrase_namespace),
+    for (size_t i = 0; i < phrase_keys_count(phrase_keys); ++i) {
+        const Phrase_Key_Binding *binding = phrase_keys_get(phrase_keys, i);
+        if (binding != NULL) {
+            printf("stoin: phrase key = %s (keycode %u)\n",
                 binding->name,
                 (unsigned int)binding->keycode);
         }
     }
-
-    const Phrase_Key_Binding *initial = phrase_keys_get(
-        phrase_keys,
-        PHRASE_NAMESPACE_INITIAL_VERB
-    );
-    const Phrase_Key_Binding *final = phrase_keys_get(
-        phrase_keys,
-        PHRASE_NAMESPACE_FINAL_VERB
-    );
-    if (initial != NULL
-        && initial->enabled
-        && final != NULL
-        && final->enabled) {
-        printf("stoin: non-verb phrases also use %s + %s\n",
-            initial->name,
-            final->name);
-    }
-
-    const Phrase_Key_Binding *nonverb = phrase_keys_get(
-        phrase_keys,
-        PHRASE_NAMESPACE_NONVERB
-    );
-    if (final != NULL
-        && final->enabled
-        && nonverb != NULL
-        && nonverb->enabled) {
-        printf("stoin: passive final-verb phrases use %s + %s\n",
-            final->name,
-            nonverb->name);
+    if (phrase_keys_any_enabled(phrase_keys)) {
+        puts("stoin: phrase markers: IV = unmarked, FV = U, NV = E");
     }
 }
 
@@ -921,29 +867,8 @@ int main(int argc, char **argv)
                 runtime_config_destroy(&runtime_config);
                 return 1;
             }
-        } else if (strcmp(argv[i], "--initial-verb-key") == 0 && i + 1 < argc) {
-            if (!bind_phrase_key(
-                    &phrase_keys,
-                    PHRASE_NAMESPACE_INITIAL_VERB,
-                    argv[++i])) {
-                print_usage();
-                runtime_config_destroy(&runtime_config);
-                return 1;
-            }
-        } else if (strcmp(argv[i], "--final-verb-key") == 0 && i + 1 < argc) {
-            if (!bind_phrase_key(
-                    &phrase_keys,
-                    PHRASE_NAMESPACE_FINAL_VERB,
-                    argv[++i])) {
-                print_usage();
-                runtime_config_destroy(&runtime_config);
-                return 1;
-            }
-        } else if (strcmp(argv[i], "--nonverb-key") == 0 && i + 1 < argc) {
-            if (!bind_phrase_key(
-                    &phrase_keys,
-                    PHRASE_NAMESPACE_NONVERB,
-                    argv[++i])) {
+        } else if (strcmp(argv[i], "--phrase-key") == 0 && i + 1 < argc) {
+            if (!bind_phrase_key(&phrase_keys, argv[++i])) {
                 print_usage();
                 runtime_config_destroy(&runtime_config);
                 return 1;
@@ -1048,7 +973,7 @@ int main(int argc, char **argv)
         return 1;
     }
     if (!phrase_keys_have_distinct_keycodes(&phrase_keys)) {
-        fputs("stoin: initial verb, final verb, and non-verb phrase keys must be distinct\n", stderr);
+        fputs("stoin: phrase keys must be distinct\n", stderr);
         runtime_config_destroy(&runtime_config);
         return 1;
     }

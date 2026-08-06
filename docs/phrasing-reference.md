@@ -1,62 +1,61 @@
 # Phrasing Reference
 
-## Namespace keys
+## Phrase layer
 
-| Key role | Namespace | Lookup order | Stroke shape |
-| --- | --- | --- | --- |
-| Initial verb | IV | IV → FV → NV | IV stem + IV form + shared tail |
-| Final verb | FV | FV → IV → NV | shared starter + FV operator + FV structure + FV ender + optional contraction |
-| Final verb + nonverb | Passive FV | Passive FV → FV → IV → NV | shared starter + FV operator + FV structure + FV ender + optional contraction, passive voice |
-| Initial verb + final verb, or optional nonverb | NV | NV → IV → FV | shared starter + shared tail |
+| Phrase type | Marker | Stroke shape |
+| --- | --- | --- |
+| Initial verb (IV) | ∅ | IV stem + IV form + shared tail |
+| Final verb (FV) | U | U + shared starter + FV operator + FV structure + FV ender |
+| Nonverb (NV) | E | E + shared starter + shared tail |
 
 ## IV
 
 ### Stems and forms
 
-| Stem | Default | -D | E | E-D | * | U | EU | A | A-D |
+| Stem | Default | -D | E-D | * | *E | AE | A*E | A | A-D |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| PW | is | was | are | were |  | to be | be | can be | could be |
-| H | has | had | have |  |  | to have |  | can have | could have |
-| S | sees | saw | see |  | seeing | to see |  | can see | could see |
-| ST | says | said | say |  | saying | to say |  | can say | could say |
-| TH | thinks | thought | think |  | thinking | to think |  | can think | could think |
-| THR | tells | told | tell |  | telling | to tell |  | can tell | could tell |
-| KPH | catches | caught | catch |  | catching | to catch |  | can catch | could catch |
-| TW | looks | looked | look |  | looking | to look |  | can look | could look |
-| HR | holds | held | hold |  | holding | to hold |  | can hold | could hold |
-| SH | shows | showed | show |  | showing | to show |  | can show | could show |
-| SHR | sells | sold | sell |  | selling | to sell |  | can sell | could sell |
-| STHR | steals | stole | steal |  | stealing | to steal |  | can steal | could steal |
-| SPW | spells | spelled | spell |  | spelling | to spell |  | can spell | could spell |
-| PHR | pulls | pulled | pull |  | pulling | to pull |  | can pull | could pull |
-| STPH | puts | put | put |  | putting | to put |  | can put | could put |
-| TKH | keeps | kept | keep |  | keeping | to keep |  | can keep | could keep |
-| KHR | calls | called | call |  | calling | to call |  | can call | could call |
-| TK | does | did | do |  | doing | to do |  | can do | could do |
-| TKPW | goes | went | go |  | going | to go |  | can go | could go |
-| W | wants | wanted | want |  | wanting | to want |  | can want | could want |
-| SK | asks | asked | ask |  | asking | to ask |  | can ask | could ask |
-| SP | happens | happened | happen |  | happening | to happen |  | can happen | could happen |
-| SW | feels | felt | feel |  | feeling | to feel |  | can feel | could feel |
-| K | comes | came | come |  | coming | to come |  | can come | could come |
-| TPH | knows | knew | know |  | knowing | to know |  | can know | could know |
-| TKPWH | gets | got | get |  | getting | to get |  | can get | could get |
-| PWHR | believes | believed | believe |  | believing | to believe |  | can believe | could believe |
-| KW | becomes | became | become |  | becoming | to become |  | can become | could become |
-| KH | runs | ran | run |  | running | to run |  | can run | could run |
-| PH | makes | made | make |  | making | to make |  | can make | could make |
-| T | takes | took | take |  | taking | to take |  | can take | could take |
-| TP | finds | found | find |  | finding | to find |  | can find | could find |
-| STP | gives | gave | give |  | giving | to give |  | can give | could give |
-| STW | uses | used | use |  | using | to use |  | can use | could use |
-| WR | works | worked | work |  | working | to work |  | can work | could work |
-| STR | stores | stored | store |  | storing | to store |  | can store | could store |
-| SKP | needs | needed | need |  | needing | to need |  | can need | could need |
-| SKW | remembers | remembered | remember |  | remembering | to remember |  | can remember | could remember |
-| SKH | understands | understood | understand |  | understanding | to understand |  | can understand | could understand |
-| TR | tries | tried | try |  | trying | to try |  | can try | could try |
-| KP | expects | expected | expect |  | expecting | to expect |  | can expect | could expect |
-| STKH | reads | read | read |  | reading | to read |  | can read | could read |
+| PW | is | was | were |  | to be | be | are | can be | could be |
+| H | has | had |  |  | to have | have |  | can have | could have |
+| S | sees | saw |  | seeing | to see | see |  | can see | could see |
+| ST | says | said |  | saying | to say | say |  | can say | could say |
+| TH | thinks | thought |  | thinking | to think | think |  | can think | could think |
+| THR | tells | told |  | telling | to tell | tell |  | can tell | could tell |
+| KPH | catches | caught |  | catching | to catch | catch |  | can catch | could catch |
+| TW | looks | looked |  | looking | to look | look |  | can look | could look |
+| HR | holds | held |  | holding | to hold | hold |  | can hold | could hold |
+| SH | shows | showed |  | showing | to show | show |  | can show | could show |
+| SHR | sells | sold |  | selling | to sell | sell |  | can sell | could sell |
+| STHR | steals | stole |  | stealing | to steal | steal |  | can steal | could steal |
+| SPW | spells | spelled |  | spelling | to spell | spell |  | can spell | could spell |
+| PHR | pulls | pulled |  | pulling | to pull | pull |  | can pull | could pull |
+| STPH | puts | put |  | putting | to put | put |  | can put | could put |
+| TKH | keeps | kept |  | keeping | to keep | keep |  | can keep | could keep |
+| KHR | calls | called |  | calling | to call | call |  | can call | could call |
+| TK | does | did |  | doing | to do | do |  | can do | could do |
+| TKPW | goes | went |  | going | to go | go |  | can go | could go |
+| W | wants | wanted |  | wanting | to want | want |  | can want | could want |
+| SK | asks | asked |  | asking | to ask | ask |  | can ask | could ask |
+| SP | happens | happened |  | happening | to happen | happen |  | can happen | could happen |
+| SW | feels | felt |  | feeling | to feel | feel |  | can feel | could feel |
+| K | comes | came |  | coming | to come | come |  | can come | could come |
+| TPH | knows | knew |  | knowing | to know | know |  | can know | could know |
+| TKPWH | gets | got |  | getting | to get | get |  | can get | could get |
+| PWHR | believes | believed |  | believing | to believe | believe |  | can believe | could believe |
+| KW | becomes | became |  | becoming | to become | become |  | can become | could become |
+| KH | runs | ran |  | running | to run | run |  | can run | could run |
+| PH | makes | made |  | making | to make | make |  | can make | could make |
+| T | takes | took |  | taking | to take | take |  | can take | could take |
+| TP | finds | found |  | finding | to find | find |  | can find | could find |
+| STP | gives | gave |  | giving | to give | give |  | can give | could give |
+| STW | uses | used |  | using | to use | use |  | can use | could use |
+| WR | works | worked |  | working | to work | work |  | can work | could work |
+| STR | stores | stored |  | storing | to store | store |  | can store | could store |
+| SKP | needs | needed |  | needing | to need | need |  | can need | could need |
+| SKW | remembers | remembered |  | remembering | to remember | remember |  | can remember | could remember |
+| SKH | understands | understood |  | understanding | to understand | understand |  | can understand | could understand |
+| TR | tries | tried |  | trying | to try | try |  | can try | could try |
+| KP | expects | expected |  | expecting | to expect | expect |  | can expect | could expect |
+| STKH | reads | read |  | reading | to read | read |  | can read | could read |
 
 ### Shared IV / NV tails
 
@@ -182,7 +181,7 @@
 | PHR | only | third_singular |
 | PW | but | third_singular |
 | TPR | for | third_singular |
-| TPWH | of | third_singular |
+| SKW | of | third_singular |
 | TKPWH | anything | third_singular |
 | SR | as | third_singular |
 | SWR | even | third_singular |
@@ -289,12 +288,6 @@
 | -PGS | -PGSD | expect | ∅ |
 | -PGTS | -PGTSD | expect | that |
 | -RBS | -RBSD | ask | ∅ |
-
-### Contraction
-
-| Stroke |
-| --- |
-| U |
 
 ## NV
 

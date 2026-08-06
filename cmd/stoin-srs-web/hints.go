@@ -15,11 +15,10 @@ import (
 const maxHintOutlines = 4
 
 const (
-	hintSourceDictionary       = "dictionary"
-	hintSourceInitialVerb      = "initial_verb"
-	hintSourceFinalVerb        = "final_verb"
-	hintSourcePassiveFinalVerb = "passive_final_verb"
-	hintSourceNonVerb          = "non_verb"
+	hintSourceDictionary  = "dictionary"
+	hintSourceInitialVerb = "initial_verb"
+	hintSourceFinalVerb   = "final_verb"
+	hintSourceNonVerb     = "non_verb"
 )
 
 type Hint struct {
@@ -190,7 +189,6 @@ func validHintSource(source string) bool {
 	case hintSourceDictionary,
 		hintSourceInitialVerb,
 		hintSourceFinalVerb,
-		hintSourcePassiveFinalVerb,
 		hintSourceNonVerb:
 		return true
 	default:

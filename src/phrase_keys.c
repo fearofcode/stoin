@@ -2,16 +2,7 @@
 
 #include <stddef.h>
 
-_Static_assert(
-    PHRASE_KEY_BINDING_COUNT == PHRASE_NAMESPACE_NONVERB + 1,
-    "phrase key bindings must cover every physical phrase key namespace"
-);
-
-static bool phrase_namespace_is_bindable(Phrase_Namespace phrase_namespace)
-{
-    return phrase_namespace > PHRASE_NAMESPACE_NONE
-        && phrase_namespace < PHRASE_KEY_BINDING_COUNT;
-}
+#include "../third_party/stb_ds.h"
 
 bool phrase_keys_init(Phrase_Keys *phrase_keys)
 {
@@ -19,14 +10,7 @@ bool phrase_keys_init(Phrase_Keys *phrase_keys)
         return false;
     }
 
-    for (size_t i = 0; i < PHRASE_KEY_BINDING_COUNT; ++i) {
-        phrase_keys->bindings[i].down = NULL;
-        phrase_keys->bindings[i].latched = NULL;
-    }
-    for (size_t i = PHRASE_NAMESPACE_INITIAL_VERB; i < PHRASE_KEY_BINDING_COUNT; ++i) {
-        if (!phrase_keys->bindings[i].enabled) {
-            continue;
-        }
+    for (size_t i = 0; i < arrlenu(phrase_keys->bindings); ++i) {
         Phrase_Key_Binding *binding = &phrase_keys->bindings[i];
         binding->down = platform_atomic_bool_create(false);
         binding->latched = platform_atomic_bool_create(false);
@@ -44,32 +28,30 @@ void phrase_keys_destroy(Phrase_Keys *phrase_keys)
         return;
     }
 
-    for (size_t i = 0; i < PHRASE_KEY_BINDING_COUNT; ++i) {
+    for (size_t i = 0; i < arrlenu(phrase_keys->bindings); ++i) {
         Phrase_Key_Binding *binding = &phrase_keys->bindings[i];
         platform_atomic_bool_destroy(binding->down);
         platform_atomic_bool_destroy(binding->latched);
         binding->down = NULL;
         binding->latched = NULL;
     }
+    arrfree(phrase_keys->bindings);
 }
 
 bool phrase_keys_bind(
     Phrase_Keys *phrase_keys,
-    Phrase_Namespace phrase_namespace,
     const char *name,
     uint16_t keycode
 )
 {
-    if (phrase_keys == NULL || !phrase_namespace_is_bindable(phrase_namespace)) {
+    if (phrase_keys == NULL || name == NULL) {
         return false;
     }
 
-    Phrase_Key_Binding *binding = &phrase_keys->bindings[phrase_namespace];
-    binding->name = name;
-    binding->keycode = keycode;
-    binding->enabled = true;
-    platform_atomic_bool_store(binding->down, false);
-    platform_atomic_bool_store(binding->latched, false);
+    arrput(phrase_keys->bindings, ((Phrase_Key_Binding) {
+        .name = name,
+        .keycode = keycode,
+    }));
     return true;
 }
 
@@ -79,14 +61,9 @@ bool phrase_keys_have_distinct_keycodes(const Phrase_Keys *phrase_keys)
         return true;
     }
 
-    for (size_t i = PHRASE_NAMESPACE_INITIAL_VERB; i < PHRASE_KEY_BINDING_COUNT; ++i) {
-        const Phrase_Key_Binding *binding = &phrase_keys->bindings[i];
-        if (!binding->enabled) {
-            continue;
-        }
-        for (size_t j = i + 1; j < PHRASE_KEY_BINDING_COUNT; ++j) {
-            const Phrase_Key_Binding *other = &phrase_keys->bindings[j];
-            if (other->enabled && binding->keycode == other->keycode) {
+    for (size_t i = 0; i < arrlenu(phrase_keys->bindings); ++i) {
+        for (size_t j = i + 1; j < arrlenu(phrase_keys->bindings); ++j) {
+            if (phrase_keys->bindings[i].keycode == phrase_keys->bindings[j].keycode) {
                 return false;
             }
         }
@@ -96,57 +73,62 @@ bool phrase_keys_have_distinct_keycodes(const Phrase_Keys *phrase_keys)
 
 bool phrase_keys_any_enabled(const Phrase_Keys *phrase_keys)
 {
+    return phrase_keys_count(phrase_keys) > 0;
+}
+
+size_t phrase_keys_count(const Phrase_Keys *phrase_keys)
+{
+    return phrase_keys == NULL ? 0 : arrlenu(phrase_keys->bindings);
+}
+
+const Phrase_Key_Binding *phrase_keys_get(
+    const Phrase_Keys *phrase_keys,
+    size_t index
+)
+{
+    if (phrase_keys == NULL || index >= arrlenu(phrase_keys->bindings)) {
+        return NULL;
+    }
+    return &phrase_keys->bindings[index];
+}
+
+static bool phrase_keys_any_down(const Phrase_Keys *phrase_keys)
+{
     if (phrase_keys == NULL) {
         return false;
     }
-
-    for (size_t i = PHRASE_NAMESPACE_INITIAL_VERB; i < PHRASE_KEY_BINDING_COUNT; ++i) {
-        if (phrase_keys->bindings[i].enabled) {
+    for (size_t i = 0; i < arrlenu(phrase_keys->bindings); ++i) {
+        if (platform_atomic_bool_load(phrase_keys->bindings[i].down)) {
             return true;
         }
     }
     return false;
 }
 
-const Phrase_Key_Binding *phrase_keys_get(
-    const Phrase_Keys *phrase_keys,
-    Phrase_Namespace phrase_namespace
-)
-{
-    if (phrase_keys == NULL || !phrase_namespace_is_bindable(phrase_namespace)) {
-        return NULL;
-    }
-    return &phrase_keys->bindings[phrase_namespace];
-}
-
 bool phrase_keys_handle_event(
     Phrase_Keys *phrase_keys,
     const Input_Event *event,
-    Phrase_Namespace *out_namespace,
-    bool *out_is_down
+    bool *out_active
 )
 {
     if (phrase_keys == NULL || event == NULL) {
         return false;
     }
 
-    for (size_t i = PHRASE_NAMESPACE_INITIAL_VERB; i < PHRASE_KEY_BINDING_COUNT; ++i) {
+    for (size_t i = 0; i < arrlenu(phrase_keys->bindings); ++i) {
         Phrase_Key_Binding *binding = &phrase_keys->bindings[i];
-        if (!binding->enabled || binding->keycode != event->keycode) {
+        if (binding->keycode != event->keycode) {
             continue;
         }
 
-        if (out_namespace != NULL) {
-            *out_namespace = (Phrase_Namespace)i;
-        }
-        if (out_is_down != NULL) {
-            *out_is_down = event->is_down;
-        }
         if (!event->is_repeat) {
             platform_atomic_bool_store(binding->down, event->is_down);
             if (event->is_down) {
                 platform_atomic_bool_store(binding->latched, true);
             }
+        }
+        if (out_active != NULL) {
+            *out_active = phrase_keys_any_down(phrase_keys);
         }
         return true;
     }
@@ -154,29 +136,20 @@ bool phrase_keys_handle_event(
     return false;
 }
 
-Phrase_Namespace phrase_keys_take_namespace(Phrase_Keys *phrase_keys)
+bool phrase_keys_take_active(Phrase_Keys *phrase_keys)
 {
     if (phrase_keys == NULL) {
-        return PHRASE_NAMESPACE_NONE;
+        return false;
     }
 
-    bool active[PHRASE_KEY_BINDING_COUNT] = {false};
-    for (size_t i = PHRASE_NAMESPACE_INITIAL_VERB; i < PHRASE_KEY_BINDING_COUNT; ++i) {
+    bool active = false;
+    for (size_t i = 0; i < arrlenu(phrase_keys->bindings); ++i) {
         Phrase_Key_Binding *binding = &phrase_keys->bindings[i];
-        if (!binding->enabled) {
-            continue;
-        }
-
         const bool down = platform_atomic_bool_load(binding->down);
         const bool latched = platform_atomic_bool_exchange(binding->latched, false);
-        active[i] = down || latched;
+        active = active || down || latched;
     }
-
-    return phrase_namespace_from_active_keys(
-        active[PHRASE_NAMESPACE_INITIAL_VERB],
-        active[PHRASE_NAMESPACE_FINAL_VERB],
-        active[PHRASE_NAMESPACE_NONVERB]
-    );
+    return active;
 }
 
 void phrase_keys_reset(Phrase_Keys *phrase_keys)
@@ -185,7 +158,7 @@ void phrase_keys_reset(Phrase_Keys *phrase_keys)
         return;
     }
 
-    for (size_t i = PHRASE_NAMESPACE_INITIAL_VERB; i < PHRASE_KEY_BINDING_COUNT; ++i) {
+    for (size_t i = 0; i < arrlenu(phrase_keys->bindings); ++i) {
         Phrase_Key_Binding *binding = &phrase_keys->bindings[i];
         platform_atomic_bool_store(binding->down, false);
         platform_atomic_bool_store(binding->latched, false);

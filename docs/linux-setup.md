@@ -43,16 +43,15 @@ TX Bolt and Gemini PR input without phrase keys only need serial access plus `/d
 
 ## Keyboard capture and phrase keys
 
-The `--input qwerty` mode and the `--initial-verb-key`, `--final-verb-key`, and `--nonverb-key` options need read/grab access to physical keyboard event devices under `/dev/input/event*`. This is separate from `/dev/uinput`.
+The `--input qwerty` mode and `--phrase-key` options need read/grab access to physical keyboard event devices under `/dev/input/event*`. This is separate from `/dev/uinput`.
 
-For example, these options assign F13 and F14 to the verb namespaces; pressing
-both selects the nonverb namespace:
+For example, these options make both F13 and F14 activate the phrase layer:
 
 ```sh
-stoin --initial-verb-key F13 --final-verb-key F14
+stoin --phrase-key F13 --phrase-key F14
 ```
 
-`--nonverb-key F15` can optionally assign a dedicated nonverb key as well.
+`--phrase-key` is repeatable, so either pedal can activate the same phrase layer.
 
 Warning: access to keyboard event devices lets a process read raw keyboard input. Only grant this to a group whose members you trust.
 

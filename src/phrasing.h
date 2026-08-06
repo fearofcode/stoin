@@ -12,7 +12,6 @@ typedef enum Phrase_Namespace {
     PHRASE_NAMESPACE_INITIAL_VERB,
     PHRASE_NAMESPACE_FINAL_VERB,
     PHRASE_NAMESPACE_NONVERB,
-    PHRASE_NAMESPACE_PASSIVE_FINAL_VERB,
 } Phrase_Namespace;
 
 typedef enum Phrase_Lookup_Result {
@@ -28,10 +27,10 @@ typedef bool (*Phrase_Suggestion_Fn)(
     void *userdata
 );
 
-Phrase_Namespace phrase_namespace_from_active_keys(
-    bool initial_verb,
-    bool final_verb,
-    bool nonverb
+bool phrasing_decode_stroke(
+    uint64_t encoded_bits,
+    Phrase_Namespace *out_namespace,
+    uint64_t *out_phrase_bits
 );
 Phrasing *phrasing_load(const char *path);
 void phrasing_destroy(Phrasing *phrasing);

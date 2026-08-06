@@ -61,10 +61,6 @@ typedef struct Fv_Starter {
     uint64_t bits;
     Fv_Agreement agreement;
     char *text;
-    char *be_contraction;
-    char *have_contraction;
-    char *will_contraction;
-    char *d_contraction;
 } Fv_Starter;
 
 typedef struct Fv_Operator {
@@ -99,6 +95,7 @@ typedef struct Fv_Ender {
 typedef struct Phrase_Suggestion {
     uint64_t bits;
     Phrase_Namespace namespace;
+    bool has_explicit_verb;
 } Phrase_Suggestion;
 
 typedef struct Phrase_Suggestion_Entry {
@@ -117,7 +114,6 @@ struct Phrasing {
     Fv_Verb *fv_verbs;
     Fv_Ender *fv_enders;
     Phrase_Suggestion_Entry *suggestions;
-    uint64_t contraction_bits;
     bool suggestions_initialized;
     bool suggestions_failed;
 };

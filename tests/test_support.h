@@ -39,6 +39,7 @@ void reset_output_log(Test_Output *output);
 bool reset_test_steno(Steno **steno, const Steno_Config *config);
 bool handle_test_stroke(Steno *steno, const char *stroke);
 bool handle_phrase_test_stroke(Steno *steno, const char *stroke);
+bool handle_nonverb_phrase_test_stroke(Steno *steno, const char *stroke);
 bool expect_stroke_output(
     Steno **steno,
     const Steno_Config *config,

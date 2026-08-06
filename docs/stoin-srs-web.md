@@ -151,7 +151,7 @@ submit.
 The root page links to `/phrasing`, a non-SRS trainer for Stoin's IV/FV/NV
 phrasing assignments. It reads the same `initial_verbs`, `final_verbs`, and
 `nonverbs` data used by the app and generates drills from selectable banks,
-including `#` contraction forms.
+including the `U` final-verb and `E` nonverb markers.
 
 Choose how many repetitions to practice, select IV/FV/NV banks, then practice
 shuffled passes, random prompts, or selected bank-order blocks.

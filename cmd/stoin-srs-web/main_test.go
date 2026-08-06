@@ -660,12 +660,6 @@ func TestHintRoutePrefersRunningStoinPhraseIndex(t *testing.T) {
 	}
 }
 
-func TestPassiveFinalVerbHintSource(t *testing.T) {
-	if !validHintSource(hintSourcePassiveFinalVerb) {
-		t.Fatal("passive final verb hints should be accepted from the running Stoin process")
-	}
-}
-
 func TestSessionPageIncludesHintControls(t *testing.T) {
 	app := testApp(t)
 	ctx := context.Background()
@@ -1402,13 +1396,13 @@ func TestStaticPhrasingTrainerScript(t *testing.T) {
 		!strings.Contains(body, "phraseSourceSelect") ||
 		!strings.Contains(body, "phrasePastedList") ||
 		!strings.Contains(body, "Not found in the phrase system") ||
-		!strings.Contains(body, "d_contraction") ||
-		!strings.Contains(body, "fvDoNegativeContraction") ||
-		!strings.Contains(body, "appendPassiveFiniteComplement") ||
-		!strings.Contains(body, "passive_final_verbs") ||
-		!strings.Contains(body, "passive_contraction") ||
+		!strings.Contains(body, "combineStrokeParts(['U', starter.stroke") ||
+		!strings.Contains(body, "combineStrokeParts(['E', prefix.stroke") ||
 		!strings.Contains(body, "tail.text || 'no tail'") ||
 		!strings.Contains(body, "initialFormLabel") ||
+		!strings.Contains(body, "case '*E': return 'to-infinitive") ||
+		!strings.Contains(body, "case 'AE': return 'base form") ||
+		!strings.Contains(body, "case 'A*E': return 'plural present of be") ||
 		!strings.Contains(body, "third-person singular present (he/she/it goes)") ||
 		!strings.Contains(body, "modal could + base form (could go)") ||
 		!strings.Contains(body, "modal auxiliary (can / could)") ||
@@ -1540,7 +1534,6 @@ func TestStaticSessionScriptIncludesHints(t *testing.T) {
 		"Outline: ",
 		"Initial verb phrase",
 		"Final verb phrase",
-		"Passive final verb phrase (FV + NV pedals)",
 		"Non-verb phrase",
 		"uniqueMissedItemTexts",
 		"seen.has(items[itemIndex].id)",
@@ -1583,7 +1576,6 @@ func TestPhrasingDataRoute(t *testing.T) {
 		`"stroke": "SKP"`,
 		`"stroke": "TPW"`,
 		`"stroke": "TPR"`,
-		`"stroke": "TPWH"`,
 		`"stroke": "WR"`,
 		`"stroke": "TKP"`,
 		`"stroke": "PR"`,
@@ -1597,11 +1589,6 @@ func TestPhrasingDataRoute(t *testing.T) {
 		`"stroke": "TKW"`,
 		`"label": "there (plural)"`,
 		`"text": "there"`,
-		`"will_contraction": "this'll"`,
-		`"will_contraction": "that'll"`,
-		`"d_contraction": "they'd"`,
-		`"have_contraction": "there've"`,
-		`"will_contraction": "there'll"`,
 		`"could expect"`,
 		`"-PGTS"`,
 		`"suffix": "like"`,

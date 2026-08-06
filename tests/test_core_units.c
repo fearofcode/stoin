@@ -30,212 +30,96 @@ bool test_core_units(void)
     const bool f14_resolved = platform_keycode_from_name("f14", &f14_keycode);
     ok = ok && expect_size("F14 key resolves", f14_resolved ? 1 : 0, 1);
     ok = ok && expect_size("F14 keycode", f14_keycode, 107);
-    uint16_t f15_keycode = 0;
-    const bool f15_resolved = platform_keycode_from_name("F15", &f15_keycode);
-    ok = ok && expect_size("F15 key resolves", f15_resolved ? 1 : 0, 1);
-    ok = ok && expect_size("F15 keycode", f15_keycode, 113);
-    uint16_t f16_keycode = 0;
-    const bool f16_resolved = platform_keycode_from_name("F16", &f16_keycode);
-    ok = ok && expect_size("F16 key resolves", f16_resolved ? 1 : 0, 1);
-    ok = ok && expect_size("F16 keycode", f16_keycode, 106);
-    ok = ok && expect_size(
-        "initial plus final selects nonverb",
-        phrase_namespace_from_active_keys(true, true, false),
-        PHRASE_NAMESPACE_NONVERB
-    );
-    ok = ok && expect_size(
-        "initial plus final still selects nonverb with direct nonverb active",
-        phrase_namespace_from_active_keys(true, true, true),
-        PHRASE_NAMESPACE_NONVERB
-    );
-    ok = ok && expect_size(
-        "final plus direct nonverb selects passive final verb",
-        phrase_namespace_from_active_keys(false, true, true),
-        PHRASE_NAMESPACE_PASSIVE_FINAL_VERB
-    );
-    ok = ok && expect_size(
-        "initial plus direct nonverb remains ambiguous",
-        phrase_namespace_from_active_keys(true, false, true),
-        PHRASE_NAMESPACE_NONE
-    );
+    uint64_t encoded_phrase_bits = 0;
+    uint64_t decoded_phrase_bits = 0;
+    uint64_t expected_phrase_bits = 0;
+    Phrase_Namespace decoded_namespace = PHRASE_NAMESPACE_NONE;
+    ok = ok && stroke_string_to_bits("S", &encoded_phrase_bits);
+    ok = ok && phrasing_decode_stroke(
+        encoded_phrase_bits,
+        &decoded_namespace,
+        &decoded_phrase_bits);
+    ok = ok && expect_size("unmarked phrase is IV", decoded_namespace, PHRASE_NAMESPACE_INITIAL_VERB);
+    ok = ok && expect_size("unmarked IV bits are unchanged", decoded_phrase_bits, encoded_phrase_bits);
+
+    ok = ok && stroke_string_to_bits("SU-S", &encoded_phrase_bits);
+    ok = ok && stroke_string_to_bits("S-S", &expected_phrase_bits);
+    ok = ok && phrasing_decode_stroke(
+        encoded_phrase_bits,
+        &decoded_namespace,
+        &decoded_phrase_bits);
+    ok = ok && expect_size("U-marked phrase is FV", decoded_namespace, PHRASE_NAMESPACE_FINAL_VERB);
+    ok = ok && expect_size("FV marker is removed", decoded_phrase_bits, expected_phrase_bits);
+
+    ok = ok && stroke_string_to_bits("SE-R", &encoded_phrase_bits);
+    ok = ok && stroke_string_to_bits("S-R", &expected_phrase_bits);
+    ok = ok && phrasing_decode_stroke(
+        encoded_phrase_bits,
+        &decoded_namespace,
+        &decoded_phrase_bits);
+    ok = ok && expect_size("E-marked phrase is NV", decoded_namespace, PHRASE_NAMESPACE_NONVERB);
+    ok = ok && expect_size("NV marker is removed", decoded_phrase_bits, expected_phrase_bits);
+
+    ok = ok && stroke_string_to_bits("SEU-S", &encoded_phrase_bits);
+    ok = ok && stroke_string_to_bits("SE-S", &expected_phrase_bits);
+    ok = ok && phrasing_decode_stroke(
+        encoded_phrase_bits,
+        &decoded_namespace,
+        &decoded_phrase_bits);
+    ok = ok && expect_size("U takes priority over E", decoded_namespace, PHRASE_NAMESPACE_FINAL_VERB);
+    ok = ok && expect_size("FV decoding retains structure E", decoded_phrase_bits, expected_phrase_bits);
 
     Phrase_Keys phrase_keys = {0};
-    ok = ok && phrase_keys_bind(
-        &phrase_keys,
-        PHRASE_NAMESPACE_INITIAL_VERB,
-        "F13",
-        f13_keycode
-    );
-    ok = ok && phrase_keys_bind(
-        &phrase_keys,
-        PHRASE_NAMESPACE_FINAL_VERB,
-        "F14",
-        f14_keycode
-    );
-    ok = ok && phrase_keys_bind(
-        &phrase_keys,
-        PHRASE_NAMESPACE_NONVERB,
-        "F15",
-        f15_keycode
-    );
+    ok = ok && phrase_keys_bind(&phrase_keys, "F13", f13_keycode);
+    ok = ok && phrase_keys_bind(&phrase_keys, "F14", f14_keycode);
     ok = ok && phrase_keys_have_distinct_keycodes(&phrase_keys);
     ok = ok && phrase_keys_any_enabled(&phrase_keys);
+    ok = ok && expect_size("two interchangeable phrase keys", phrase_keys_count(&phrase_keys), 2);
     ok = ok && phrase_keys_init(&phrase_keys);
 
     Input_Event phrase_key_event = {
         .keycode = f13_keycode,
         .is_down = true,
     };
-    Phrase_Namespace event_namespace = PHRASE_NAMESPACE_NONE;
-    bool event_is_down = false;
+    bool event_active = false;
     ok = ok && phrase_keys_handle_event(
         &phrase_keys,
         &phrase_key_event,
-        &event_namespace,
-        &event_is_down
+        &event_active
     );
-    ok = ok && expect_size(
-        "initial phrase key event namespace",
-        event_namespace,
-        PHRASE_NAMESPACE_INITIAL_VERB
-    );
-    ok = ok && expect_size("initial phrase key event is down", event_is_down, 1);
-    ok = ok && expect_size(
-        "initial phrase key selects namespace",
-        phrase_keys_take_namespace(&phrase_keys),
-        PHRASE_NAMESPACE_INITIAL_VERB
-    );
-    ok = ok && expect_size(
-        "held initial phrase key stays active",
-        phrase_keys_take_namespace(&phrase_keys),
-        PHRASE_NAMESPACE_INITIAL_VERB
-    );
+    ok = ok && expect_size("first phrase key activates layer", event_active, 1);
+    ok = ok && expect_size("first phrase key is active", phrase_keys_take_active(&phrase_keys), 1);
+    ok = ok && expect_size("held phrase key stays active", phrase_keys_take_active(&phrase_keys), 1);
     phrase_key_event.is_repeat = true;
-    ok = ok && phrase_keys_handle_event(&phrase_keys, &phrase_key_event, NULL, NULL);
-    ok = ok && expect_size(
-        "repeated phrase key remains active",
-        phrase_keys_take_namespace(&phrase_keys),
-        PHRASE_NAMESPACE_INITIAL_VERB
-    );
+    ok = ok && phrase_keys_handle_event(&phrase_keys, &phrase_key_event, NULL);
+    ok = ok && expect_size("repeated phrase key remains active", phrase_keys_take_active(&phrase_keys), 1);
     phrase_key_event.is_repeat = false;
-    phrase_key_event.is_down = false;
-    ok = ok && phrase_keys_handle_event(&phrase_keys, &phrase_key_event, NULL, NULL);
-    ok = ok && expect_size(
-        "released initial phrase key is inactive",
-        phrase_keys_take_namespace(&phrase_keys),
-        PHRASE_NAMESPACE_NONE
-    );
-
     phrase_key_event.keycode = f14_keycode;
     phrase_key_event.is_down = true;
-    ok = ok && phrase_keys_handle_event(&phrase_keys, &phrase_key_event, NULL, NULL);
-    phrase_key_event.is_down = false;
-    ok = ok && phrase_keys_handle_event(&phrase_keys, &phrase_key_event, NULL, NULL);
-    ok = ok && expect_size(
-        "tapped final phrase key arms one stroke",
-        phrase_keys_take_namespace(&phrase_keys),
-        PHRASE_NAMESPACE_FINAL_VERB
-    );
-    ok = ok && expect_size(
-        "tapped final phrase key latch is consumed",
-        phrase_keys_take_namespace(&phrase_keys),
-        PHRASE_NAMESPACE_NONE
-    );
-
-    phrase_key_event.keycode = f14_keycode;
-    phrase_key_event.is_down = true;
-    ok = ok && phrase_keys_handle_event(&phrase_keys, &phrase_key_event, NULL, NULL);
-    phrase_key_event.is_down = false;
-    ok = ok && phrase_keys_handle_event(&phrase_keys, &phrase_key_event, NULL, NULL);
-    phrase_key_event.keycode = f15_keycode;
-    phrase_key_event.is_down = true;
-    ok = ok && phrase_keys_handle_event(&phrase_keys, &phrase_key_event, NULL, NULL);
-    phrase_key_event.is_down = false;
-    ok = ok && phrase_keys_handle_event(&phrase_keys, &phrase_key_event, NULL, NULL);
-    ok = ok && expect_size(
-        "tapped final and nonverb phrase keys select passive final verb",
-        phrase_keys_take_namespace(&phrase_keys),
-        PHRASE_NAMESPACE_PASSIVE_FINAL_VERB
-    );
-    ok = ok && expect_size(
-        "passive final verb latches are consumed together",
-        phrase_keys_take_namespace(&phrase_keys),
-        PHRASE_NAMESPACE_NONE
-    );
-
+    ok = ok && phrase_keys_handle_event(&phrase_keys, &phrase_key_event, &event_active);
+    ok = ok && expect_size("second pedal also keeps layer active", event_active, 1);
     phrase_key_event.keycode = f13_keycode;
-    phrase_key_event.is_down = true;
-    ok = ok && phrase_keys_handle_event(&phrase_keys, &phrase_key_event, NULL, NULL);
-    phrase_key_event.keycode = f15_keycode;
-    ok = ok && phrase_keys_handle_event(&phrase_keys, &phrase_key_event, NULL, NULL);
-    ok = ok && expect_size(
-        "initial plus direct nonverb keys remain ambiguous",
-        phrase_keys_take_namespace(&phrase_keys),
-        PHRASE_NAMESPACE_NONE
-    );
+    phrase_key_event.is_down = false;
+    ok = ok && phrase_keys_handle_event(&phrase_keys, &phrase_key_event, &event_active);
+    ok = ok && expect_size("releasing one pedal leaves the other active", event_active, 1);
+    phrase_key_event.keycode = f14_keycode;
+    ok = ok && phrase_keys_handle_event(&phrase_keys, &phrase_key_event, &event_active);
+    ok = ok && expect_size("releasing both pedals deactivates layer", event_active, 0);
+    ok = ok && expect_size("pedal press latches one phrase stroke", phrase_keys_take_active(&phrase_keys), 1);
+    ok = ok && expect_size("phrase latch is consumed", phrase_keys_take_active(&phrase_keys), 0);
+
     phrase_keys_reset(&phrase_keys);
-    ok = ok && expect_size(
-        "phrase key reset clears held state",
-        phrase_keys_take_namespace(&phrase_keys),
-        PHRASE_NAMESPACE_NONE
-    );
+    ok = ok && expect_size("phrase key reset clears held state", phrase_keys_take_active(&phrase_keys), 0);
     phrase_keys_destroy(&phrase_keys);
 
-    Phrase_Keys composite_phrase_keys = {0};
-    ok = ok && phrase_keys_bind(
-        &composite_phrase_keys,
-        PHRASE_NAMESPACE_INITIAL_VERB,
-        "F13",
-        f13_keycode
-    );
-    ok = ok && phrase_keys_bind(
-        &composite_phrase_keys,
-        PHRASE_NAMESPACE_FINAL_VERB,
-        "F14",
-        f14_keycode
-    );
-    ok = ok && phrase_keys_init(&composite_phrase_keys);
-    phrase_key_event.keycode = f13_keycode;
-    phrase_key_event.is_down = true;
-    ok = ok && phrase_keys_handle_event(
-        &composite_phrase_keys,
-        &phrase_key_event,
-        NULL,
-        NULL
-    );
-    phrase_key_event.is_down = false;
-    ok = ok && phrase_keys_handle_event(
-        &composite_phrase_keys,
-        &phrase_key_event,
-        NULL,
-        NULL
-    );
-    phrase_key_event.keycode = f14_keycode;
-    phrase_key_event.is_down = true;
-    ok = ok && phrase_keys_handle_event(
-        &composite_phrase_keys,
-        &phrase_key_event,
-        NULL,
-        NULL
-    );
-    phrase_key_event.is_down = false;
-    ok = ok && phrase_keys_handle_event(
-        &composite_phrase_keys,
-        &phrase_key_event,
-        NULL,
-        NULL
-    );
+    Phrase_Keys duplicate_phrase_keys = {0};
+    ok = ok && phrase_keys_bind(&duplicate_phrase_keys, "F13", f13_keycode);
+    ok = ok && phrase_keys_bind(&duplicate_phrase_keys, "f13", f13_keycode);
     ok = ok && expect_size(
-        "tapped initial and final bindings select nonverb without a direct key",
-        phrase_keys_take_namespace(&composite_phrase_keys),
-        PHRASE_NAMESPACE_NONVERB
-    );
-    ok = ok && expect_size(
-        "composite nonverb latches are consumed together",
-        phrase_keys_take_namespace(&composite_phrase_keys),
-        PHRASE_NAMESPACE_NONE
-    );
-    phrase_keys_destroy(&composite_phrase_keys);
+        "duplicate phrase keycodes are rejected",
+        phrase_keys_have_distinct_keycodes(&duplicate_phrase_keys),
+        0);
+    phrase_keys_destroy(&duplicate_phrase_keys);
 
     const char *runtime_config_path = "build/test-runtime-config.json";
     ok = ok && write_text_file(
@@ -254,25 +138,62 @@ bool test_core_units(void)
 
     Phrasing *production_phrasing = phrasing_load("phrasing.json");
     ok = ok && expect_size("production phrasing loads", production_phrasing != NULL ? 1 : 0, 1);
-    Phrase_Namespace passive_suggestion_namespace = PHRASE_NAMESPACE_NONE;
-    char passive_suggestion_outline[64] = {0};
+    Phrase_Namespace suggestion_namespace = PHRASE_NAMESPACE_NONE;
+    char suggestion_outline[64] = {0};
     ok = ok && expect_size(
-        "passive phrase suggestion exists",
+        "FV phrase suggestion exists",
         phrasing_find_translation_outline(
             production_phrasing,
-            "he was not seen",
+            "he did not see",
             NULL,
             1,
-            &passive_suggestion_namespace,
-            passive_suggestion_outline,
-            sizeof(passive_suggestion_outline)),
+            &suggestion_namespace,
+            suggestion_outline,
+            sizeof(suggestion_outline)),
         PHRASE_LOOKUP_HIT
     );
     ok = ok && expect_size(
-        "passive phrase suggestion namespace",
-        passive_suggestion_namespace,
-        PHRASE_NAMESPACE_PASSIVE_FINAL_VERB
+        "FV phrase suggestion namespace",
+        suggestion_namespace,
+        PHRASE_NAMESPACE_FINAL_VERB
     );
+    ok = ok && expect_size("FV suggestion includes U marker", strchr(suggestion_outline, 'U') != NULL, 1);
+    ok = ok && expect_size(
+        "explicit FV verb suggestion exists",
+        phrasing_find_translation_outline(
+            production_phrasing,
+            "she was",
+            NULL,
+            1,
+            &suggestion_namespace,
+            suggestion_outline,
+            sizeof(suggestion_outline)),
+        PHRASE_LOOKUP_HIT
+    );
+    ok = ok && expect_string(
+        "explicit FV verb wins over implicit structure",
+        suggestion_outline,
+        "SKUBD"
+    );
+    ok = ok && expect_size(
+        "NV phrase suggestion exists",
+        phrasing_find_translation_outline(
+            production_phrasing,
+            "with a",
+            NULL,
+            1,
+            &suggestion_namespace,
+            suggestion_outline,
+            sizeof(suggestion_outline)),
+        PHRASE_LOOKUP_HIT
+    );
+    ok = ok && expect_size(
+        "NV phrase suggestion namespace",
+        suggestion_namespace,
+        PHRASE_NAMESPACE_NONVERB
+    );
+    ok = ok && expect_size("NV suggestion includes E marker", strchr(suggestion_outline, 'E') != NULL, 1);
+    ok = ok && expect_size("NV suggestion does not use number bar", strchr(suggestion_outline, '#') == NULL, 1);
     phrasing_destroy(production_phrasing);
 
     Orthography test_orthography = {0};

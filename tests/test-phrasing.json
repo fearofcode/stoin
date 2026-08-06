@@ -35,7 +35,7 @@
             "text": "was"
           },
           {
-            "stroke": "E",
+            "stroke": "A*E",
             "text": "are"
           },
           {
@@ -43,7 +43,7 @@
             "text": "were"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to be"
           },
           {
@@ -64,7 +64,7 @@
             "text": "had"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to have"
           },
           {
@@ -89,7 +89,7 @@
             "text": "said"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "say"
           },
           {
@@ -97,7 +97,7 @@
             "text": "saying"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to say"
           },
           {
@@ -122,7 +122,7 @@
             "text": "thought"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "think"
           },
           {
@@ -130,7 +130,7 @@
             "text": "thinking"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to think"
           },
           {
@@ -155,7 +155,7 @@
             "text": "told"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "tell"
           },
           {
@@ -163,7 +163,7 @@
             "text": "telling"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to tell"
           },
           {
@@ -188,7 +188,7 @@
             "text": "held"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "hold"
           },
           {
@@ -196,7 +196,7 @@
             "text": "holding"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to hold"
           },
           {
@@ -221,7 +221,7 @@
             "text": "sold"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "sell"
           },
           {
@@ -229,7 +229,7 @@
             "text": "selling"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to sell"
           },
           {
@@ -254,7 +254,7 @@
             "text": "spelled"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "spell"
           },
           {
@@ -262,7 +262,7 @@
             "text": "spelling"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to spell"
           },
           {
@@ -287,7 +287,7 @@
             "text": "kept"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "keep"
           },
           {
@@ -295,7 +295,7 @@
             "text": "keeping"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to keep"
           },
           {
@@ -320,7 +320,7 @@
             "text": "called"
           },
           {
-            "stroke": "E",
+            "stroke": "AE",
             "text": "call"
           },
           {
@@ -328,7 +328,7 @@
             "text": "calling"
           },
           {
-            "stroke": "U",
+            "stroke": "*E",
             "text": "to call"
           },
           {
@@ -344,52 +344,31 @@
     ]
   },
   "final_verbs": {
-    "contraction_stroke": "U",
     "starters": [
       {
         "stroke": "SWHR",
         "text": "I",
-        "agreement": "first_singular",
-        "be_contraction": "I'm",
-        "have_contraction": "I've",
-        "will_contraction": "I'll",
-        "d_contraction": "I'd"
+        "agreement": "first_singular"
       },
       {
         "stroke": "SKPWR",
         "text": "you",
-        "agreement": "plural",
-        "be_contraction": "you're",
-        "have_contraction": "you've",
-        "will_contraction": "you'll",
-        "d_contraction": "you'd"
+        "agreement": "plural"
       },
       {
         "stroke": "KWHR",
         "text": "he",
-        "agreement": "third_singular",
-        "be_contraction": "he's",
-        "have_contraction": "he's",
-        "will_contraction": "he'll",
-        "d_contraction": "he'd"
+        "agreement": "third_singular"
       },
       {
         "stroke": "SKWHR",
         "text": "she",
-        "agreement": "third_singular",
-        "be_contraction": "she's",
-        "have_contraction": "she's",
-        "will_contraction": "she'll",
-        "d_contraction": "she'd"
+        "agreement": "third_singular"
       },
       {
         "stroke": "TKWH",
         "text": "they",
-        "agreement": "plural",
-        "be_contraction": "they're",
-        "have_contraction": "they've",
-        "will_contraction": "they'll",
-        "d_contraction": "they'd"
+        "agreement": "plural"
       }
     ],
     "operators": [

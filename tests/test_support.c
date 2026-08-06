@@ -137,10 +137,28 @@ bool handle_phrase_test_stroke(Steno *steno, const char *stroke)
 
     const bool ok = steno_handle_stroke(steno, ((Stroke_Input) {
         .bits = bits,
-        .phrase_namespace = PHRASE_NAMESPACE_INITIAL_VERB,
+        .phrase_active = true,
     }));
     if (!ok) {
         fprintf(stderr, "test failed: phrase stroke '%s' was not handled\n", stroke);
+    }
+    return ok;
+}
+
+bool handle_nonverb_phrase_test_stroke(Steno *steno, const char *stroke)
+{
+    uint64_t bits = 0;
+    if (!stroke_string_to_bits(stroke, &bits)) {
+        fprintf(stderr, "test failed: could not parse nonverb phrase stroke '%s'\n", stroke);
+        return false;
+    }
+
+    const bool ok = steno_handle_stroke(steno, ((Stroke_Input) {
+        .bits = bits | steno_bit(STENO_E),
+        .phrase_active = true,
+    }));
+    if (!ok) {
+        fprintf(stderr, "test failed: nonverb phrase stroke '%s' was not handled\n", stroke);
     }
     return ok;
 }

@@ -140,8 +140,6 @@ static const char *suggestion_source_name(Phrase_Namespace namespace)
         return "initial verb";
     case PHRASE_NAMESPACE_FINAL_VERB:
         return "final verb";
-    case PHRASE_NAMESPACE_PASSIVE_FINAL_VERB:
-        return "passive final verb";
     case PHRASE_NAMESPACE_NONVERB:
         return "non verb";
     case PHRASE_NAMESPACE_NONE:
@@ -157,8 +155,6 @@ static const char *suggestion_source_id(Phrase_Namespace namespace)
         return "initial_verb";
     case PHRASE_NAMESPACE_FINAL_VERB:
         return "final_verb";
-    case PHRASE_NAMESPACE_PASSIVE_FINAL_VERB:
-        return "passive_final_verb";
     case PHRASE_NAMESPACE_NONVERB:
         return "non_verb";
     case PHRASE_NAMESPACE_NONE:

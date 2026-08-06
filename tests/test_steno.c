@@ -162,7 +162,7 @@ int main(void)
     ok = ok && stroke_string_to_bits("PW", &stitch_b_bits);
     ok = ok && stroke_string_to_bits("KR", &stitch_c_bits);
     ok = ok && stroke_string_to_bits("TEFT", &test_bits);
-    ok = ok && stroke_string_to_bits("#KW", &phrase_fallback_test_bits);
+    ok = ok && stroke_string_to_bits("#U", &phrase_fallback_test_bits);
     ok = ok && stroke_string_to_bits("AOEU", &eye_bits);
     ok = ok && stroke_string_to_bits("TO", &to_bits);
     ok = ok && stroke_string_to_bits("H-PB", &hyphen_bits);
@@ -222,24 +222,24 @@ int main(void)
     reset_output_log(&output);
     ok = ok && handle_test_stroke(steno, "PW-B");
     ok = ok && expect_string(
-        "ordinary dictionary namespace ignores phrase tables",
+        "ordinary dictionary input ignores phrase tables",
         output.text,
         "dictionary is a");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, true);
+    steno_set_phrase_active(steno, true);
     ok = ok && handle_test_stroke(steno, "PW-B");
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, false);
-    ok = ok && expect_string("initial verb key selects IV", output.text, "is a");
+    steno_set_phrase_active(steno, false);
+    ok = ok && expect_string("unmarked phrase stroke selects IV", output.text, "is a");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, true);
+    steno_set_phrase_active(steno, true);
     ok = ok && handle_test_stroke(steno, "PH-B");
     ok = ok && handle_test_stroke(steno, "PH-BL");
     ok = ok && handle_test_stroke(steno, "T-B");
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, false);
+    steno_set_phrase_active(steno, false);
     ok = ok && expect_string(
         "mnemonic IV stems remain disjoint from shared tails",
         output.text,
@@ -247,16 +247,16 @@ int main(void)
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, true);
+    steno_set_phrase_active(steno, true);
     ok = ok && handle_test_stroke(steno, "STHR");
     ok = ok && handle_test_stroke(steno, "STHR-D");
-    ok = ok && handle_test_stroke(steno, "STHRE");
+    ok = ok && handle_test_stroke(steno, "STHRAE");
     ok = ok && handle_test_stroke(steno, "STHR*");
-    ok = ok && handle_test_stroke(steno, "STHRU");
+    ok = ok && handle_test_stroke(steno, "STHR*E");
     ok = ok && handle_test_stroke(steno, "STHRA");
     ok = ok && handle_test_stroke(steno, "STHRA-D");
     ok = ok && handle_test_stroke(steno, "STHR-T");
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, false);
+    steno_set_phrase_active(steno, false);
     ok = ok && expect_string(
         "steal IV stem forms and shared tails",
         output.text,
@@ -264,16 +264,16 @@ int main(void)
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, true);
+    steno_set_phrase_active(steno, true);
     ok = ok && handle_test_stroke(steno, "SH");
     ok = ok && handle_test_stroke(steno, "SH-D");
-    ok = ok && handle_test_stroke(steno, "SHE");
+    ok = ok && handle_test_stroke(steno, "SHAE");
     ok = ok && handle_test_stroke(steno, "SH*");
-    ok = ok && handle_test_stroke(steno, "SHU");
+    ok = ok && handle_test_stroke(steno, "SH*E");
     ok = ok && handle_test_stroke(steno, "SHA");
     ok = ok && handle_test_stroke(steno, "SHA-D");
     ok = ok && handle_test_stroke(steno, "SH-RP");
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, false);
+    steno_set_phrase_active(steno, false);
     ok = ok && expect_string(
         "show IV stem forms and shared tails",
         output.text,
@@ -281,9 +281,21 @@ int main(void)
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, true);
-    ok = ok && handle_test_stroke(steno, "STWHR-B");
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, false);
+    steno_set_phrase_active(steno, true);
+    ok = ok && handle_test_stroke(steno, "PWA*E-B");
+    ok = ok && handle_test_stroke(steno, "PWAE-B");
+    ok = ok && handle_test_stroke(steno, "PWE-BD");
+    steno_set_phrase_active(steno, false);
+    ok = ok && expect_string(
+        "E-marked NV lookup falls back to disambiguated IV forms",
+        output.text,
+        "are a be a were a");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    steno_set_phrase_active(steno, true);
+    ok = ok && handle_test_stroke(steno, "STWHRU-B");
+    steno_set_phrase_active(steno, false);
     ok = ok && expect_string(
         "those is a plural FV starter",
         output.text,
@@ -291,85 +303,66 @@ int main(void)
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, true);
-    ok = ok && handle_test_stroke(steno, "STWHR");
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, false);
+    steno_set_phrase_active(steno, true);
+    ok = ok && handle_nonverb_phrase_test_stroke(steno, "STWHR");
+    steno_set_phrase_active(steno, false);
     ok = ok && expect_string("those is an NV prefix", output.text, "those");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, true);
-    ok = ok && handle_test_stroke(steno, "SK-B");
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, false);
-    ok = ok && expect_string("final verb key selects FV", output.text, "she is");
+    steno_set_phrase_active(steno, true);
+    ok = ok && handle_test_stroke(steno, "SKU-B");
+    steno_set_phrase_active(steno, false);
+    ok = ok && expect_string("U marker selects FV", output.text, "she is");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, true);
-    ok = ok && handle_test_stroke(steno, "K*");
+    steno_set_phrase_active(steno, true);
     ok = ok && handle_test_stroke(steno, "K*U");
-    ok = ok && handle_test_stroke(steno, "K*-D");
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, false);
+    ok = ok && handle_test_stroke(steno, "K*U-D");
+    steno_set_phrase_active(steno, false);
     ok = ok && expect_string(
         "auxiliary-only do negatives",
         output.text,
-        "he does not he doesn't he did not");
+        "he does not he did not");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, true);
-    ok = ok && handle_test_stroke(steno, "K*-SD");
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, false);
-    ok = ok && expect_string("active FV remains distinct from passive FV", output.text, "he did not see");
-
-    ok = ok && reset_test_steno(&steno, &config);
-    clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, true);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, true);
-    ok = ok && handle_test_stroke(steno, "K*-SD");
+    steno_set_phrase_active(steno, true);
     ok = ok && handle_test_stroke(steno, "K*U-SD");
-    ok = ok && handle_test_stroke(steno, "K*E-SD");
-    ok = ok && handle_test_stroke(steno, "K*-FSD");
-    ok = ok && handle_test_stroke(steno, "KA*-S");
-    ok = ok && handle_test_stroke(steno, "KA*U-S");
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, false);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, false);
-    ok = ok && expect_string(
-        "passive final verb voice",
-        output.text,
-        "he was not seen he wasn't seen he was not being seen"
-        " he had not been seen he cannot be seen he can't be seen");
+    steno_set_phrase_active(steno, false);
+    ok = ok && expect_string("active FV long form", output.text, "he did not see");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, true);
-    ok = ok && handle_test_stroke(steno, "WH-B");
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, false);
-    ok = ok && expect_string("nonverb key selects NV", output.text, "with a");
+    steno_set_phrase_active(steno, true);
+    ok = ok && handle_nonverb_phrase_test_stroke(steno, "WH-B");
+    steno_set_phrase_active(steno, false);
+    ok = ok && expect_string("E marker selects NV", output.text, "with a");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, true);
+    steno_set_phrase_active(steno, true);
     ok = ok && handle_test_stroke(steno, "SK-B");
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, false);
+    steno_set_phrase_active(steno, false);
     ok = ok && expect_string("same chord has IV meaning", output.text, "asks a");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, true);
-    ok = ok && handle_test_stroke(steno, "SK-B");
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, false);
+    steno_set_phrase_active(steno, true);
+    ok = ok && handle_nonverb_phrase_test_stroke(steno, "SK-B");
+    steno_set_phrase_active(steno, false);
     ok = ok && expect_string("same chord has NV meaning", output.text, "she a");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, true);
-    ok = ok && handle_test_stroke(steno, "SHOPB");
-    ok = ok && handle_test_stroke(steno, "TPH-R");
-    ok = ok && handle_test_stroke(steno, "TPH-Z");
-    ok = ok && handle_test_stroke(steno, "TPH-PB");
-    ok = ok && handle_test_stroke(steno, "PHR");
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, false);
+    steno_set_phrase_active(steno, true);
+    ok = ok && handle_nonverb_phrase_test_stroke(steno, "SHOPB");
+    ok = ok && handle_nonverb_phrase_test_stroke(steno, "TPH-R");
+    ok = ok && handle_nonverb_phrase_test_stroke(steno, "TPH-Z");
+    ok = ok && handle_nonverb_phrase_test_stroke(steno, "TPH-PB");
+    ok = ok && handle_nonverb_phrase_test_stroke(steno, "PHR");
+    steno_set_phrase_active(steno, false);
     ok = ok && expect_string(
         "mnemonic NV in only and on phrases",
         output.text,
@@ -377,34 +370,34 @@ int main(void)
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, true);
-    ok = ok && handle_test_stroke(steno, "PHR-FR");
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, false);
+    steno_set_phrase_active(steno, true);
+    ok = ok && handle_nonverb_phrase_test_stroke(steno, "PHR-FR");
+    steno_set_phrase_active(steno, false);
     ok = ok && expect_string("for is an NV tail", output.text, "only for");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, true);
+    steno_set_phrase_active(steno, true);
     ok = ok && handle_test_stroke(steno, "TW-FR");
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, false);
+    steno_set_phrase_active(steno, false);
     ok = ok && expect_string("for is an IV tail", output.text, "looks for");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, true);
-    ok = ok && handle_test_stroke(steno, "STPHO");
-    ok = ok && handle_test_stroke(steno, "STPHOR");
-    ok = ok && handle_test_stroke(steno, "STPHOPBL");
-    ok = ok && handle_test_stroke(steno, "STPHOLS");
-    ok = ok && handle_test_stroke(steno, "STPH-PBLG");
-    ok = ok && handle_test_stroke(steno, "STPH-LTS");
-    ok = ok && handle_test_stroke(steno, "STPHOFT");
-    ok = ok && handle_test_stroke(steno, "STPH-FRT");
-    ok = ok && handle_test_stroke(steno, "STPHORT");
-    ok = ok && handle_test_stroke(steno, "STPHOPBT");
-    ok = ok && handle_test_stroke(steno, "STPH-PBLS");
-    ok = ok && handle_test_stroke(steno, "STPH-RGT");
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, false);
+    steno_set_phrase_active(steno, true);
+    ok = ok && handle_nonverb_phrase_test_stroke(steno, "STPHO");
+    ok = ok && handle_nonverb_phrase_test_stroke(steno, "STPHOR");
+    ok = ok && handle_nonverb_phrase_test_stroke(steno, "STPHOPBL");
+    ok = ok && handle_nonverb_phrase_test_stroke(steno, "STPHOLS");
+    ok = ok && handle_nonverb_phrase_test_stroke(steno, "STPH-PBLG");
+    ok = ok && handle_nonverb_phrase_test_stroke(steno, "STPH-LTS");
+    ok = ok && handle_nonverb_phrase_test_stroke(steno, "STPHOFT");
+    ok = ok && handle_nonverb_phrase_test_stroke(steno, "STPH-FRT");
+    ok = ok && handle_nonverb_phrase_test_stroke(steno, "STPHORT");
+    ok = ok && handle_nonverb_phrase_test_stroke(steno, "STPHOPBT");
+    ok = ok && handle_nonverb_phrase_test_stroke(steno, "STPH-PBLS");
+    ok = ok && handle_nonverb_phrase_test_stroke(steno, "STPH-RGT");
+    steno_set_phrase_active(steno, false);
     ok = ok && expect_string(
         "expanded mnemonic NV tails",
         output.text,
@@ -413,12 +406,12 @@ int main(void)
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, true);
+    steno_set_phrase_active(steno, true);
     ok = ok && handle_test_stroke(steno, "WO");
     ok = ok && handle_test_stroke(steno, "PW-LTS");
     ok = ok && handle_test_stroke(steno, "PWOFT");
     ok = ok && handle_test_stroke(steno, "PW-RGT");
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, false);
+    steno_set_phrase_active(steno, false);
     ok = ok && expect_string(
         "expanded mnemonic IV tails",
         output.text,
@@ -426,11 +419,11 @@ int main(void)
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, true);
-    ok = ok && handle_test_stroke(steno, "SKH-RT");
-    ok = ok && handle_test_stroke(steno, "SR-FPS");
-    ok = ok && handle_test_stroke(steno, "SKH-FPS");
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, false);
+    steno_set_phrase_active(steno, true);
+    ok = ok && handle_nonverb_phrase_test_stroke(steno, "SKH-RT");
+    ok = ok && handle_nonverb_phrase_test_stroke(steno, "SR-FPS");
+    ok = ok && handle_nonverb_phrase_test_stroke(steno, "SKH-FPS");
+    steno_set_phrase_active(steno, false);
     ok = ok && expect_string(
         "such works on both sides of NV",
         output.text,
@@ -438,25 +431,25 @@ int main(void)
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, true);
+    steno_set_phrase_active(steno, true);
     ok = ok && handle_test_stroke(steno, "S-FPS");
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, false);
+    steno_set_phrase_active(steno, false);
     ok = ok && expect_string("such is an IV tail", output.text, "sees such");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, true);
-    ok = ok && handle_test_stroke(steno, "SKH-BGS");
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, false);
+    steno_set_phrase_active(steno, true);
+    ok = ok && handle_test_stroke(steno, "SKHU-BGS");
+    steno_set_phrase_active(steno, false);
     ok = ok && expect_string("such is an FV starter", output.text, "such says");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, true);
-    ok = ok && handle_test_stroke(steno, "TKPR-RT");
-    ok = ok && handle_test_stroke(steno, "SKWR-FRB");
-    ok = ok && handle_test_stroke(steno, "SKWROFR");
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, false);
+    steno_set_phrase_active(steno, true);
+    ok = ok && handle_nonverb_phrase_test_stroke(steno, "TKPR-RT");
+    ok = ok && handle_nonverb_phrase_test_stroke(steno, "SKWR-FRB");
+    ok = ok && handle_nonverb_phrase_test_stroke(steno, "SKWROFR");
+    steno_set_phrase_active(steno, false);
     ok = ok && expect_string(
         "before works on both sides of NV and over is remapped",
         output.text,
@@ -464,10 +457,10 @@ int main(void)
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, true);
+    steno_set_phrase_active(steno, true);
     ok = ok && handle_test_stroke(steno, "TKPW-FRB");
     ok = ok && handle_test_stroke(steno, "TKPWOFR");
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, false);
+    steno_set_phrase_active(steno, false);
     ok = ok && expect_string(
         "before and remapped over are IV tails",
         output.text,
@@ -475,134 +468,50 @@ int main(void)
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, true);
-    ok = ok && handle_test_stroke(steno, "TKPR-BGS");
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, false);
+    steno_set_phrase_active(steno, true);
+    ok = ok && handle_test_stroke(steno, "TKPRU-BGS");
+    steno_set_phrase_active(steno, false);
     ok = ok && expect_string("before is an FV starter", output.text, "before says");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, true);
+    steno_set_phrase_active(steno, true);
     ok = ok && handle_test_stroke(steno, "PWOPB");
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, false);
+    steno_set_phrase_active(steno, false);
     ok = ok && expect_string("on is a shared IV tail", output.text, "is on");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, true);
-    ok = ok && handle_test_stroke(steno, "SWHR-B");
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, false);
-    ok = ok && expect_string(
-        "initial verb key falls back to final verb before NV",
-        output.text,
-        "also is");
-
-    ok = ok && reset_test_steno(&steno, &config);
-    clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, true);
-    ok = ok && handle_test_stroke(steno, "WH-PLT");
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, false);
-    ok = ok && expect_string(
-        "initial verb key falls back to NV",
-        output.text,
-        "with them");
-
-    ok = ok && reset_test_steno(&steno, &config);
-    clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, true);
-    ok = ok && handle_test_stroke(steno, "THR-B");
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, false);
-    ok = ok && expect_string(
-        "final verb key falls back to initial verb",
-        output.text,
-        "tells a");
-
-    ok = ok && reset_test_steno(&steno, &config);
-    clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, true);
-    ok = ok && handle_test_stroke(steno, "WH-PLT");
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, false);
-    ok = ok && expect_string(
-        "final verb key falls back to NV",
-        output.text,
-        "with them");
-
-    ok = ok && reset_test_steno(&steno, &config);
-    clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, true);
-    ok = ok && handle_test_stroke(steno, "THR-B");
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, false);
-    ok = ok && expect_string(
-        "nonverb key falls back to initial verb before final verb",
-        output.text,
-        "tells a");
-
-    ok = ok && reset_test_steno(&steno, &config);
-    clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, true);
-    ok = ok && handle_test_stroke(steno, "SWHRA-B");
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, false);
-    ok = ok && expect_string(
-        "nonverb key falls back to final verb",
-        output.text,
-        "also can be");
-
-    ok = ok && reset_test_steno(&steno, &config);
-    clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, true);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, false);
+    steno_set_phrase_active(steno, true);
+    steno_set_phrase_active(steno, false);
     ok = ok && handle_test_stroke(steno, "PW-T");
     ok = ok && expect_string("phrase key tap arms the next stroke", output.text, "is the");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, true);
+    steno_set_phrase_active(steno, true);
     ok = ok && handle_test_stroke(steno, "PW-B");
     ok = ok && handle_test_stroke(steno, "PW-T");
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, false);
+    steno_set_phrase_active(steno, false);
     ok = ok && expect_string("held phrase key applies to consecutive strokes", output.text, "is a is the");
     ok = ok && steno_handle_stroke_bits(steno, undo_bits);
     ok = ok && expect_string("phrase output participates in undo", output.text, "is a");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, true);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, true);
-    ok = ok && handle_test_stroke(steno, "SK-B");
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, false);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, false);
-    ok = ok && expect_string(
-        "initial and final phrase keys select NV",
-        output.text,
-        "she a");
-
-    ok = ok && reset_test_steno(&steno, &config);
-    clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, true);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, false);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, true);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, false);
-    ok = ok && handle_test_stroke(steno, "SK-B");
-    ok = ok && expect_string(
-        "tapped initial and final phrase keys select NV",
-        output.text,
-        "she a");
-
-    ok = ok && reset_test_steno(&steno, &config);
-    clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, true);
+    steno_set_phrase_active(steno, true);
     ok = ok && steno_handle_stroke(steno, ((Stroke_Input) {
         .bits = phrase_fallback_test_bits,
     }));
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, false);
+    steno_set_phrase_active(steno, false);
     ok = ok && expect_string("phrase key miss falls back to dictionary", output.text, "test");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, true);
+    steno_set_phrase_active(steno, true);
     ok = ok && handle_test_stroke(steno, "#*-6R");
     ok = ok && handle_test_stroke(steno, "TKPWRA-PBD");
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, false);
+    steno_set_phrase_active(steno, false);
     ok = ok && expect_string(
         "phrase key misses preserve multi-stroke dictionary lookup",
         output.text,
@@ -612,12 +521,12 @@ int main(void)
     clear_test_output(&output);
     ok = ok && steno_handle_stroke(steno, ((Stroke_Input) {
         .bits = phrase_is_a_bits,
-        .phrase_namespace = PHRASE_NAMESPACE_INITIAL_VERB,
+        .phrase_active = true,
     }));
     ok = ok && steno_handle_stroke_bits(steno, phrase_fallback_test_bits);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, true);
-    ok = ok && handle_test_stroke(steno, "WH-B");
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_NONVERB, false);
+    steno_set_phrase_active(steno, true);
+    ok = ok && handle_nonverb_phrase_test_stroke(steno, "WH-B");
+    steno_set_phrase_active(steno, false);
     ok = ok && expect_string(
         "keyed phrases and dictionary words interleave",
         output.text,
@@ -625,7 +534,7 @@ int main(void)
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, true);
+    steno_set_phrase_active(steno, true);
     steno_set_session_active(steno, false);
     steno_set_session_active(steno, true);
     ok = ok && handle_test_stroke(steno, "PW-B");
@@ -641,40 +550,23 @@ int main(void)
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, true);
+    steno_set_phrase_active(steno, true);
     ok = ok && send_key_event(steno, "c", true);
     ok = ok && send_key_event(steno, "k", true);
     ok = ok && send_key_event(steno, "c", false);
     ok = ok && send_key_event(steno, "k", false);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, false);
+    steno_set_phrase_active(steno, false);
     ok = ok && expect_string("qwerty chord uses held IV key", output.text, "is a");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
     ok = ok && send_key_event(steno, "c", true);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, true);
+    steno_set_phrase_active(steno, true);
     ok = ok && send_key_event(steno, "k", true);
     ok = ok && send_key_event(steno, "c", false);
     ok = ok && send_key_event(steno, "k", false);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, false);
+    steno_set_phrase_active(steno, false);
     ok = ok && expect_string("phrase key press during qwerty chord selects IV", output.text, "is a");
-
-    ok = ok && reset_test_steno(&steno, &config);
-    clear_test_output(&output);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, true);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_INITIAL_VERB, false);
-    ok = ok && send_key_event(steno, "a", true);
-    ok = ok && send_key_event(steno, "s", true);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, true);
-    steno_set_phrase_namespace(steno, PHRASE_NAMESPACE_FINAL_VERB, false);
-    ok = ok && send_key_event(steno, "k", true);
-    ok = ok && send_key_event(steno, "a", false);
-    ok = ok && send_key_event(steno, "s", false);
-    ok = ok && send_key_event(steno, "k", false);
-    ok = ok && expect_string(
-        "initial and final keys pressed across qwerty chord select NV",
-        output.text,
-        "she a");
 
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);

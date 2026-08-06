@@ -12,28 +12,29 @@
 
 #include "../third_party/stb_ds.h"
 
-Phrase_Namespace phrase_namespace_from_active_keys(
-    bool initial_verb,
-    bool final_verb,
-    bool nonverb
+bool phrasing_decode_stroke(
+    uint64_t encoded_bits,
+    Phrase_Namespace *out_namespace,
+    uint64_t *out_phrase_bits
 )
 {
-    if (initial_verb && final_verb) {
-        return PHRASE_NAMESPACE_NONVERB;
+    if (out_namespace == NULL || out_phrase_bits == NULL || encoded_bits == 0) {
+        return false;
     }
-    if (final_verb && nonverb) {
-        return PHRASE_NAMESPACE_PASSIVE_FINAL_VERB;
+
+    const uint64_t final_verb_marker = steno_bit(STENO_U);
+    const uint64_t nonverb_marker = steno_bit(STENO_E);
+    if ((encoded_bits & final_verb_marker) != 0) {
+        *out_namespace = PHRASE_NAMESPACE_FINAL_VERB;
+        *out_phrase_bits = encoded_bits & ~final_verb_marker;
+    } else if ((encoded_bits & nonverb_marker) != 0) {
+        *out_namespace = PHRASE_NAMESPACE_NONVERB;
+        *out_phrase_bits = encoded_bits & ~nonverb_marker;
+    } else {
+        *out_namespace = PHRASE_NAMESPACE_INITIAL_VERB;
+        *out_phrase_bits = encoded_bits;
     }
-    if (initial_verb && !final_verb && !nonverb) {
-        return PHRASE_NAMESPACE_INITIAL_VERB;
-    }
-    if (final_verb && !initial_verb && !nonverb) {
-        return PHRASE_NAMESPACE_FINAL_VERB;
-    }
-    if (nonverb && !initial_verb && !final_verb) {
-        return PHRASE_NAMESPACE_NONVERB;
-    }
-    return PHRASE_NAMESPACE_NONE;
+    return *out_phrase_bits != 0;
 }
 
 static bool append_word(char **out, const char *word)
@@ -158,48 +159,6 @@ static const char *fv_modal_word(Fv_Modal modal, bool past, bool negative)
     }
 }
 
-static const char *fv_modal_negative_contraction(Fv_Modal modal, bool past)
-{
-    switch (modal) {
-    case FV_MODAL_CAN:
-        return past ? "couldn't" : "can't";
-    case FV_MODAL_SHOULD:
-        return "shouldn't";
-    case FV_MODAL_WILL:
-        return past ? "wouldn't" : "won't";
-    case FV_MODAL_NONE:
-    default:
-        return NULL;
-    }
-}
-
-static const char *fv_be_negative_contraction(const Fv_Starter *starter, bool past)
-{
-    if (past) {
-        return starter->agreement == FV_AGREEMENT_PLURAL ? "weren't" : "wasn't";
-    }
-    if (starter->agreement == FV_AGREEMENT_FIRST_SINGULAR) {
-        return NULL;
-    }
-    return starter->agreement == FV_AGREEMENT_PLURAL ? "aren't" : "isn't";
-}
-
-static const char *fv_have_negative_contraction(const Fv_Starter *starter, bool past)
-{
-    if (past) {
-        return "hadn't";
-    }
-    return starter->agreement == FV_AGREEMENT_THIRD_SINGULAR ? "hasn't" : "haven't";
-}
-
-static const char *fv_do_negative_contraction(const Fv_Starter *starter, bool past)
-{
-    if (past) {
-        return "didn't";
-    }
-    return starter->agreement == FV_AGREEMENT_THIRD_SINGULAR ? "doesn't" : "don't";
-}
-
 static bool append_verb_and_suffix(char **text, const char *verb, const char *suffix)
 {
     return append_word(text, verb) && append_word(text, suffix);
@@ -208,37 +167,10 @@ static bool append_verb_and_suffix(char **text, const char *verb, const char *su
 static bool append_modal_complement(
     char **text,
     Fv_Structure structure,
-    const Fv_Ender *ender,
-    bool passive
+    const Fv_Ender *ender
 )
 {
     const bool has_verb = ender->verb != NULL;
-    if (passive) {
-        if (!has_verb) {
-            return false;
-        }
-        switch (structure) {
-        case FV_STRUCTURE_SIMPLE:
-            return append_word(text, "be")
-                && append_verb_and_suffix(text, ender->verb->past_participle, ender->suffix);
-        case FV_STRUCTURE_PROGRESSIVE:
-            return append_word(text, "be")
-                && append_word(text, "being")
-                && append_verb_and_suffix(text, ender->verb->past_participle, ender->suffix);
-        case FV_STRUCTURE_PERFECT:
-            return append_word(text, "have")
-                && append_word(text, "been")
-                && append_verb_and_suffix(text, ender->verb->past_participle, ender->suffix);
-        case FV_STRUCTURE_PERFECT_PROGRESSIVE:
-            return append_word(text, "have")
-                && append_word(text, "been")
-                && append_word(text, "being")
-                && append_verb_and_suffix(text, ender->verb->past_participle, ender->suffix);
-        default:
-            return false;
-        }
-    }
-
     switch (structure) {
     case FV_STRUCTURE_SIMPLE:
         return !has_verb || append_verb_and_suffix(text, ender->verb->base, ender->suffix);
@@ -257,47 +189,16 @@ static bool append_modal_complement(
     }
 }
 
-static bool append_passive_finite_complement(
-    char **text,
-    Fv_Structure structure,
-    const Fv_Ender *ender
-)
-{
-    if (ender->verb == NULL) {
-        return false;
-    }
-    switch (structure) {
-    case FV_STRUCTURE_SIMPLE:
-        return append_verb_and_suffix(text, ender->verb->past_participle, ender->suffix);
-    case FV_STRUCTURE_PROGRESSIVE:
-        return append_word(text, "being")
-            && append_verb_and_suffix(text, ender->verb->past_participle, ender->suffix);
-    case FV_STRUCTURE_PERFECT:
-        return append_word(text, "been")
-            && append_verb_and_suffix(text, ender->verb->past_participle, ender->suffix);
-    case FV_STRUCTURE_PERFECT_PROGRESSIVE:
-        return append_word(text, "been")
-            && append_word(text, "being")
-            && append_verb_and_suffix(text, ender->verb->past_participle, ender->suffix);
-    default:
-        return false;
-    }
-}
-
 static bool build_fv_long(
     const Fv_Starter *starter,
     Fv_Operator operator,
     Fv_Structure structure,
     const Fv_Ender *ender,
-    bool passive,
     char **out
 )
 {
     const bool has_verb = ender->verb != NULL;
-    if (passive && !has_verb) {
-        return false;
-    }
-    if (!passive && operator.modal == FV_MODAL_NONE && structure == FV_STRUCTURE_SIMPLE && !has_verb) {
+    if (operator.modal == FV_MODAL_NONE && structure == FV_STRUCTURE_SIMPLE && !has_verb) {
         return operator.negative
             && append_word(out, starter->text)
             && append_word(out, fv_do_word(starter, ender->past))
@@ -310,17 +211,7 @@ static bool build_fv_long(
 
     if (operator.modal != FV_MODAL_NONE) {
         return append_word(out, fv_modal_word(operator.modal, ender->past, operator.negative))
-            && append_modal_complement(out, structure, ender, passive);
-    }
-
-    if (passive) {
-        const char *auxiliary = structure == FV_STRUCTURE_SIMPLE
-                || structure == FV_STRUCTURE_PROGRESSIVE
-            ? fv_be_word(starter, ender->past)
-            : fv_have_word(starter, ender->past);
-        return append_word(out, auxiliary)
-            && (!operator.negative || append_word(out, "not"))
-            && append_passive_finite_complement(out, structure, ender);
+            && append_modal_complement(out, structure, ender);
     }
 
     switch (structure) {
@@ -351,157 +242,9 @@ static bool build_fv_long(
     }
 }
 
-static bool append_be_contraction_complement(
-    char **text,
-    Fv_Structure structure,
-    const Fv_Ender *ender,
-    bool passive
-)
-{
-    const bool has_verb = ender->verb != NULL;
-    if (passive) {
-        if (!has_verb) {
-            return false;
-        }
-        if (structure == FV_STRUCTURE_SIMPLE) {
-            return append_verb_and_suffix(text, ender->verb->past_participle, ender->suffix);
-        }
-        if (structure == FV_STRUCTURE_PROGRESSIVE) {
-            return append_word(text, "being")
-                && append_verb_and_suffix(text, ender->verb->past_participle, ender->suffix);
-        }
-        return false;
-    }
-    if (structure == FV_STRUCTURE_SIMPLE && ender->verb != NULL && ender->verb->kind == FV_VERB_BE) {
-        return append_word(text, ender->suffix);
-    }
-    if (structure == FV_STRUCTURE_PROGRESSIVE) {
-        return !has_verb || append_verb_and_suffix(text, ender->verb->present_participle, ender->suffix);
-    }
-    return false;
-}
-
-static bool append_have_contraction_complement(
-    char **text,
-    Fv_Structure structure,
-    const Fv_Ender *ender,
-    bool passive
-)
-{
-    const bool has_verb = ender->verb != NULL;
-    if (passive) {
-        if (!has_verb) {
-            return false;
-        }
-        if (structure == FV_STRUCTURE_PERFECT) {
-            return append_word(text, "been")
-                && append_verb_and_suffix(text, ender->verb->past_participle, ender->suffix);
-        }
-        if (structure == FV_STRUCTURE_PERFECT_PROGRESSIVE) {
-            return append_word(text, "been")
-                && append_word(text, "being")
-                && append_verb_and_suffix(text, ender->verb->past_participle, ender->suffix);
-        }
-        return false;
-    }
-    if (structure == FV_STRUCTURE_PERFECT) {
-        return !has_verb || append_verb_and_suffix(text, ender->verb->past_participle, ender->suffix);
-    }
-    if (structure == FV_STRUCTURE_PERFECT_PROGRESSIVE) {
-        return append_word(text, "been")
-            && (!has_verb || append_verb_and_suffix(text, ender->verb->present_participle, ender->suffix));
-    }
-    return false;
-}
-
-static bool build_fv_contraction(
-    const Fv_Starter *starter,
-    Fv_Operator operator,
-    Fv_Structure structure,
-    const Fv_Ender *ender,
-    bool passive,
-    char **out
-)
-{
-    if (passive && ender->verb == NULL) {
-        return false;
-    }
-    if (operator.modal != FV_MODAL_NONE) {
-        if (operator.negative) {
-            const char *modal = fv_modal_negative_contraction(operator.modal, ender->past);
-            return modal != NULL
-                && append_word(out, starter->text)
-                && append_word(out, modal)
-                && append_modal_complement(out, structure, ender, passive);
-        }
-        if (operator.modal == FV_MODAL_WILL) {
-            const char *contraction = ender->past ? starter->d_contraction : starter->will_contraction;
-            return contraction != NULL
-                && append_word(out, contraction)
-                && append_modal_complement(out, structure, ender, passive);
-        }
-        return false;
-    }
-
-    if (!passive && operator.negative && structure == FV_STRUCTURE_SIMPLE && ender->verb == NULL) {
-        return append_word(out, starter->text)
-            && append_word(out, fv_do_negative_contraction(starter, ender->past));
-    }
-
-    if (!passive
-        && operator.negative
-        && structure == FV_STRUCTURE_SIMPLE
-        && ender->verb != NULL
-        && ender->verb->kind != FV_VERB_BE) {
-        return append_word(out, starter->text)
-            && append_word(out, fv_do_negative_contraction(starter, ender->past))
-            && append_verb_and_suffix(out, ender->verb->base, ender->suffix);
-    }
-
-    const bool uses_be_contraction = structure == FV_STRUCTURE_PROGRESSIVE
-        || (structure == FV_STRUCTURE_SIMPLE
-            && (passive || (ender->verb != NULL && ender->verb->kind == FV_VERB_BE)));
-    if (operator.negative && uses_be_contraction) {
-        if (starter->agreement == FV_AGREEMENT_FIRST_SINGULAR && !ender->past) {
-            return starter->be_contraction != NULL
-                && append_word(out, starter->be_contraction)
-                && append_word(out, "not")
-                && append_be_contraction_complement(out, structure, ender, passive);
-        }
-        const char *negative = fv_be_negative_contraction(starter, ender->past);
-        return negative != NULL
-            && append_word(out, starter->text)
-            && append_word(out, negative)
-            && append_be_contraction_complement(out, structure, ender, passive);
-    }
-
-    if (!operator.negative && !ender->past && uses_be_contraction) {
-        return starter->be_contraction != NULL
-            && append_word(out, starter->be_contraction)
-            && append_be_contraction_complement(out, structure, ender, passive);
-    }
-
-    if (structure == FV_STRUCTURE_PERFECT || structure == FV_STRUCTURE_PERFECT_PROGRESSIVE) {
-        if (operator.negative) {
-            const char *negative = fv_have_negative_contraction(starter, ender->past);
-            return negative != NULL
-                && append_word(out, starter->text)
-                && append_word(out, negative)
-                && append_have_contraction_complement(out, structure, ender, passive);
-        }
-        const char *contraction = ender->past ? starter->d_contraction : starter->have_contraction;
-        return contraction != NULL
-            && append_word(out, contraction)
-            && append_have_contraction_complement(out, structure, ender, passive);
-    }
-
-    return false;
-}
-
 static Phrase_Lookup_Result lookup_final_verb(
     const Phrasing *phrasing,
     uint64_t bits,
-    bool passive,
     char **out_utf8
 )
 {
@@ -514,27 +257,17 @@ static Phrase_Lookup_Result lookup_final_verb(
                 for (size_t m = 0; m < arrlenu(phrasing->fv_enders); ++m) {
                     const Fv_Ender *ender = &phrasing->fv_enders[m];
                     const uint64_t long_bits = starter->bits | operator.bits | structure->bits | ender->bits;
-                    const bool contraction = bits == (long_bits | phrasing->contraction_bits);
-                    if (bits != long_bits && !contraction) {
+                    if (bits != long_bits) {
                         continue;
                     }
 
                     char *text = NULL;
-                    const bool ok = contraction
-                        ? build_fv_contraction(
-                            starter,
-                            operator,
-                            structure->structure,
-                            ender,
-                            passive,
-                            &text)
-                        : build_fv_long(
-                            starter,
-                            operator,
-                            structure->structure,
-                            ender,
-                            passive,
-                            &text);
+                    const bool ok = build_fv_long(
+                        starter,
+                        operator,
+                        structure->structure,
+                        ender,
+                        &text);
                     if (!ok || text == NULL || text[0] == '\0') {
                         arrfree(text);
                         continue;
@@ -563,6 +296,9 @@ static bool phrase_suggestion_is_better(
     if (candidate.namespace != current.namespace) {
         return candidate.namespace < current.namespace;
     }
+    if (candidate.has_explicit_verb != current.has_explicit_verb) {
+        return candidate.has_explicit_verb;
+    }
 
     char candidate_outline[64] = {0};
     char current_outline[64] = {0};
@@ -583,20 +319,29 @@ static bool add_phrase_suggestion(
     Seen_Phrase_Bits **seen_bits,
     const char *text,
     Phrase_Namespace namespace,
-    uint64_t bits
+    uint64_t bits,
+    bool has_explicit_verb
 )
 {
-    if (hmgeti(*seen_bits, bits) >= 0) {
+    uint64_t encoded_bits = bits;
+    if (namespace == PHRASE_NAMESPACE_FINAL_VERB) {
+        encoded_bits |= steno_bit(STENO_U);
+    } else if (namespace == PHRASE_NAMESPACE_NONVERB) {
+        encoded_bits |= steno_bit(STENO_E);
+    }
+
+    if (hmgeti(*seen_bits, encoded_bits) >= 0) {
         return true;
     }
-    hmput(*seen_bits, bits, true);
+    hmput(*seen_bits, encoded_bits, true);
     if (text == NULL || text[0] == '\0') {
         return true;
     }
 
     const Phrase_Suggestion candidate = {
-        .bits = bits,
+        .bits = encoded_bits,
         .namespace = namespace,
+        .has_explicit_verb = has_explicit_verb,
     };
     const ptrdiff_t index = shgeti(*suggestions, text);
     if (index < 0) {
@@ -627,7 +372,8 @@ static bool add_initial_verb_suggestions(Phrasing *phrasing)
                     &seen_bits,
                     text,
                     PHRASE_NAMESPACE_INITIAL_VERB,
-                    stem->bits | form->bits | tail->bits);
+                    stem->bits | form->bits | tail->bits,
+                    false);
                 free(text);
                 if (!ok) {
                     hmfree(seen_bits);
@@ -640,11 +386,7 @@ static bool add_initial_verb_suggestions(Phrasing *phrasing)
     return true;
 }
 
-static bool add_final_verb_voice_suggestions(
-    Phrasing *phrasing,
-    bool passive,
-    Phrase_Namespace phrase_namespace
-)
+static bool add_final_verb_suggestions(Phrasing *phrasing)
 {
     Seen_Phrase_Bits *seen_bits = NULL;
     for (size_t i = 0; i < arrlenu(phrasing->fv_starters); ++i) {
@@ -664,7 +406,6 @@ static bool add_final_verb_voice_suggestions(
                             operator,
                             structure->structure,
                             ender,
-                            passive,
                             &text)
                         && text != NULL
                         && text[0] != '\0') {
@@ -672,27 +413,9 @@ static bool add_final_verb_voice_suggestions(
                             &phrasing->suggestions,
                             &seen_bits,
                             text,
-                            phrase_namespace,
-                            long_bits);
-                    }
-                    arrfree(text);
-
-                    text = NULL;
-                    if (build_fv_contraction(
-                            starter,
-                            operator,
-                            structure->structure,
-                            ender,
-                            passive,
-                            &text)
-                        && text != NULL
-                        && text[0] != '\0') {
-                        add_phrase_suggestion(
-                            &phrasing->suggestions,
-                            &seen_bits,
-                            text,
-                            phrase_namespace,
-                            long_bits | phrasing->contraction_bits);
+                            PHRASE_NAMESPACE_FINAL_VERB,
+                            long_bits,
+                            ender->verb != NULL);
                     }
                     arrfree(text);
                 }
@@ -701,18 +424,6 @@ static bool add_final_verb_voice_suggestions(
     }
     hmfree(seen_bits);
     return true;
-}
-
-static bool add_final_verb_suggestions(Phrasing *phrasing)
-{
-    return add_final_verb_voice_suggestions(
-            phrasing,
-            false,
-            PHRASE_NAMESPACE_FINAL_VERB)
-        && add_final_verb_voice_suggestions(
-            phrasing,
-            true,
-            PHRASE_NAMESPACE_PASSIVE_FINAL_VERB);
 }
 
 static bool add_nonverb_suggestions(Phrasing *phrasing)
@@ -733,7 +444,8 @@ static bool add_nonverb_suggestions(Phrasing *phrasing)
                 &seen_bits,
                 text,
                 PHRASE_NAMESPACE_NONVERB,
-                prefix->bits | tail->bits);
+                prefix->bits | tail->bits,
+                false);
             free(text);
             if (!ok) {
                 hmfree(seen_bits);
@@ -861,9 +573,7 @@ Phrase_Lookup_Result phrasing_lookup(
     case PHRASE_NAMESPACE_INITIAL_VERB:
         return lookup_initial_verb(phrasing, stroke_bits, out_utf8);
     case PHRASE_NAMESPACE_FINAL_VERB:
-        return lookup_final_verb(phrasing, stroke_bits, false, out_utf8);
-    case PHRASE_NAMESPACE_PASSIVE_FINAL_VERB:
-        return lookup_final_verb(phrasing, stroke_bits, true, out_utf8);
+        return lookup_final_verb(phrasing, stroke_bits, out_utf8);
     case PHRASE_NAMESPACE_NONVERB:
         return lookup_nonverb(phrasing, stroke_bits, out_utf8);
     case PHRASE_NAMESPACE_NONE:

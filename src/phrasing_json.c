@@ -473,10 +473,6 @@ static void destroy_fv_starter_contents(Fv_Starter *starter)
         return;
     }
     free(starter->text);
-    free(starter->be_contraction);
-    free(starter->have_contraction);
-    free(starter->will_contraction);
-    free(starter->d_contraction);
 }
 
 static bool parse_initial_verbs(Phrasing *phrasing, const cJSON *root, const char *path)
@@ -599,15 +595,6 @@ static bool parse_fv_starters(Phrasing *phrasing, const cJSON *array, const char
             return false;
         }
         free(agreement);
-
-        if (!copy_optional_string(item, "be_contraction", &starter.be_contraction)
-            || !copy_optional_string(item, "have_contraction", &starter.have_contraction)
-            || !copy_optional_string(item, "will_contraction", &starter.will_contraction)
-            || !copy_optional_string(item, "d_contraction", &starter.d_contraction)) {
-            fprintf(stderr, "stoin: phrasing '%s' %s contraction fields must be strings\n", path, context);
-            destroy_fv_starter_contents(&starter);
-            return false;
-        }
 
         arrput(phrasing->fv_starters, starter);
         ++index;
@@ -771,10 +758,6 @@ static bool parse_final_verbs(Phrasing *phrasing, const cJSON *root, const char 
         return false;
     }
 
-    if (!parse_required_stroke(section, "contraction_stroke", &phrasing->contraction_bits, path, "final_verbs")) {
-        return false;
-    }
-
     const cJSON *starters = required_array(section, "starters", path, "final_verbs");
     const cJSON *operators = required_array(section, "operators", path, "final_verbs");
     const cJSON *structures = required_array(section, "structures", path, "final_verbs");
@@ -790,10 +773,27 @@ static bool parse_final_verbs(Phrasing *phrasing, const cJSON *root, const char 
 
 static bool validate_phrase_fragment_overlaps(const Phrasing *phrasing, const char *path)
 {
+    const uint64_t final_verb_marker = steno_bit(STENO_U);
+    const uint64_t nonverb_reserved = final_verb_marker | steno_bit(STENO_E);
     for (size_t i = 0; i < arrlenu(phrasing->iv_stems); ++i) {
         const Iv_Stem *stem = &phrasing->iv_stems[i];
+        if ((stem->bits & final_verb_marker) != 0) {
+            fprintf(stderr,
+                "stoin: phrasing '%s' initial_verbs stem %zu uses reserved U phrase marker\n",
+                path,
+                i);
+            return false;
+        }
         for (size_t j = 0; j < arrlenu(stem->forms); ++j) {
             const Phrase_Form *form = &stem->forms[j];
+            if ((form->bits & final_verb_marker) != 0) {
+                fprintf(stderr,
+                    "stoin: phrasing '%s' initial_verbs stem %zu form %zu uses reserved U phrase marker\n",
+                    path,
+                    i,
+                    j);
+                return false;
+            }
             if ((stem->bits & form->bits) != 0) {
                 fprintf(stderr,
                     "stoin: phrasing '%s' initial_verbs stem %zu and form %zu overlap\n",
@@ -804,6 +804,13 @@ static bool validate_phrase_fragment_overlaps(const Phrasing *phrasing, const ch
             }
             for (size_t k = 0; k < arrlenu(phrasing->iv_tails); ++k) {
                 const Phrase_Tail *tail = &phrasing->iv_tails[k];
+                if ((tail->bits & final_verb_marker) != 0) {
+                    fprintf(stderr,
+                        "stoin: phrasing '%s' initial_verbs tail %zu uses reserved U phrase marker\n",
+                        path,
+                        k);
+                    return false;
+                }
                 if (((stem->bits | form->bits) & tail->bits) != 0) {
                     fprintf(stderr,
                         "stoin: phrasing '%s' initial_verbs stem %zu, form %zu, and tail %zu overlap\n",
@@ -819,7 +826,21 @@ static bool validate_phrase_fragment_overlaps(const Phrasing *phrasing, const ch
 
     for (size_t i = 0; i < arrlenu(phrasing->nv_prefixes); ++i) {
         const Nv_Prefix *prefix = &phrasing->nv_prefixes[i];
+        if ((prefix->bits & nonverb_reserved) != 0) {
+            fprintf(stderr,
+                "stoin: phrasing '%s' nonverbs prefix %zu uses reserved E or U phrase marker\n",
+                path,
+                i);
+            return false;
+        }
         for (size_t j = 0; j < arrlenu(phrasing->nv_tails); ++j) {
+            if ((phrasing->nv_tails[j].bits & nonverb_reserved) != 0) {
+                fprintf(stderr,
+                    "stoin: phrasing '%s' nonverbs tail %zu uses reserved E or U phrase marker\n",
+                    path,
+                    j);
+                return false;
+            }
             if ((prefix->bits & phrasing->nv_tails[j].bits) != 0) {
                 fprintf(stderr,
                     "stoin: phrasing '%s' nonverbs prefix %zu and tail %zu overlap\n",
@@ -844,10 +865,15 @@ static bool validate_phrase_fragment_overlaps(const Phrasing *phrasing, const ch
                         operator->bits,
                         structure->bits,
                         ender->bits,
-                        phrasing->contraction_bits,
                     };
-                    for (size_t first = 0; first < 5; ++first) {
-                        for (size_t second = first + 1; second < 5; ++second) {
+                    for (size_t first = 0; first < 4; ++first) {
+                        if ((fragments[first] & final_verb_marker) != 0) {
+                            fprintf(stderr,
+                                "stoin: phrasing '%s' final_verbs fragment uses reserved U phrase marker\n",
+                                path);
+                            return false;
+                        }
+                        for (size_t second = first + 1; second < 4; ++second) {
                             if ((fragments[first] & fragments[second]) != 0) {
                                 fprintf(stderr,
                                     "stoin: phrasing '%s' final_verbs starter %zu, operator %zu, structure %zu, and ender %zu overlap\n",
@@ -864,6 +890,51 @@ static bool validate_phrase_fragment_overlaps(const Phrasing *phrasing, const ch
             }
         }
     }
+    return true;
+}
+
+typedef struct Phrase_Bits_Entry {
+    uint64_t key;
+    bool value;
+} Phrase_Bits_Entry;
+
+static bool validate_iv_nv_marker_collisions(const Phrasing *phrasing, const char *path)
+{
+    Phrase_Bits_Entry *nonverb_bits = NULL;
+    const uint64_t nonverb_marker = steno_bit(STENO_E);
+    for (size_t i = 0; i < arrlenu(phrasing->nv_prefixes); ++i) {
+        for (size_t j = 0; j < arrlenu(phrasing->nv_tails); ++j) {
+            hmput(nonverb_bits,
+                nonverb_marker
+                    | phrasing->nv_prefixes[i].bits
+                    | phrasing->nv_tails[j].bits,
+                true);
+        }
+    }
+
+    for (size_t i = 0; i < arrlenu(phrasing->iv_stems); ++i) {
+        const Iv_Stem *stem = &phrasing->iv_stems[i];
+        for (size_t j = 0; j < arrlenu(stem->forms); ++j) {
+            const Phrase_Form *form = &stem->forms[j];
+            for (size_t k = 0; k < arrlenu(phrasing->iv_tails); ++k) {
+                const uint64_t initial_verb_bits =
+                    stem->bits | form->bits | phrasing->iv_tails[k].bits;
+                if ((initial_verb_bits & nonverb_marker) != 0
+                    && hmgeti(nonverb_bits, initial_verb_bits) >= 0) {
+                    fprintf(stderr,
+                        "stoin: phrasing '%s' initial_verbs stem %zu form %zu tail %zu conflicts with an E-marked nonverb phrase\n",
+                        path,
+                        i,
+                        j,
+                        k);
+                    hmfree(nonverb_bits);
+                    return false;
+                }
+            }
+        }
+    }
+
+    hmfree(nonverb_bits);
     return true;
 }
 
@@ -945,6 +1016,7 @@ Phrasing *phrasing_load(const char *path)
         && parse_nonverbs(phrasing, root, path)
         && parse_final_verbs(phrasing, root, path)
         && validate_phrase_fragment_overlaps(phrasing, path)
+        && validate_iv_nv_marker_collisions(phrasing, path)
         && (!shared_banks || validate_shared_phrase_banks(phrasing, path));
     cJSON_Delete(root);
     free(file);
