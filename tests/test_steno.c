@@ -318,6 +318,20 @@ int main(void)
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
     steno_set_phrase_active(steno, true);
+    ok = ok && handle_test_stroke(steno, "AOUB");
+    ok = ok && handle_test_stroke(steno, "AUB");
+    ok = ok && handle_test_stroke(steno, "OUG");
+    ok = ok && handle_test_stroke(steno, "AO*UG");
+    ok = ok && handle_test_stroke(steno, "AOUBD");
+    steno_set_phrase_active(steno, false);
+    ok = ok && expect_string(
+        "starterless FV modal phrases",
+        output.text,
+        "will be can be should go will not go would be");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    steno_set_phrase_active(steno, true);
     ok = ok && handle_test_stroke(steno, "K*U");
     ok = ok && handle_test_stroke(steno, "K*U-D");
     steno_set_phrase_active(steno, false);

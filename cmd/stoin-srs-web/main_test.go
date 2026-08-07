@@ -75,6 +75,79 @@ WHERE name = 'paused'`).Scan(&defaultValue); err != nil {
 	}
 }
 
+func TestInitSchemaMigratesRecoveryDaysColumn(t *testing.T) {
+	t.Parallel()
+	dbPath := filepath.Join(t.TempDir(), "legacy.sqlite3")
+	legacy, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := legacy.Exec(`
+CREATE TABLE decks (
+	id INTEGER PRIMARY KEY,
+	name TEXT NOT NULL UNIQUE,
+	created_at TEXT NOT NULL,
+	paused INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE groups (
+	id INTEGER PRIMARY KEY,
+	deck_id INTEGER NOT NULL,
+	name TEXT NOT NULL,
+	created_at TEXT NOT NULL,
+	UNIQUE(deck_id, name)
+);
+CREATE TABLE items (
+	id INTEGER PRIMARY KEY,
+	group_id INTEGER NOT NULL,
+	text TEXT NOT NULL,
+	created_at TEXT NOT NULL,
+	updated_at TEXT NOT NULL,
+	last_ingest_batch_id INTEGER,
+	intro_remaining INTEGER NOT NULL DEFAULT 5,
+	schedule_stage INTEGER NOT NULL DEFAULT 0,
+	interval_days REAL NOT NULL DEFAULT 0,
+	due_at TEXT NOT NULL,
+	review_count INTEGER NOT NULL DEFAULT 0,
+	correct_count INTEGER NOT NULL DEFAULT 0,
+	incorrect_count INTEGER NOT NULL DEFAULT 0,
+	UNIQUE(group_id, text)
+);
+INSERT INTO decks(id, name, created_at) VALUES(1, 'legacy deck', '2026-01-01T00:00:00Z');
+INSERT INTO groups(id, deck_id, name, created_at) VALUES(1, 1, 'words', '2026-01-01T00:00:00Z');
+INSERT INTO items(id, group_id, text, created_at, updated_at, due_at)
+VALUES(1, 1, 'legacy item', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z');`); err != nil {
+		legacy.Close()
+		t.Fatal(err)
+	}
+	if err := legacy.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	app, err := NewAppWithPhrasing(dbPath, "../../phrasing.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.db.Close()
+
+	var defaultValue sql.NullString
+	if err := app.db.QueryRow(`
+SELECT dflt_value
+FROM pragma_table_info('items')
+WHERE name = 'recovery_days_remaining'`).Scan(&defaultValue); err != nil {
+		t.Fatal(err)
+	}
+	if !defaultValue.Valid || defaultValue.String != "0" {
+		t.Fatalf("expected recovery default 0, got %#v", defaultValue)
+	}
+	var recoveryDays int
+	if err := app.db.QueryRow(`SELECT recovery_days_remaining FROM items WHERE id = 1`).Scan(&recoveryDays); err != nil {
+		t.Fatal(err)
+	}
+	if recoveryDays != 0 {
+		t.Fatalf("expected migrated item not to enter recovery, got %d days", recoveryDays)
+	}
+}
+
 func TestParseGroupedImportAllowsColonWordsAndGroupSpaces(t *testing.T) {
 	groups, issues := parseGroupedImport("common words:\na\nliteral:\nat\n\nbrief practice:\nis\nthe\n")
 	if len(issues) != 0 {
@@ -162,29 +235,104 @@ func TestApplyReviewBatchAdvancesAndResetsSchedule(t *testing.T) {
 	if err := app.db.QueryRow(`SELECT id FROM items`).Scan(&itemID); err != nil {
 		t.Fatal(err)
 	}
+	if err := app.applyReviewBatch(ctx, []ReviewResult{{ItemID: itemID, Prompt: "unless", Answer: "", Correct: false}}); err != nil {
+		t.Fatal(err)
+	}
+	var intro int
+	var stage int
+	var recoveryDays int
+	var interval float64
+	if err := app.db.QueryRow(`
+SELECT intro_remaining, schedule_stage, recovery_days_remaining, interval_days
+FROM items
+WHERE id = ?`, itemID).Scan(&intro, &stage, &recoveryDays, &interval); err != nil {
+		t.Fatal(err)
+	}
+	if intro != introRepetitions || stage != 0 || recoveryDays != 0 || interval != 0 {
+		t.Fatalf(
+			"expected intro miss not to add recovery, got intro=%d stage=%d recovery=%d interval=%v",
+			intro, stage, recoveryDays, interval,
+		)
+	}
 
 	for i := 0; i < introRepetitions; i++ {
 		if err := app.applyReviewBatch(ctx, []ReviewResult{{ItemID: itemID, Prompt: "unless", Answer: "unless", Correct: true}}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	var intro int
-	var interval float64
-	if err := app.db.QueryRow(`SELECT intro_remaining, interval_days FROM items WHERE id = ?`, itemID).Scan(&intro, &interval); err != nil {
+	if err := app.db.QueryRow(`
+SELECT intro_remaining, schedule_stage, recovery_days_remaining, interval_days
+FROM items
+WHERE id = ?`, itemID).Scan(&intro, &stage, &recoveryDays, &interval); err != nil {
 		t.Fatal(err)
 	}
-	if intro != 0 || interval != 1 {
-		t.Fatalf("expected learned item at 1 day interval, got intro=%d interval=%v", intro, interval)
+	if intro != 0 || stage != 0 || recoveryDays != 0 || interval != 1 {
+		t.Fatalf(
+			"expected learned item at ordinary 1 day interval, got intro=%d stage=%d recovery=%d interval=%v",
+			intro, stage, recoveryDays, interval,
+		)
 	}
 
 	if err := app.applyReviewBatch(ctx, []ReviewResult{{ItemID: itemID, Prompt: "unless", Answer: "", Correct: false}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := app.db.QueryRow(`SELECT intro_remaining, interval_days FROM items WHERE id = ?`, itemID).Scan(&intro, &interval); err != nil {
+	if err := app.db.QueryRow(`
+SELECT intro_remaining, schedule_stage, recovery_days_remaining, interval_days
+FROM items
+WHERE id = ?`, itemID).Scan(&intro, &stage, &recoveryDays, &interval); err != nil {
 		t.Fatal(err)
 	}
-	if intro != introRepetitions || interval != 0 {
-		t.Fatalf("expected reset item, got intro=%d interval=%v", intro, interval)
+	if intro != introRepetitions || stage != 0 || recoveryDays != recoveryPracticeDays || interval != 0 {
+		t.Fatalf(
+			"expected reset problem item, got intro=%d stage=%d recovery=%d interval=%v",
+			intro, stage, recoveryDays, interval,
+		)
+	}
+
+	for i := 0; i < introRepetitions; i++ {
+		if err := app.applyReviewBatch(ctx, []ReviewResult{{ItemID: itemID, Prompt: "unless", Answer: "unless", Correct: true}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := app.db.QueryRow(`
+SELECT intro_remaining, schedule_stage, recovery_days_remaining, interval_days
+FROM items
+WHERE id = ?`, itemID).Scan(&intro, &stage, &recoveryDays, &interval); err != nil {
+		t.Fatal(err)
+	}
+	if intro != 0 || stage != 0 || recoveryDays != recoveryPracticeDays || interval != 1 {
+		t.Fatalf(
+			"expected daily recovery after relearning, got intro=%d stage=%d recovery=%d interval=%v",
+			intro, stage, recoveryDays, interval,
+		)
+	}
+
+	for i := 0; i < recoveryPracticeDays-1; i++ {
+		if err := app.applyReviewBatch(ctx, []ReviewResult{{ItemID: itemID, Prompt: "unless", Answer: "unless", Correct: true}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := app.db.QueryRow(`
+SELECT schedule_stage, recovery_days_remaining, interval_days
+FROM items
+WHERE id = ?`, itemID).Scan(&stage, &recoveryDays, &interval); err != nil {
+		t.Fatal(err)
+	}
+	if stage != 0 || recoveryDays != 1 || interval != 1 {
+		t.Fatalf("expected one daily recovery left, got stage=%d recovery=%d interval=%v", stage, recoveryDays, interval)
+	}
+
+	if err := app.applyReviewBatch(ctx, []ReviewResult{{ItemID: itemID, Prompt: "unless", Answer: "unless", Correct: true}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.db.QueryRow(`
+SELECT schedule_stage, recovery_days_remaining, interval_days
+FROM items
+WHERE id = ?`, itemID).Scan(&stage, &recoveryDays, &interval); err != nil {
+		t.Fatal(err)
+	}
+	if stage != 1 || recoveryDays != 0 || interval != 3 {
+		t.Fatalf("expected ordinary schedule after recovery, got stage=%d recovery=%d interval=%v", stage, recoveryDays, interval)
 	}
 }
 
@@ -483,26 +631,35 @@ SET intro_remaining = 0,
 		t.Fatalf("expected reset notice, got redirect %q", location)
 	}
 
-	assertSchedule := func(text string, wantIntro, wantStage int, wantInterval float64, wantReviews, wantCorrect, wantIncorrect int) {
+	assertSchedule := func(
+		text string,
+		wantIntro int,
+		wantStage int,
+		wantRecovery int,
+		wantInterval float64,
+		wantReviews int,
+		wantCorrect int,
+		wantIncorrect int,
+	) {
 		t.Helper()
-		var intro, stage, reviews, correct, incorrect int
+		var intro, stage, recovery, reviews, correct, incorrect int
 		var interval float64
 		if err := app.db.QueryRow(`
-SELECT intro_remaining, schedule_stage, interval_days, review_count, correct_count, incorrect_count
+SELECT intro_remaining, schedule_stage, recovery_days_remaining, interval_days, review_count, correct_count, incorrect_count
 FROM items
-WHERE id = ?`, itemIDs[text]).Scan(&intro, &stage, &interval, &reviews, &correct, &incorrect); err != nil {
+WHERE id = ?`, itemIDs[text]).Scan(&intro, &stage, &recovery, &interval, &reviews, &correct, &incorrect); err != nil {
 			t.Fatal(err)
 		}
-		if intro != wantIntro || stage != wantStage || interval != wantInterval ||
+		if intro != wantIntro || stage != wantStage || recovery != wantRecovery || interval != wantInterval ||
 			reviews != wantReviews || correct != wantCorrect || incorrect != wantIncorrect {
 			t.Fatalf(
-				"%s schedule: got intro=%d stage=%d interval=%v reviews=%d correct=%d incorrect=%d",
-				text, intro, stage, interval, reviews, correct, incorrect,
+				"%s schedule: got intro=%d stage=%d recovery=%d interval=%v reviews=%d correct=%d incorrect=%d",
+				text, intro, stage, recovery, interval, reviews, correct, incorrect,
 			)
 		}
 	}
-	assertSchedule("a", introRepetitions, 0, 0, 5, 3, 2)
-	assertSchedule("the", 0, 3, 14, 4, 3, 1)
+	assertSchedule("a", introRepetitions, 0, recoveryPracticeDays, 0, 5, 3, 2)
+	assertSchedule("the", 0, 3, 0, 14, 4, 3, 1)
 
 	var missedReviews int
 	if err := app.db.QueryRow(`SELECT COUNT(*) FROM reviews WHERE item_id = ? AND correct = 0`, itemIDs["a"]).Scan(&missedReviews); err != nil {

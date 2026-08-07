@@ -20,6 +20,7 @@ const (
 	defaultPhrasingPath  = "phrasing.json"
 	defaultHintIndexPath = ".stoin-runtime-hints.json"
 	introRepetitions     = 5
+	recoveryPracticeDays = 5
 	reviewAllDueLimit    = 100
 	sessionLineMaxRunes  = 52
 	maxRequestBodyBytes  = 4 << 20

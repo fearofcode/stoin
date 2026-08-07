@@ -6,7 +6,8 @@ usage() {
 usage: scripts/reset_phrases.sh [DATABASE]
 
 Reset SRS progress and review history for every item in a group named
-"Phrases" (case-insensitive). DATABASE defaults to stoin-srs-web.sqlite3.
+"Phrases" (case-insensitive), including any daily recovery period. DATABASE
+defaults to stoin-srs-web.sqlite3.
 
 The script previews the number of affected items and reviews, requires
 confirmation, and creates a timestamped SQLite backup before changing anything.
@@ -51,6 +52,13 @@ WHERE lower(trim(g.name)) = "phrases";
 '
 )
 
+has_recovery_column=$(sqlite3 -batch -noheader "$database" \
+	"SELECT COUNT(*) FROM pragma_table_info('items') WHERE name = 'recovery_days_remaining';")
+recovery_reset_sql=""
+if [[ $has_recovery_column == "1" ]]; then
+	recovery_reset_sql=$'\trecovery_days_remaining = 0,\n'
+fi
+
 if [[ $phrase_items == "0" ]]; then
 	printf 'no items found in groups named "Phrases" in %s\n' "$database"
 	exit 0
@@ -76,7 +84,7 @@ if ! sqlite3 -batch -bail "$database" ".backup \"$escaped_backup\""; then
 fi
 
 reset_items=$(
-	sqlite3 -batch -bail -noheader "$database" <<'SQL'
+	sqlite3 -batch -bail -noheader "$database" <<SQL
 .timeout 10000
 PRAGMA foreign_keys = ON;
 BEGIN IMMEDIATE;
@@ -93,7 +101,7 @@ UPDATE items
 SET
 	intro_remaining = 5,
 	schedule_stage = 0,
-	interval_days = 0,
+${recovery_reset_sql}	interval_days = 0,
 	due_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now'),
 	review_count = 0,
 	correct_count = 0,

@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS items (
 	last_ingest_batch_id INTEGER REFERENCES ingest_batches(id),
 	intro_remaining INTEGER NOT NULL DEFAULT 5,
 	schedule_stage INTEGER NOT NULL DEFAULT 0,
+	recovery_days_remaining INTEGER NOT NULL DEFAULT 0,
 	interval_days REAL NOT NULL DEFAULT 0,
 	due_at TEXT NOT NULL,
 	review_count INTEGER NOT NULL DEFAULT 0,
@@ -85,14 +86,30 @@ CREATE INDEX IF NOT EXISTS idx_imports_deck ON imports(deck_id);
 	if err != nil {
 		return err
 	}
-	return a.ensureDeckPausedColumn(ctx)
+	if err := a.ensureDeckPausedColumn(ctx); err != nil {
+		return err
+	}
+	return a.ensureItemRecoveryDaysColumn(ctx)
 }
 
 // ensureDeckPausedColumn migrates databases created before deck pausing was
 // introduced. CREATE TABLE IF NOT EXISTS does not add columns to an existing
 // table, so keep this small migration explicit and idempotent.
 func (a *App) ensureDeckPausedColumn(ctx context.Context) error {
-	rows, err := a.db.QueryContext(ctx, `PRAGMA table_info(decks)`)
+	return a.ensureColumn(ctx, "decks", "paused", "paused INTEGER NOT NULL DEFAULT 0")
+}
+
+func (a *App) ensureItemRecoveryDaysColumn(ctx context.Context) error {
+	return a.ensureColumn(
+		ctx,
+		"items",
+		"recovery_days_remaining",
+		"recovery_days_remaining INTEGER NOT NULL DEFAULT 0",
+	)
+}
+
+func (a *App) ensureColumn(ctx context.Context, table string, column string, definition string) error {
+	rows, err := a.db.QueryContext(ctx, `PRAGMA table_info(`+table+`)`)
 	if err != nil {
 		return err
 	}
@@ -111,7 +128,7 @@ func (a *App) ensureDeckPausedColumn(ctx context.Context) error {
 			rows.Close()
 			return err
 		}
-		if name == "paused" {
+		if name == column {
 			found = true
 		}
 	}
@@ -126,7 +143,7 @@ func (a *App) ensureDeckPausedColumn(ctx context.Context) error {
 		return nil
 	}
 
-	_, err = a.db.ExecContext(ctx, `ALTER TABLE decks ADD COLUMN paused INTEGER NOT NULL DEFAULT 0`)
+	_, err = a.db.ExecContext(ctx, `ALTER TABLE `+table+` ADD COLUMN `+definition)
 	return err
 }
 
@@ -764,19 +781,24 @@ func (a *App) applyReviewBatchFiltered(ctx context.Context, results []ReviewResu
 func applyOneReview(ctx context.Context, tx *sql.Tx, result ReviewResult, now time.Time, activeDecksOnly bool) error {
 	var introRemaining int
 	var stage int
+	var recoveryDaysRemaining int
 	query := `
-SELECT intro_remaining, schedule_stage
+SELECT intro_remaining, schedule_stage, recovery_days_remaining
 FROM items
 WHERE id = ?`
 	if activeDecksOnly {
 		query = `
-SELECT i.intro_remaining, i.schedule_stage
+SELECT i.intro_remaining, i.schedule_stage, i.recovery_days_remaining
 FROM items i
 JOIN groups g ON g.id = i.group_id
 JOIN decks d ON d.id = g.deck_id
 WHERE i.id = ? AND d.paused = 0`
 	}
-	if err := tx.QueryRowContext(ctx, query, result.ItemID).Scan(&introRemaining, &stage); err != nil {
+	if err := tx.QueryRowContext(ctx, query, result.ItemID).Scan(
+		&introRemaining,
+		&stage,
+		&recoveryDaysRemaining,
+	); err != nil {
 		return err
 	}
 
@@ -790,6 +812,13 @@ WHERE i.id = ? AND d.paused = 0`
 			stage = 0
 			intervalDays = float64(scheduleDays[stage])
 			dueAt = now.AddDate(0, 0, scheduleDays[stage])
+		} else if recoveryDaysRemaining > 0 {
+			recoveryDaysRemaining--
+			if recoveryDaysRemaining == 0 && stage < len(scheduleDays)-1 {
+				stage++
+			}
+			intervalDays = float64(scheduleDays[stage])
+			dueAt = now.AddDate(0, 0, scheduleDays[stage])
 		} else {
 			if stage < len(scheduleDays)-1 {
 				stage++
@@ -798,6 +827,9 @@ WHERE i.id = ? AND d.paused = 0`
 			dueAt = now.AddDate(0, 0, scheduleDays[stage])
 		}
 	} else {
+		if introRemaining == 0 {
+			recoveryDaysRemaining = recoveryPracticeDays
+		}
 		introRemaining = introRepetitions
 		stage = 0
 		intervalDays = 0
@@ -809,6 +841,7 @@ UPDATE items
 SET
 	intro_remaining = ?,
 	schedule_stage = ?,
+	recovery_days_remaining = ?,
 	interval_days = ?,
 	due_at = ?,
 	review_count = review_count + 1,
@@ -818,6 +851,7 @@ SET
 WHERE id = ?`,
 		introRemaining,
 		stage,
+		recoveryDaysRemaining,
 		intervalDays,
 		formatDBTime(dueAt),
 		boolInt(result.Correct),

@@ -1795,6 +1795,15 @@
   "final_verbs": {
     "starters": [
       {
+        "id": "empty",
+        "stroke": "",
+        "text": "",
+        "label": "no starter (modal phrases)",
+        "agreement": "third_singular",
+        "requires_modal": true,
+        "shared": false
+      },
+      {
         "id": "i",
         "stroke": "S",
         "text": "I",

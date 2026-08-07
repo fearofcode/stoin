@@ -61,6 +61,8 @@ typedef struct Fv_Starter {
     uint64_t bits;
     Fv_Agreement agreement;
     char *text;
+    bool requires_modal;
+    bool shared;
 } Fv_Starter;
 
 typedef struct Fv_Operator {

@@ -811,6 +811,7 @@ function generateFinalVerbPrompts(selectedOnly) {
 	const prompts = [];
 	starters.forEach(function(starter) {
 		operators.forEach(function(op) {
+			if (starter.requires_modal && op.modal === 'none') return;
 			structures.forEach(function(structure) {
 				enders.forEach(function(ender) {
 					let stroke = '';
@@ -1307,6 +1308,12 @@ function validatePhraseData(data) {
 	data.final_verbs.starters.forEach(function(starter, index) {
 		if (starter.label !== undefined && typeof starter.label !== 'string') {
 			throw new Error('final_verbs.starters[' + index + '].label must be a string');
+		}
+		if (starter.requires_modal !== undefined && typeof starter.requires_modal !== 'boolean') {
+			throw new Error('final_verbs.starters[' + index + '].requires_modal must be a boolean');
+		}
+		if (starter.shared !== undefined && typeof starter.shared !== 'boolean') {
+			throw new Error('final_verbs.starters[' + index + '].shared must be a boolean');
 		}
 	});
 }

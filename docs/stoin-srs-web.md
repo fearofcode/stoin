@@ -123,6 +123,15 @@ then choose:
 - `Practice all`: practices every word in the deck without changing the current
   checkbox selection.
 
+An item that had already completed its introductory learning and is then reset
+by a hint, skip, or incorrect review is treated as a problem item. After it
+completes the five introductory repetitions again, it receives five consecutive
+daily reviews. Each successful daily review advances the recovery streak;
+another miss restarts the intro repetitions and the five-day recovery period.
+After the fifth successful recovery review, the item resumes the ordinary 3-,
+7-, 14-day and longer intervals. A miss during an item's original introductory
+learning simply restarts those intro repetitions without adding recovery days.
+
 Use `Edit deck` to pause or resume scheduled reviews for a deck. Paused decks
 are shown in a muted section at the bottom of the deck list and are excluded
 from deck and cross-deck review sessions. Their learning state and due dates are

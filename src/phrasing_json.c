@@ -595,6 +595,16 @@ static bool parse_fv_starters(Phrasing *phrasing, const cJSON *array, const char
             return false;
         }
         free(agreement);
+        if (!parse_optional_bool(item, "requires_modal", false, &starter.requires_modal)) {
+            print_field_error(path, context, "requires_modal", "must be a boolean");
+            destroy_fv_starter_contents(&starter);
+            return false;
+        }
+        if (!parse_optional_bool(item, "shared", true, &starter.shared)) {
+            print_field_error(path, context, "shared", "must be a boolean");
+            destroy_fv_starter_contents(&starter);
+            return false;
+        }
 
         arrput(phrasing->fv_starters, starter);
         ++index;
@@ -960,22 +970,33 @@ static bool validate_shared_phrase_banks(const Phrasing *phrasing, const char *p
         }
     }
 
-    if (arrlenu(phrasing->fv_starters) != arrlenu(phrasing->nv_prefixes)) {
-        fprintf(stderr,
-            "stoin: phrasing '%s' shared FV/NV starter banks must have the same length\n",
-            path);
-        return false;
-    }
+    size_t nv_index = 0;
     for (size_t i = 0; i < arrlenu(phrasing->fv_starters); ++i) {
         const Fv_Starter *fv = &phrasing->fv_starters[i];
-        const Nv_Prefix *nv = &phrasing->nv_prefixes[i];
+        if (!fv->shared) {
+            continue;
+        }
+        if (nv_index >= arrlenu(phrasing->nv_prefixes)) {
+            fprintf(stderr,
+                "stoin: phrasing '%s' shared FV/NV starter banks have different lengths\n",
+                path);
+            return false;
+        }
+        const Nv_Prefix *nv = &phrasing->nv_prefixes[nv_index];
         if (fv->bits != nv->bits || strcmp(fv->text, nv->text) != 0) {
             fprintf(stderr,
-                "stoin: phrasing '%s' shared FV/NV starter banks differ at index %zu\n",
+                "stoin: phrasing '%s' shared FV/NV starter banks differ at FV index %zu\n",
                 path,
                 i);
             return false;
         }
+        ++nv_index;
+    }
+    if (nv_index != arrlenu(phrasing->nv_prefixes)) {
+        fprintf(stderr,
+            "stoin: phrasing '%s' shared FV/NV starter banks have different lengths\n",
+            path);
+        return false;
     }
     return true;
 }

@@ -36,3 +36,4 @@ stoin-pedals.json
 *.db.before-*
 *.sqlite.before-*
 *.sqlite3.before-*
+stoin-srs-backup*.sql

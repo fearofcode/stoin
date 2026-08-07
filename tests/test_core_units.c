@@ -176,6 +176,23 @@ bool test_core_units(void)
         "SKUBD"
     );
     ok = ok && expect_size(
+        "starterless modal suggestion exists",
+        phrasing_find_translation_outline(
+            production_phrasing,
+            "will be",
+            NULL,
+            1,
+            &suggestion_namespace,
+            suggestion_outline,
+            sizeof(suggestion_outline)),
+        PHRASE_LOOKUP_HIT
+    );
+    ok = ok && expect_string(
+        "starterless modal suggestion outline",
+        suggestion_outline,
+        "AOUB"
+    );
+    ok = ok && expect_size(
         "NV phrase suggestion exists",
         phrasing_find_translation_outline(
             production_phrasing,

@@ -346,6 +346,14 @@
   "final_verbs": {
     "starters": [
       {
+        "stroke": "",
+        "text": "",
+        "label": "no starter (modal phrases)",
+        "agreement": "third_singular",
+        "requires_modal": true,
+        "shared": false
+      },
+      {
         "stroke": "SWHR",
         "text": "I",
         "agreement": "first_singular"

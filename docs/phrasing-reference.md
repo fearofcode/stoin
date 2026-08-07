@@ -144,6 +144,12 @@
 
 ## FV
 
+### FV-only starters
+
+| Starter | Text | Constraint |
+| --- | --- | --- |
+| ∅ | no starter | modal phrases only |
+
 ### Shared FV / NV starters
 
 | Starter | Text | Agreement |

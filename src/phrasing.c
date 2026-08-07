@@ -252,6 +252,9 @@ static Phrase_Lookup_Result lookup_final_verb(
         const Fv_Starter *starter = &phrasing->fv_starters[i];
         for (size_t j = 0; j < arrlenu(phrasing->fv_operators); ++j) {
             Fv_Operator operator = phrasing->fv_operators[j];
+            if (starter->requires_modal && operator.modal == FV_MODAL_NONE) {
+                continue;
+            }
             for (size_t k = 0; k < arrlenu(phrasing->fv_structures); ++k) {
                 const Fv_Structure_Row *structure = &phrasing->fv_structures[k];
                 for (size_t m = 0; m < arrlenu(phrasing->fv_enders); ++m) {
@@ -393,6 +396,9 @@ static bool add_final_verb_suggestions(Phrasing *phrasing)
         const Fv_Starter *starter = &phrasing->fv_starters[i];
         for (size_t j = 0; j < arrlenu(phrasing->fv_operators); ++j) {
             const Fv_Operator operator = phrasing->fv_operators[j];
+            if (starter->requires_modal && operator.modal == FV_MODAL_NONE) {
+                continue;
+            }
             for (size_t k = 0; k < arrlenu(phrasing->fv_structures); ++k) {
                 const Fv_Structure_Row *structure = &phrasing->fv_structures[k];
                 for (size_t m = 0; m < arrlenu(phrasing->fv_enders); ++m) {
