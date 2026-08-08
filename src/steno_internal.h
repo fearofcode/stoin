@@ -60,7 +60,11 @@ bool steno_execute_command(
     const uint64_t *strokes,
     size_t stroke_count
 );
-bool steno_apply_translation_match(Steno *steno, const Translation_Match *match);
+bool steno_apply_translation_match(
+    Steno *steno,
+    const Translation_Match *match,
+    bool *out_suggestion_eligible
+);
 bool steno_translate_chord_bits(Steno *steno, uint64_t bits);
 bool steno_translate_stroke_input(Steno *steno, Stroke_Input stroke);
 void steno_maybe_emit_brevity_suggestion(Steno *steno);

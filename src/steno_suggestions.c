@@ -226,6 +226,10 @@ void steno_maybe_emit_brevity_suggestion(Steno *steno)
         bool ok = true;
         for (size_t i = start; i < translation_count; ++i) {
             const Translation *translation = &steno->translations[i];
+            if (translation->suggestion_barrier) {
+                ok = false;
+                break;
+            }
             ok = fixed_string_buffer_append_cstring(&text, translation->utf8)
                 && append_translation_outline(
                     &typed_outline,

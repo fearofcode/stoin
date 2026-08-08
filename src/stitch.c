@@ -188,7 +188,9 @@ bool stitch_apply_retro(
         return false;
     }
 
-    Translation next = {0};
+    Translation next = {
+        .suggestion_barrier = true,
+    };
     next.utf8 = new_text;
     if (!translation_set_strokes(&next, strokes, stroke_count)) {
         arrfree(old_text);

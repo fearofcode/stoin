@@ -65,7 +65,9 @@ bool retro_apply_case(
     }
     formatted_text_apply_case(new_text, mode);
 
-    Translation next = {0};
+    Translation next = {
+        .suggestion_barrier = true,
+    };
     if (!text_append_cstring(&next.utf8, new_text)
         || !translation_set_strokes(
             &next,
@@ -129,6 +131,7 @@ bool retro_apply_delete_space(Retro_Context *retro, const uint64_t *strokes, siz
     Translation next = {
         .utf8 = new_text,
         .retro_space_command = true,
+        .suggestion_barrier = true,
     };
     new_text = NULL;
     if (!translation_set_strokes(&next, strokes, stroke_count)) {
@@ -179,6 +182,7 @@ bool retro_apply_insert_space(Retro_Context *retro, const uint64_t *strokes, siz
 
     Translation next = {
         .utf8 = new_text,
+        .suggestion_barrier = true,
     };
     new_text = NULL;
     if (!translation_set_strokes(&next, strokes, stroke_count)) {

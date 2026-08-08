@@ -176,9 +176,14 @@ static bool translate_dictionary_bits_with_trace(
         match.translation,
         trace_mode
     );
-    const bool ok = steno_apply_translation_match(steno, &match);
+    bool suggestion_eligible = false;
+    const bool ok = steno_apply_translation_match(
+        steno,
+        &match,
+        &suggestion_eligible
+    );
     if (ok) {
-        if (match.translation != NULL) {
+        if (match.translation != NULL && suggestion_eligible) {
             steno_maybe_emit_brevity_suggestion(steno);
         }
         count_completed_stroke(steno);
@@ -241,9 +246,16 @@ static bool translate_phrase_bits(
     match.stroke_count = 1;
     snprintf(match.outline, sizeof(match.outline), "%s", raw_chord);
     trace_stroke_with_mode(steno, raw_chord, phrase, trace_mode);
-    const bool ok = steno_apply_translation_match(steno, &match);
+    bool suggestion_eligible = false;
+    const bool ok = steno_apply_translation_match(
+        steno,
+        &match,
+        &suggestion_eligible
+    );
     if (ok) {
-        steno_maybe_emit_brevity_suggestion(steno);
+        if (suggestion_eligible) {
+            steno_maybe_emit_brevity_suggestion(steno);
+        }
         count_completed_stroke(steno);
         if (out_hit != NULL) {
             *out_hit = true;

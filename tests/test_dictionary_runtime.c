@@ -582,6 +582,59 @@ bool test_dictionary_runtime(void)
         fclose(brief_suggestions_file);
     }
 
+    FILE *formatting_suggestions_file = tmpfile();
+    ok = ok && formatting_suggestions_file != NULL;
+    if (formatting_suggestions_file != NULL) {
+        Steno_Config formatting_suggestions_config = config;
+        formatting_suggestions_config.suggestions_file = formatting_suggestions_file;
+        formatting_suggestions_config.print_suggestions = true;
+        Steno *formatting_suggestions_steno = steno_create(&formatting_suggestions_config);
+        ok = ok && formatting_suggestions_steno != NULL;
+        if (formatting_suggestions_steno != NULL) {
+            clear_test_output(&output);
+            ok = ok && handle_test_stroke(formatting_suggestions_steno, "TP-PL");
+            ok = ok && handle_test_stroke(formatting_suggestions_steno, "TPH");
+            ok = ok && handle_test_stroke(formatting_suggestions_steno, "HRO*ERD");
+            ok = ok && handle_test_stroke(formatting_suggestions_steno, "-T");
+            ok = ok && expect_file_not_contains(
+                formatting_suggestions_file,
+                "explicit retro formatting blocks brevity suggestions",
+                "Suggestion:");
+            steno_destroy(formatting_suggestions_steno);
+        }
+        fclose(formatting_suggestions_file);
+    }
+
+    FILE *command_suggestions_file = tmpfile();
+    ok = ok && command_suggestions_file != NULL;
+    if (command_suggestions_file != NULL) {
+        Steno_Config command_suggestions_config = config;
+        command_suggestions_config.suggestions_file = command_suggestions_file;
+        command_suggestions_config.print_suggestions = true;
+        Steno *command_suggestions_steno = steno_create(&command_suggestions_config);
+        ok = ok && command_suggestions_steno != NULL;
+        if (command_suggestions_steno != NULL) {
+            clear_test_output(&output);
+            ok = ok && handle_test_stroke(command_suggestions_steno, "KAT");
+            ok = ok && handle_test_stroke(command_suggestions_steno, "TPH");
+            ok = ok && handle_test_stroke(command_suggestions_steno, "-T");
+            ok = ok && handle_test_stroke(command_suggestions_steno, "TPHA");
+            char command_suggestions[2048] = {0};
+            ok = ok && read_file_contents(
+                command_suggestions_file,
+                command_suggestions,
+                sizeof(command_suggestions));
+            ok = ok && expect_size(
+                "command-only stroke does not repeat a suggestion",
+                substring_occurrence_count(
+                    command_suggestions,
+                    "Suggestion [dictionary]: Use TPH-T for \"in the\"\n"),
+                1);
+            steno_destroy(command_suggestions_steno);
+        }
+        fclose(command_suggestions_file);
+    }
+
     FILE *suggestion_log_file = tmpfile();
     FILE *silent_suggestions_file = tmpfile();
     ok = ok && suggestion_log_file != NULL && silent_suggestions_file != NULL;

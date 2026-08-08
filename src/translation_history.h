@@ -28,6 +28,7 @@ struct Translation {
     bool glue;
     bool next_attach;
     bool retro_space_command;
+    bool suggestion_barrier;
     bool has_case_state;
 };
 

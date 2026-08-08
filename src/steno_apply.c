@@ -344,6 +344,7 @@ static bool repeat_last_translation(
     Translation next = {
         .glue = last->glue,
         .next_attach = last->next_attach,
+        .suggestion_barrier = true,
     };
     const bool repeat_needs_spacing = steno->spacing.mode == SPACING_MODE_BEFORE_WORD
         && !last->glue
@@ -826,8 +827,15 @@ static bool apply_suffix_translation_match(Steno *steno, const Translation_Match
     return true;
 }
 
-bool steno_apply_translation_match(Steno *steno, const Translation_Match *match)
+bool steno_apply_translation_match(
+    Steno *steno,
+    const Translation_Match *match,
+    bool *out_suggestion_eligible
+)
 {
+    if (out_suggestion_eligible != NULL) {
+        *out_suggestion_eligible = false;
+    }
     if (steno == NULL || match == NULL) {
         return false;
     }
@@ -847,7 +855,11 @@ bool steno_apply_translation_match(Steno *steno, const Translation_Match *match)
 
     if (match->suffix_match) {
         formatted_text_destroy(&formatted);
-        return apply_suffix_translation_match(steno, match);
+        const bool ok = apply_suffix_translation_match(steno, match);
+        if (ok && out_suggestion_eligible != NULL) {
+            *out_suggestion_eligible = true;
+        }
+        return ok;
     }
 
     if (formatted.retro_command != RETRO_COMMAND_NONE) {
@@ -913,6 +925,13 @@ bool steno_apply_translation_match(Steno *steno, const Translation_Match *match)
         return ok;
     }
 
+    const bool suggestion_barrier = formatted_has_deferred_action(&formatted)
+        || formatted.text[0] == '\0'
+        || formatted.text_case != CASE_MODE_NORMAL
+        || formatted.next_case != CASE_MODE_NORMAL
+        || formatted.cancel_formatting
+        || formatted.carry_case;
+
     const Steno_Case_State previous_case_state = steno_case_state(steno);
     if (match->has_format_case_state) {
         steno_restore_case_state(steno, ((Steno_Case_State) {
@@ -969,7 +988,9 @@ bool steno_apply_translation_match(Steno *steno, const Translation_Match *match)
         return false;
     }
 
-    Translation next = {0};
+    Translation next = {
+        .suggestion_barrier = suggestion_barrier,
+    };
     const Translation *previous = previous_visible_translation(steno->translations, replace_start);
     if (match_has_partial_prefix(match)) {
         next.utf8 = build_partial_replacement_text(
@@ -1081,6 +1102,10 @@ bool steno_apply_translation_match(Steno *steno, const Translation_Match *match)
     }
     arrsetlen(steno->translations, replace_start);
     arrput(steno->translations, next);
+
+    if (out_suggestion_eligible != NULL) {
+        *out_suggestion_eligible = !suggestion_barrier;
+    }
 
     arrfree(old_text);
     formatted_text_destroy(&formatted);
