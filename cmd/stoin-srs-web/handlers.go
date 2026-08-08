@@ -116,7 +116,7 @@ func (a *App) handleItemEdit(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := a.updateItemText(r.Context(), deckID, itemID, text); err != nil {
 		if errors.Is(err, ErrDuplicateItem) {
-			redirectWithItemError(w, r, deckID, itemID, "That word is already in this deck.")
+			redirectWithItemError(w, r, deckID, itemID, "That entry already exists.")
 			return
 		}
 		if errors.Is(err, sql.ErrNoRows) {

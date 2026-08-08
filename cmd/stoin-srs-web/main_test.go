@@ -191,19 +191,23 @@ func TestParseGroupedImportReportsLineErrors(t *testing.T) {
 	}
 }
 
-func TestIngestGroupsSkipsDuplicateWordsAcrossDeck(t *testing.T) {
+func TestIngestGroupsSkipsDuplicateWordsAcrossDecks(t *testing.T) {
 	app := testApp(t)
 	ctx := context.Background()
-	deckID, err := app.getOrCreateDeck(ctx, "briefs", time.Now().UTC())
+	firstDeckID, err := app.getOrCreateDeck(ctx, "first", time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondDeckID, err := app.getOrCreateDeck(ctx, "second", time.Now().UTC())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = app.ingestGroups(ctx, deckID, []ImportGroup{{Name: "words", Words: []string{"a"}}}, "test", "one")
+	_, err = app.ingestGroups(ctx, firstDeckID, []ImportGroup{{Name: "words", Words: []string{"a"}}}, "test", "one")
 	if err != nil {
 		t.Fatal(err)
 	}
-	stats, err := app.ingestGroups(ctx, deckID, []ImportGroup{{Name: "briefs", Words: []string{"a", "the"}}}, "test", "two")
+	stats, err := app.ingestGroups(ctx, secondDeckID, []ImportGroup{{Name: "briefs", Words: []string{"a", "the"}}}, "test", "two")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -217,6 +221,17 @@ func TestIngestGroupsSkipsDuplicateWordsAcrossDeck(t *testing.T) {
 	}
 	if count != 2 {
 		t.Fatalf("expected 2 items, got %d", count)
+	}
+	var duplicateOwner int64
+	if err := app.db.QueryRow(`
+SELECT g.deck_id
+FROM items i
+JOIN groups g ON g.id = i.group_id
+WHERE i.text = 'a'`).Scan(&duplicateOwner); err != nil {
+		t.Fatal(err)
+	}
+	if duplicateOwner != firstDeckID {
+		t.Fatalf("expected original deck %d to retain a, got deck %d", firstDeckID, duplicateOwner)
 	}
 }
 
@@ -1300,6 +1315,34 @@ func TestEditItemUpdatesTextAndRejectsDuplicates(t *testing.T) {
 	}
 	if text != "an" {
 		t.Fatalf("duplicate edit should not change text, got %q", text)
+	}
+
+	otherDeckID, err := app.getOrCreateDeck(ctx, "other deck", time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.ingestGroups(
+		ctx,
+		otherDeckID,
+		[]ImportGroup{{Name: "words", Words: []string{"outside"}}},
+		"test",
+		"other"); err != nil {
+		t.Fatal(err)
+	}
+	form.Set("text", "outside")
+	req = httptest.NewRequest(http.MethodPost, "/item/edit", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec = httptest.NewRecorder()
+
+	app.handleItemEdit(rec, req)
+	if rec.Code != http.StatusSeeOther || !strings.Contains(rec.Header().Get("Location"), "item_error=") {
+		t.Fatalf("expected cross-deck duplicate edit error, got %d location %q", rec.Code, rec.Header().Get("Location"))
+	}
+	if err := app.db.QueryRow(`SELECT text FROM items WHERE id = ?`, itemID).Scan(&text); err != nil {
+		t.Fatal(err)
+	}
+	if text != "an" {
+		t.Fatalf("cross-deck duplicate edit should not change text, got %q", text)
 	}
 }
 

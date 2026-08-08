@@ -18,6 +18,11 @@
         "text": "an"
       },
       {
+        "id": "in",
+        "stroke": "-PBS",
+        "text": "in"
+      },
+      {
         "id": "like",
         "stroke": "-BL",
         "text": "like"
@@ -303,13 +308,23 @@
         "text": "up"
       },
       {
+        "id": "up_to",
+        "stroke": "ORPG",
+        "text": "up to"
+      },
+      {
+        "id": "up_the",
+        "stroke": "-RPGT",
+        "text": "up the"
+      },
+      {
         "id": "out",
         "stroke": "OTS",
         "text": "out"
       },
       {
         "id": "with",
-        "stroke": "-FGT",
+        "stroke": "-RBG",
         "text": "with"
       },
       {
@@ -867,6 +882,39 @@
         ]
       },
       {
+        "stroke": "KPW",
+        "forms": [
+          {
+            "stroke": "",
+            "text": "picks"
+          },
+          {
+            "stroke": "-D",
+            "text": "picked"
+          },
+          {
+            "stroke": "AE",
+            "text": "pick"
+          },
+          {
+            "stroke": "*",
+            "text": "picking"
+          },
+          {
+            "stroke": "*E",
+            "text": "to pick"
+          },
+          {
+            "stroke": "A",
+            "text": "can pick"
+          },
+          {
+            "stroke": "A-D",
+            "text": "could pick"
+          }
+        ]
+      },
+      {
         "stroke": "STPH",
         "forms": [
           {
@@ -900,7 +948,7 @@
         ]
       },
       {
-        "stroke": "TKH",
+        "stroke": "TKR",
         "forms": [
           {
             "stroke": "",
@@ -1828,6 +1876,18 @@
         "agreement": "third_singular"
       },
       {
+        "id": "her",
+        "stroke": "KR",
+        "text": "her",
+        "agreement": "third_singular"
+      },
+      {
+        "id": "him",
+        "stroke": "PH",
+        "text": "him",
+        "agreement": "third_singular"
+      },
+      {
         "id": "it",
         "stroke": "P",
         "text": "it",
@@ -1864,6 +1924,12 @@
         "agreement": "third_singular"
       },
       {
+        "id": "do_you",
+        "stroke": "STKR",
+        "text": "do you",
+        "agreement": "plural"
+      },
+      {
         "id": "there_singular",
         "stroke": "TK",
         "text": "there",
@@ -1897,7 +1963,7 @@
       },
       {
         "id": "someone",
-        "stroke": "SP",
+        "stroke": "SW",
         "text": "someone",
         "agreement": "third_singular"
       },
@@ -2304,6 +2370,14 @@
         "past_participle": "pulled"
       },
       {
+        "id": "pick",
+        "base": "pick",
+        "third": "picks",
+        "past": "picked",
+        "present_participle": "picking",
+        "past_participle": "picked"
+      },
+      {
         "id": "want",
         "base": "want",
         "third": "wants",
@@ -2707,6 +2781,16 @@
       {
         "stroke": "-PLD",
         "verb": "pull",
+        "past": true
+      },
+      {
+        "stroke": "-PG",
+        "verb": "pick",
+        "past": false
+      },
+      {
+        "stroke": "-PGD",
+        "verb": "pick",
         "past": true
       },
       {
@@ -3139,6 +3223,11 @@
         "text": "an"
       },
       {
+        "id": "in",
+        "stroke": "-PBS",
+        "text": "in"
+      },
+      {
         "id": "like",
         "stroke": "-BL",
         "text": "like"
@@ -3424,13 +3513,23 @@
         "text": "up"
       },
       {
+        "id": "up_to",
+        "stroke": "ORPG",
+        "text": "up to"
+      },
+      {
+        "id": "up_the",
+        "stroke": "-RPGT",
+        "text": "up the"
+      },
+      {
         "id": "out",
         "stroke": "OTS",
         "text": "out"
       },
       {
         "id": "with",
-        "stroke": "-FGT",
+        "stroke": "-RBG",
         "text": "with"
       },
       {
@@ -3542,6 +3641,14 @@
         "text": "she"
       },
       {
+        "stroke": "KR",
+        "text": "her"
+      },
+      {
+        "stroke": "PH",
+        "text": "him"
+      },
+      {
         "stroke": "P",
         "text": "it"
       },
@@ -3566,6 +3673,10 @@
         "text": "that"
       },
       {
+        "stroke": "STKR",
+        "text": "do you"
+      },
+      {
         "stroke": "TK",
         "text": "there"
       },
@@ -3586,7 +3697,7 @@
         "text": "what"
       },
       {
-        "stroke": "SP",
+        "stroke": "SW",
         "text": "someone"
       },
       {

@@ -28,8 +28,9 @@
 | STHR | steals | stole |  | stealing | to steal | steal |  | can steal | could steal |
 | SPW | spells | spelled |  | spelling | to spell | spell |  | can spell | could spell |
 | PHR | pulls | pulled |  | pulling | to pull | pull |  | can pull | could pull |
+| KPW | picks | picked |  | picking | to pick | pick |  | can pick | could pick |
 | STPH | puts | put |  | putting | to put | put |  | can put | could put |
-| TKH | keeps | kept |  | keeping | to keep | keep |  | can keep | could keep |
+| TKR | keeps | kept |  | keeping | to keep | keep |  | can keep | could keep |
 | KHR | calls | called |  | calling | to call | call |  | can call | could call |
 | TK | does | did |  | doing | to do | do |  | can do | could do |
 | TKPW | goes | went |  | going | to go | go |  | can go | could go |
@@ -64,6 +65,7 @@
 | ∅ | ∅ |
 | -B | a |
 | -PB | an |
+| -PBS | in |
 | -BL | like |
 | -T | the |
 | -BT | at |
@@ -121,8 +123,10 @@
 | -RTS | right |
 | -LZ | less |
 | -RPG | up |
+| ORPG | up to |
+| -RPGT | up the |
 | OTS | out |
-| -FGT | with |
+| -RBG | with |
 | -RZ | your |
 | -PZ | its |
 | -PLZ | my |
@@ -158,18 +162,21 @@
 | H | you | plural |
 | K | he | third_singular |
 | SK | she | third_singular |
+| KR | her | third_singular |
+| PH | him | third_singular |
 | P | it | third_singular |
 | W | we | plural |
 | T | they | plural |
 | STWHR | those | plural |
 | TP | this | third_singular |
 | ST | that | third_singular |
+| STKR | do you | plural |
 | TK | there (singular) | third_singular |
 | TKW | there (plural) | plural |
 | SKP | and | plural |
 | KW | who | third_singular |
 | TW | what | third_singular |
-| SP | someone | third_singular |
+| SW | someone | third_singular |
 | SPW | something | third_singular |
 | KP | everyone | third_singular |
 | KPW | everything | third_singular |
@@ -256,6 +263,7 @@
 | -LS | -LSD | sell | ∅ |
 | -PLS | -PLSD | spell | ∅ |
 | -PL | -PLD | pull | ∅ |
+| -PG | -PGD | pick | ∅ |
 | -P | -PD | want | ∅ |
 | -PT | -PTD | want | to |
 | -RPG | -RPGD | need | ∅ |

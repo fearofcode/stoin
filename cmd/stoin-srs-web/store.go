@@ -10,7 +10,7 @@ import (
 
 var (
 	ErrDuplicateDeck         = errors.New("deck name already exists")
-	ErrDuplicateItem         = errors.New("item already exists in deck")
+	ErrDuplicateItem         = errors.New("item already exists")
 	ErrReviewItemUnavailable = errors.New("review item belongs to a paused or missing deck")
 )
 
@@ -494,7 +494,7 @@ VALUES(?, ?, ?, ?)`, deckID, groupID, source, formatDBTime(now))
 		}
 		for _, word := range group.Words {
 			stats.ItemsRead++
-			itemID, exists, err := existingDeckItem(ctx, tx, deckID, word)
+			itemID, exists, err := existingItem(ctx, tx, word)
 			if err != nil {
 				return stats, err
 			}
@@ -533,15 +533,14 @@ VALUES(?, ?, ?, ?, ?, ?, 0, 0, ?)`,
 	return stats, tx.Commit()
 }
 
-func existingDeckItem(ctx context.Context, tx *sql.Tx, deckID int64, word string) (int64, bool, error) {
+func existingItem(ctx context.Context, tx *sql.Tx, word string) (int64, bool, error) {
 	var id int64
 	err := tx.QueryRowContext(ctx, `
-SELECT i.id
-FROM items i
-JOIN groups g ON g.id = i.group_id
-WHERE g.deck_id = ? AND i.text = ?
-ORDER BY i.id
-LIMIT 1`, deckID, word).Scan(&id)
+SELECT id
+FROM items
+WHERE text = ?
+ORDER BY created_at, id
+LIMIT 1`, word).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, false, nil
 	}
@@ -569,11 +568,11 @@ WHERE i.id = ? AND g.deck_id = ?`, itemID, deckID).Scan(&groupID); err != nil {
 
 	var duplicateID int64
 	err = tx.QueryRowContext(ctx, `
-SELECT i.id
-FROM items i
-JOIN groups g ON g.id = i.group_id
-WHERE g.deck_id = ? AND i.text = ? AND i.id <> ?
-LIMIT 1`, deckID, text, itemID).Scan(&duplicateID)
+SELECT id
+FROM items
+WHERE text = ? AND id <> ?
+ORDER BY created_at, id
+LIMIT 1`, text, itemID).Scan(&duplicateID)
 	if err == nil {
 		return ErrDuplicateItem
 	}
