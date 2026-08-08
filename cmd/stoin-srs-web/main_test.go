@@ -191,6 +191,24 @@ func TestParseGroupedImportReportsLineErrors(t *testing.T) {
 	}
 }
 
+func TestParseDeduplicatedImportKeepsFirstEntries(t *testing.T) {
+	groups, issues, duplicates := parseDeduplicatedImportText("alpha\nbeta\nalpha\n", "words")
+	if len(issues) != 0 || duplicates != 1 {
+		t.Fatalf("expected one removed plain-list duplicate, got groups %#v issues %#v duplicates %d", groups, issues, duplicates)
+	}
+	if len(groups) != 1 || len(groups[0].Words) != 2 || groups[0].Words[0] != "alpha" || groups[0].Words[1] != "beta" {
+		t.Fatalf("unexpected deduplicated plain-list groups: %#v", groups)
+	}
+
+	groups, issues, duplicates = parseDeduplicatedImportText("first:\nalpha\n\nsecond:\nalpha\n", "")
+	if len(issues) != 0 || duplicates != 1 {
+		t.Fatalf("expected one removed grouped duplicate, got groups %#v issues %#v duplicates %d", groups, issues, duplicates)
+	}
+	if len(groups) != 1 || groups[0].Name != "first" || len(groups[0].Words) != 1 || groups[0].Words[0] != "alpha" {
+		t.Fatalf("expected duplicate-only group to be omitted, got %#v", groups)
+	}
+}
+
 func TestIngestGroupsSkipsDuplicateWordsAcrossDecks(t *testing.T) {
 	app := testApp(t)
 	ctx := context.Background()
@@ -1474,6 +1492,59 @@ func TestInvalidImportDoesNotCreateDeck(t *testing.T) {
 	}
 	if count != 0 {
 		t.Fatalf("expected no decks after invalid import, got %d", count)
+	}
+}
+
+func TestNewDeckImportDropsDuplicateEntries(t *testing.T) {
+	app := testApp(t)
+	form := url.Values{}
+	form.Set("deck_name", "new deck")
+	form.Set("content", "first:\nalpha\nbeta\n\nsecond:\nalpha\ngamma\nalpha\n")
+	req := httptest.NewRequest(http.MethodPost, "/import", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+
+	app.handleImport(rec, req)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("expected successful import redirect, got %d with body %q", rec.Code, rec.Body.String())
+	}
+	location, err := url.Parse(rec.Header().Get("Location"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if notice := location.Query().Get("notice"); !strings.Contains(notice, "Removed 2 duplicate item(s).") {
+		t.Fatalf("expected duplicate removal count in notice, got %q", notice)
+	}
+
+	rows, err := app.db.Query(`
+SELECT g.name, i.text
+FROM items i
+JOIN groups g ON g.id = i.group_id
+ORDER BY i.id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var got []string
+	for rows.Next() {
+		var group string
+		var text string
+		if err := rows.Scan(&group, &text); err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, group+":"+text)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"first:alpha", "first:beta", "second:gamma"}
+	if len(got) != len(want) {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+	for index := range want {
+		if got[index] != want[index] {
+			t.Fatalf("entry %d: want %q, got %q", index, want[index], got[index])
+		}
 	}
 }
 

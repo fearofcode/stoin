@@ -256,8 +256,13 @@ func (a *App) handleImport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var groups []ImportGroup
+	duplicatesRemoved := 0
 	if len(issues) == 0 {
-		groups, issues = parseImportText(form.Content, form.GroupName)
+		if form.DeckName != "" {
+			groups, issues, duplicatesRemoved = parseDeduplicatedImportText(form.Content, form.GroupName)
+		} else {
+			groups, issues = parseImportText(form.Content, form.GroupName)
+		}
 	}
 	if len(issues) > 0 {
 		a.renderImportErrors(w, r, returnPath, deckID, issues, form)
@@ -283,6 +288,9 @@ func (a *App) handleImport(w http.ResponseWriter, r *http.Request) {
 		notice = "That exact import was already processed for this deck."
 	} else {
 		notice = fmt.Sprintf("Imported %d item(s); %d already present.", stats.Added, stats.Existing)
+	}
+	if duplicatesRemoved > 0 {
+		notice += fmt.Sprintf(" Removed %d duplicate item(s).", duplicatesRemoved)
 	}
 	redirectWithNotice(w, r, returnPath, notice)
 }

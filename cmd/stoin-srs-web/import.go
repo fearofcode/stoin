@@ -8,26 +8,45 @@ import (
 )
 
 func parseImportText(content string, groupName string) ([]ImportGroup, []ParseIssue) {
+	groups, issues, _ := parseImportTextWithDuplicatePolicy(content, groupName, false)
+	return groups, issues
+}
+
+func parseDeduplicatedImportText(content string, groupName string) ([]ImportGroup, []ParseIssue, int) {
+	return parseImportTextWithDuplicatePolicy(content, groupName, true)
+}
+
+func parseImportTextWithDuplicatePolicy(content string, groupName string, dropDuplicates bool) ([]ImportGroup, []ParseIssue, int) {
 	if strings.TrimSpace(groupName) != "" {
-		return parseSimpleImport(content, strings.TrimSpace(groupName))
+		return parseSimpleImportWithDuplicatePolicy(content, strings.TrimSpace(groupName), dropDuplicates)
 	}
-	return parseGroupedImport(content)
+	return parseGroupedImportWithDuplicatePolicy(content, dropDuplicates)
 }
 
 func parseSimpleImport(content string, groupName string) ([]ImportGroup, []ParseIssue) {
+	groups, issues, _ := parseSimpleImportWithDuplicatePolicy(content, groupName, false)
+	return groups, issues
+}
+
+func parseSimpleImportWithDuplicatePolicy(content string, groupName string, dropDuplicates bool) ([]ImportGroup, []ParseIssue, int) {
 	var words []string
 	seen := map[string]int{}
 	var issues []ParseIssue
+	duplicatesRemoved := 0
 	for lineNumber, line := range strings.Split(content, "\n") {
 		word := strings.TrimSpace(strings.TrimSuffix(line, "\r"))
 		if word == "" {
 			continue
 		}
 		if firstLine, ok := seen[word]; ok {
-			issues = append(issues, ParseIssue{
-				Line:    lineNumber + 1,
-				Message: fmt.Sprintf("duplicate word in group %q (first seen on line %d)", groupName, firstLine),
-			})
+			if dropDuplicates {
+				duplicatesRemoved++
+			} else {
+				issues = append(issues, ParseIssue{
+					Line:    lineNumber + 1,
+					Message: fmt.Sprintf("duplicate word in group %q (first seen on line %d)", groupName, firstLine),
+				})
+			}
 			continue
 		}
 		seen[word] = lineNumber + 1
@@ -37,19 +56,27 @@ func parseSimpleImport(content string, groupName string) ([]ImportGroup, []Parse
 		issues = append(issues, ParseIssue{Line: 1, Message: "import text contains no words"})
 	}
 	if len(issues) > 0 {
-		return nil, issues
+		return nil, issues, duplicatesRemoved
 	}
-	return []ImportGroup{{Name: groupName, Line: 1, Words: words}}, nil
+	return []ImportGroup{{Name: groupName, Line: 1, Words: words}}, nil, duplicatesRemoved
 }
 
 func parseGroupedImport(content string) ([]ImportGroup, []ParseIssue) {
+	groups, issues, _ := parseGroupedImportWithDuplicatePolicy(content, false)
+	return groups, issues
+}
+
+func parseGroupedImportWithDuplicatePolicy(content string, dropDuplicates bool) ([]ImportGroup, []ParseIssue, int) {
 	var groups []ImportGroup
 	groupLines := map[string]int{}
+	allWords := map[string]int{}
 	var issues []ParseIssue
+	duplicatesRemoved := 0
 
 	current := ImportGroup{}
 	currentSeen := map[string]int{}
 	currentValid := false
+	currentHadWords := false
 	previousBlank := true
 
 	finishCurrent := func() {
@@ -58,10 +85,12 @@ func parseGroupedImport(content string) ([]ImportGroup, []ParseIssue) {
 		}
 		if currentValid {
 			if len(current.Words) == 0 {
-				issues = append(issues, ParseIssue{
-					Line:    current.Line,
-					Message: fmt.Sprintf("group %q contains no words", current.Name),
-				})
+				if !dropDuplicates || !currentHadWords {
+					issues = append(issues, ParseIssue{
+						Line:    current.Line,
+						Message: fmt.Sprintf("group %q contains no words", current.Name),
+					})
+				}
 			} else {
 				groups = append(groups, current)
 			}
@@ -69,6 +98,7 @@ func parseGroupedImport(content string) ([]ImportGroup, []ParseIssue) {
 		current = ImportGroup{}
 		currentSeen = map[string]int{}
 		currentValid = false
+		currentHadWords = false
 	}
 
 	lines := strings.Split(content, "\n")
@@ -109,13 +139,22 @@ func parseGroupedImport(content string) ([]ImportGroup, []ParseIssue) {
 			continue
 		}
 		if currentValid {
-			if firstLine, ok := currentSeen[stripped]; ok {
-				issues = append(issues, ParseIssue{
-					Line:    lineNumber,
-					Message: fmt.Sprintf("duplicate word in group %q (first seen on line %d)", current.Name, firstLine),
-				})
+			currentHadWords = true
+			seen := currentSeen
+			if dropDuplicates {
+				seen = allWords
+			}
+			if firstLine, ok := seen[stripped]; ok {
+				if dropDuplicates {
+					duplicatesRemoved++
+				} else {
+					issues = append(issues, ParseIssue{
+						Line:    lineNumber,
+						Message: fmt.Sprintf("duplicate word in group %q (first seen on line %d)", current.Name, firstLine),
+					})
+				}
 			} else {
-				currentSeen[stripped] = lineNumber
+				seen[stripped] = lineNumber
 				current.Words = append(current.Words, stripped)
 			}
 		}
@@ -127,9 +166,9 @@ func parseGroupedImport(content string) ([]ImportGroup, []ParseIssue) {
 		issues = append(issues, ParseIssue{Line: 1, Message: "import text contains no groups"})
 	}
 	if len(issues) > 0 {
-		return nil, issues
+		return nil, issues, duplicatesRemoved
 	}
-	return groups, nil
+	return groups, nil, duplicatesRemoved
 }
 
 func importHash(content string, groupName string) string {
