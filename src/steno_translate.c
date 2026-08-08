@@ -15,11 +15,14 @@ enum {
 typedef enum Trace_Stroke_Mode {
     TRACE_STROKE_NORMAL,
     TRACE_STROKE_PHRASE,
+    TRACE_STROKE_PHRASE_FALLBACK,
 } Trace_Stroke_Mode;
 
 static const char *trace_stroke_mode_label(Trace_Stroke_Mode mode)
 {
     switch (mode) {
+    case TRACE_STROKE_PHRASE_FALLBACK:
+        return " [phrase fallback]";
     case TRACE_STROKE_PHRASE:
         return " [phrase]";
     case TRACE_STROKE_NORMAL:
@@ -103,10 +106,18 @@ static void set_replacement_format_case_state(
     match->has_format_case_state = true;
 }
 
+static bool translate_phrase_bits(
+    Steno *steno,
+    uint64_t bits,
+    Trace_Stroke_Mode trace_mode,
+    bool *out_hit
+);
+
 static bool translate_dictionary_bits_with_trace(
     Steno *steno,
     uint64_t bits,
-    Trace_Stroke_Mode trace_mode
+    Trace_Stroke_Mode trace_mode,
+    bool allow_phrase_fallback
 )
 {
     if (bits == 0) {
@@ -140,6 +151,23 @@ static bool translate_dictionary_bits_with_trace(
             &match)) {
         return false;
     }
+
+    if (match.translation == NULL && allow_phrase_fallback) {
+        bool hit = false;
+        if (!translate_phrase_bits(
+                steno,
+                bits,
+                TRACE_STROKE_PHRASE_FALLBACK,
+                &hit)) {
+            translation_match_destroy(&match);
+            return false;
+        }
+        if (hit) {
+            translation_match_destroy(&match);
+            return true;
+        }
+    }
+
     set_replacement_format_case_state(steno, &match);
 
     trace_stroke_with_mode(
@@ -162,6 +190,7 @@ static bool translate_dictionary_bits_with_trace(
 static bool translate_phrase_bits(
     Steno *steno,
     uint64_t bits,
+    Trace_Stroke_Mode trace_mode,
     bool *out_hit
 )
 {
@@ -211,7 +240,7 @@ static bool translate_phrase_bits(
     match.strokes[0] = bits;
     match.stroke_count = 1;
     snprintf(match.outline, sizeof(match.outline), "%s", raw_chord);
-    trace_stroke_with_mode(steno, raw_chord, phrase, TRACE_STROKE_PHRASE);
+    trace_stroke_with_mode(steno, raw_chord, phrase, trace_mode);
     const bool ok = steno_apply_translation_match(steno, &match);
     if (ok) {
         steno_maybe_emit_brevity_suggestion(steno);
@@ -226,19 +255,33 @@ static bool translate_phrase_bits(
 
 bool steno_translate_chord_bits(Steno *steno, uint64_t bits)
 {
-    return translate_dictionary_bits_with_trace(steno, bits, TRACE_STROKE_NORMAL);
+    return translate_dictionary_bits_with_trace(
+        steno,
+        bits,
+        TRACE_STROKE_NORMAL,
+        false
+    );
 }
 
 bool steno_translate_stroke_input(Steno *steno, Stroke_Input stroke)
 {
     if (stroke.phrase_active) {
         bool hit = false;
-        if (!translate_phrase_bits(steno, stroke.bits, &hit)) {
+        if (!translate_phrase_bits(
+                steno,
+                stroke.bits,
+                TRACE_STROKE_PHRASE,
+                &hit)) {
             return false;
         }
         if (hit) {
             return true;
         }
     }
-    return translate_dictionary_bits_with_trace(steno, stroke.bits, TRACE_STROKE_NORMAL);
+    return translate_dictionary_bits_with_trace(
+        steno,
+        stroke.bits,
+        TRACE_STROKE_NORMAL,
+        !stroke.phrase_active
+    );
 }

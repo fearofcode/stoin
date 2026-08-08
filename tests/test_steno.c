@@ -594,6 +594,27 @@ int main(void)
     ok = ok && reset_test_steno(&steno, &config);
 
     clear_test_output(&output);
+    ok = ok && handle_test_stroke(steno, "SKPWO-B");
+    ok = ok && expect_string(
+        "untranslated stroke falls back to a valid phrase",
+        output.text,
+        "is a");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    ok = ok && handle_test_stroke(steno, "SKPWO-T");
+    ok = ok && expect_string(
+        "phrase fallback remains available for a longer dictionary match",
+        output.text,
+        "is the");
+    ok = ok && handle_test_stroke(steno, "TO");
+    ok = ok && expect_string(
+        "longer dictionary match replaces phrase fallback",
+        output.text,
+        "dictionary extended phrase fallback");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
     reset_output_log(&output);
     ok = ok && steno_handle_stroke_bits(steno, story_bits);
     ok = ok && expect_string("story first stroke", output.text, "story");
