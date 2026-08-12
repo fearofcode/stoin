@@ -332,6 +332,19 @@ int main(void)
     ok = ok && reset_test_steno(&steno, &config);
     clear_test_output(&output);
     steno_set_phrase_active(steno, true);
+    ok = ok && handle_test_stroke(steno, "SHRU-BD");
+    ok = ok && handle_test_stroke(steno, "SHREUD");
+    ok = ok && handle_test_stroke(steno, "SHR*EUD");
+    ok = ok && handle_test_stroke(steno, "SHREUGD");
+    steno_set_phrase_active(steno, false);
+    ok = ok && expect_string(
+        "FV empty E-D explicitly uses were",
+        output.text,
+        "how was how were how were not how was going");
+
+    ok = ok && reset_test_steno(&steno, &config);
+    clear_test_output(&output);
+    steno_set_phrase_active(steno, true);
     ok = ok && handle_test_stroke(steno, "K*U");
     ok = ok && handle_test_stroke(steno, "K*U-D");
     steno_set_phrase_active(steno, false);

@@ -112,15 +112,16 @@ type SessionLine struct {
 }
 
 type SessionPageData struct {
-	Mode       string
-	DeckID     int64
-	ReturnURL  string
-	Order      string
-	Items      []SessionItem
-	Lines      []SessionLine
-	ItemsJSON  template.JS
-	IsReview   bool
-	IsPractice bool
+	Mode           string
+	DeckID         int64
+	ReturnURL      string
+	Order          string
+	Items          []SessionItem
+	Lines          []SessionLine
+	ItemsJSON      template.JS
+	IsReview       bool
+	IsPractice     bool
+	ReviewSelected bool
 }
 
 type LearningStats struct {

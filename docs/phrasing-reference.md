@@ -185,6 +185,7 @@
 | WH | with | third_singular |
 | STP | at | third_singular |
 | TKP | off | third_singular |
+| TKPH | kind | third_singular |
 | PR | up | third_singular |
 | KH | can | third_singular |
 | SKWR | just | third_singular |
@@ -235,6 +236,7 @@
 | --- | --- |
 | ∅ | simple |
 | E | progressive |
+| E-D with empty ender | explicit were |
 | -F | perfect |
 | E-F | perfect_progressive |
 

@@ -225,7 +225,11 @@ static bool build_fv_long(
             && (!operator.negative || append_word(out, "not"))
             && append_word(out, ender->suffix);
     case FV_STRUCTURE_PROGRESSIVE:
-        return append_word(out, fv_be_word(starter, ender->past))
+        return append_word(
+                out,
+                !has_verb && ender->past
+                    ? "were"
+                    : fv_be_word(starter, ender->past))
             && (!operator.negative || append_word(out, "not"))
             && (!has_verb || append_verb_and_suffix(out, ender->verb->present_participle, ender->suffix));
     case FV_STRUCTURE_PERFECT:

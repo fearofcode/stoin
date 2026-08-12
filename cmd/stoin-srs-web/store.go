@@ -628,14 +628,18 @@ WHERE id = ?`, itemID).Scan(&text)
 }
 
 func (a *App) itemsByID(ctx context.Context, ids []int64) ([]SessionItem, error) {
-	return a.itemsByIDFiltered(ctx, ids, false)
+	return a.itemsByIDFiltered(ctx, ids, false, false)
 }
 
 func (a *App) reviewItemsByID(ctx context.Context, ids []int64) ([]SessionItem, error) {
-	return a.itemsByIDFiltered(ctx, ids, true)
+	return a.itemsByIDFiltered(ctx, ids, true, false)
 }
 
-func (a *App) itemsByIDFiltered(ctx context.Context, ids []int64, activeDecksOnly bool) ([]SessionItem, error) {
+func (a *App) dueReviewItemsByID(ctx context.Context, ids []int64) ([]SessionItem, error) {
+	return a.itemsByIDFiltered(ctx, ids, true, true)
+}
+
+func (a *App) itemsByIDFiltered(ctx context.Context, ids []int64, activeDecksOnly bool, dueOnly bool) ([]SessionItem, error) {
 	if len(ids) == 0 {
 		return nil, nil
 	}
@@ -649,6 +653,11 @@ func (a *App) itemsByIDFiltered(ctx context.Context, ids []int64, activeDecksOnl
 	if activeDecksOnly {
 		activeFilter = " AND d.paused = 0"
 	}
+	dueFilter := ""
+	if dueOnly {
+		dueFilter = " AND (i.intro_remaining > 0 OR i.due_at <= ?)"
+		args = append(args, formatDBTime(time.Now().UTC()))
+	}
 	rows, err := a.db.QueryContext(ctx, `
 SELECT
 	i.id,
@@ -658,7 +667,7 @@ SELECT
 FROM items i
 JOIN groups g ON g.id = i.group_id
 JOIN decks d ON d.id = g.deck_id
-WHERE i.id IN (`+placeholders+`)`+activeFilter, args...)
+WHERE i.id IN (`+placeholders+`)`+activeFilter+dueFilter, args...)
 	if err != nil {
 		return nil, err
 	}

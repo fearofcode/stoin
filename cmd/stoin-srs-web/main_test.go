@@ -552,6 +552,66 @@ func TestReviewSubmitContinuesWhenDueItemsRemain(t *testing.T) {
 	}
 }
 
+func TestSelectedReviewContinuesWithinSelectedSubset(t *testing.T) {
+	app := testApp(t)
+	ctx := context.Background()
+	deckID, err := app.getOrCreateDeck(ctx, "briefs", time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = app.ingestGroups(ctx, deckID, []ImportGroup{{Name: "words", Words: []string{"put", "other"}}}, "test", "one")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var selectedID int64
+	if err := app.db.QueryRow(`SELECT id FROM items WHERE text = 'put'`).Scan(&selectedID); err != nil {
+		t.Fatal(err)
+	}
+
+	startForm := url.Values{}
+	startForm.Set("deck_id", fmt.Sprint(deckID))
+	startForm.Set("mode", "review")
+	startForm.Set("session_order", "listed")
+	startForm.Add("item_id", fmt.Sprint(selectedID))
+	startReq := httptest.NewRequest(http.MethodPost, "/session/start", strings.NewReader(startForm.Encode()))
+	startReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	startRec := httptest.NewRecorder()
+	app.handleSessionStart(startRec, startReq)
+	if startRec.Code != http.StatusOK {
+		t.Fatalf("expected selected review session, got %d with body %q", startRec.Code, startRec.Body.String())
+	}
+	startBody := startRec.Body.String()
+	if !strings.Contains(startBody, `name="review_selected" value="1"`) || strings.Contains(startBody, `value="other"`) {
+		t.Fatalf("expected selected review scope containing only put, got %q", startBody)
+	}
+
+	submitForm := url.Values{}
+	submitForm.Set("mode", "review")
+	submitForm.Set("return", fmt.Sprintf("/deck?id=%d", deckID))
+	submitForm.Set("deck_id", fmt.Sprint(deckID))
+	submitForm.Set("session_order", "listed")
+	submitForm.Set("review_selected", "1")
+	submitForm.Add("session_index", "0")
+	submitForm.Set("item_id_0", fmt.Sprint(selectedID))
+	submitForm.Set("prompt_0", "put")
+	submitForm.Set("answer_0", "put")
+	submitForm.Set("result_0", "correct")
+	submitReq := httptest.NewRequest(http.MethodPost, "/session/submit", strings.NewReader(submitForm.Encode()))
+	submitReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	submitRec := httptest.NewRecorder()
+	app.handleSessionSubmit(submitRec, submitReq)
+	if submitRec.Code != http.StatusOK {
+		t.Fatalf("expected selected subset to continue, got %d with body %q", submitRec.Code, submitRec.Body.String())
+	}
+	submitBody := submitRec.Body.String()
+	if !strings.Contains(submitBody, `value="put"`) || strings.Contains(submitBody, `value="other"`) {
+		t.Fatalf("expected continued review to stay within selected subset, got %q", submitBody)
+	}
+	if !strings.Contains(submitBody, `name="review_selected" value="1"`) {
+		t.Fatalf("expected continued review to retain selected scope, got %q", submitBody)
+	}
+}
+
 func TestReviewSubmitRedirectsWhenNoDueItemsRemain(t *testing.T) {
 	app := testApp(t)
 	ctx := context.Background()
@@ -1086,6 +1146,9 @@ func TestReviewAllStartsDeckSessionWithoutSelection(t *testing.T) {
 	}
 	if strings.Contains(body, `value="other"`) {
 		t.Fatalf("review all should not include another deck's items, got body %q", body)
+	}
+	if strings.Contains(body, `name="review_selected"`) {
+		t.Fatalf("review all should not be restricted to its first round, got body %q", body)
 	}
 	if got := strings.Count(body, `name="session_index"`); got != 2 {
 		t.Fatalf("expected 2 review items, including the non-due item, got %d", got)

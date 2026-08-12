@@ -386,13 +386,14 @@ func (a *App) handleSessionStart(w http.ResponseWriter, r *http.Request) {
 	items = orderSessionItems(items, order, nil)
 	items = repeatSessionItems(items, count)
 	a.renderSession(w, SessionPageData{
-		Mode:       mode,
-		DeckID:     deckID,
-		ReturnURL:  returnURL,
-		Order:      order,
-		Items:      items,
-		IsReview:   mode == "review",
-		IsPractice: mode == "practice",
+		Mode:           mode,
+		DeckID:         deckID,
+		ReturnURL:      returnURL,
+		Order:          order,
+		Items:          items,
+		IsReview:       mode == "review",
+		IsPractice:     mode == "practice",
+		ReviewSelected: mode == "review" && !allItems,
 	})
 }
 
@@ -485,7 +486,13 @@ func (a *App) handleSessionSubmit(w http.ResponseWriter, r *http.Request) {
 		serverError(w, err)
 		return
 	}
-	nextItems, err := a.dueItems(r.Context(), deckID, reviewAllDueLimit)
+	selectedReview := r.FormValue("review_selected") == "1"
+	var nextItems []SessionItem
+	if selectedReview {
+		nextItems, err = a.dueReviewItemsByID(r.Context(), reviewIDs)
+	} else {
+		nextItems, err = a.dueItems(r.Context(), deckID, reviewAllDueLimit)
+	}
 	if err != nil {
 		serverError(w, err)
 		return
@@ -493,12 +500,13 @@ func (a *App) handleSessionSubmit(w http.ResponseWriter, r *http.Request) {
 	if len(nextItems) > 0 {
 		nextItems = orderSessionItems(nextItems, order, nil)
 		a.renderSession(w, SessionPageData{
-			Mode:      "review",
-			DeckID:    deckID,
-			ReturnURL: returnURL,
-			Order:     order,
-			Items:     nextItems,
-			IsReview:  true,
+			Mode:           "review",
+			DeckID:         deckID,
+			ReturnURL:      returnURL,
+			Order:          order,
+			Items:          nextItems,
+			IsReview:       true,
+			ReviewSelected: selectedReview,
 		})
 		return
 	}

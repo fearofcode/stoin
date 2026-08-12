@@ -2016,6 +2016,12 @@
         "agreement": "third_singular"
       },
       {
+        "id": "kind",
+        "stroke": "TKPH",
+        "text": "kind",
+        "agreement": "third_singular"
+      },
+      {
         "id": "up",
         "stroke": "PR",
         "text": "up",
@@ -3731,6 +3737,10 @@
       {
         "stroke": "TKP",
         "text": "off"
+      },
+      {
+        "stroke": "TKPH",
+        "text": "kind"
       },
       {
         "stroke": "PR",
