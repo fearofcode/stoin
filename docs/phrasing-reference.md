@@ -81,6 +81,7 @@
 | -Z | his |
 | -RT | that |
 | -G | can |
+| -PBZ | and |
 | -FZ | if |
 | -F | of |
 | -FT | of the |
@@ -103,6 +104,7 @@
 | -FPS | such |
 | -RPB | he |
 | -RB | she |
+| -RPBL | him |
 | -GT | though |
 | -LS | else |
 | -PBLGTS | something |
@@ -178,6 +180,7 @@
 | KW | who | third_singular |
 | KWR | who (plural) | plural |
 | TW | what | third_singular |
+| SPH | some | plural |
 | SW | someone | third_singular |
 | SPW | something | third_singular |
 | KP | everyone | third_singular |
@@ -251,6 +254,7 @@
 | -B | -BD | be | ∅ |
 | -BT | -BTD | be | a |
 | -T | -TD | have | ∅ |
+| -TZ | -TDZ | have | a |
 | -TS | -TSD | have | to |
 | -RP | -RPD | do | ∅ |
 | -RPT | -RPTD | do | it |

@@ -98,6 +98,11 @@
         "text": "can"
       },
       {
+        "id": "and",
+        "stroke": "-PBZ",
+        "text": "and"
+      },
+      {
         "id": "if",
         "stroke": "-FZ",
         "text": "if"
@@ -206,6 +211,11 @@
         "id": "she",
         "stroke": "-RB",
         "text": "she"
+      },
+      {
+        "id": "him",
+        "stroke": "-RPBL",
+        "text": "him"
       },
       {
         "id": "though",
@@ -1974,6 +1984,12 @@
         "agreement": "third_singular"
       },
       {
+        "id": "some",
+        "stroke": "SPH",
+        "text": "some",
+        "agreement": "plural"
+      },
+      {
         "id": "someone",
         "stroke": "SW",
         "text": "someone",
@@ -2625,6 +2641,18 @@
       {
         "stroke": "-TD",
         "verb": "have",
+        "past": true
+      },
+      {
+        "stroke": "-TZ",
+        "verb": "have",
+        "suffix": "a",
+        "past": false
+      },
+      {
+        "stroke": "-TDZ",
+        "verb": "have",
+        "suffix": "a",
         "past": true
       },
       {
@@ -3327,6 +3355,11 @@
         "text": "can"
       },
       {
+        "id": "and",
+        "stroke": "-PBZ",
+        "text": "and"
+      },
+      {
         "id": "if",
         "stroke": "-FZ",
         "text": "if"
@@ -3435,6 +3468,11 @@
         "id": "she",
         "stroke": "-RB",
         "text": "she"
+      },
+      {
+        "id": "him",
+        "stroke": "-RPBL",
+        "text": "him"
       },
       {
         "id": "though",
@@ -3728,6 +3766,10 @@
       {
         "stroke": "TW",
         "text": "what"
+      },
+      {
+        "stroke": "SPH",
+        "text": "some"
       },
       {
         "stroke": "SW",
