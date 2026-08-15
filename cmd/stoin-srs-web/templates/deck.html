@@ -25,7 +25,7 @@
 	</div>
 </form>
 {{end}}
-<p class="small">{{.TotalItems}} words, {{.DueCount}} {{if .Deck.Paused}}due when resumed{{else}}due now{{end}}{{if gt .LearningCount 0}}, {{.LearningCount}} learning, {{.IntroRemaining}} intro reps left{{end}}</p>
+<p class="small">{{.TotalItems}} words, {{.DueCount}} {{if .Deck.Paused}}due when resumed{{else}}due now{{end}}{{if gt .LearningCount 0}}, {{.LearningCount}} learning, {{.IntroRemaining}} intro reps left{{end}}{{if gt .QueuedCount 0}}, {{.QueuedCount}} queued{{end}}</p>
 {{if .Deck.Paused}}
 <p class="paused-deck-note">Scheduled review is paused for this deck. You can still practice any or all of its words.</p>
 {{end}}
@@ -51,7 +51,7 @@
 <section class="group">
 	<header>
 		<label><input type="checkbox" class="group-check" data-group="{{.ID}}"> {{.Name}}</label>
-		<span class="small">{{len .Items}} words{{if gt .LearningCount 0}}, {{.LearningCount}} learning, {{.IntroRemaining}} reps left{{end}}</span>
+		<span class="small">{{len .Items}} words{{if gt .LearningCount 0}}, {{.LearningCount}} learning, {{.IntroRemaining}} reps left{{end}}{{if gt .QueuedCount 0}}, {{.QueuedCount}} queued{{end}}</span>
 	</header>
 	{{if .Items}}
 	{{range .Items}}
@@ -67,11 +67,11 @@
 			<a class="button-link" href="/deck?id={{$.Deck.ID}}">Cancel</a>
 			{{if $.ItemError}}<span class="item-error">{{$.ItemError}}</span>{{end}}
 		</form>
-		<span class="word-meta">{{if gt .IntroRemaining 0}}learning {{.IntroRemaining}}{{else}}due {{.DueAt.Format "2006-01-02"}}{{end}}</span>
+		<span class="word-meta">{{if .Queued}}queued{{else if gt .IntroRemaining 0}}learning {{.IntroRemaining}}{{else}}due {{.DueAt.Format "2006-01-02"}}{{end}}</span>
 		<span></span>
 		{{else}}
 		<span>{{.Text}}</span>
-		<span class="word-meta">{{if gt .IntroRemaining 0}}learning {{.IntroRemaining}}{{else}}due {{.DueAt.Format "2006-01-02"}}{{end}}</span>
+		<span class="word-meta">{{if .Queued}}queued{{else if gt .IntroRemaining 0}}learning {{.IntroRemaining}}{{else}}due {{.DueAt.Format "2006-01-02"}}{{end}}</span>
 		<span class="item-actions">
 			<a href="/deck?id={{$.Deck.ID}}&edit_item_id={{.ID}}">Edit</a>
 			<form class="inline-delete" method="post" action="/item/delete" onsubmit="return confirm('Delete {{.Text}} from this deck?');">

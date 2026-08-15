@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
@@ -19,6 +20,7 @@ const (
 	defaultConfigPath    = "stoin-config.json"
 	defaultPhrasingPath  = "phrasing.json"
 	defaultHintIndexPath = ".stoin-runtime-hints.json"
+	defaultDailyNewLimit = 10
 	introRepetitions     = 5
 	recoveryPracticeDays = 5
 	reviewAllDueLimit    = 100
@@ -32,10 +34,12 @@ var scheduleDays = []int{1, 3, 7, 14, 30, 60, 120, 240}
 var assetFS embed.FS
 
 type App struct {
-	db           *sql.DB
-	templates    *template.Template
-	hints        *DictionaryHints
-	phrasingPath string
+	db            *sql.DB
+	templates     *template.Template
+	hints         *DictionaryHints
+	phrasingPath  string
+	dailyNewLimit int
+	now           func() time.Time
 }
 
 func main() {
@@ -44,12 +48,17 @@ func main() {
 	configPath := flag.String("config", defaultConfigPath, "Stoin config path for fallback dictionary hints")
 	hintIndexPath := flag.String("hint-index", defaultHintIndexPath, "Running Stoin process hint index path")
 	phrasingPath := flag.String("phrasing", defaultPhrasingPath, "Phrasing JSON path")
+	dailyNewLimit := flag.Int("daily-new-limit", defaultDailyNewLimit, "Combined daily new-card limit for Mandatories, Briefs, and Phrases")
 	flag.Parse()
+	if *dailyNewLimit < 0 {
+		log.Fatal("daily-new-limit must be zero or greater")
+	}
 
 	app, err := NewAppWithOptions(*dbPath, *phrasingPath, *configPath, *hintIndexPath)
 	if err != nil {
 		log.Fatal(err)
 	}
+	app.dailyNewLimit = *dailyNewLimit
 	defer app.db.Close()
 
 	mux := http.NewServeMux()
@@ -81,10 +90,12 @@ func NewAppWithOptions(dbPath string, phrasingPath string, configPath string, hi
 	}
 
 	app := &App{
-		db:           db,
-		templates:    templates,
-		hints:        NewDictionaryHints(configPath, hintIndexPath),
-		phrasingPath: phrasingPath,
+		db:            db,
+		templates:     templates,
+		hints:         NewDictionaryHints(configPath, hintIndexPath),
+		phrasingPath:  phrasingPath,
+		dailyNewLimit: defaultDailyNewLimit,
+		now:           time.Now,
 	}
 	if err := app.initSchema(context.Background()); err != nil {
 		db.Close()

@@ -19,6 +19,7 @@ type Group struct {
 	CreatedAt      string
 	LearningCount  int
 	IntroRemaining int
+	QueuedCount    int
 	Items          []Item
 }
 
@@ -35,6 +36,7 @@ type Item struct {
 	ReviewCount    int
 	CorrectCount   int
 	IncorrectCount int
+	Queued         bool
 }
 
 type ImportGroup struct {
@@ -67,6 +69,7 @@ type IndexPageData struct {
 	DueCount       int
 	LearningCount  int
 	IntroRemaining int
+	QueuedCount    int
 }
 
 type ImportFormData struct {
@@ -90,6 +93,7 @@ type DeckPageData struct {
 	DueCount       int
 	LearningCount  int
 	IntroRemaining int
+	QueuedCount    int
 }
 
 type SessionItem struct {
@@ -127,6 +131,7 @@ type SessionPageData struct {
 type LearningStats struct {
 	Count          int
 	IntroRemaining int
+	QueuedCount    int
 }
 
 type ReviewResult struct {

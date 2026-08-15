@@ -133,6 +133,7 @@
 | -PLSZ | myself |
 | -PL | me |
 | -L | all |
+| -LT | all the |
 | -PBTS | one |
 | -RPLG | who |
 | -BLG | what |
@@ -175,6 +176,7 @@
 | TKW | there (plural) | plural |
 | SKP | and | plural |
 | KW | who | third_singular |
+| KWR | who (plural) | plural |
 | TW | what | third_singular |
 | SW | someone | third_singular |
 | SPW | something | third_singular |
@@ -197,6 +199,7 @@
 | TPR | for | third_singular |
 | SKW | of | third_singular |
 | TKPWH | anything | third_singular |
+| TKPWHR | on | third_singular |
 | SR | as | third_singular |
 | SWR | even | third_singular |
 | WR | will | third_singular |

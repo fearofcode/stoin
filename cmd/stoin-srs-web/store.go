@@ -11,7 +11,7 @@ import (
 var (
 	ErrDuplicateDeck         = errors.New("deck name already exists")
 	ErrDuplicateItem         = errors.New("item already exists")
-	ErrReviewItemUnavailable = errors.New("review item belongs to a paused or missing deck")
+	ErrReviewItemUnavailable = errors.New("review item belongs to a paused or missing deck, or is still queued")
 )
 
 func (a *App) initSchema(ctx context.Context) error {
@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS items (
 	intro_remaining INTEGER NOT NULL DEFAULT 5,
 	schedule_stage INTEGER NOT NULL DEFAULT 0,
 	recovery_days_remaining INTEGER NOT NULL DEFAULT 0,
+	introduced_at TEXT,
 	interval_days REAL NOT NULL DEFAULT 0,
 	due_at TEXT NOT NULL,
 	review_count INTEGER NOT NULL DEFAULT 0,
@@ -89,7 +90,14 @@ CREATE INDEX IF NOT EXISTS idx_imports_deck ON imports(deck_id);
 	if err := a.ensureDeckPausedColumn(ctx); err != nil {
 		return err
 	}
-	return a.ensureItemRecoveryDaysColumn(ctx)
+	if err := a.ensureItemRecoveryDaysColumn(ctx); err != nil {
+		return err
+	}
+	if err := a.ensureItemIntroducedAtColumn(ctx); err != nil {
+		return err
+	}
+	_, err = a.db.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS idx_items_introduced ON items(introduced_at)`)
+	return err
 }
 
 // ensureDeckPausedColumn migrates databases created before deck pausing was
@@ -108,10 +116,54 @@ func (a *App) ensureItemRecoveryDaysColumn(ctx context.Context) error {
 	)
 }
 
-func (a *App) ensureColumn(ctx context.Context, table string, column string, definition string) error {
-	rows, err := a.db.QueryContext(ctx, `PRAGMA table_info(`+table+`)`)
+func (a *App) ensureItemIntroducedAtColumn(ctx context.Context) error {
+	found, err := a.hasColumn(ctx, "items", "introduced_at")
+	if err != nil || found {
+		return err
+	}
+
+	tx, err := a.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `ALTER TABLE items ADD COLUMN introduced_at TEXT`); err != nil {
+		return err
+	}
+	// Preserve cards that are mature, in recovery, or nearly through their
+	// initial repetitions. The old timestamp distinguishes these grandfathered
+	// cards from cards newly admitted today; they still occupy active learning
+	// capacity. Harder untouched cards in the limited groups enter the queue.
+	if _, err := tx.ExecContext(ctx, `
+UPDATE items
+SET introduced_at = CASE
+	WHEN intro_remaining > 2
+		AND recovery_days_remaining = 0
+		AND group_id IN (
+			SELECT id FROM groups
+			WHERE `+limitedNewCardGroupPredicate("")+`
+		)
+	THEN NULL
+	ELSE '1970-01-01T00:00:00Z'
+END`); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (a *App) ensureColumn(ctx context.Context, table string, column string, definition string) error {
+	found, err := a.hasColumn(ctx, table, column)
+	if err != nil || found {
+		return err
+	}
+	_, err = a.db.ExecContext(ctx, `ALTER TABLE `+table+` ADD COLUMN `+definition)
+	return err
+}
+
+func (a *App) hasColumn(ctx context.Context, table string, column string) (bool, error) {
+	rows, err := a.db.QueryContext(ctx, `PRAGMA table_info(`+table+`)`)
+	if err != nil {
+		return false, err
 	}
 
 	found := false
@@ -126,7 +178,7 @@ func (a *App) ensureColumn(ctx context.Context, table string, column string, def
 		)
 		if err := rows.Scan(&cid, &name, &typeName, &notNull, &defaultValue, &primaryKey); err != nil {
 			rows.Close()
-			return err
+			return false, err
 		}
 		if name == column {
 			found = true
@@ -134,17 +186,12 @@ func (a *App) ensureColumn(ctx context.Context, table string, column string, def
 	}
 	if err := rows.Err(); err != nil {
 		rows.Close()
-		return err
+		return false, err
 	}
 	if err := rows.Close(); err != nil {
-		return err
+		return false, err
 	}
-	if found {
-		return nil
-	}
-
-	_, err = a.db.ExecContext(ctx, `ALTER TABLE `+table+` ADD COLUMN `+definition)
-	return err
+	return found, nil
 }
 
 func (a *App) indexData(ctx context.Context, issues []ParseIssue, form ImportFormData) (IndexPageData, error) {
@@ -179,10 +226,14 @@ func (a *App) indexData(ctx context.Context, issues []ParseIssue, form ImportFor
 		DueCount:       dueCount,
 		LearningCount:  learning.Count,
 		IntroRemaining: learning.IntroRemaining,
+		QueuedCount:    learning.QueuedCount,
 	}, nil
 }
 
 func (a *App) deckData(ctx context.Context, deckID int64, issues []ParseIssue, form ImportFormData) (DeckPageData, error) {
+	if err := a.introduceDailyItems(ctx); err != nil {
+		return DeckPageData{}, err
+	}
 	deck, err := a.deckByID(ctx, deckID)
 	if err != nil {
 		return DeckPageData{}, err
@@ -213,6 +264,7 @@ func (a *App) deckData(ctx context.Context, deckID int64, issues []ParseIssue, f
 		DueCount:       dueCount,
 		LearningCount:  learning.Count,
 		IntroRemaining: learning.IntroRemaining,
+		QueuedCount:    learning.QueuedCount,
 	}, nil
 }
 
@@ -296,7 +348,8 @@ SELECT
 	i.due_at,
 	i.review_count,
 	i.correct_count,
-	i.incorrect_count
+	i.incorrect_count,
+	i.introduced_at
 FROM groups g
 LEFT JOIN items i ON i.group_id = g.id
 WHERE g.deck_id = ?
@@ -322,6 +375,7 @@ ORDER BY g.name, i.id`, deckID)
 			reviewCount    sql.NullInt64
 			correctCount   sql.NullInt64
 			incorrectCount sql.NullInt64
+			introducedAt   sql.NullString
 		)
 		if err := rows.Scan(
 			&groupID,
@@ -336,6 +390,7 @@ ORDER BY g.name, i.id`, deckID)
 			&reviewCount,
 			&correctCount,
 			&incorrectCount,
+			&introducedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -365,8 +420,11 @@ ORDER BY g.name, i.id`, deckID)
 				ReviewCount:    int(reviewCount.Int64),
 				CorrectCount:   int(correctCount.Int64),
 				IncorrectCount: int(incorrectCount.Int64),
+				Queued:         !introducedAt.Valid,
 			})
-			if introRemaining > 0 {
+			if !introducedAt.Valid {
+				groups[index].QueuedCount++
+			} else if introRemaining > 0 {
 				groups[index].LearningCount++
 				groups[index].IntroRemaining += introRemaining
 			}
@@ -376,7 +434,10 @@ ORDER BY g.name, i.id`, deckID)
 }
 
 func (a *App) countDue(ctx context.Context, deckID int64) (int, error) {
-	args := []any{formatDBTime(time.Now().UTC())}
+	if err := a.introduceDailyItems(ctx); err != nil {
+		return 0, err
+	}
+	args := []any{formatDBTime(a.currentTime().UTC())}
 	filter := " AND d.paused = 0"
 	if deckID > 0 {
 		filter = " AND g.deck_id = ?"
@@ -388,11 +449,15 @@ SELECT COUNT(*)
 FROM items i
 JOIN groups g ON g.id = i.group_id
 JOIN decks d ON d.id = g.deck_id
-WHERE (i.intro_remaining > 0 OR i.due_at <= ?)`+filter, args...).Scan(&count)
+WHERE i.introduced_at IS NOT NULL
+  AND (i.intro_remaining > 0 OR i.due_at <= ?)`+filter, args...).Scan(&count)
 	return count, err
 }
 
 func (a *App) learningStats(ctx context.Context, deckID int64) (LearningStats, error) {
+	if err := a.introduceDailyItems(ctx); err != nil {
+		return LearningStats{}, err
+	}
 	args := []any{}
 	filter := " AND d.paused = 0"
 	if deckID > 0 {
@@ -401,11 +466,14 @@ func (a *App) learningStats(ctx context.Context, deckID int64) (LearningStats, e
 	}
 	var stats LearningStats
 	err := a.db.QueryRowContext(ctx, `
-SELECT COUNT(*), COALESCE(SUM(i.intro_remaining), 0)
+SELECT
+	COALESCE(SUM(CASE WHEN i.introduced_at IS NOT NULL AND i.intro_remaining > 0 THEN 1 ELSE 0 END), 0),
+	COALESCE(SUM(CASE WHEN i.introduced_at IS NOT NULL THEN i.intro_remaining ELSE 0 END), 0),
+	COALESCE(SUM(CASE WHEN i.introduced_at IS NULL THEN 1 ELSE 0 END), 0)
 FROM items i
 JOIN groups g ON g.id = i.group_id
 JOIN decks d ON d.id = g.deck_id
-WHERE i.intro_remaining > 0`+filter, args...).Scan(&stats.Count, &stats.IntroRemaining)
+WHERE 1 = 1`+filter, args...).Scan(&stats.Count, &stats.IntroRemaining, &stats.QueuedCount)
 	return stats, err
 }
 
@@ -451,7 +519,7 @@ WHERE deck_id = ? AND name = ?`, deckID, name).Scan(&id)
 }
 
 func (a *App) ingestGroups(ctx context.Context, deckID int64, groups []ImportGroup, source string, contentHash string) (ImportStats, error) {
-	now := time.Now().UTC()
+	now := a.currentTime().UTC()
 	stats := ImportStats{Groups: len(groups)}
 
 	tx, err := a.db.BeginTx(ctx, nil)
@@ -503,6 +571,10 @@ VALUES(?, ?, ?, ?)`, deckID, groupID, source, formatDBTime(now))
 				stats.Existing++
 				continue
 			}
+			var introducedAt any = formatDBTime(now)
+			if isLimitedNewCardGroup(group.Name) {
+				introducedAt = nil
+			}
 			if _, err := tx.ExecContext(ctx, `
 INSERT INTO items(
 	group_id,
@@ -512,16 +584,18 @@ INSERT INTO items(
 	last_ingest_batch_id,
 	intro_remaining,
 	schedule_stage,
+	introduced_at,
 	interval_days,
 	due_at
 )
-VALUES(?, ?, ?, ?, ?, ?, 0, 0, ?)`,
+VALUES(?, ?, ?, ?, ?, ?, 0, ?, 0, ?)`,
 				groupID,
 				word,
 				formatDBTime(now),
 				formatDBTime(now),
 				batchID,
 				introRepetitions,
+				introducedAt,
 				formatDBTime(now),
 			); err != nil {
 				return stats, err
@@ -632,10 +706,16 @@ func (a *App) itemsByID(ctx context.Context, ids []int64) ([]SessionItem, error)
 }
 
 func (a *App) reviewItemsByID(ctx context.Context, ids []int64) ([]SessionItem, error) {
+	if err := a.introduceDailyItems(ctx); err != nil {
+		return nil, err
+	}
 	return a.itemsByIDFiltered(ctx, ids, true, false)
 }
 
 func (a *App) dueReviewItemsByID(ctx context.Context, ids []int64) ([]SessionItem, error) {
+	if err := a.introduceDailyItems(ctx); err != nil {
+		return nil, err
+	}
 	return a.itemsByIDFiltered(ctx, ids, true, true)
 }
 
@@ -651,12 +731,12 @@ func (a *App) itemsByIDFiltered(ctx context.Context, ids []int64, activeDecksOnl
 
 	activeFilter := ""
 	if activeDecksOnly {
-		activeFilter = " AND d.paused = 0"
+		activeFilter = " AND d.paused = 0 AND i.introduced_at IS NOT NULL"
 	}
 	dueFilter := ""
 	if dueOnly {
 		dueFilter = " AND (i.intro_remaining > 0 OR i.due_at <= ?)"
-		args = append(args, formatDBTime(time.Now().UTC()))
+		args = append(args, formatDBTime(a.currentTime().UTC()))
 	}
 	rows, err := a.db.QueryContext(ctx, `
 SELECT
@@ -695,6 +775,21 @@ WHERE i.id IN (`+placeholders+`)`+activeFilter+dueFilter, args...)
 }
 
 func (a *App) itemsForDeck(ctx context.Context, deckID int64) ([]SessionItem, error) {
+	return a.itemsForDeckFiltered(ctx, deckID, false)
+}
+
+func (a *App) reviewItemsForDeck(ctx context.Context, deckID int64) ([]SessionItem, error) {
+	if err := a.introduceDailyItems(ctx); err != nil {
+		return nil, err
+	}
+	return a.itemsForDeckFiltered(ctx, deckID, true)
+}
+
+func (a *App) itemsForDeckFiltered(ctx context.Context, deckID int64, review bool) ([]SessionItem, error) {
+	filter := ""
+	if review {
+		filter = " AND d.paused = 0 AND i.introduced_at IS NOT NULL"
+	}
 	rows, err := a.db.QueryContext(ctx, `
 SELECT
 	i.id,
@@ -704,7 +799,7 @@ SELECT
 FROM items i
 JOIN groups g ON g.id = i.group_id
 JOIN decks d ON d.id = g.deck_id
-WHERE d.id = ?
+WHERE d.id = ?`+filter+`
 ORDER BY g.name, i.id`, deckID)
 	if err != nil {
 		return nil, err
@@ -723,7 +818,10 @@ ORDER BY g.name, i.id`, deckID)
 }
 
 func (a *App) dueItems(ctx context.Context, deckID int64, limit int) ([]SessionItem, error) {
-	args := []any{formatDBTime(time.Now().UTC())}
+	if err := a.introduceDailyItems(ctx); err != nil {
+		return nil, err
+	}
+	args := []any{formatDBTime(a.currentTime().UTC())}
 	filter := ""
 	if deckID > 0 {
 		filter = " AND g.deck_id = ?"
@@ -740,6 +838,7 @@ FROM items i
 JOIN groups g ON g.id = i.group_id
 JOIN decks d ON d.id = g.deck_id
 WHERE d.paused = 0
+  AND i.introduced_at IS NOT NULL
   AND (i.intro_remaining > 0 OR i.due_at <= ?)`+filter+`
 ORDER BY i.due_at, i.id
 LIMIT ?`, args...)
@@ -764,11 +863,14 @@ func (a *App) applyReviewBatch(ctx context.Context, results []ReviewResult) erro
 }
 
 func (a *App) applyScheduledReviewBatch(ctx context.Context, results []ReviewResult) error {
+	if err := a.introduceDailyItems(ctx); err != nil {
+		return err
+	}
 	return a.applyReviewBatchFiltered(ctx, results, true)
 }
 
 func (a *App) applyReviewBatchFiltered(ctx context.Context, results []ReviewResult, activeDecksOnly bool) error {
-	now := time.Now().UTC()
+	now := a.currentTime().UTC()
 	tx, err := a.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -800,7 +902,7 @@ SELECT i.intro_remaining, i.schedule_stage, i.recovery_days_remaining
 FROM items i
 JOIN groups g ON g.id = i.group_id
 JOIN decks d ON d.id = g.deck_id
-WHERE i.id = ? AND d.paused = 0`
+WHERE i.id = ? AND d.paused = 0 AND i.introduced_at IS NOT NULL`
 	}
 	if err := tx.QueryRowContext(ctx, query, result.ItemID).Scan(
 		&introRemaining,

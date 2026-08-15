@@ -18,6 +18,20 @@ Use a custom database or address directly:
 go run ./cmd/stoin-srs-web --db practice.sqlite3 --addr 127.0.0.1:8090
 ```
 
+The app introduces at most 10 new cards per local calendar day from one shared
+pool of groups named `Mandatories`, `Briefs`, or `Phrases` (case-insensitive).
+Change that combined limit with `--daily-new-limit`; use `0` to keep all new
+cards queued:
+
+```sh
+go run ./cmd/stoin-srs-web --daily-new-limit 10
+```
+
+Cards already in introductory learning in those three groups consume the same
+capacity. If 10 or more are still learning, the app introduces no queued cards;
+as that backlog graduates, open slots can be filled without exceeding 10 newly
+introduced cards in the same day.
+
 While Stoin is running, it publishes `.stoin-runtime-hints.json` from its
 resolved in-memory dictionary stack and phrase generator. The SRS app prefers
 that index, so `--dictionary` and `--phrasing` arguments passed to Stoin, stack
@@ -108,16 +122,25 @@ Invalid imports show line-specific errors and do not create decks or words.
 The root page lists decks and has a button to review all due words across all
 decks. That cross-deck review pulls at most 100 words per session.
 
-Newly imported words are in a learning/intro state for 5 correct reviews. They
-still count as due during that phase, and the deck/root summaries show how many
-items are learning plus the total intro repetitions remaining.
+Newly imported words are in a learning/intro state for 5 correct reviews. New
+cards in `Mandatories`, `Briefs`, and `Phrases` share the daily introduction
+limit; cards beyond it remain visibly queued and do not enter scheduled review
+until a later day. Once admitted, a card never returns to the queue. New cards
+in other groups remain immediately available. Learning cards count as due, and
+the deck/root summaries show learning items, intro repetitions remaining, and
+queued cards.
+
+When an existing database is upgraded, cards in the limited groups with two or
+fewer intro repetitions left remain active. Mature cards and cards already in
+the recovery schedule also remain active; other cards with three or more intro
+repetitions left enter the daily queue.
 
 Each deck page shows groups and words. Select whole groups or individual words,
 then choose:
 
 - `Review selected`: saves all results in one batch when you submit at the end.
-- `Review all`: reviews every word in the deck without changing the current
-  checkbox selection.
+- `Review all`: reviews every introduced word in the deck without changing the
+  current checkbox selection; queued new cards remain excluded.
 - `Practice selected`: correct answers do not update due dates; hinted or
   skipped words reset to the intro schedule when the session is submitted.
 - `Practice all`: practices every word in the deck without changing the current

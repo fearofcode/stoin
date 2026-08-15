@@ -357,7 +357,11 @@ func (a *App) handleSessionStart(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, strings.ReplaceAll(rawMode, "_", " ")+" requires a deck", http.StatusBadRequest)
 			return
 		}
-		items, err = a.itemsForDeck(r.Context(), deckID)
+		if mode == "review" {
+			items, err = a.reviewItemsForDeck(r.Context(), deckID)
+		} else {
+			items, err = a.itemsForDeck(r.Context(), deckID)
+		}
 	} else {
 		var ids []int64
 		ids, err = selectedItemIDs(r)
@@ -469,7 +473,7 @@ func (a *App) handleSessionSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(activeItems) != len(reviewIDs) {
-		http.Error(w, "review contains words from a paused or missing deck", http.StatusBadRequest)
+		http.Error(w, "review contains unavailable or queued words", http.StatusBadRequest)
 		return
 	}
 
@@ -480,7 +484,7 @@ func (a *App) handleSessionSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := a.applyScheduledReviewBatch(r.Context(), results); err != nil {
 		if errors.Is(err, ErrReviewItemUnavailable) {
-			http.Error(w, "review contains words from a paused or missing deck", http.StatusBadRequest)
+			http.Error(w, "review contains unavailable or queued words", http.StatusBadRequest)
 			return
 		}
 		serverError(w, err)

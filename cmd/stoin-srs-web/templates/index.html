@@ -13,7 +13,7 @@
 	{{end}}
 	<form method="post" action="/session/review-all-due">
 		<button type="submit">Review all due across all decks</button>
-		<span class="small">{{.DueCount}} due now{{if gt .LearningCount 0}}, {{.LearningCount}} learning, {{.IntroRemaining}} intro reps left{{end}}; up to {{.DueLimit}} per session</span>
+		<span class="small">{{.DueCount}} due now{{if gt .LearningCount 0}}, {{.LearningCount}} learning, {{.IntroRemaining}} intro reps left{{end}}{{if gt .QueuedCount 0}}, {{.QueuedCount}} queued{{end}}; up to {{.DueLimit}} per session</span>
 	</form>
 	{{if .PausedDecks}}
 	<section class="paused-decks">

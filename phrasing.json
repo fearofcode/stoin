@@ -358,6 +358,11 @@
         "text": "all"
       },
       {
+        "id": "all_the",
+        "stroke": "-LT",
+        "text": "all the"
+      },
+      {
         "id": "one",
         "stroke": "-PBTS",
         "text": "one"
@@ -1956,6 +1961,13 @@
         "agreement": "third_singular"
       },
       {
+        "id": "who_plural",
+        "stroke": "KWR",
+        "text": "who",
+        "label": "who (plural)",
+        "agreement": "plural"
+      },
+      {
         "id": "what",
         "stroke": "TW",
         "text": "what",
@@ -2085,6 +2097,12 @@
         "id": "anything",
         "stroke": "TKPWH",
         "text": "anything",
+        "agreement": "third_singular"
+      },
+      {
+        "id": "on",
+        "stroke": "TKPWHR",
+        "text": "on",
         "agreement": "third_singular"
       },
       {
@@ -3569,6 +3587,11 @@
         "text": "all"
       },
       {
+        "id": "all_the",
+        "stroke": "-LT",
+        "text": "all the"
+      },
+      {
         "id": "one",
         "stroke": "-PBTS",
         "text": "one"
@@ -3699,6 +3722,10 @@
         "text": "who"
       },
       {
+        "stroke": "KWR",
+        "text": "who"
+      },
+      {
         "stroke": "TW",
         "text": "what"
       },
@@ -3785,6 +3812,10 @@
       {
         "stroke": "TKPWH",
         "text": "anything"
+      },
+      {
+        "stroke": "TKPWHR",
+        "text": "on"
       },
       {
         "stroke": "SR",

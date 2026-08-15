@@ -148,6 +148,297 @@ WHERE name = 'recovery_days_remaining'`).Scan(&defaultValue); err != nil {
 	}
 }
 
+func TestInitSchemaQueuesOnlyUnfinishedLimitedCards(t *testing.T) {
+	t.Parallel()
+	dbPath := filepath.Join(t.TempDir(), "legacy.sqlite3")
+	legacy, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := legacy.Exec(`
+CREATE TABLE decks (
+	id INTEGER PRIMARY KEY,
+	name TEXT NOT NULL UNIQUE,
+	created_at TEXT NOT NULL,
+	paused INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE groups (
+	id INTEGER PRIMARY KEY,
+	deck_id INTEGER NOT NULL,
+	name TEXT NOT NULL,
+	created_at TEXT NOT NULL,
+	UNIQUE(deck_id, name)
+);
+CREATE TABLE items (
+	id INTEGER PRIMARY KEY,
+	group_id INTEGER NOT NULL,
+	text TEXT NOT NULL,
+	created_at TEXT NOT NULL,
+	updated_at TEXT NOT NULL,
+	last_ingest_batch_id INTEGER,
+	intro_remaining INTEGER NOT NULL DEFAULT 5,
+	schedule_stage INTEGER NOT NULL DEFAULT 0,
+	recovery_days_remaining INTEGER NOT NULL DEFAULT 0,
+	interval_days REAL NOT NULL DEFAULT 0,
+	due_at TEXT NOT NULL,
+	review_count INTEGER NOT NULL DEFAULT 0,
+	correct_count INTEGER NOT NULL DEFAULT 0,
+	incorrect_count INTEGER NOT NULL DEFAULT 0,
+	UNIQUE(group_id, text)
+);
+INSERT INTO decks(id, name, created_at) VALUES(1, 'legacy deck', '2026-01-01T00:00:00Z');
+INSERT INTO groups(id, deck_id, name, created_at) VALUES
+	(1, 1, 'Phrases', '2026-01-01T00:00:00Z'),
+	(2, 1, 'words', '2026-01-01T00:00:00Z');
+INSERT INTO items(
+	id, group_id, text, created_at, updated_at, intro_remaining,
+	recovery_days_remaining, due_at
+) VALUES
+	(1, 1, 'nearly learned', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 2, 0, '2026-01-01T00:00:00Z'),
+	(2, 1, 'hard phrase', '2026-01-02T00:00:00Z', '2026-01-02T00:00:00Z', 4, 0, '2026-01-02T00:00:00Z'),
+	(3, 1, 'recovery phrase', '2026-01-03T00:00:00Z', '2026-01-03T00:00:00Z', 5, 3, '2026-01-03T00:00:00Z'),
+	(4, 2, 'ordinary word', '2026-01-04T00:00:00Z', '2026-01-04T00:00:00Z', 5, 0, '2026-01-04T00:00:00Z');`); err != nil {
+		legacy.Close()
+		t.Fatal(err)
+	}
+	if err := legacy.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	app, err := NewAppWithPhrasing(dbPath, "../../phrasing.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.db.Close()
+
+	rows, err := app.db.Query(`SELECT id, introduced_at FROM items ORDER BY id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	wantQueued := map[int64]bool{1: false, 2: true, 3: false, 4: false}
+	for rows.Next() {
+		var id int64
+		var introduced sql.NullString
+		if err := rows.Scan(&id, &introduced); err != nil {
+			t.Fatal(err)
+		}
+		if got := !introduced.Valid; got != wantQueued[id] {
+			t.Fatalf("item %d queued: want %v, got %v", id, wantQueued[id], got)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDailyNewLimitIsSharedAcrossLimitedGroups(t *testing.T) {
+	app := testApp(t)
+	ctx := context.Background()
+	location := time.FixedZone("PST", -8*60*60)
+	now := time.Date(2026, 2, 10, 8, 0, 0, 0, location)
+	app.now = func() time.Time { return now }
+	app.dailyNewLimit = 10
+
+	deckID, err := app.getOrCreateDeck(ctx, "new cards", now.UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	groups := []ImportGroup{
+		{Name: "Mandatories", Words: numberedWords("mandatory", 4)},
+		{Name: "Briefs", Words: numberedWords("brief", 4)},
+		{Name: "Phrases", Words: numberedWords("phrase", 4)},
+		{Name: "words", Words: []string{"ordinary"}},
+	}
+	if _, err := app.ingestGroups(ctx, deckID, groups, "test", "daily-limit"); err != nil {
+		t.Fatal(err)
+	}
+
+	items, err := app.dueItems(ctx, deckID, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 11 {
+		t.Fatalf("expected ten limited cards plus ordinary card, got %d", len(items))
+	}
+	stats, err := app.learningStats(ctx, deckID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stats.Count != 11 || stats.IntroRemaining != 55 || stats.QueuedCount != 2 {
+		t.Fatalf("unexpected first-day learning stats: %#v", stats)
+	}
+
+	items, err = app.dueItems(ctx, deckID, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 11 {
+		t.Fatalf("repeated lookup exceeded the same-day limit: got %d", len(items))
+	}
+
+	now = now.AddDate(0, 0, 1)
+	items, err = app.dueItems(ctx, deckID, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 11 {
+		t.Fatalf("expected the active learning load to block new day-two cards, got %d", len(items))
+	}
+	stats, err = app.learningStats(ctx, deckID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stats.QueuedCount != 2 {
+		t.Fatalf("expected two cards to remain queued behind the learning load, got %#v", stats)
+	}
+	if _, err := app.db.Exec(`
+UPDATE items
+SET intro_remaining = 0, due_at = '2027-01-01T00:00:00Z'
+WHERE introduced_at IS NOT NULL
+  AND group_id IN (
+	SELECT id FROM groups
+	WHERE ` + limitedNewCardGroupPredicate("") + `
+)`); err != nil {
+		t.Fatal(err)
+	}
+	stats, err = app.learningStats(ctx, deckID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stats.Count != 3 || stats.IntroRemaining != 15 || stats.QueuedCount != 0 {
+		t.Fatalf("expected open learning capacity to admit the final cards, got %#v", stats)
+	}
+}
+
+func TestExistingLearningCardsConsumeDailyNewCapacity(t *testing.T) {
+	app := testApp(t)
+	ctx := context.Background()
+	location := time.FixedZone("PDT", -7*60*60)
+	now := time.Date(2026, 8, 12, 9, 0, 0, 0, location)
+	app.now = func() time.Time { return now }
+	app.dailyNewLimit = 10
+
+	deckID, err := app.getOrCreateDeck(ctx, "learning backlog", now.UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.ingestGroups(ctx, deckID, []ImportGroup{{
+		Name: "Phrases", Words: numberedWords("phrase", 15),
+	}}, "test", "learning-backlog"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.db.Exec(`
+UPDATE items
+SET intro_remaining = 2, introduced_at = '1970-01-01T00:00:00Z'
+WHERE id IN (SELECT id FROM items ORDER BY id LIMIT 12)`); err != nil {
+		t.Fatal(err)
+	}
+	// Simulate the buggy version having admitted the remaining untouched cards
+	// today even though the existing learning backlog was already over limit.
+	if _, err := app.db.Exec(`
+UPDATE items
+SET introduced_at = ?
+WHERE introduced_at IS NULL`, formatDBTime(now.UTC())); err != nil {
+		t.Fatal(err)
+	}
+
+	items, err := app.dueItems(ctx, deckID, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 12 {
+		t.Fatalf("expected only the existing learning backlog, got %d cards", len(items))
+	}
+	stats, err := app.learningStats(ctx, deckID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stats.Count != 12 || stats.IntroRemaining != 24 || stats.QueuedCount != 3 {
+		t.Fatalf("unexpected repaired learning stats: %#v", stats)
+	}
+	var introducedToday int
+	dayStart, dayEnd := localDayBounds(now)
+	if err := app.db.QueryRow(`
+SELECT COUNT(*)
+FROM items
+WHERE introduced_at >= ? AND introduced_at < ?`,
+		formatDBTime(dayStart), formatDBTime(dayEnd),
+	).Scan(&introducedToday); err != nil {
+		t.Fatal(err)
+	}
+	if introducedToday != 0 {
+		t.Fatalf("expected untouched excess cards to return to queue, got %d introduced today", introducedToday)
+	}
+}
+
+func TestQueuedCardsCannotBypassScheduledReviewLimit(t *testing.T) {
+	app := testApp(t)
+	ctx := context.Background()
+	now := time.Date(2026, 3, 5, 9, 0, 0, 0, time.Local)
+	app.now = func() time.Time { return now }
+	app.dailyNewLimit = 1
+
+	deckID, err := app.getOrCreateDeck(ctx, "phrases", now.UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.ingestGroups(ctx, deckID, []ImportGroup{{
+		Name: "Phrases", Words: []string{"first phrase", "second phrase"},
+	}}, "test", "review-limit"); err != nil {
+		t.Fatal(err)
+	}
+
+	rows, err := app.db.Query(`SELECT id FROM items ORDER BY id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, id)
+	}
+	rows.Close()
+	if len(ids) != 2 {
+		t.Fatalf("expected two phrase cards, got %v", ids)
+	}
+
+	items, err := app.reviewItemsByID(ctx, ids)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected only one admitted review item, got %#v", items)
+	}
+	allReviewItems, err := app.reviewItemsForDeck(ctx, deckID)
+	if err != nil || len(allReviewItems) != 1 {
+		t.Fatalf("review all should exclude queued cards, got %#v, %v", allReviewItems, err)
+	}
+	admittedID := items[0].ID
+	queuedID := ids[0]
+	if queuedID == admittedID {
+		queuedID = ids[1]
+	}
+	if err := app.applyScheduledReviewBatch(ctx, []ReviewResult{{ItemID: queuedID, Correct: true}}); !errors.Is(err, ErrReviewItemUnavailable) {
+		t.Fatalf("expected queued review to be rejected, got %v", err)
+	}
+	practice, err := app.itemsByID(ctx, ids)
+	if err != nil || len(practice) != 2 {
+		t.Fatalf("practice should retain access to queued cards, got %#v, %v", practice, err)
+	}
+}
+
+func numberedWords(prefix string, count int) []string {
+	words := make([]string, count)
+	for i := range words {
+		words[i] = fmt.Sprintf("%s %d", prefix, i+1)
+	}
+	return words
+}
+
 func TestParseGroupedImportAllowsColonWordsAndGroupSpaces(t *testing.T) {
 	groups, issues := parseGroupedImport("common words:\na\nliteral:\nat\n\nbrief practice:\nis\nthe\n")
 	if len(issues) != 0 {
